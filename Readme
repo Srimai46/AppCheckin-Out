@@ -22,6 +22,7 @@ pnpm add bcrypt@6.0.0
 pnpm add jsonwebtoken@9.0.2
 pnpm add node-cron
 pnpm add -D nodemon
+pnpm install bcryptjs
 
 
 Git Clone
