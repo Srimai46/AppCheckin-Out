@@ -61,3 +61,26 @@ exports.getMe = async (req, res) => {
     res.status(404).json({ error: 'ไม่พบข้อมูลผู้ใช้' })
   }
 }
+
+exports.getAllEmployees = async (req, res) => {
+  try {
+    const employees = await prisma.employee.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        position: true,      // ถ้าใน Model มี (ถ้าไม่มีให้ลบออก)
+        department: true,    // ถ้าใน Model มี (ถ้าไม่มีให้ลบออก)
+        profileImageUrl: true,
+        joiningDate: true,
+        isActive: true
+      },
+      orderBy: { firstName: 'asc' }
+    })
+    res.json(employees)
+  } catch (error) {
+    res.status(500).json({ error: 'ดึงข้อมูลพนักงานไม่สำเร็จ' })
+  }
+}
