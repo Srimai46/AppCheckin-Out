@@ -4,7 +4,7 @@ const morgan = require('morgan')
 
 // Import Routes (เดี๋ยวเราจะมาสร้างไฟล์เหล่านี้ทีหลัง)
 const authRoutes = require('./routes/authRoutes')
-// const timeRecordRoutes = require('./routes/timeRecord')
+const timeRecordRoutes = require('./routes/timeRecordRoutes')
 // const leaveRoutes = require('./routes/leave')
 
 const app = express()
@@ -17,7 +17,7 @@ app.use(express.urlencoded({ extended: true }))
 
 // Routes Setup (Uncomment เมื่อสร้างไฟล์ Route แล้ว)
 app.use('/api/auth', authRoutes)
-// app.use('/api/attendance', timeRecordRoutes)
+app.use('/api/attendance', timeRecordRoutes)
 // app.use('/api/leaves', leaveRoutes)
 
 // Health Check
