@@ -66,19 +66,45 @@ pnpm add @fullcalendar/react@6 @fullcalendar/daygrid@6
 
 Folder 
 project-root/
-├── backend/
+backend/
+│   ├── prisma/
+│   │   ├── migrations/          # Folder ที่ Prisma สร้างให้อัตโนมัติ
+│   │   ├── schema.prisma        # Database Schema (Model หลักอยู่ที่นี่)
+│   │   └── seed.js              # Script สำหรับลงข้อมูลตัวอย่าง
+│   │
 │   ├── src/
-│   │   ├── config/              # config ต่าง ๆ เช่น env, JWT secret, DB
-│   │   ├── models/              # Prisma model wrapper (optional)
-│   │   ├── controllers/         # Logic สำหรับแต่ละ route เช่น login, leave
-│   │   ├── services/            # Business logic เช่น คำนวณ quota, ตรวจสอบสาย
-│   │   ├── routes/              # Express route เช่น /auth, /leave
-│   │   ├── middlewares/         # Auth, validation, error handler
-│   │   ├── utils/               # ฟังก์ชันช่วย เช่น formatDate, sendNotification
-│   │   ├── sockets/             # socket.io config และ event handler
-│   │   ├── jobs/                # node-cron job เช่น ตรวจสอบสาย
-│   │   └── app.js               # Express app setup
-│   └── server.js                # Entry point
+│   │   ├── config/
+│   │   │   └── prisma.js        # Config Prisma Client Instance
+│   │   │
+│   │   ├── controllers/         # Logic การทำงานหลัก
+│   │   │   ├── authController.js         # Login, GetMe
+│   │   │   ├── leaveController.js        # ขอลา, อนุมัติ, แจ้งเตือน
+│   │   │   ├── notificationController.js # ดึงแจ้งเตือน, กดอ่าน
+│   │   │   └── timeRecordController.js   # เข้างาน/ออกงาน, เช็คสาย
+│   │   │
+│   │   ├── routes/              # เส้นทาง API
+│   │   │   ├── authRoutes.js
+│   │   │   ├── leaveRoutes.js
+│   │   │   ├── notificationRoutes.js
+│   │   │   └── timeRecordRoutes.js
+│   │   │
+│   │   ├── middlewares/
+│   │   │   └── authMiddleware.js # ตรวจสอบ Token (Protect Route)
+│   │   │
+│   │   ├── utils/
+│   │   │   └── generateToken.js  # ฟังก์ชันสร้าง JWT
+│   │   │
+│   │   ├── sockets/
+│   │   │   └── socketHandler.js  # จัดการ Connection ของ Socket.io
+│   │   │
+│   │   ├── jobs/
+│   │   │   └── attendanceJob.js  # Cron Job ตรวจคนมาสาย/ขาดงาน
+│   │   │
+│   │   └── app.js                # Express Setup (รวม Routes)
+│   │
+│   ├── .env                      # Config DB, Port, Secret
+│   ├── package.json
+│   └── server.js                 # Entry Point (HTTP Server + Socket Init)
 │
 ├── frontend/
 │   ├── src/
