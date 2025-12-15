@@ -4,28 +4,19 @@ const prisma = require('../config/prisma')
 // ส่วนของ Worker (พนักงานทั่วไป)
 // ---------------------------------------------------------
 
-// 1. ดึงข้อมูลโควต้าวันลาคงเหลือของตัวเอง
 exports.getMyQuotas = async (req, res) => {
   try {
     const currentYear = new Date().getFullYear()
-    
-    // ดึงโควต้าทั้งหมดของปีนี้ + ข้อมูลประเภทการลา
     const quotas = await prisma.leaveQuota.findMany({
-      where: {
-        employeeId: req.user.id,
-        year: currentYear
-      },
-      include: {
-        leaveType: true // join เอาชื่อประเภทการลามาด้วย
-      }
+      where: { employeeId: req.user.id, year: currentYear },
+      include: { leaveType: true }
     })
 
-    // คำนวณยอดคงเหลือส่งกลับไปให้ Frontend
     const result = quotas.map(q => ({
         type: q.leaveType.typeName,
         total: q.totalDays,
         used: q.usedDays,
-        remaining: Number(q.totalDays) - Number(q.usedDays) // คำนวณตรงนี้เลย
+        remaining: Number(q.totalDays) - Number(q.usedDays)
     }))
 
     res.json(result)
@@ -34,27 +25,20 @@ exports.getMyQuotas = async (req, res) => {
   }
 }
 
-// 2. สร้างคำขอลาใหม่ (Submit Leave Request)
 exports.createLeaveRequest = async (req, res) => {
   try {
     const { 
-        leaveTypeId, 
-        startDate, 
-        endDate, 
-        totalDaysRequested, // รับจำนวนวันมาจาก Frontend (เช่น 0.5, 1, 2.5)
-        reason,
-        startDuration, // Full, HalfMorning, HalfAfternoon
-        endDuration 
+        leaveTypeId, startDate, endDate, totalDaysRequested, 
+        reason, startDuration, endDuration 
     } = req.body
 
     const userId = req.user.id
     const currentYear = new Date().getFullYear()
 
-    // --- Validation 1: ตรวจสอบโควต้า ---
-    // ดึงโควต้าของประเภทลานั้นๆ มาเช็คก่อน
+    // --- Validation ---
     const quota = await prisma.leaveQuota.findUnique({
         where: {
-            employeeId_leaveTypeId_year: { // ใช้ Composite Key ที่เราตั้งไว้
+            employeeId_leaveTypeId_year: {
                 employeeId: userId,
                 leaveTypeId: leaveTypeId,
                 year: currentYear
@@ -62,25 +46,20 @@ exports.createLeaveRequest = async (req, res) => {
         }
     })
 
-    if (!quota) {
-        return res.status(400).json({ error: 'ไม่พบโควต้าวันลาสำหรับปีนี้' })
-    }
+    if (!quota) return res.status(400).json({ error: 'ไม่พบโควต้าวันลาสำหรับปีนี้' })
 
-    // คำนวณวันคงเหลือ
     const remaining = Number(quota.totalDays) - Number(quota.usedDays)
-    
     if (remaining < totalDaysRequested) {
         return res.status(400).json({ 
             error: `วันลาคงเหลือไม่พอ (เหลือ ${remaining} วัน, ขอมา ${totalDaysRequested} วัน)` 
         })
     }
 
-    // --- Validation 2: วันที่เริ่มต้องไม่มากกว่าวันจบ ---
     if (new Date(startDate) > new Date(endDate)) {
         return res.status(400).json({ error: 'วันที่เริ่มต้นต้องมาก่อนวันที่สิ้นสุด' })
     }
 
-    // --- บันทึกคำขอ (สถานะเริ่มต้นเป็น Pending) ---
+    // --- Create Request ---
     const newRequest = await prisma.leaveRequest.create({
         data: {
             employeeId: userId,
@@ -95,12 +74,10 @@ exports.createLeaveRequest = async (req, res) => {
         }
     })
 
-    // --- [เพิ่มใหม่] ค้นหา HR ทุกคนเพื่อแจ้งเตือน ---
-    const hrUsers = await prisma.employee.findMany({
-        where: { role: 'HR' }
-    })
+    // --- Notification & Socket.io ---
+    const hrUsers = await prisma.employee.findMany({ where: { role: 'HR' } })
 
-    // สร้าง Notification ให้ HR ทุกคน
+    // 1. Save to DB
     const notifications = hrUsers.map(hr => ({
         employeeId: hr.id,
         notificationType: 'NewRequest',
@@ -109,8 +86,16 @@ exports.createLeaveRequest = async (req, res) => {
     }))
 
     if (notifications.length > 0) {
-        await prisma.notification.createMany({
-            data: notifications
+        await prisma.notification.createMany({ data: notifications })
+        
+        // 2. [เพิ่มใหม่] Real-time Emit หา HR ทุกคน
+        const io = req.app.get('io')
+        hrUsers.forEach(hr => {
+            io.to(`user_${hr.id}`).emit('notification', {
+                type: 'NewRequest',
+                message: `มีคำขอลาใหม่จากคุณ ${req.user.firstName} ${req.user.lastName}`,
+                data: newRequest
+            })
         })
     }
 
@@ -122,7 +107,6 @@ exports.createLeaveRequest = async (req, res) => {
   }
 }
 
-// 3. ดูประวัติการลาของตัวเอง
 exports.getMyLeaves = async (req, res) => {
     try {
         const leaves = await prisma.leaveRequest.findMany({
@@ -140,18 +124,15 @@ exports.getMyLeaves = async (req, res) => {
 // ส่วนของ HR (ผู้จัดการ)
 // ---------------------------------------------------------
 
-// 4. ดูรายการที่รออนุมัติทั้งหมด (HR Only)
 exports.getPendingRequests = async (req, res) => {
     try {
         const requests = await prisma.leaveRequest.findMany({
             where: { status: 'Pending' },
             include: {
-                employee: { // Join เอาชื่อคนขอมาดูด้วย
-                    select: { firstName: true, lastName: true, profileImageUrl: true }
-                },
+                employee: { select: { firstName: true, lastName: true, profileImageUrl: true } },
                 leaveType: true
             },
-            orderBy: { requestedAt: 'asc' } // มาก่อนได้ก่อน
+            orderBy: { requestedAt: 'asc' }
         })
         res.json(requests)
     } catch (error) {
@@ -159,39 +140,30 @@ exports.getPendingRequests = async (req, res) => {
     }
 }
 
-// 5. อนุมัติ/ไม่อนุมัติ (Approve/Reject)
 exports.updateLeaveStatus = async (req, res) => {
-    // ใช้ Transaction เพื่อความชัวร์ (ถ้า Update Quota พัง สถานะต้องไม่เปลี่ยน)
     try {
-        const { requestId, status, rejectReason } = req.body // status = 'Approved' หรือ 'Rejected'
+        const { requestId, status, rejectReason } = req.body 
         const hrId = req.user.id
 
-        // หา Request เก่ามาก่อน
-        const request = await prisma.leaveRequest.findUnique({
-            where: { id: requestId }
-        })
+        const request = await prisma.leaveRequest.findUnique({ where: { id: requestId } })
 
         if (!request) return res.status(404).json({ error: 'ไม่พบคำขอนี้' })
         if (request.status !== 'Pending') return res.status(400).json({ error: 'รายการนี้ถูกดำเนินการไปแล้ว' })
 
-        // เริ่ม Transaction
         await prisma.$transaction(async (tx) => {
-            
-            // 1. อัปเดตสถานะใน LeaveRequest
+            // 1. Update Status
             await tx.leaveRequest.update({
                 where: { id: requestId },
                 data: {
                     status: status,
                     approvedByHrId: hrId,
                     approvalDate: new Date(),
-                    // ถ้า Rejected อาจจะเก็บเหตุผลไว้ใน field reason หรือสร้าง field ใหม่ก็ได้
                 }
             })
 
-            // 2. ถ้า "อนุมัติ" (Approved) ต้องไปตัดโควต้า (LeaveQuota)
+            // 2. Cut Quota (if Approved)
             if (status === 'Approved') {
                 const currentYear = new Date().getFullYear()
-                
                 await tx.leaveQuota.update({
                     where: {
                         employeeId_leaveTypeId_year: {
@@ -200,15 +172,11 @@ exports.updateLeaveStatus = async (req, res) => {
                             year: currentYear
                         }
                     },
-                    data: {
-                        usedDays: {
-                            increment: request.totalDaysRequested // บวกยอดใช้วันลาเพิ่มเข้าไป
-                        }
-                    }
+                    data: { usedDays: { increment: request.totalDaysRequested } }
                 })
             }
             
-            // --- [เพิ่มใหม่] 3. สร้าง Notification แจ้งเตือนกลับไปหาพนักงาน ---
+            // 3. Notification Logic
             let notiMessage = ''
             let notiType = 'Approval'
 
@@ -220,14 +188,24 @@ exports.updateLeaveStatus = async (req, res) => {
                 notiType = 'Rejection'
             }
 
+            // Save to DB
             await tx.notification.create({
                 data: {
-                    employeeId: request.employeeId, // ส่งกลับหาคนขอ
+                    employeeId: request.employeeId,
                     notificationType: notiType,
                     message: notiMessage,
                     relatedRequestId: requestId,
                     isRead: false
                 }
+            })
+
+            // 4. [เพิ่มใหม่] Real-time Emit หาพนักงาน
+            // (ต้องเรียก io นอก scope tx แต่ในนี้ req.app เรียกใช้ได้เลย)
+            const io = req.app.get('io')
+            io.to(`user_${request.employeeId}`).emit('notification', {
+                type: notiType,
+                message: notiMessage,
+                requestId: requestId
             })
         })
 
