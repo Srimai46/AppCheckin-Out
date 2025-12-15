@@ -1,21 +1,35 @@
 const prisma = require('../config/prisma')
 
-// ตั้งเวลาเข้างานปกติ (สมมติว่าเป็น 09:00 น.)
-const WORK_START_TIME = '09:00:00'
+// ตั้งเวลาเข้างานปกติ (09:00 น.)
+const WORK_START_HOUR = 9
+const WORK_START_MINUTE = 0
+
+// Helper Function: แปลงเวลาปัจจุบันเป็น Date Object ของไทย (เอาไว้คำนวณ)
+const getThaiDate = () => {
+    return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
+}
 
 exports.checkIn = async (req, res) => {
   try {
-    const userId = req.user.id // ได้มาจาก Auth Middleware
+    const userId = req.user.id
 
-    // 1. เช็คว่าวันนี้ Check-in ไปหรือยัง?
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    // 1. หาจุดเริ่มต้นของวัน (00:00:00 ไทย)
+    // เทคนิค: แปลงเวลาปัจจุบันเป็น String แบบไทย -> สร้าง Date ใหม่ -> เซ็ตเวลาเป็น 0
+    const now = new Date(); // เวลาปัจจุบัน (UTC จริง)
     
+    // สร้างตัวแปรเวลาที่อิงตามปฏิทินไทย
+    const thaiNow = getThaiDate(); 
+    
+    const todayStart = new Date(thaiNow);
+    todayStart.setHours(0, 0, 0, 0); 
+    // หมายเหตุ: Prisma จะแปลง todayStart กลับเป็น UTC เพื่อ query DB อัตโนมัติ
+
+    // เช็คว่าวันนี้ (ตามเวลาไทย) ลงไปรึยัง
     const existingRecord = await prisma.timeRecord.findFirst({
       where: {
         employeeId: userId,
         workDate: {
-          gte: todayStart, // มากกว่าหรือเท่ากับ 00:00 วันนี้
+          gte: todayStart, 
         }
       }
     })
@@ -25,30 +39,36 @@ exports.checkIn = async (req, res) => {
     }
 
     // 2. คำนวณว่าสายหรือไม่ (Check Late)
-    const now = new Date()
-    // สร้างเวลา 09:00 ของวันนี้เพื่อเปรียบเทียบ
-    const workStartTime = new Date()
-    workStartTime.setHours(9, 0, 0, 0)
+    // สร้างเวลา 09:00 ของวันนี้ (ตามเวลาไทย)
+    const workStartTime = new Date(todayStart);
+    workStartTime.setHours(WORK_START_HOUR, WORK_START_MINUTE, 0, 0);
 
-    const isLate = now > workStartTime
+    // เปรียบเทียบเวลา: ต้องเทียบ thaiNow (เวลาปัจจุบันในบริบทไทย) กับ workStartTime (09:00 ไทย)
+    const isLate = thaiNow > workStartTime;
 
-    // 3. บันทึกข้อมูล
+    // 3. บันทึกข้อมูล (ลง DB เป็น UTC ตามมาตรฐาน Prisma)
     const record = await prisma.timeRecord.create({
       data: {
         employeeId: userId,
-        workDate: now,
-        checkInTime: now,
+        workDate: now,     // วันที่ทำงาน
+        checkInTime: now,  // เวลาเช็คอิน
         isLate: isLate
       }
     })
 
-    // --- [เพิ่มใหม่] ถ้ามาสาย ให้แจ้งเตือน HR ทันที ---
+    // --- แจ้งเตือน HR ถ้ามาสาย ---
     if (isLate) {
-        // 1. หา HR ทั้งหมด
         const hrUsers = await prisma.employee.findMany({ where: { role: 'HR' } })
-        const lateMessage = `คุณ ${req.user.firstName} ${req.user.lastName} เข้างานสาย (${now.toLocaleTimeString('th-TH')})`
+        
+        // จัดรูปแบบเวลาไทยสวยๆ สำหรับข้อความ (เช่น 09:15:30)
+        const thaiTimeStr = now.toLocaleTimeString('th-TH', { 
+            timeZone: 'Asia/Bangkok',
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
 
-        // 2. สร้าง Notification ใน DB
+        const lateMessage = `คุณ ${req.user.firstName} ${req.user.lastName} เข้างานสาย (${thaiTimeStr})`
+
         const notifications = hrUsers.map(hr => ({
             employeeId: hr.id,
             notificationType: 'LateWarning',
@@ -59,7 +79,6 @@ exports.checkIn = async (req, res) => {
         if (notifications.length > 0) {
             await prisma.notification.createMany({ data: notifications })
 
-            // 3. ส่ง Socket บอก HR Real-time
             const io = req.app.get('io')
             if (io) {
                 hrUsers.forEach(hr => {
@@ -72,7 +91,6 @@ exports.checkIn = async (req, res) => {
             }
         }
     }
-    // -----------------------------------------------------
 
     res.status(201).json({ 
         message: isLate ? 'ลงเวลาเข้างานสำเร็จ (สาย)' : 'ลงเวลาเข้างานสำเร็จ', 
@@ -90,9 +108,10 @@ exports.checkOut = async (req, res) => {
     const userId = req.user.id
     const now = new Date()
 
-    // 1. หา Record ของวันนี้ล่าสุด
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    // 1. หา Record ของวันนี้ (00:00 ไทย)
+    const thaiNow = getThaiDate();
+    const todayStart = new Date(thaiNow);
+    todayStart.setHours(0, 0, 0, 0);
 
     const record = await prisma.timeRecord.findFirst({
       where: {
@@ -125,13 +144,12 @@ exports.checkOut = async (req, res) => {
   }
 }
 
-// ดูประวัติของตัวเอง
 exports.getMyHistory = async (req, res) => {
     try {
         const history = await prisma.timeRecord.findMany({
             where: { employeeId: req.user.id },
             orderBy: { workDate: 'desc' },
-            take: 30 // เอาแค่ 30 วันล่าสุด
+            take: 30
         })
         res.json(history)
     } catch (error) {
