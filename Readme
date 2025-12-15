@@ -69,7 +69,6 @@ project-root/
 ├── backend/
 │   ├── src/
 │   │   ├── config/              # config ต่าง ๆ เช่น env, JWT secret, DB
-│   │   ├── prisma/              # schema.prisma + migration
 │   │   ├── models/              # Prisma model wrapper (optional)
 │   │   ├── controllers/         # Logic สำหรับแต่ละ route เช่น login, leave
 │   │   ├── services/            # Business logic เช่น คำนวณ quota, ตรวจสอบสาย

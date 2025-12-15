@@ -75,9 +75,10 @@ exports.createLeaveRequest = async (req, res) => {
     })
 
     // --- Notification & Socket.io ---
+    // 1. หา HR ทั้งหมด
     const hrUsers = await prisma.employee.findMany({ where: { role: 'HR' } })
 
-    // 1. Save to DB
+    // 2. เตรียมข้อมูล Notification
     const notifications = hrUsers.map(hr => ({
         employeeId: hr.id,
         notificationType: 'NewRequest',
@@ -86,9 +87,10 @@ exports.createLeaveRequest = async (req, res) => {
     }))
 
     if (notifications.length > 0) {
+        // 3. Save to DB
         await prisma.notification.createMany({ data: notifications })
         
-        // 2. [เพิ่มใหม่] Real-time Emit หา HR ทุกคน
+        // 4. Real-time Emit หา HR ทุกคน
         const io = req.app.get('io')
         hrUsers.forEach(hr => {
             io.to(`user_${hr.id}`).emit('notification', {
@@ -199,8 +201,7 @@ exports.updateLeaveStatus = async (req, res) => {
                 }
             })
 
-            // 4. [เพิ่มใหม่] Real-time Emit หาพนักงาน
-            // (ต้องเรียก io นอก scope tx แต่ในนี้ req.app เรียกใช้ได้เลย)
+            // 4. Real-time Emit หาพนักงาน
             const io = req.app.get('io')
             io.to(`user_${request.employeeId}`).emit('notification', {
                 type: notiType,

@@ -42,8 +42,40 @@ exports.checkIn = async (req, res) => {
       }
     })
 
+    // --- [เพิ่มใหม่] ถ้ามาสาย ให้แจ้งเตือน HR ทันที ---
+    if (isLate) {
+        // 1. หา HR ทั้งหมด
+        const hrUsers = await prisma.employee.findMany({ where: { role: 'HR' } })
+        const lateMessage = `คุณ ${req.user.firstName} ${req.user.lastName} เข้างานสาย (${now.toLocaleTimeString('th-TH')})`
+
+        // 2. สร้าง Notification ใน DB
+        const notifications = hrUsers.map(hr => ({
+            employeeId: hr.id,
+            notificationType: 'LateWarning',
+            message: lateMessage,
+            isRead: false
+        }))
+
+        if (notifications.length > 0) {
+            await prisma.notification.createMany({ data: notifications })
+
+            // 3. ส่ง Socket บอก HR Real-time
+            const io = req.app.get('io')
+            if (io) {
+                hrUsers.forEach(hr => {
+                    io.to(`user_${hr.id}`).emit('notification', {
+                        type: 'LateWarning',
+                        message: lateMessage,
+                        timestamp: now
+                    })
+                })
+            }
+        }
+    }
+    // -----------------------------------------------------
+
     res.status(201).json({ 
-        message: 'ลงเวลาเข้างานสำเร็จ', 
+        message: isLate ? 'ลงเวลาเข้างานสำเร็จ (สาย)' : 'ลงเวลาเข้างานสำเร็จ', 
         data: record 
     })
 

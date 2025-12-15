@@ -28,10 +28,19 @@ exports.markAsRead = async (req, res) => {
   try {
     const { id } = req.params // รับ notification_id
 
-    await prisma.notification.update({
-      where: { id: Number(id) },
+    // ใช้ updateMany แทน update เพื่อให้ใส่เงื่อนไข employeeId ได้
+    // (เป็นการป้องกันไม่ให้ไปกดอ่านแจ้งเตือนของคนอื่น)
+    const result = await prisma.notification.updateMany({
+      where: { 
+        id: Number(id),
+        employeeId: req.user.id // <--- ต้องเป็นของฉันเท่านั้น
+      },
       data: { isRead: true }
     })
+
+    if (result.count === 0) {
+        return res.status(404).json({ error: 'ไม่พบการแจ้งเตือน หรือคุณไม่มีสิทธิ์' })
+    }
 
     res.json({ message: 'อ่านแล้ว' })
   } catch (error) {
