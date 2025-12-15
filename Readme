@@ -35,18 +35,18 @@ pnpm prisma generate
 
 Frontend Tool
 
-React 			     | V18.2.0^			
-React DOM 		     | V18.2.0^		
-React Router DOM 	     | V6.22.0^		 
+React 			             | V18.2.0^			
+React DOM 		             | V18.2.0^		
+React Router DOM 	         | V6.22.0^		 
 React Query (TanStack Query) | V5.x		
-React Hook Form		     | V7.x		
-Vite 			     | V5^		
-Axios			     | V1.13.2 		
-Zod			     | 			
-socket.io-client	     | V4.8.1		
+React Hook Form		         | V7.x		
+Vite 			             | V5^		
+Axios			             | V1.13.2 		
+Zod			                 | 			
+socket.io-client	         | V4.8.1		
 Day.js                       			
-react-toastify		     | V9.x		
-FullCalendar		     | V6.x		
+react-toastify		         | V9.x		
+FullCalendar		         | V6.x		
 CSS ? 
 { อาจจะมีเพิ่ม }
 
@@ -62,6 +62,42 @@ pnpm add socket.io-client@4.8.1
 pnpm add dayjs
 pnpm add react-toastify@9
 pnpm add @fullcalendar/react@6 @fullcalendar/daygrid@6
+
+
+Folder 
+project-root/
+├── backend/
+│   ├── src/
+│   │   ├── config/              # config ต่าง ๆ เช่น env, JWT secret, DB
+│   │   ├── prisma/              # schema.prisma + migration
+│   │   ├── models/              # Prisma model wrapper (optional)
+│   │   ├── controllers/         # Logic สำหรับแต่ละ route เช่น login, leave
+│   │   ├── services/            # Business logic เช่น คำนวณ quota, ตรวจสอบสาย
+│   │   ├── routes/              # Express route เช่น /auth, /leave
+│   │   ├── middlewares/         # Auth, validation, error handler
+│   │   ├── utils/               # ฟังก์ชันช่วย เช่น formatDate, sendNotification
+│   │   ├── sockets/             # socket.io config และ event handler
+│   │   ├── jobs/                # node-cron job เช่น ตรวจสอบสาย
+│   │   └── app.js               # Express app setup
+│   └── server.js                # Entry point
+│
+├── frontend/
+│   ├── src/
+│   │   ├── assets/              # รูปภาพ, CSS, icons
+│   │   ├── components/          # UI component เช่น Button, Modal, Form
+│   │   ├── pages/               # หน้า Login, Dashboard, LeaveForm
+│   │   ├── hooks/               # custom hook เช่น useAuth, useLeave
+│   │   ├── context/             # global state เช่น AuthContext
+│   │   ├── router/              # React Router config
+│   │   ├── api/                 # axios instance + service call
+│   │   ├── utils/               # ฟังก์ชันช่วย เช่น formatDate, quotaCalc
+│   │   ├── styles/              # global CSS หรือ Tailwind config
+│   │   └── main.jsx             # Entry point
+│   └── index.html               # Template HTML
+│
+├── .env                         # Environment variables
+├── package.json                 # Dependency ทั้ง backend + frontend
+└── README.md                    # คู่มือโปรเจกต์
 
 Git Clone 
 
