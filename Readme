@@ -3,10 +3,10 @@ Backend Tool ที่ใช้
 pnpm
 NodeJS         		     | V20		
 Express.js   		     | V4.18.2		
-Prisma 			     | V5.15.0		
+Prisma 			         | V5.15.0		
 Prisma/Client 		     | V5.15.0		
 Zod						
-socket.io 		     | V4.8.1    	
+socket.io 		         | V4.8.1    	
 bcrypt 		             | V6.0.0          	
 JWTtolken 	             | V9.0.2     	
 node-cron					
