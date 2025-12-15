@@ -1,14 +1,145 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// schema.prisma
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+enum Role {
+  Worker
+  HR
+}
+
+enum LeaveDuration {
+  Full
+  HalfMorning
+  HalfAfternoon
+}
+
+enum RequestStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+enum NotificationType {
+  NewRequest
+  Approval
+  Rejection
+  LateWarning
+}
+
+model Employee {
+  id              Int       @id @default(autoincrement()) @map("employee_id")
+  firstName       String    @map("first_name") @db.VarChar(100)
+  lastName        String    @map("last_name") @db.VarChar(100)
+  email           String    @unique @db.VarChar(255)
+  passwordHash    String    @map("password_hash") @db.VarChar(255)
+  role            Role
+  joiningDate     DateTime  @map("joining_date") @db.Date
+  resignationDate DateTime? @map("resignation_date") @db.Date
+  isActive        Boolean   @default(true) @map("is_active")
+  profileImageUrl String?   @map("profile_image_url") @db.VarChar(255)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  leaveQuotas             LeaveQuota[]
+  timeRecords             TimeRecord[]
+  leaveRequestsAsEmployee LeaveRequest[] @relation("EmployeeRequests")
+  leaveRequestsAsHr       LeaveRequest[] @relation("HrApprovals")
+  notifications           Notification[]
+
+  @@map("employees")
+}
+
+model LeaveType {
+  id       Int     @id @default(autoincrement()) @map("leave_type_id")
+  typeName String  @unique @map("type_name") @db.VarChar(100)
+  isPaid   Boolean @default(true) @map("is_paid")
+
+  leaveQuotas   LeaveQuota[]
+  leaveRequests LeaveRequest[]
+
+  @@map("leave_types")
+}
+
+model LeaveQuota {
+  id          Int     @id @default(autoincrement()) @map("quota_id")
+  employeeId  Int     @map("employee_id")
+  leaveTypeId Int     @map("leave_type_id")
+  year        Int     @db.Year
+  totalDays   Decimal @default(0.00) @map("total_days") @db.Decimal(5, 2)
+  usedDays    Decimal @default(0.00) @map("used_days") @db.Decimal(5, 2)
+
+  employee  Employee  @relation(fields: [employeeId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@map("leave_quotas")
+}
+
+model TimeRecord {
+  id           Int       @id @default(autoincrement()) @map("record_id")
+  employeeId   Int       @map("employee_id")
+  workDate     DateTime  @map("work_date") @db.Date
+  checkInTime  DateTime  @map("check_in_time")
+  checkOutTime DateTime? @map("check_out_time")
+  isLate       Boolean   @default(false) @map("is_late")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("time_records")
+}
+
+model LeaveRequest {
+  id                 Int      @id @default(autoincrement()) @map("request_id")
+  employeeId         Int      @map("employee_id")
+  leaveTypeId        Int      @map("leave_type_id")
+  startDate          DateTime @map("start_date") @db.Date
+  endDate            DateTime @map("end_date") @db.Date
+  totalDaysRequested Decimal  @map("total_days_requested") @db.Decimal(4, 2)
+
+  // ใช้ Enum ที่สร้างด้านบน
+  startDuration LeaveDuration @map("start_duration")
+  endDuration   LeaveDuration @map("end_duration")
+
+  reason      String?       @db.Text
+  status      RequestStatus @map("status")
+  requestedAt    DateTime  @default(now()) @map("requested_at")
+
+  approvedByHrId Int?      @map("approved_by_hr_id")
+  approvalDate   DateTime? @map("approval_date")
+  // Relations
+  // 1. ความสัมพันธ์กับคนขอลา (ตั้งชื่อว่า "EmployeeRequests")
+  employee       Employee  @relation("EmployeeRequests", fields: [employeeId], references: [id])
+
+  // 2. ความสัมพันธ์กับประเภทการลา
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  // 3. ความสัมพันธ์กับ HR ผู้อนุมัติ (ตั้งชื่อว่า "HrApprovals")
+  approvedByHr Employee? @relation("HrApprovals", fields: [approvedByHrId], references: [id])
+
+  notifications Notification[]
+
+  @@map("leave_requests")
+}
+
+model Notification {
+  id               Int              @id @default(autoincrement()) @map("notification_id")
+  employeeId       Int              @map("employee_id")
+  notificationType NotificationType @map("notification_type")
+  message          String           @db.VarChar(500)
+  relatedRequestId Int?             @map("related_request_id")
+  isRead           Boolean          @default(false) @map("is_read")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  employee       Employee      @relation(fields: [employeeId], references: [id])
+  relatedRequest LeaveRequest? @relation(fields: [relatedRequestId], references: [id])
+
+  @@map("notifications")
 }
