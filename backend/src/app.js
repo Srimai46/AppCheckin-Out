@@ -10,7 +10,11 @@ const notificationRoutes = require('./routes/notificationRoutes') // <--- เพ
 const app = express()
 
 // Middlewares
-app.use(cors()) // อนุญาตให้ Frontend (React) เรียก API ได้
+app.use(cors({
+  // เปลี่ยนเป็น "*" เพื่อยอมรับทุกเครื่องในวง LAN
+  origin: "*", 
+  credentials: true
+}))
 app.use(morgan('dev')) // Log การเรียก API ดูง่ายๆ
 app.use(express.json()) // อ่าน JSON Body
 app.use(express.urlencoded({ extended: true }))
