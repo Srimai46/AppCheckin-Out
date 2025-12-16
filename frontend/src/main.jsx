@@ -1,11 +1,16 @@
-// src/main.jsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import './index.css'; // ถ้าใช้ Tailwind หรือ CSS
+import { BrowserRouter } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import AppRouter from './router/AppRouter';
+import './styles/index.css'; // อย่าลืมสร้างไฟล์นี้ตาม tailwind setup
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
-  </React.StrictMode>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRouter />
+      </AuthProvider>
+    </BrowserRouter>
+  </React.StrictMode>,
 );

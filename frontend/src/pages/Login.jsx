@@ -1,69 +1,74 @@
-// src/pages/Login.jsx
 import { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function Login() {
-  const [form, setForm] = useState({ username: '', password: '' });
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  
+  // 1. เพิ่ม state สำหรับเช็คว่ากำลังโหลดอยู่ไหม
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // 2. Log เพื่อดูว่าฟังก์ชันเริ่มทำงานไหม
+    console.log("🚀 กดปุ่ม Login แล้ว...");
+    console.log(`📡 กำลังยิงไปที่: ${email}`);
+
+    setIsLoading(true); // เริ่มโหลด (ปุ่มจะจางลง)
+
     try {
-      const res = await fetch('http://localhost:3001/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      console.log('Login success:', data);
-    } catch (err) {
-      console.error('Login failed:', err);
+      await login(email, password);
+      console.log("✅ Login สำเร็จ! กำลังย้ายหน้า...");
+      navigate('/'); 
+    } catch (error) {
+      console.error("❌ เกิดข้อผิดพลาด:", error); // ดู Error เต็มๆ ใน Console
+      
+      // เช็คว่า Error เกิดจากอะไรแน่
+      let msg = "Unknown Error";
+      if (error.code === "ERR_NETWORK") {
+        msg = "เชื่อมต่อ Server ไม่ได้ (เช็ค IP / Firewall / Server Run อยู่ไหม?)";
+      } else if (error.response) {
+        msg = error.response.data.error || "รหัสผ่านผิด";
+      } else {
+        msg = error.message;
+      }
+      
+      alert('Login Failed: ' + msg);
+    } finally {
+      setIsLoading(false); // โหลดเสร็จแล้ว (ไม่ว่าจะผ่านหรือไม่ผ่าน)
     }
   };
 
   return (
-    <div className="min-h-screen bg-blue-100 flex items-center justify-center">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-8 rounded shadow-md w-full max-w-sm"
-      >
-        <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
-
-        <label className="block mb-2 text-sm font-medium text-gray-700">
-          Username
-        </label>
-        <input
-          type="text"
-          name="username"
-          value={form.username}
-          onChange={handleChange}
-          placeholder="username"
-          className="w-full px-3 py-2 border rounded mb-4"
+    <div className="flex min-h-screen items-center justify-center bg-gray-200">
+      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">เข้าสู่ระบบ</h2>
+        <input 
+          type="email" 
+          placeholder="Email" 
+          className="w-full p-3 border rounded mb-4"
+          value={email} onChange={e => setEmail(e.target.value)} required 
         />
-
-        <label className="block mb-2 text-sm font-medium text-gray-700">
-          Password
-        </label>
-        <input
-          type="password"
-          name="password"
-          value={form.password}
-          onChange={handleChange}
-          placeholder="password"
-          className="w-full px-3 py-2 border rounded mb-2"
+        <input 
+          type="password" 
+          placeholder="Password" 
+          className="w-full p-3 border rounded mb-6"
+          value={password} onChange={e => setPassword(e.target.value)} required 
         />
-
-        <div className="text-right text-sm text-blue-600 mb-4 cursor-pointer hover:underline">
-          forget password?
-        </div>
-
-        <button
-          type="submit"
-          className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600"
+        
+        {/* 3. ปรับปุ่มให้แสดงสถานะ Loading */}
+        <button 
+          type="submit" 
+          disabled={isLoading} // ห้ามกดซ้ำตอนกำลังโหลด
+          className={`w-full py-3 rounded text-white font-bold transition
+            ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
+          `}
         >
-          Login
+          {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'Login'}
         </button>
       </form>
     </div>
