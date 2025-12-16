@@ -23,7 +23,7 @@ export default function Login() {
     try {
       await login(email, password);
       console.log("✅ Login สำเร็จ! กำลังย้ายหน้า...");
-      navigate('/'); 
+      navigate('/dashboard'); 
     } catch (error) {
       console.error("❌ เกิดข้อผิดพลาด:", error); // ดู Error เต็มๆ ใน Console
       

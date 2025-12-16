@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
   // ⚠️ อย่าลืมแก้ IP เป็นของเครื่องคุณ (ตามที่คุยกันเรื่อง LAN)
-  baseURL: 'http://172.20.10.3:8080/api', 
+  baseURL: 'http://192.168.1.42:8080/api', 
   timeout: 10000,
 });
 
