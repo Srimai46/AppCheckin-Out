@@ -12,9 +12,11 @@
   "dependencies": {
     "@fullcalendar/daygrid": "6",
     "@fullcalendar/react": "6",
+    "@tailwindcss/postcss": "^4.1.18",
     "@tanstack/react-query": "5",
     "axios": "1.13.2",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "dayjs": "^1.11.19",
     "lucide-react": "^0.561.0",
     "react": "18.2.0",

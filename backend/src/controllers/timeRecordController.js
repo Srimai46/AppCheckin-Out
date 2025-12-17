@@ -4,35 +4,48 @@ const prisma = require("../config/prisma");
 const WORK_START_HOUR = 9;
 const WORK_START_MINUTE = 0;
 
-// Helper Function: แปลงเวลาปัจจุบันเป็น Date Object ของไทย (เอาไว้คำนวณ)
-const getThaiDate = () => {
-  return new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" })
-  );
+// --- Helper Functions ---
+
+const getThaiStartOfDay = () => {
+  const thaiDateStr = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Asia/Bangkok",
+  });
+  return new Date(`${thaiDateStr}T00:00:00+07:00`);
 };
+
+const formatShortDate = (date) => {
+  if (!date) return "-";
+  return new Date(date).toLocaleDateString("en-GB", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+};
+
+const formatThaiTime = (date) => {
+  if (!date) return "-";
+  return new Date(date).toLocaleTimeString("th-TH", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+// --- Controllers ---
 
 exports.checkIn = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { note } = req.body; 
+    const now = new Date(); 
 
-    // 1. หาจุดเริ่มต้นของวัน (00:00:00 ไทย)
-    // เทคนิค: แปลงเวลาปัจจุบันเป็น String แบบไทย -> สร้าง Date ใหม่ -> เซ็ตเวลาเป็น 0
-    const now = new Date(); // เวลาปัจจุบัน (UTC จริง)
-
-    // สร้างตัวแปรเวลาที่อิงตามปฏิทินไทย
-    const thaiNow = getThaiDate();
-
-    const todayStart = new Date(thaiNow);
-    todayStart.setHours(0, 0, 0, 0);
-    // หมายเหตุ: Prisma จะแปลง todayStart กลับเป็น UTC เพื่อ query DB อัตโนมัติ
-
-    // เช็คว่าวันนี้ (ตามเวลาไทย) ลงไปรึยัง
+    // 1. เช็คว่าวันนี้ลงไปรึยัง
+    const todayStart = getThaiStartOfDay();
     const existingRecord = await prisma.timeRecord.findFirst({
       where: {
         employeeId: userId,
-        workDate: {
-          gte: todayStart,
-        },
+        workDate: { gte: todayStart },
       },
     });
 
@@ -40,45 +53,39 @@ exports.checkIn = async (req, res) => {
       return res.status(400).json({ error: "วันนี้คุณได้ลงเวลาเข้างานไปแล้ว" });
     }
 
-    // 2. คำนวณว่าสายหรือไม่ (Check Late)
-    // สร้างเวลา 09:00 ของวันนี้ (ตามเวลาไทย)
+    // 2. คำนวณว่าสายหรือไม่
     const workStartTime = new Date(todayStart);
-    workStartTime.setHours(WORK_START_HOUR, WORK_START_MINUTE, 0, 0);
+    workStartTime.setHours(todayStart.getHours() + WORK_START_HOUR);
+    workStartTime.setMinutes(WORK_START_MINUTE);
 
-    // เปรียบเทียบเวลา: ต้องเทียบ thaiNow (เวลาปัจจุบันในบริบทไทย) กับ workStartTime (09:00 ไทย)
-    const isLate = thaiNow > workStartTime;
+    const isLate = now > workStartTime;
+    const statusText = isLate ? "สาย" : "ปกติ";
 
-    // 3. บันทึกข้อมูล (ลง DB เป็น UTC ตามมาตรฐาน Prisma)
+    // 3. บันทึกข้อมูล
     const record = await prisma.timeRecord.create({
       data: {
         employeeId: userId,
-        workDate: now, // วันที่ทำงาน
-        checkInTime: now, // เวลาเช็คอิน
+        workDate: now,
+        checkInTime: now,
         isLate: isLate,
+        note: note || null,
       },
     });
 
-    // --- แจ้งเตือน HR ถ้ามาสาย ---
+    // --- แจ้งเตือน HR ---
     if (isLate) {
       const hrUsers = await prisma.employee.findMany({ where: { role: "HR" } });
-
-      // จัดรูปแบบเวลาไทยสวยๆ สำหรับข้อความ (เช่น 09:15:30)
-      const thaiTimeStr = now.toLocaleTimeString("th-TH", {
-        timeZone: "Asia/Bangkok",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-
+      const thaiTimeStr = formatThaiTime(now);
       const lateMessage = `คุณ ${req.user.firstName} ${req.user.lastName} เข้างานสาย (${thaiTimeStr})`;
 
-      const notifications = hrUsers.map((hr) => ({
-        employeeId: hr.id,
-        notificationType: "LateWarning",
-        message: lateMessage,
-        isRead: false,
-      }));
+      if (hrUsers.length > 0) {
+        const notifications = hrUsers.map((hr) => ({
+          employeeId: hr.id,
+          notificationType: "LateWarning",
+          message: lateMessage,
+          isRead: false,
+        }));
 
-      if (notifications.length > 0) {
         await prisma.notification.createMany({ data: notifications });
 
         const io = req.app.get("io");
@@ -96,10 +103,17 @@ exports.checkIn = async (req, res) => {
 
     res.status(201).json({
       message: isLate ? "ลงเวลาเข้างานสำเร็จ (สาย)" : "ลงเวลาเข้างานสำเร็จ",
+      result: {
+        date: formatShortDate(now),
+        time: formatThaiTime(now),
+        status: statusText,
+        isLate: isLate
+      },
       data: record,
     });
+
   } catch (error) {
-    console.error(error);
+    console.error("CheckIn Error:", error);
     res.status(500).json({ error: "เกิดข้อผิดพลาดในการลงเวลา" });
   }
 };
@@ -108,11 +122,7 @@ exports.checkOut = async (req, res) => {
   try {
     const userId = req.user.id;
     const now = new Date();
-
-    // 1. หา Record ของวันนี้ (00:00 ไทย)
-    const thaiNow = getThaiDate();
-    const todayStart = new Date(thaiNow);
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = getThaiStartOfDay();
 
     const record = await prisma.timeRecord.findFirst({
       where: {
@@ -123,25 +133,23 @@ exports.checkOut = async (req, res) => {
     });
 
     if (!record) {
-      return res
-        .status(400)
-        .json({ error: "ไม่พบข้อมูลการเข้างานวันนี้ กรุณา Check-in ก่อน" });
+      return res.status(400).json({ error: "ไม่พบข้อมูลการเข้างานวันนี้ กรุณา Check-in ก่อน" });
     }
 
-    // 2. อัปเดตเวลาออก
     const updatedRecord = await prisma.timeRecord.update({
       where: { id: record.id },
-      data: {
-        checkOutTime: now,
-      },
+      data: { checkOutTime: now },
     });
 
     res.json({
       message: "ลงเวลาออกงานสำเร็จ",
+      result: {
+        checkOutTime: formatThaiTime(now)
+      },
       data: updatedRecord,
     });
   } catch (error) {
-    console.error(error);
+    console.error("CheckOut Error:", error);
     res.status(500).json({ error: "เกิดข้อผิดพลาดในการลงเวลาออก" });
   }
 };
@@ -150,24 +158,38 @@ exports.getMyHistory = async (req, res) => {
   try {
     const history = await prisma.timeRecord.findMany({
       where: { employeeId: req.user.id },
-      orderBy: { workDate: "desc" },
-      take: 30,
+      orderBy: { workDate: 'desc' },
     });
-    res.json(history);
+
+    const formattedHistory = history.map((item) => ({
+      ...item, 
+      dateDisplay: formatShortDate(item.workDate),
+      checkInTimeDisplay: formatThaiTime(item.checkInTime),
+      checkOutTimeDisplay: formatThaiTime(item.checkOutTime),
+      statusDisplay: item.isLate ? "สาย" : "ปกติ",
+      note: item.note || "-"
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formattedHistory.length,
+      data: formattedHistory,
+    });
   } catch (error) {
-    res.status(500).json({ error: "ดึงข้อมูลล้มเหลว" });
+    console.error("GetHistory Error:", error);
+    res.status(500).json({ success: false, error: "Server Error" });
   }
 };
 
 exports.getAllAttendance = async (req, res) => {
   try {
-    const { start, end } = req.query; // รับช่วงวันที่จาก Frontend (เช่น ดูเฉพาะเดือนนี้)
-
+    const { start, end } = req.query;
     let whereCondition = {};
+    
     if (start && end) {
       whereCondition.workDate = {
-        gte: new Date(start),
-        lte: new Date(end),
+        gte: new Date(start), 
+        lte: new Date(new Date(end).setHours(23, 59, 59, 999)), 
       };
     }
 
@@ -175,14 +197,50 @@ exports.getAllAttendance = async (req, res) => {
       where: whereCondition,
       include: {
         employee: {
-          // Join เอาชื่อคนมาด้วย จะได้รู้ว่าใครเข้างาน
           select: { firstName: true, lastName: true, profileImageUrl: true },
         },
       },
       orderBy: { workDate: "desc" },
     });
-    res.json(records);
+    
+    const formattedRecords = records.map(item => ({
+       ...item,
+       dateDisplay: formatShortDate(item.workDate),
+       timeDisplay: formatThaiTime(item.checkInTime),
+       statusDisplay: item.isLate ? "สาย" : "ปกติ",
+       note: item.note || "-"
+    }));
+
+    res.json(formattedRecords);
+
   } catch (error) {
+    console.error("GetAllAttendance Error:", error);
+    res.status(500).json({ error: "ดึงข้อมูลไม่สำเร็จ" });
+  }
+};
+
+// ✅ ฟังก์ชันสำหรับดึงประวัติพนักงานรายคน (ใช้โดย HR)
+exports.getUserHistory = async (req, res) => {
+  try {
+    const { id } = req.params; // รับ id จาก URL
+
+    const history = await prisma.timeRecord.findMany({
+      where: { employeeId: Number(id) }, 
+      orderBy: { workDate: 'desc' },
+    });
+
+    const formattedHistory = history.map((item) => ({
+      ...item,
+      dateDisplay: formatShortDate(item.workDate),
+      checkInTimeDisplay: formatThaiTime(item.checkInTime),
+      checkOutTimeDisplay: formatThaiTime(item.checkOutTime),
+      statusDisplay: item.isLate ? "สาย" : "ปกติ",
+      note: item.note || "-"
+    }));
+
+    res.json(formattedHistory);
+  } catch (error) {
+    console.error("GetUserHistory Error:", error);
     res.status(500).json({ error: "ดึงข้อมูลไม่สำเร็จ" });
   }
 };

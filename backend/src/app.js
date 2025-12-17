@@ -7,6 +7,7 @@ const authRoutes = require('./routes/authRoutes')
 const timeRecordRoutes = require('./routes/timeRecordRoutes')
 const leaveRoutes = require('./routes/leaveRoutes')
 const notificationRoutes = require('./routes/notificationRoutes') // <--- เพิ่ม
+const employeeRoutes = require('./routes/employeeRoute')
 const app = express()
 
 // Middlewares
@@ -24,6 +25,8 @@ app.use('/api/auth', authRoutes)
 app.use('/api/attendance', timeRecordRoutes)
 app.use('/api/leaves', leaveRoutes)
 app.use('/api/notifications', notificationRoutes) // <--- เพิ่มบรรทัดนี้
+app.use('/api/employees', employeeRoutes)
+
 
 // Health Check
 app.get('/', (req, res) => {

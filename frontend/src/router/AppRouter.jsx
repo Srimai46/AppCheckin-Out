@@ -1,19 +1,26 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import Layout from '../components/Layout';
-import Login from '../pages/Login';
-import Dashboard from '../pages/Dashboard';
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import Layout from "../components/Layout";
+import Login from "../pages/Login";
+import Dashboard from "../pages/Dashboard";
+import TeamCalendar from "../pages/TeamCalendar"; 
+import LeaveRequest from '../pages/LeaveRequest';
+import EmployeeList from "../pages/EmployeeList";
+import EmployeeDetail from "../pages/EmployeeDetail";
+import LeaveApproval from "../pages/LeaveApproval"; 
 
-// 🔒 ตัวป้องกัน Route (ฉบับสมบูรณ์)
+// 🔒 ตัวป้องกัน Route (ProtectedRoute)
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
-  // 1. ถ้ากำลังเช็ค Token (loading = true) ให้โชว์หน้าโหลดก่อน ห้ามดีด
   if (loading) {
-     return <div className="flex justify-center items-center h-screen">Loading...</div>;
+    return (
+      <div className="flex justify-center items-center h-screen text-blue-600 font-black uppercase tracking-widest">
+        Loading System...
+      </div>
+    );
   }
 
-  // 2. ถ้าโหลดเสร็จแล้ว แต่ไม่มี User ค่อยดีดไป Login
   if (!user) return <Navigate to="/login" replace />;
 
   return children;
@@ -22,18 +29,37 @@ const ProtectedRoute = ({ children }) => {
 export default function AppRouter() {
   return (
     <Routes>
+      {/* Route สำหรับ Login ไม่ต้องผ่าน ProtectedRoute */}
       <Route path="/login" element={<Login />} />
-      
-      <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        {/* 3. สั่งให้เข้า / เฉยๆ แล้วเด้งไป /dashboard */}
+
+      {/* 🔒 ทุก Route ภายใต้ Layout จะถูกป้องกันด้วย ProtectedRoute */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        {/* เมื่อเข้าที่หน้าแรกสุด (/) ให้ส่งไปที่ dashboard ทันที */}
         <Route index element={<Navigate to="/dashboard" replace />} />
-        
-        {/* 4. เส้นทาง Dashboard ต้องเป็นตัวเล็กให้ตรงกับที่ Login ส่งมา */}
+
+        {/* เมนูสำหรับพนักงานทุกคน */}
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="leave-request" element={<LeaveRequest />} />
         
-        <Route path="leave-request" element={<div>หน้าใบลา (Coming Soon)</div>} />
-        <Route path="approvals" element={<div>หน้าอนุมัติ (Coming Soon)</div>} />
+        {/* เมนูสำหรับ HR/Admin (ควรมีการเช็ค Role ภายในหน้าเหล่านี้เพิ่มเติม) */}
+        <Route path="calendar" element={<TeamCalendar />} />
+        <Route path="employees" element={<EmployeeList />} />
+        <Route path="employees/:id" element={<EmployeeDetail />} />
+        
+        {/* ✅ เส้นทางอนุมัติใบลา (ตรงกับเมนูใน Layout.jsx) */}
+        <Route path="admin/leaves" element={<LeaveApproval />} /> 
+
       </Route>
+
+      {/* กรณีพิมพ์ URL มั่ว ให้เด้งกลับไปหน้า Dashboard */}
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }

@@ -89,6 +89,9 @@ model TimeRecord {
   checkInTime  DateTime  @map("check_in_time")
   checkOutTime DateTime? @map("check_out_time")
   isLate       Boolean   @default(false) @map("is_late")
+  
+  // ✅ เพิ่มบรรทัดนี้เข้าไปครับ
+  note         String?   @db.Text 
 
   employee Employee @relation(fields: [employeeId], references: [id])
 

@@ -8,9 +8,14 @@ const api = axios.create({
 
 // แนบ Token อัตโนมัติ
 api.interceptors.request.use((config) => {
+  // ✅ ต้องอ่านจาก localStorage ทุกครั้งที่มีการยิง Request
   const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
 // ดักจับ Token หมดอายุ

@@ -1,67 +1,106 @@
-const bcrypt = require('bcrypt')
-const { z } = require('zod')
-const prisma = require('../config/prisma')
-const generateToken = require('../utils/generateToken')
+const bcrypt = require('bcryptjs');
+const { z } = require('zod');
+const jwt = require('jsonwebtoken');
+const prisma = require('../config/prisma');
 
 // 1. กำหนด Schema สำหรับตรวจสอบข้อมูลขาเข้าด้วย Zod
 const loginSchema = z.object({
   email: z.string().email({ message: "รูปแบบอีเมลไม่ถูกต้อง" }),
   password: z.string().min(6, { message: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }),
-})
+});
 
 // 2. ฟังก์ชัน Login
 exports.login = async (req, res) => {
   try {
     // Validate Input
-    const { email, password } = loginSchema.parse(req.body)
+    const { email, password } = loginSchema.parse(req.body);
 
     // หา User จาก Email
     const user = await prisma.employee.findUnique({
       where: { email },
-    })
+    });
 
     // ถ้าไม่มี User หรือ Password ไม่ตรงกัน
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' })
+      return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
     }
 
     // ถ้า User ลาออกไปแล้ว (is_active = false) ห้ามล็อกอิน
     if (!user.isActive) {
-      return res.status(403).json({ error: 'บัญชีนี้ถูกระงับการใช้งาน' })
+      return res.status(403).json({ error: 'บัญชีนี้ถูกระงับการใช้งาน' });
     }
+
+    // สร้าง Token
+    const payload = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: '1d',
+    });
 
     // Login สำเร็จ -> ส่งข้อมูลกลับพร้อม Token
     res.json({
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role,
-      profileImageUrl: user.profileImageUrl,
-      token: generateToken(user.id),
-    })
+      message: "Login Successful",
+      token,
+      user: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        profileImageUrl: user.profileImageUrl,
+      }
+    });
 
   } catch (error) {
-    // ถ้า Zod validate ไม่ผ่าน
+    // ✅ จุดที่แก้ไข: เช็คประเภท Error ก่อน เพื่อกัน Server Crash
+    
+    // 1. ถ้าเป็น Error จากการ Validate ข้อมูล (Zod)
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors[0].message })
+      return res.status(400).json({ error: error.errors[0]?.message || "ข้อมูลไม่ถูกต้อง" });
     }
     
-    console.error(error)
-    res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' })
+    // 2. ถ้าเป็น Error อื่นๆ ให้แสดง message ธรรมดา
+    console.error("Login Error:", error);
+    res.status(500).json({ error: error.message || 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });
   }
-}
+};
 
-// 3. ฟังก์ชัน Get Me (สำหรับเช็คว่า Token นี้คือใคร)
+// 3. ฟังก์ชัน Get Me
 exports.getMe = async (req, res) => {
-  // req.user มาจาก middleware 'protect' ที่เราเขียนไว้ก่อนหน้านี้
-  if (req.user) {
-    res.json(req.user)
-  } else {
-    res.status(404).json({ error: 'ไม่พบข้อมูลผู้ใช้' })
-  }
-}
+  try {
+    if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
 
+    const user = await prisma.employee.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        profileImageUrl: true,
+        joiningDate: true,
+        isActive: true
+      }
+    });
+
+    if (!user) {
+       return res.status(404).json({ error: 'ไม่พบข้อมูลผู้ใช้' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: "Server Error" });
+  }
+};
+
+// 4. ฟังก์ชันดึงพนักงานทั้งหมด
 exports.getAllEmployees = async (req, res) => {
   try {
     const employees = await prisma.employee.findMany({
@@ -71,16 +110,15 @@ exports.getAllEmployees = async (req, res) => {
         lastName: true,
         email: true,
         role: true,
-        position: true,      // ถ้าใน Model มี (ถ้าไม่มีให้ลบออก)
-        department: true,    // ถ้าใน Model มี (ถ้าไม่มีให้ลบออก)
         profileImageUrl: true,
         joiningDate: true,
         isActive: true
       },
-      orderBy: { firstName: 'asc' }
-    })
-    res.json(employees)
+      orderBy: { id: 'asc' }
+    });
+    res.json(employees);
   } catch (error) {
-    res.status(500).json({ error: 'ดึงข้อมูลพนักงานไม่สำเร็จ' })
+    console.error(error);
+    res.status(500).json({ error: 'ดึงข้อมูลพนักงานไม่สำเร็จ' });
   }
-}
+};

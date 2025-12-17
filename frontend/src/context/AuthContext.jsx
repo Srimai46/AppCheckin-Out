@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { loginUser, getMe } from '../api/authService';
+import api from '../api/axios'; 
 
 const AuthContext = createContext();
 
@@ -7,25 +8,23 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ เช็ค Token เมื่อเปิดเว็บ
+  // 1. เช็ค Token เมื่อเปิดเว็บ (Refresh หน้า)
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
+          // ใส่ Token ให้ Axios
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          
+          // ดึงข้อมูล User ล่าสุด (API getMe ส่ง user object มาตรงๆ)
           const userData = await getMe();
-          // สร้าง userObj จาก response ที่ backend ส่งมา
-          const userObj = {
-            id: userData.id,
-            firstName: userData.firstName,
-            lastName: userData.lastName,
-            email: userData.email,
-            role: userData.role,
-            profileImageUrl: userData.profileImageUrl,
-          };
-          setUser(userObj);
+          setUser(userData); 
+
         } catch (error) {
+          console.error("Session Invalid");
           localStorage.removeItem('token');
+          delete api.defaults.headers.common['Authorization'];
         }
       }
       setLoading(false);
@@ -33,28 +32,28 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  // ✅ ฟังก์ชัน Login
+  // 2. ฟังก์ชัน Login (จุดที่แก้!)
   const login = async (email, password) => {
-    const data = await loginUser({ email, password });
-    localStorage.setItem('token', data.token);
+    try {
+      // response จาก loginUser คือ { message, token, user: {...} }
+      const data = await loginUser({ email, password });
+      
+      // เก็บ Token
+      localStorage.setItem('token', data.token);
+      api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
 
-    // สร้าง userObj เองจาก response flat
-    const userObj = {
-      id: data.id,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      role: data.role,
-      profileImageUrl: data.profileImageUrl,
-    };
+      // ✅ แก้ไขตรงนี้: ดึงข้อมูลจาก data.user แทนที่จะใช้ data ตรงๆ
+      setUser(data.user); 
 
-    setUser(userObj);
-    return data;
+      return data;
+    } catch (error) {
+      throw error;
+    }
   };
 
-  // ✅ ฟังก์ชัน Logout
   const logout = () => {
     localStorage.removeItem('token');
+    delete api.defaults.headers.common['Authorization'];
     setUser(null);
     window.location.href = '/login';
   };

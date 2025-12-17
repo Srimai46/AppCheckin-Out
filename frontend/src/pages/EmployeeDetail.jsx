@@ -1,0 +1,226 @@
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { 
+  ArrowLeft, Clock, CalendarCheck, PieChart, 
+  UserMinus, UserPlus, Briefcase, ShieldCheck, Loader2 
+} from "lucide-react";
+
+export default function EmployeeDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("attendance");
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`http://192.168.1.42:8080/api/employees/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      console.log("Fetched Data API Output:", res.data); // ✅ เช็คโครงสร้างข้อมูลใน Console
+      setData(res.data);
+    } catch (err) {
+      console.error("Fetch error:", err);
+      alert("ไม่สามารถโหลดข้อมูลพนักงานได้");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [id]);
+
+  // ✅ Logic สำหรับเปลี่ยนสถานะ
+  const handleUpdateStatus = async () => {
+    // ตรวจสอบสถานะให้แม่นยำ (รองรับทั้ง Boolean จาก Prisma และตัวเลข 1/0 จาก MySQL)
+    const isCurrentlyActive = data?.info?.isActive === true || data?.info?.isActive === 1;
+    
+    const confirmMsg = isCurrentlyActive 
+      ? "⚠️ ยืนยันการเปลี่ยนสถานะเป็น 'ไม่ใช่พนักงาน'?" 
+      : "ยืนยันการเปลี่ยนสถานะเป็น 'พนักงานปัจจุบัน'?";
+    
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      await axios.patch(`http://192.168.1.42:8080/api/employees/${id}/status`, 
+        { isActive: !isCurrentlyActive }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      alert("อัปเดตสถานะพนักงานเรียบร้อยแล้ว");
+      fetchData(); 
+    } catch (err) {
+      alert("เกิดข้อผิดพลาด: " + (err.response?.data?.error || err.message));
+    }
+  };
+
+  if (loading) return (
+    <div className="flex h-screen items-center justify-center">
+      <Loader2 className="animate-spin text-blue-600 mr-2" />
+      <span className="font-black text-gray-400 uppercase tracking-widest">Loading Profile...</span>
+    </div>
+  );
+
+  if (!data || !data.info) return <div className="p-10 text-center text-red-500 font-black">ไม่พบข้อมูลพนักงาน</div>;
+
+  // ✅ สร้างตัวแปรเช็คสถานะเพื่อใช้ซ้ำใน UI
+  const isEmpActive = data.info.isActive === true || data.info.isActive === 1;
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
+      <button onClick={() => navigate(-1)} className="mb-2 flex items-center text-gray-400 hover:text-blue-600 font-black transition-all group">
+        <ArrowLeft size={18} className="mr-2 group-hover:-translate-x-1 transition-transform" /> ย้อนกลับรายชื่อพนักงาน
+      </button>
+
+      {/* Header Profile Section */}
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-6 transition-all">
+        <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className={`h-24 w-24 rounded-3xl flex items-center justify-center text-white text-4xl font-black shadow-xl transition-all duration-500 ${isEmpActive ? 'bg-blue-600 shadow-blue-100' : 'bg-slate-400 shadow-slate-100'}`}>
+            {data.info.fullName?.charAt(0) || "E"}
+          </div>
+          
+          <div className="space-y-2 text-center md:text-left">
+            <div className="flex flex-col md:flex-row items-center gap-3">
+              <h1 className="text-3xl font-black text-gray-800 tracking-tight">{data.info.fullName}</h1>
+              
+              {/* ✅ ป้ายบอกสถานะปัจจุบัน */}
+              <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${isEmpActive ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                ตอนนี้: {isEmpActive ? 'พนักงานปัจจุบัน' : 'ไม่ใช่พนักงาน / พ้นสภาพ'}
+              </span>
+            </div>
+            
+            <p className="text-gray-500 font-bold">{data.info.email}</p>
+            <div className="mt-2 flex flex-wrap justify-center md:justify-start gap-2">
+              <div className="bg-blue-50 text-blue-700 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase border border-blue-100 flex items-center gap-1.5">
+                <Briefcase size={14}/> {data.info.role}
+              </div>
+              <div className="bg-gray-50 text-gray-600 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase border border-gray-100 flex items-center gap-1.5">
+                <ShieldCheck size={14}/> เริ่มงาน: {data.info.joiningDate}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ✅ ปุ่มกดเปลี่ยนสถานะ */}
+        <button 
+          onClick={handleUpdateStatus}
+          className={`flex items-center gap-2 px-8 py-4 rounded-2xl text-xs font-black transition-all active:scale-95 shadow-lg ${
+            isEmpActive 
+              ? "bg-rose-50 text-rose-600 border-2 border-rose-100 hover:bg-rose-600 hover:text-white" 
+              : "bg-emerald-50 text-emerald-600 border-2 border-emerald-100 hover:bg-emerald-600 hover:text-white"
+          }`}
+        >
+          {isEmpActive ? (
+            <><UserMinus size={18} /> เปลี่ยนเป็น "ไม่ใช่พนักงาน"</>
+          ) : (
+            <><UserPlus size={18} /> เปลี่ยนเป็น "พนักงานปัจจุบัน"</>
+          )}
+        </button>
+      </div>
+
+      {/* Leave Quota Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {data.quotas && data.quotas.length > 0 ? (
+          data.quotas.map((q, idx) => {
+            // ✅ แปลงค่า Decimal เป็น Number เพื่อคำนวณ %
+            const total = parseFloat(q.total);
+            const used = parseFloat(q.used);
+            const percent = total > 0 ? (used / total) * 100 : 0;
+
+            return (
+              <div key={idx} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-md transition-all">
+                <div className="flex justify-between items-start mb-4">
+                  <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{q.type}</span>
+                  <PieChart size={18} className="text-blue-500" />
+                </div>
+                <div className="text-3xl font-black text-slate-800 tracking-tighter">
+                  {q.remaining} <span className="text-xs font-normal text-gray-400">วัน</span>
+                </div>
+                <div className="text-[10px] text-gray-400 mt-1 font-black uppercase">
+                  ใช้แล้ว {used} / ทั้งหมด {total} วัน
+                </div>
+                <div className="mt-4 w-full bg-gray-50 h-2 rounded-full overflow-hidden border border-gray-100">
+                  <div 
+                    className={`h-full rounded-full transition-all duration-700 ${percent >= 100 ? 'bg-rose-500' : 'bg-blue-600'}`}
+                    style={{ width: `${Math.min(percent, 100)}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="col-span-full p-10 bg-gray-50 text-gray-400 rounded-3xl text-center font-black border-2 border-dashed">
+             ไม่มีข้อมูลโควตาวันลา
+          </div>
+        )}
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
+        <button onClick={() => setTab("attendance")} className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tab === "attendance" ? "bg-white text-blue-600 shadow-md" : "text-gray-400 hover:text-gray-600"}`}>
+          ประวัติเข้างาน
+        </button>
+        <button onClick={() => setTab("leave")} className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tab === "leave" ? "bg-white text-blue-600 shadow-md" : "text-gray-400 hover:text-gray-600"}`}>
+          ประวัติการลา
+        </button>
+      </div>
+
+      {/* Table Section */}
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50/50 border-b border-gray-100 font-black text-[10px] text-gray-400 uppercase tracking-widest">
+            {tab === "attendance" ? (
+              <tr>
+                <th className="p-6">วันที่</th><th className="p-6">เข้า</th><th className="p-6">ออก</th><th className="p-6 text-center">สถานะ</th>
+              </tr>
+            ) : (
+              <tr>
+                <th className="p-6">ประเภท</th><th className="p-6">ระยะเวลา</th><th className="p-6 text-center">วัน</th><th className="p-6 text-center">สถานะ</th><th className="p-6">เหตุผล</th>
+              </tr>
+            )}
+          </thead>
+          <tbody className="divide-y divide-gray-50 font-black uppercase text-[11px]">
+            {tab === "attendance" ? (
+              (data.attendance || []).length === 0 ? (
+                <tr><td colSpan="4" className="p-16 text-center text-gray-300 italic">ไม่พบข้อมูล</td></tr>
+              ) : (
+                data.attendance.map((row) => (
+                  <tr key={row.id} className="hover:bg-blue-50/30 transition-colors">
+                    <td className="p-6 text-gray-700">{row.date}</td>
+                    <td className="p-6 text-emerald-600 font-black">{row.checkIn}</td>
+                    <td className="p-6 text-rose-500 font-black">{row.checkOut}</td>
+                    <td className="p-6 text-center">
+                      <span className={`px-4 py-1.5 rounded-lg border ${row.status === 'สาย' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>{row.status}</span>
+                    </td>
+                  </tr>
+                ))
+              )
+            ) : (
+              (data.leaves || []).length === 0 ? (
+                <tr><td colSpan="5" className="p-16 text-center text-gray-300 italic">ไม่มีประวัติการลา</td></tr>
+              ) : (
+                data.leaves.map((leave) => (
+                  <tr key={leave.id} className="hover:bg-blue-50/30 transition-colors">
+                    <td className="p-6 text-gray-800">{leave.type}</td>
+                    <td className="p-6 text-gray-500 font-bold italic">{leave.start} - {leave.end}</td>
+                    <td className="p-6 text-center text-slate-700 font-black">{leave.days}</td>
+                    <td className="p-6 text-center">
+                      <span className={`px-4 py-1.5 rounded-lg border ${leave.status === 'Approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{leave.status}</span>
+                    </td>
+                    <td className="p-6 text-gray-400 italic max-w-xs truncate">{leave.reason || '-'}</td>
+                  </tr>
+                ))
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

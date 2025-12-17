@@ -1,53 +1,122 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, LogOut, User, Calendar } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  LogOut, 
+  FileCheck, 
+  Users,
+  CalendarDays,
+  Menu
+} from 'lucide-react';
+import NotificationBell from "./NotificationBell"; // นำเข้า Component ที่สร้างไว้
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  
+  const navStyle = ({ isActive }) => 
+    `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+      isActive 
+        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
+        : 'text-blue-100 hover:bg-white/10 hover:text-white'
+    }`;
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
+      
       {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col">
-        <div className="p-6 border-b flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
+      <aside className="w-64 bg-[#001529] text-white flex flex-col shadow-2xl z-30">
+        
+        {/* Header Profile */}
+        <div className="p-6 border-b border-white/5 flex items-center gap-3 bg-[#001529]">
+          <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-2xl flex items-center justify-center font-black text-lg shadow-lg text-white">
             {user?.firstName?.[0]}
           </div>
-          <div>
-            <p className="font-bold text-gray-800">{user?.firstName}</p>
-            <p className="text-xs text-gray-500">{user?.role}</p>
+          <div className="overflow-hidden">
+            <p className="font-black truncate text-sm text-white">{user?.firstName} {user?.lastName}</p>
+            <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">
+              {user?.role}
+            </p>
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
-          <NavLink to="/" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
-            <LayoutDashboard size={20} /> แดชบอร์ด
+        {/* Menu Items */}
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+          <div className="px-4 py-3 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">
+            Main Menu
+          </div>
+
+          <NavLink to="/dashboard" className={navStyle}>
+            <LayoutDashboard size={18} /> 
+            <span className="font-bold text-sm">แดชบอร์ด</span>
           </NavLink>
-          
-          {user?.role === 'Worker' && (
-             <NavLink to="/leave-request" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
-               <Calendar size={20} /> ยื่นใบลา
-             </NavLink>
-          )}
-          
+
+          {/* HR Section */}
           {user?.role === 'HR' && (
-             <NavLink to="/approvals" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
-               <User size={20} /> อนุมัติคำขอ
-             </NavLink>
+            <>
+              <div className="mt-8 mb-2 px-4 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">
+                HR Management
+              </div>
+
+              <NavLink to="/admin/leaves" className={navStyle}>
+                <FileCheck size={18} /> 
+                <span className="font-bold text-sm">อนุมัติคำขอ</span>
+              </NavLink>
+
+              <NavLink to="/employees" className={navStyle}>
+                <Users size={18} /> 
+                <span className="font-bold text-sm">รายชื่อพนักงาน</span>
+              </NavLink>
+
+              <NavLink to="/calendar" className={navStyle}>
+                <CalendarDays size={18} /> 
+                <span className="font-bold text-sm">ปฏิทินทีม</span>
+              </NavLink>
+            </>
           )}
         </nav>
 
-        <div className="p-4 border-t">
-          <button onClick={logout} className="flex items-center gap-3 w-full px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg">
-            <LogOut size={20} /> ออกจากระบบ
+        {/* Logout Button */}
+        <div className="p-4 border-t border-white/5 bg-[#001529]">
+          <button 
+            onClick={logout} 
+            className="flex items-center gap-3 w-full px-4 py-3 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 rounded-xl transition-all font-black text-sm"
+          >
+            <LogOut size={18} /> ออกจากระบบ
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 p-8 overflow-y-auto">
-        <Outlet />
-      </main>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        
+        {/* ✅ Top Navigation Bar - สำหรับวาง NotificationBell */}
+        <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 z-20">
+          <div className="flex items-center gap-2 text-gray-400">
+             <Menu size={20} className="md:hidden" /> {/* สำหรับ Mobile ในอนาคต */}
+             <h2 className="text-xs font-black uppercase tracking-widest text-gray-300">HR Management System</h2>
+          </div>
+
+          <div className="flex items-center gap-4">
+             {/* ส่วนแจ้งเตือน */}
+             <NotificationBell />
+             
+             <div className="h-8 w-[1px] bg-gray-100 mx-2"></div>
+             
+             {/* แสดงชื่อเล็กๆ ข้างกระดิ่ง (Optional) */}
+             <div className="text-right hidden sm:block">
+                <p className="text-[11px] font-black text-slate-800 leading-none">{user?.firstName}</p>
+                <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter">Online</p>
+             </div>
+          </div>
+        </header>
+
+        {/* Content Body */}
+        <main className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+          <div className="p-8 max-w-[1400px] mx-auto">
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

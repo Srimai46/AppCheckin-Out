@@ -1,76 +1,139 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { User, Lock, Loader2 } from 'lucide-react'; // เพิ่ม Loader2
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
-  
-  // 1. เพิ่ม state สำหรับเช็คว่ากำลังโหลดอยู่ไหม
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(''); // เพิ่ม state เก็บ error
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // 2. Log เพื่อดูว่าฟังก์ชันเริ่มทำงานไหม
-    console.log("🚀 กดปุ่ม Login แล้ว...");
-    console.log(`📡 กำลังยิงไปที่: ${email}`);
+    setIsLoading(true);
+    setErrorMsg(''); // เคลียร์ error เก่าก่อน
 
-    setIsLoading(true); // เริ่มโหลด (ปุ่มจะจางลง)
+    console.log("🚀 กำลัง Login...");
+    console.log(`📡 Email: ${email}`);
 
     try {
       await login(email, password);
       console.log("✅ Login สำเร็จ! กำลังย้ายหน้า...");
-      navigate('/dashboard'); 
+      navigate('/dashboard', { replace: true });
     } catch (error) {
-      console.error("❌ เกิดข้อผิดพลาด:", error); // ดู Error เต็มๆ ใน Console
+      console.error("❌ Login Error:", error);
       
-      // เช็คว่า Error เกิดจากอะไรแน่
-      let msg = "Unknown Error";
+      let msg = "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ";
+      
       if (error.code === "ERR_NETWORK") {
-        msg = "เชื่อมต่อ Server ไม่ได้ (เช็ค IP / Firewall / Server Run อยู่ไหม?)";
-      } else if (error.response) {
-        msg = error.response.data.error || "รหัสผ่านผิด";
-      } else {
+        msg = "ไม่สามารถเชื่อมต่อ Server ได้ (กรุณาเช็คว่า Server Backend เปิดอยู่หรือไม่)";
+      } else if (error.response?.data?.error) {
+        // ดึง Error Message จาก Backend ที่เราเขียนไว้ (เช่น "อีเมลหรือรหัสผ่านไม่ถูกต้อง")
+        msg = error.response.data.error; 
+      } else if (error.message) {
         msg = error.message;
       }
-      
-      alert('Login Failed: ' + msg);
+
+      setErrorMsg(msg); // แสดง error ที่หน้าจอแทน alert
+      // alert('Login Failed: ' + msg); // เอา alert ออกเพื่อให้ดูทันสมัยขึ้น
     } finally {
-      setIsLoading(false); // โหลดเสร็จแล้ว (ไม่ว่าจะผ่านหรือไม่ผ่าน)
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-200">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-6 text-center">เข้าสู่ระบบ</h2>
-        <input 
-          type="email" 
-          placeholder="Email" 
-          className="w-full p-3 border rounded mb-4"
-          value={email} onChange={e => setEmail(e.target.value)} required 
-        />
-        <input 
-          type="password" 
-          placeholder="Password" 
-          className="w-full p-3 border rounded mb-6"
-          value={password} onChange={e => setPassword(e.target.value)} required 
-        />
+    <div className="flex min-h-screen items-center justify-center bg-blue-50">
+      <div className="w-full max-w-md p-10 bg-white rounded-2xl shadow-xl border border-blue-100">
         
-        {/* 3. ปรับปุ่มให้แสดงสถานะ Loading */}
-        <button 
-          type="submit" 
-          disabled={isLoading} // ห้ามกดซ้ำตอนกำลังโหลด
-          className={`w-full py-3 rounded text-white font-bold transition
-            ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
-          `}
-        >
-          {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'Login'}
-        </button>
-      </form>
+        {/* Header */}
+        <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-blue-900">Welcome Back!</h2>
+            <p className="text-gray-500 mt-2">ลงชื่อเข้าใช้ระบบลงเวลาพนักงาน</p>
+        </div>
+
+        {/* Error Message Box */}
+        {errorMsg && (
+            <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg text-center">
+                {errorMsg}
+            </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          
+          {/* Email Input */}
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email Address
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <User className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="email"
+                type="email"
+                placeholder="ชื่อผู้ใช้งาน (Email)"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Password Input */}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Lock className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="password"
+                type="password"
+                placeholder="รหัสผ่าน"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className={`w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-bold shadow-md 
+                hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all 
+                flex justify-center items-center gap-2
+                ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:-translate-y-0.5'}`}
+          >
+            {isLoading ? (
+                <>
+                    <Loader2 className="animate-spin h-5 w-5" /> กำลังตรวจสอบ...
+                </>
+            ) : (
+                'เข้าสู่ระบบ (Login)'
+            )}
+          </button>
+        </form>
+
+        {/* Test Accounts Hint (Optional: ลบออกได้ถ้าใช้งานจริง) */}
+        <div className="mt-8 pt-6 border-t border-gray-100 text-center text-sm text-gray-500">
+          <p className="font-semibold mb-2">บัญชีทดสอบ:</p>
+          <div className="space-y-1">
+            <p>HR : <span className="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">hr@company.com</span></p>
+            <p>Worker : <span className="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">somchai@company.com</span></p>
+            <p>Pass : <span className="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">password123</span></p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,26 +2,36 @@ const express = require('express')
 const router = express.Router()
 const { 
     createLeaveRequest, 
-    getMyQuotas, 
     getMyLeaves,
+    getMyQuotas,
+    getAllLeaves,
     getPendingRequests,
     updateLeaveStatus
 } = require('../controllers/leaveController')
-const { protect, authorize } = require('../middlewares/authMiddleware')
 
-// --- Routes สำหรับพนักงานทั่วไป (Worker & HR ก็ใช้ได้) ---
-// ดูโควต้าตัวเอง
+// ✅ ตรวจสอบ path ของ middlewares ให้ถูกต้อง
+const { protect, authorize } = require('../middlewares/authMiddleware') 
+
+// --- พนักงานทั่วไป (Common / Worker Routes) ---
+// ดึงโควตาคงเหลือของตัวเอง
 router.get('/my-quota', protect, getMyQuotas)
-// ดูประวัติการลา
+
+// ดูประวัติการลาของตัวเอง
 router.get('/my-history', protect, getMyLeaves)
-// ส่งใบลา
-router.post('/request', protect, createLeaveRequest)
+
+// ยื่นคำขอลาใหม่
+router.post('/', protect, createLeaveRequest)
 
 
-// --- Routes สำหรับ HR เท่านั้น ---
-// ดูรายการรออนุมัติ
-router.get('/pending', protect, authorize('HR'), getPendingRequests)
-// กดอนุมัติ/ปฏิเสธ
-router.put('/update-status', protect, authorize('HR'), updateLeaveStatus)
+// --- สำหรับ HR/Admin (Management Routes) ---
+// ดูใบลาทั้งหมด (ใช้สำหรับปฏิทินหรือหน้ารวม)
+router.get('/', protect, authorize('HR', 'Admin'), getAllLeaves) 
+
+// ดูเฉพาะใบลาที่รออนุมัติ (Pending)
+router.get('/pending', protect, authorize('HR', 'Admin'), getPendingRequests)
+
+// ✅ แก้ไขเป็น PATCH: สำหรับอนุมัติหรือปฏิเสธใบลา
+// แนะนำใช้ path '/status' ให้กระชับ หรือคง '/update-status' ตามเดิมก็ได้ครับ
+router.patch('/status', protect, authorize('HR', 'Admin'), updateLeaveStatus)
 
 module.exports = router

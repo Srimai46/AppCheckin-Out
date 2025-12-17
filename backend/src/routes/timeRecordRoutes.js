@@ -1,18 +1,28 @@
 const express = require('express')
 const router = express.Router()
 
-// 1. เพิ่ม getAllAttendance เข้าไปในปีกกา
-const { checkIn, checkOut, getMyHistory, getAllAttendance } = require('../controllers/timeRecordController')
+// ✅ นำเข้าฟังก์ชันทั้งหมดจาก Controller (รวมถึง getUserHistory)
+const { 
+    checkIn, 
+    checkOut, 
+    getMyHistory, 
+    getAllAttendance, 
+    getUserHistory 
+} = require('../controllers/timeRecordController') 
+// ⚠️ หมายเหตุ: ถ้าไฟล์ Controller คุณชื่อ attendanceController.js ให้แก้บรรทัดบนเป็น ../controllers/attendanceController
 
-// 2. เพิ่ม authorize เข้าไปในปีกกา
-const { protect, authorize } = require('../middlewares/authMiddleware')
+// ✅ ใช้ Middleware แบบเดิมที่คุณต้องการ (src/middlewares/authMiddleware.js)
+const { protect, authorize } = require('../middlewares/authMiddleware') 
 
-// ทุก Route ในนี้ต้อง Login ก่อน (ผ่าน protect)
+// --- User Routes (ทุกคนใช้ได้) ---
 router.post('/check-in', protect, checkIn)
 router.post('/check-out', protect, checkOut)
-router.get('/history', protect, getMyHistory)
+router.get('/history', protect, getMyHistory) 
 
-// GET /api/attendance/all-history (เฉพาะ HR)
+// --- Admin/HR Routes (เฉพาะ HR) ---
 router.get('/all-history', protect, authorize('HR'), getAllAttendance)
+
+// ✅ Route สำหรับดูประวัติพนักงานรายคน (ต้องรับ :id)
+router.get('/history/user/:id', protect, authorize('HR'), getUserHistory)
 
 module.exports = router
