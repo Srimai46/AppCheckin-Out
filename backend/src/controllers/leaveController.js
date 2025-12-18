@@ -25,10 +25,10 @@ exports.getMyQuotas = async (req, res) => {
   }
 };
 
-
 exports.createLeaveRequest = async (req, res) => {
   try {
-    const { type, startDate, endDate, reason, startDuration, endDuration } = req.body;
+    const { type, startDate, endDate, reason, startDuration, endDuration } =
+      req.body;
     const userId = req.user.id;
     const currentYear = new Date().getFullYear();
 
@@ -46,22 +46,24 @@ exports.createLeaveRequest = async (req, res) => {
     const end = new Date(endDate);
 
     if (start > end) {
-      return res.status(400).json({ error: "วันที่เริ่มต้นต้องมาก่อนวันที่สิ้นสุด" });
+      return res
+        .status(400)
+        .json({ error: "วันที่เริ่มต้นต้องมาก่อนวันที่สิ้นสุด" });
     }
 
     // ✅ ป้องกันการลาทับซ้อนกัน (Overlap Validation)
     const overlap = await prisma.leaveRequest.findFirst({
       where: {
         employeeId: userId,
-        status: { in: ['Pending', 'Approved'] },
-        OR: [
-          { startDate: { lte: end }, endDate: { gte: start } }
-        ]
-      }
+        status: { in: ["Pending", "Approved"] },
+        OR: [{ startDate: { lte: end }, endDate: { gte: start } }],
+      },
     });
 
     if (overlap) {
-      return res.status(400).json({ error: 'คุณมีรายการลาในช่วงเวลาดังกล่าวอยู่แล้ว' });
+      return res
+        .status(400)
+        .json({ error: "คุณมีรายการลาในช่วงเวลาดังกล่าวอยู่แล้ว" });
     }
 
     // ✅ คำนวณวันลาหักวันหยุด (จันทร์-ศุกร์)
@@ -76,15 +78,18 @@ exports.createLeaveRequest = async (req, res) => {
       return count;
     };
 
+    // ใน leaveController.js ส่วน createLeaveRequest
     let totalDaysRequested = calculateWorkDays(start, end);
 
-    // ✅ ปรับลดวันลาในกรณีลาครึ่งวัน
-    if (startDuration !== 'Full') totalDaysRequested -= 0.5;
-    // ป้องกันกรณีลาวันเดียวแล้วเลือกครึ่งวันทั้งเริ่มและจบ (ไม่ให้เหลือ 0 วัน)
-    if (endDuration !== 'Full' && totalDaysRequested > 0.5) totalDaysRequested -= 0.5;
-
-    if (totalDaysRequested <= 0) {
-      return res.status(400).json({ error: "จำนวนวันที่ลาต้องมากกว่า 0" });
+    if (startDate === endDate) {
+      // ถ้าลาวันเดียวกัน และไม่ใช่เต็มวัน ให้ถือเป็น 0.5 วันทันที
+      if (startDuration !== "Full") {
+        totalDaysRequested = 0.5;
+      }
+    } else {
+      // ถ้าลาหลายวัน ให้หักตามปกติ
+      if (startDuration !== "Full") totalDaysRequested -= 0.5;
+      if (endDuration !== "Full") totalDaysRequested -= 0.5;
     }
 
     // 3. ตรวจสอบโควตา (Quota Validation)
@@ -98,7 +103,8 @@ exports.createLeaveRequest = async (req, res) => {
       },
     });
 
-    if (!quota) return res.status(400).json({ error: "ไม่พบโควต้าวันลาสำหรับปีนี้" });
+    if (!quota)
+      return res.status(400).json({ error: "ไม่พบโควต้าวันลาสำหรับปีนี้" });
 
     const remaining = Number(quota.totalDays) - Number(quota.usedDays);
     if (remaining < totalDaysRequested) {
@@ -141,7 +147,7 @@ exports.createLeaveRequest = async (req, res) => {
     // 5. แจ้งเตือนผ่าน Socket.io (ถ้ามี)
     const io = req.app.get("io");
     if (io) {
-      io.to('hr_room').emit("notification", {
+      io.to("hr_room").emit("notification", {
         type: "NewRequest",
         message: `มีคำขอลาใหม่จากคุณ ${req.user.firstName} ${req.user.lastName}`,
         data: result,
@@ -152,7 +158,6 @@ exports.createLeaveRequest = async (req, res) => {
       message: "ส่งคำขอลาเรียบร้อยแล้ว รอ HR อนุมัติ",
       data: result,
     });
-
   } catch (error) {
     console.error("Backend Error:", error);
     res.status(500).json({ error: "เกิดข้อผิดพลาดในการสร้างคำขอลา" });

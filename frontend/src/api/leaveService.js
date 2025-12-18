@@ -9,8 +9,9 @@ export const getPendingLeaves = async () => {
 
 // 2. อัปเดตสถานะ (Approve / Reject)
 export const updateLeaveStatus = async (id, status) => {
-  // ส่งค่า id และ status ไปในรูปแบบ JSON Body ตามที่ Controller รอรับ
-  const { data } = await api.put('/leaves/update-status', { id, status });
+  // ✅ แก้ไข 1: เปลี่ยนจาก .put เป็น .patch
+  // ✅ แก้ไข 2: เปลี่ยน path จาก /update-status เป็น /status ให้ตรงกับ Routes
+  const { data } = await api.patch('/leaves/status', { id, status });
   return data;
 };
 

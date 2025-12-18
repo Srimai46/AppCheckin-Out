@@ -130,7 +130,7 @@ export default function Login() {
           <div className="space-y-1">
             <p>HR : <span className="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">hr@company.com</span></p>
             <p>Worker : <span className="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">somchai@company.com</span></p>
-            <p>Pass : <span className="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">password123</span></p>
+            <p>Pass : <span className="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">123456</span></p>
           </div>
         </div>
       </div>
