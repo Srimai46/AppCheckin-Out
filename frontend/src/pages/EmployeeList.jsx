@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+// ✅ เปลี่ยนมาใช้ api ที่ดึงค่าจาก .env
+import api from "../api/axios"; 
 import { Plus, User, X, Users, UserMinus, Loader2 } from "lucide-react";
 
 export default function EmployeeList() {
@@ -8,7 +9,7 @@ export default function EmployeeList() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState("active"); // "active" | "inactive"
+  const [activeTab, setActiveTab] = useState("active"); 
   
   const [formData, setFormData] = useState({
     firstName: "", lastName: "", email: "", password: "",
@@ -18,12 +19,8 @@ export default function EmployeeList() {
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      const res = await axios.get("http://192.168.1.42:8080/api/employees", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      // ตรวจสอบข้อมูลผ่าน Console
-      console.log("Employees Data:", res.data);
+      // ✅ ใช้ api.get แทนการใส่ URL เต็มและไม่ต้องส่ง Header เอง
+      const res = await api.get("/employees");
       setEmployees(res.data);
     } catch (err) {
       console.error("Fetch Error:", err);
@@ -36,9 +33,7 @@ export default function EmployeeList() {
     fetchEmployees();
   }, []);
 
-  // ✅ แก้ไข Logic การกรองข้อมูลให้แม่นยำขึ้น
   const filteredEmployees = employees.filter(emp => {
-    // รองรับกรณีค่ามาจาก DB เป็น 1/0 หรือ true/false
     const isEmpActive = emp.isActive === true || emp.isActive === 1;
     return activeTab === "active" ? isEmpActive : !isEmpActive;
   });
@@ -46,10 +41,9 @@ export default function EmployeeList() {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem("token");
-      await axios.post("http://192.168.1.42:8080/api/employees", formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // ✅ ใช้ api.post ส่งข้อมูล formData ไปยัง /employees
+      await api.post("/employees", formData);
+      
       alert("เพิ่มพนักงานสำเร็จ!");
       setShowModal(false);
       fetchEmployees(); 
@@ -73,7 +67,7 @@ export default function EmployeeList() {
         </button>
       </div>
 
-      {/* Tab Switcher */}
+      {/* Tab Switcher - นับจำนวนพนักงานแยกตามสถานะ */}
       <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
         <button 
           onClick={() => setActiveTab("active")}
@@ -89,6 +83,7 @@ export default function EmployeeList() {
         </button>
       </div>
 
+      {/* Table Section */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-gray-50/50 border-b border-gray-100 font-black text-[10px] text-gray-400 uppercase tracking-widest">
@@ -123,13 +118,13 @@ export default function EmployeeList() {
                       {emp.role}
                     </span>
                   </td>
-                  <td className="p-6">
-                     <div className="flex items-center justify-center gap-2">
+                  <td className="p-6 text-center">
+                      <div className="flex items-center justify-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${emp.isActive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`}></div>
                         <span className={`text-[10px] font-black uppercase tracking-widest ${emp.isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
                           {emp.isActive ? "Working" : "Resigned"}
                         </span>
-                     </div>
+                      </div>
                   </td>
                 </tr>
               ))
@@ -144,7 +139,7 @@ export default function EmployeeList() {
         </table>
       </div>
 
-      {/* Modal Section */}
+      {/* Modal - เพิ่มพนักงานใหม่ */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
           <div className="bg-white rounded-[3rem] w-full max-w-md p-10 relative animate-in zoom-in duration-300 shadow-2xl">

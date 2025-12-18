@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
+// ✅ ใช้ api instance ที่ตั้งค่าไว้แทน axios ปกติ
+import api from "../api/axios"; 
 import { 
   ArrowLeft, Clock, CalendarCheck, PieChart, 
   UserMinus, UserPlus, Briefcase, ShieldCheck, Loader2 
@@ -16,12 +17,10 @@ export default function EmployeeDetail() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`http://192.168.1.42:8080/api/employees/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // ✅ ไม่ต้องใส่ IP เต็ม และไม่ต้องใส่ Headers เองแล้ว เพราะ api instance จัดการให้
+      const res = await api.get(`/employees/${id}`);
       
-      console.log("Fetched Data API Output:", res.data); // ✅ เช็คโครงสร้างข้อมูลใน Console
+      console.log("Fetched Data API Output:", res.data); 
       setData(res.data);
     } catch (err) {
       console.error("Fetch error:", err);
@@ -37,7 +36,6 @@ export default function EmployeeDetail() {
 
   // ✅ Logic สำหรับเปลี่ยนสถานะ
   const handleUpdateStatus = async () => {
-    // ตรวจสอบสถานะให้แม่นยำ (รองรับทั้ง Boolean จาก Prisma และตัวเลข 1/0 จาก MySQL)
     const isCurrentlyActive = data?.info?.isActive === true || data?.info?.isActive === 1;
     
     const confirmMsg = isCurrentlyActive 
@@ -47,11 +45,10 @@ export default function EmployeeDetail() {
     if (!window.confirm(confirmMsg)) return;
 
     try {
-      const token = localStorage.getItem("token");
-      await axios.patch(`http://192.168.1.42:8080/api/employees/${id}/status`, 
-        { isActive: !isCurrentlyActive }, 
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // ✅ เรียกใช้ api instance และส่ง path ต่อจาก baseURL
+      await api.patch(`/employees/${id}/status`, { 
+        isActive: !isCurrentlyActive 
+      });
       
       alert("อัปเดตสถานะพนักงานเรียบร้อยแล้ว");
       fetchData(); 
@@ -69,7 +66,6 @@ export default function EmployeeDetail() {
 
   if (!data || !data.info) return <div className="p-10 text-center text-red-500 font-black">ไม่พบข้อมูลพนักงาน</div>;
 
-  // ✅ สร้างตัวแปรเช็คสถานะเพื่อใช้ซ้ำใน UI
   const isEmpActive = data.info.isActive === true || data.info.isActive === 1;
 
   return (
@@ -88,8 +84,6 @@ export default function EmployeeDetail() {
           <div className="space-y-2 text-center md:text-left">
             <div className="flex flex-col md:flex-row items-center gap-3">
               <h1 className="text-3xl font-black text-gray-800 tracking-tight">{data.info.fullName}</h1>
-              
-              {/* ✅ ป้ายบอกสถานะปัจจุบัน */}
               <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${isEmpActive ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
                 ตอนนี้: {isEmpActive ? 'พนักงานปัจจุบัน' : 'ไม่ใช่พนักงาน / พ้นสภาพ'}
               </span>
@@ -107,7 +101,6 @@ export default function EmployeeDetail() {
           </div>
         </div>
 
-        {/* ✅ ปุ่มกดเปลี่ยนสถานะ */}
         <button 
           onClick={handleUpdateStatus}
           className={`flex items-center gap-2 px-8 py-4 rounded-2xl text-xs font-black transition-all active:scale-95 shadow-lg ${
@@ -128,7 +121,6 @@ export default function EmployeeDetail() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {data.quotas && data.quotas.length > 0 ? (
           data.quotas.map((q, idx) => {
-            // ✅ แปลงค่า Decimal เป็น Number เพื่อคำนวณ %
             const total = parseFloat(q.total);
             const used = parseFloat(q.used);
             const percent = total > 0 ? (used / total) * 100 : 0;
@@ -156,7 +148,7 @@ export default function EmployeeDetail() {
           })
         ) : (
           <div className="col-span-full p-10 bg-gray-50 text-gray-400 rounded-3xl text-center font-black border-2 border-dashed">
-             ไม่มีข้อมูลโควตาวันลา
+              ไม่มีข้อมูลโควตาวันลา
           </div>
         )}
       </div>
@@ -172,7 +164,7 @@ export default function EmployeeDetail() {
       </div>
 
       {/* Table Section */}
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden mb-8">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50/50 border-b border-gray-100 font-black text-[10px] text-gray-400 uppercase tracking-widest">
             {tab === "attendance" ? (
