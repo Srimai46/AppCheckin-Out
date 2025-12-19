@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // สร้าง instance ของ axios และกำหนด Base URL เป็น IP เครื่อง Server
 const api = axios.create({
-  baseURL: 'http://192.168.1.42:8080/api', // ✅ ถูกต้องแล้วครับ
+  baseURL: 'http://192.168.1.35:8080/api', // ✅ ถูกต้องแล้วครับ
   timeout: 10000, // (Optional) ตั้งเวลา timeout ไว้ 10 วินาที กันค้าง
 });
 

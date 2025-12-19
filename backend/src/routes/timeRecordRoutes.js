@@ -1,28 +1,33 @@
-const express = require('express')
-const router = express.Router()
+const express = require("express");
+const router = express.Router();
 
-// ✅ นำเข้าฟังก์ชันทั้งหมดจาก Controller (รวมถึง getUserHistory)
-const { 
-    checkIn, 
-    checkOut, 
-    getMyHistory, 
-    getAllAttendance, 
-    getUserHistory 
-} = require('../controllers/timeRecordController') 
-// ⚠️ หมายเหตุ: ถ้าไฟล์ Controller คุณชื่อ attendanceController.js ให้แก้บรรทัดบนเป็น ../controllers/attendanceController
+const {
+  checkIn,
+  checkOut,
+  getMyHistory,
+  getAllAttendance,
+  getUserHistory,
 
-// ✅ ใช้ Middleware แบบเดิมที่คุณต้องการ (src/middlewares/authMiddleware.js)
-const { protect, authorize } = require('../middlewares/authMiddleware') 
+  // ✅ NEW (ต้องมีใน controller)
+  getTeamTodayAttendance,
+  hrCheckInEmployee,
+  hrCheckOutEmployee,
+} = require("../controllers/timeRecordController");
+
+const { protect, authorize } = require("../middlewares/authMiddleware");
 
 // --- User Routes (ทุกคนใช้ได้) ---
-router.post('/check-in', protect, checkIn)
-router.post('/check-out', protect, checkOut)
-router.get('/history', protect, getMyHistory) 
+router.post("/check-in", protect, checkIn);
+router.post("/check-out", protect, checkOut);
+router.get("/history", protect, getMyHistory);
 
-// --- Admin/HR Routes (เฉพาะ HR) ---
-router.get('/all-history', protect, authorize('HR'), getAllAttendance)
+// --- HR Routes (เฉพาะ HR) ---
+router.get("/all-history", protect, authorize("HR"), getAllAttendance);
+router.get("/history/user/:id", protect, authorize("HR"), getUserHistory);
 
-// ✅ Route สำหรับดูประวัติพนักงานรายคน (ต้องรับ :id)
-router.get('/history/user/:id', protect, authorize('HR'), getUserHistory)
+// ✅ TEAM TODAY + HR actions
+router.get("/team/today", protect, authorize("HR"), getTeamTodayAttendance);
+router.post("/team/:employeeId/check-in", protect, authorize("HR"), hrCheckInEmployee);
+router.post("/team/:employeeId/check-out", protect, authorize("HR"), hrCheckOutEmployee);
 
-module.exports = router
+module.exports = router;

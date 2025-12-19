@@ -244,3 +244,195 @@ exports.getUserHistory = async (req, res) => {
     res.status(500).json({ error: "ดึงข้อมูลไม่สำเร็จ" });
   }
 };
+
+// =============================
+// ✅ HR: TEAM TODAY ATTENDANCE
+// =============================
+exports.getTeamTodayAttendance = async (req, res) => {
+  try {
+    const todayStart = getThaiStartOfDay(); // 00:00 ไทย
+
+    // 1) ดึงพนักงานทั้งหมด (เอา Worker/HR ก็ได้)
+    // ถ้าต้องการเฉพาะ Worker ให้ใส่ where: { role: "Worker" }
+    const employees = await prisma.employee.findMany({
+      select: { id: true, firstName: true, lastName: true, role: true },
+      orderBy: { id: "asc" },
+    });
+
+    // 2) ดึง timeRecord ของ "วันนี้"
+    const todayRecords = await prisma.timeRecord.findMany({
+      where: { workDate: { gte: todayStart } },
+      select: {
+        id: true,
+        employeeId: true,
+        workDate: true,
+        checkInTime: true,
+        checkOutTime: true,
+        isLate: true,
+        note: true,
+      },
+      orderBy: { id: "desc" },
+    });
+
+    // 3) เอา record ล่าสุดของแต่ละคน
+    const recordMap = new Map();
+    for (const r of todayRecords) {
+      if (!recordMap.has(r.employeeId)) recordMap.set(r.employeeId, r);
+    }
+
+    // 4) merge ให้ทุกคนมีสถานะ แม้ยังไม่ check-in
+    const result = employees.map((emp) => {
+      const r = recordMap.get(emp.id);
+
+      return {
+        employeeId: emp.id,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        fullName: `${emp.firstName} ${emp.lastName}`.trim(),
+        role: emp.role,
+
+        checkInTime: r?.checkInTime || null,
+        checkOutTime: r?.checkOutTime || null,
+        checkInTimeDisplay: r?.checkInTime ? formatThaiTime(r.checkInTime) : null,
+        checkOutTimeDisplay: r?.checkOutTime ? formatThaiTime(r.checkOutTime) : null,
+
+        isLate: r?.isLate || false,
+        note: r?.note || null,
+
+        state: !r?.checkInTime ? "NOT_IN" : !r?.checkOutTime ? "IN" : "OUT",
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: result.length,
+      data: result,
+    });
+  } catch (error) {
+    console.error("getTeamTodayAttendance Error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "ดึงข้อมูลทีมวันนี้ไม่สำเร็จ",
+    });
+  }
+};
+
+// =============================
+// ✅ HR: CHECK-IN EMPLOYEE
+// =============================
+exports.hrCheckInEmployee = async (req, res) => {
+  try {
+    const employeeId = Number(req.params.employeeId);
+    if (!employeeId) {
+      return res.status(400).json({ error: "employeeId ไม่ถูกต้อง" });
+    }
+
+    const { note } = req.body;
+    const now = new Date();
+    const todayStart = getThaiStartOfDay();
+
+    // 1) หา record วันนี้ของพนักงานคนนี้
+    const existingRecord = await prisma.timeRecord.findFirst({
+      where: {
+        employeeId,
+        workDate: { gte: todayStart },
+      },
+      orderBy: { id: "desc" },
+    });
+
+    if (existingRecord?.checkInTime) {
+      return res.status(400).json({ error: "พนักงานคนนี้ได้ลงเวลาเข้างานวันนี้ไปแล้ว" });
+    }
+
+    // 2) คำนวณสาย/ไม่สาย (ใช้ logic เดิมของคุณ)
+    const workStartTime = new Date(todayStart);
+    workStartTime.setHours(todayStart.getHours() + WORK_START_HOUR);
+    workStartTime.setMinutes(WORK_START_MINUTE);
+
+    const late = now > workStartTime;
+
+    // 3) ถ้าไม่มี record วันนี้ -> create, ถ้ามี -> update
+    let record;
+    if (!existingRecord) {
+      record = await prisma.timeRecord.create({
+        data: {
+          employeeId,
+          workDate: now,
+          checkInTime: now,
+          isLate: late,
+          note: note || null,
+        },
+      });
+    } else {
+      record = await prisma.timeRecord.update({
+        where: { id: existingRecord.id },
+        data: {
+          checkInTime: now,
+          isLate: late,
+          note: note || existingRecord.note || null,
+        },
+      });
+    }
+
+    return res.status(200).json({
+      message: late ? "HR ลงเวลาเข้างานสำเร็จ (สาย)" : "HR ลงเวลาเข้างานสำเร็จ",
+      result: {
+        employeeId,
+        date: formatShortDate(now),
+        time: formatThaiTime(now),
+        isLate: late,
+      },
+      data: record,
+    });
+  } catch (error) {
+    console.error("hrCheckInEmployee Error:", error);
+    return res.status(500).json({ error: "HR ลงเวลาเข้างานไม่สำเร็จ" });
+  }
+};
+
+// =============================
+// ✅ HR: CHECK-OUT EMPLOYEE
+// =============================
+exports.hrCheckOutEmployee = async (req, res) => {
+  try {
+    const employeeId = Number(req.params.employeeId);
+    if (!employeeId) {
+      return res.status(400).json({ error: "employeeId ไม่ถูกต้อง" });
+    }
+
+    const now = new Date();
+    const todayStart = getThaiStartOfDay();
+
+    // 1) ต้องมี record วันนี้ และต้อง check-in ก่อน
+    const record = await prisma.timeRecord.findFirst({
+      where: {
+        employeeId,
+        workDate: { gte: todayStart },
+      },
+      orderBy: { id: "desc" },
+    });
+
+    if (!record?.checkInTime) {
+      return res.status(400).json({ error: "ยังไม่พบการ Check-in วันนี้" });
+    }
+
+    if (record.checkOutTime) {
+      return res.status(400).json({ error: "พนักงานคนนี้ได้ Check-out แล้ว" });
+    }
+
+    // 2) update checkout
+    const updated = await prisma.timeRecord.update({
+      where: { id: record.id },
+      data: { checkOutTime: now },
+    });
+
+    return res.status(200).json({
+      message: "HR ลงเวลาออกงานสำเร็จ",
+      result: { employeeId, checkOutTime: formatThaiTime(now) },
+      data: updated,
+    });
+  } catch (error) {
+    console.error("hrCheckOutEmployee Error:", error);
+    return res.status(500).json({ error: "HR ลงเวลาออกงานไม่สำเร็จ" });
+  }
+};

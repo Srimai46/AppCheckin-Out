@@ -133,9 +133,6 @@ export default function Layout() {
         <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 z-20">
           <div className="flex items-center gap-2 text-gray-400">
             <Menu size={20} className="md:hidden" />
-            <h2 className="text-xs font-black uppercase tracking-widest text-gray-300">
-              HR Management System
-            </h2>
           </div>
 
           <div className="flex items-center gap-4">
