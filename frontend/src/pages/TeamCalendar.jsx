@@ -326,7 +326,6 @@ export default function TeamCalendar() {
               </button>
 
               <div className="flex flex-wrap items-center gap-2">
-                <LegendDot color="bg-blue-600" label="Today" />
                 <LegendDot color="bg-rose-400" label="Sick" />
                 <LegendDot color="bg-sky-400" label="Personal" />
                 <LegendDot color="bg-emerald-400" label="Annual" />

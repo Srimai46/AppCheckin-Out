@@ -154,7 +154,6 @@ export default function Dashboard() {
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 {q.type}
               </span>
-              <PieChart size={18} className="text-blue-500" />
             </div>
             <div>
               <div className="text-2xl font-black text-slate-800 tracking-tighter">
