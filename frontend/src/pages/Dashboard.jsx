@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { checkIn, checkOut, getMyHistory } from "../api/attendanceService";
-// ✅ นำเข้า getMyLeaves เพิ่มเติม
 import { getMyQuotas, getMyLeaves } from "../api/leaveService";
 import {
   LogIn,
@@ -14,6 +13,12 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
+import {
+  alertConfirm,
+  alertSuccess,
+  alertError,
+} from "../utils/sweetAlert";
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
@@ -21,36 +26,36 @@ export default function Dashboard() {
   const [time, setTime] = useState(new Date());
   const [attendanceHistory, setAttendanceHistory] = useState([]);
   const [leaveQuotas, setLeaveQuotas] = useState([]);
-  // ✅ เพิ่ม State สำหรับประวัติการลา
   const [leaveHistory, setLeaveHistory] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
 
   const fetchData = async () => {
     try {
       setDataLoading(true);
-      // ✅ ดึงข้อมูลพร้อมกันทั้ง 3 อย่าง: ประวัติเข้างาน, โควตา, และประวัติการลา
+
       const [historyRes, quotaRes, leaveRes] = await Promise.all([
         getMyHistory(),
         getMyQuotas(),
         getMyLeaves(),
       ]);
 
-      // จัดการข้อมูลประวัติเข้างาน
       setAttendanceHistory(
-        Array.isArray(historyRes.data)
+        Array.isArray(historyRes?.data)
           ? historyRes.data
           : Array.isArray(historyRes)
           ? historyRes
           : []
       );
 
-      // จัดการข้อมูลโควตา
-      setLeaveQuotas(quotaRes || []);
-
-      // ✅ จัดการข้อมูลประวัติการลา
-      setLeaveHistory(leaveRes || []);
+      setLeaveQuotas(Array.isArray(quotaRes) ? quotaRes : []);
+      setLeaveHistory(Array.isArray(leaveRes) ? leaveRes : []);
     } catch (err) {
       console.error("Error fetching data:", err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "ไม่สามารถดึงข้อมูล Dashboard ได้";
+      alertError("โหลดข้อมูลไม่สำเร็จ", msg);
     } finally {
       setDataLoading(false);
     }
@@ -58,13 +63,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (authLoading || !user) return;
+
     fetchData();
 
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, [user, authLoading]);
 
-  // ฟังก์ชันช่วยจัดการสีของสถานะการลา
   const getStatusStyle = (status) => {
     switch (status) {
       case "Approved":
@@ -72,20 +77,31 @@ export default function Dashboard() {
       case "Rejected":
         return "bg-rose-50 text-rose-600 border-rose-100";
       default:
-        return "bg-amber-50 text-amber-600 border-amber-100"; // Pending
+        return "bg-amber-50 text-amber-600 border-amber-100";
     }
   };
 
   const handleAction = async (action) => {
     const isCheckIn = action === "in";
-    if (!confirm(`ยืนยันการ ${isCheckIn ? "เข้างาน" : "ออกงาน"}?`)) return;
+
+    const confirmed = await alertConfirm(
+      "ยืนยันการทำรายการ",
+      `ต้องการ${isCheckIn ? "เข้างาน (Check In)" : "ออกงาน (Check Out)"} ใช่ไหม?`,
+      isCheckIn ? "ยืนยันเข้างาน" : "ยืนยันออกงาน"
+    );
+
+    if (!confirmed) return;
 
     try {
       const res = isCheckIn ? await checkIn() : await checkOut();
-      alert(res.message || "บันทึกสำเร็จ");
+      await alertSuccess("บันทึกสำเร็จ", res?.message || "ระบบบันทึกให้แล้ว");
       fetchData();
     } catch (err) {
-      alert(`❌ เกิดข้อผิดพลาด: ${err.message}`);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "เกิดข้อผิดพลาด กรุณาลองใหม่";
+      alertError("ทำรายการไม่สำเร็จ", msg);
     }
   };
 
@@ -95,6 +111,7 @@ export default function Dashboard() {
         <Loader2 className="animate-spin h-10 w-10 text-blue-600" />
       </div>
     );
+
   if (!user) {
     setTimeout(() => navigate("/login"), 0);
     return null;
@@ -117,6 +134,13 @@ export default function Dashboard() {
           })}{" "}
           | {time.toLocaleTimeString("th-TH")}
         </p>
+
+        {/* ✅ optional: แสดงสถานะโหลดข้อมูล */}
+        {dataLoading && (
+          <div className="mt-3 text-xs font-bold text-gray-400">
+            กำลังโหลดข้อมูล...
+          </div>
+        )}
       </div>
 
       {/* Leave Quota Cards */}
@@ -167,9 +191,9 @@ export default function Dashboard() {
         >
           <LogOut size={24} /> CHECK OUT
         </button>
-        <button
+       <button
           onClick={() => navigate("/leave-request")}
-          className="flex items-center justify-center gap-3 bg-slate-900 hover:bg-slate-800 text-white py-4 px-6 rounded-2xl font-black shadow-lg shadow-slate-200 transition-all active:scale-95"
+          className="flex items-center justify-center gap-3 bg-amber-300 hover:bg-amber-400 text-slate-900  py-4 px-6 rounded-2xl font-black shadow-lg shadow-amber-200/60 transition-all active:scale-95 "
         >
           <Calendar size={24} /> REQUEST LEAVE
         </button>
@@ -229,7 +253,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ✅ ✅ Leave History Table (Updated with Note column) ✅ ✅ */}
+        {/* Leave History Table */}
         <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-6 border-b border-gray-50 flex items-center gap-2">
             <FileText size={18} className="text-amber-500" />
@@ -243,8 +267,7 @@ export default function Dashboard() {
                 <tr>
                   <th className="px-6 py-4">Type</th>
                   <th className="px-6 py-4">Period</th>
-                  <th className="px-6 py-4">Note</th>{" "}
-                  {/* ✅ เพิ่มคอลัมน์ Note */}
+                  <th className="px-6 py-4">Note</th>
                   <th className="px-6 py-4 text-center">Status</th>
                 </tr>
               </thead>
@@ -281,7 +304,6 @@ export default function Dashboard() {
                           month: "short",
                         })}
                       </td>
-                      {/* ✅ แสดง Note / เหตุผลการลา */}
                       <td className="px-6 py-4">
                         <div
                           className="text-slate-500 font-medium italic max-w-[150px] truncate"

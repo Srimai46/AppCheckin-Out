@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar as CalendarIcon, Clock } from "lucide-react";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { createLeaveRequest } from "../api/leaveService";
+import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
 export default function LeaveRequest() {
   const navigate = useNavigate();
@@ -10,10 +11,10 @@ export default function LeaveRequest() {
   const [reason, setReason] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [duration, setDuration] = useState("Full"); // Enum: Full, HalfMorning, HalfAfternoon
+  const [duration, setDuration] = useState("Full"); // Full, HalfMorning, HalfAfternoon
   const [isLoading, setIsLoading] = useState(false);
 
-  // ✅ แก้ไข: id ต้องตรงกับ typeName ใน Database (Sick, Personal, Annual, Emergency, Other)
+  // ✅ id ต้องตรงกับ typeName ใน Database (Sick, Personal, Annual, Emergency, Other)
   const leaveTypes = [
     { id: "Sick", label: "ลาป่วย (Sick Leave)" },
     { id: "Personal", label: "ลากิจ (Personal Leave)" },
@@ -22,53 +23,70 @@ export default function LeaveRequest() {
     { id: "Other", label: "อื่นๆ (Other)" },
   ];
 
+  const durationLabel =
+    duration === "Full"
+      ? "เต็มวัน"
+      : duration === "HalfMorning"
+      ? "ครึ่งวันเช้า"
+      : "ครึ่งวันบ่าย";
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!selectedType) return alert("กรุณาเลือกประเภทการลา");
-    if (!startDate || !endDate)
-      return alert("กรุณาระบุวันที่เริ่มต้นและสิ้นสุด");
-    
+    if (!selectedType) {
+      return alertError("ข้อมูลไม่ครบ", "กรุณาเลือกประเภทการลา");
+    }
+    if (!startDate || !endDate) {
+      return alertError("ข้อมูลไม่ครบ", "กรุณาระบุวันที่เริ่มต้นและสิ้นสุด");
+    }
+
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
-    if (start > end)
-      return alert("วันที่สิ้นสุด ต้องมาทีหลังวันที่เริ่มต้น");
+    if (start > end) {
+      return alertError("วันที่ไม่ถูกต้อง", "วันที่สิ้นสุดต้องมาทีหลังวันที่เริ่มต้น");
+    }
 
-    // แปลงชื่อประเภทการลาเพื่อแสดงใน Confirm Dialog
-    const typeLabel = leaveTypes.find(t => t.id === selectedType)?.label || selectedType;
-    const durationLabel = 
-      duration === "Full" ? "เต็มวัน" : 
-      duration === "HalfMorning" ? "ครึ่งวันเช้า" : "ครึ่งวันบ่าย";
+    const typeLabel =
+      leaveTypes.find((t) => t.id === selectedType)?.label || selectedType;
 
-    const confirmMsg = `ยืนยันการส่งใบลาประเภท "${typeLabel}" แบบ ${durationLabel} ใช่หรือไม่?`;
+    const confirmed = await alertConfirm(
+      "ยืนยันการส่งคำขอลา",
+      `ประเภท: ${typeLabel}\nช่วงเวลา: ${startDate} ถึง ${endDate}\nระยะเวลา: ${durationLabel}\n\nต้องการส่งคำขอนี้ใช่ไหม?`,
+      "ยืนยันส่งคำขอ"
+    );
+    if (!confirmed) return;
 
-    if (window.confirm(confirmMsg)) {
-      setIsLoading(true);
-      try {
-        // 👇 เตรียมข้อมูลส่ง Backend ให้ตรงกับ Schema และ Controller
-        const payload = {
-          type: selectedType, // ส่ง 'Sick', 'Personal' ฯลฯ
-          startDate: startDate,
-          endDate: endDate,
-          reason: reason,
-          startDuration: duration,
-          endDuration: duration,
-        };
+    setIsLoading(true);
+    try {
+      // 👇 payload ให้ตรงกับ backend
+      const payload = {
+        type: selectedType,
+        startDate,
+        endDate,
+        reason,
+        startDuration: duration,
+        endDuration: duration,
+      };
 
-        await createLeaveRequest(payload);
+      const res = await createLeaveRequest(payload);
 
-        alert("✅ ส่งใบลาเรียบร้อยแล้ว!");
-        navigate("/dashboard");
-      } catch (error) {
-        console.error(error);
-        // แสดง Error Message ที่ส่งมาจาก Backend (เช่น "วันลาไม่พอ" หรือ "ลาซ้ำซ้อน")
-        alert(
-          "❌ ไม่สามารถลาได้: " + (error.response?.data?.error || "เกิดข้อผิดพลาดที่ระบบ")
-        );
-      } finally {
-        setIsLoading(false);
-      }
+      await alertSuccess(
+        "ส่งคำขอสำเร็จ",
+        res?.message || "ส่งใบลาเรียบร้อยแล้ว"
+      );
+      navigate("/dashboard");
+    } catch (error) {
+      console.error(error);
+
+      const msg =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "เกิดข้อผิดพลาดที่ระบบ";
+
+      alertError("ส่งคำขอไม่สำเร็จ", msg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -89,7 +107,6 @@ export default function LeaveRequest() {
 
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            
             {/* Left Column: Leave Type Selection */}
             <div className="space-y-4">
               <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-2">
@@ -106,12 +123,20 @@ export default function LeaveRequest() {
                         : "border-gray-50 hover:border-blue-200 hover:bg-gray-50"
                     }`}
                   >
-                    <div className={`w-5 h-5 rounded-full border-4 mr-4 transition-colors ${
-                      selectedType === type.id ? "border-blue-600 bg-white" : "border-gray-200"
-                    }`} />
-                    <span className={`font-black text-sm ${
-                      selectedType === type.id ? "text-blue-900" : "text-slate-500"
-                    }`}>
+                    <div
+                      className={`w-5 h-5 rounded-full border-4 mr-4 transition-colors ${
+                        selectedType === type.id
+                          ? "border-blue-600 bg-white"
+                          : "border-gray-200"
+                      }`}
+                    />
+                    <span
+                      className={`font-black text-sm ${
+                        selectedType === type.id
+                          ? "text-blue-900"
+                          : "text-slate-500"
+                      }`}
+                    >
                       {type.label}
                     </span>
                   </div>
@@ -121,7 +146,6 @@ export default function LeaveRequest() {
 
             {/* Right Column: Date, Duration & Reason */}
             <div className="space-y-8">
-              
               {/* Date Selection */}
               <div className="space-y-4">
                 <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-2">
@@ -129,7 +153,9 @@ export default function LeaveRequest() {
                 </label>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-gray-400 ml-1">เริ่ม</span>
+                    <span className="text-[10px] font-bold text-gray-400 ml-1">
+                      เริ่ม
+                    </span>
                     <input
                       type="date"
                       className="w-full p-4 bg-gray-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all"
@@ -139,7 +165,9 @@ export default function LeaveRequest() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-gray-400 ml-1">สิ้นสุด</span>
+                    <span className="text-[10px] font-bold text-gray-400 ml-1">
+                      สิ้นสุด
+                    </span>
                     <input
                       type="date"
                       className="w-full p-4 bg-gray-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all"
@@ -151,7 +179,7 @@ export default function LeaveRequest() {
                   </div>
                 </div>
 
-                {/* Duration Picker (Radio-style Buttons) */}
+                {/* Duration Picker */}
                 <div className="flex bg-gray-100 p-1.5 rounded-2xl gap-1">
                   {[
                     { id: "Full", label: "เต็มวัน" },
@@ -185,7 +213,7 @@ export default function LeaveRequest() {
                   className="w-full p-5 bg-gray-50 border-none rounded-[2rem] font-bold text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all resize-none"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                ></textarea>
+                />
               </div>
             </div>
           </div>
@@ -199,6 +227,7 @@ export default function LeaveRequest() {
             >
               ยกเลิก (Cancel)
             </button>
+
             <button
               type="submit"
               disabled={isLoading}

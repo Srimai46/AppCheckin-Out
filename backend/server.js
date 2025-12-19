@@ -36,7 +36,7 @@ async function startServer() {
     // 👇 แก้ไขตรงนี้ครับ: เติม '0.0.0.0' เพื่อให้เครื่องอื่นมองเห็น IP เครื่องเรา
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`)
-      console.log(`🌐 LAN Access: http://192.168.1.42:${PORT}`) // (IP เครื่องคุณ)
+      console.log(`🌐 LAN Access: http://192.168.1.34:${PORT}`) // (IP เครื่องคุณ)
     })
   } catch (error) {
     console.error('❌ Error starting server:', error)
