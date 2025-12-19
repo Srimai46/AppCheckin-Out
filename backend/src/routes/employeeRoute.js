@@ -7,7 +7,8 @@ const {
     createEmployee, 
     updateEmployeeStatus,
     getAttendanceStats,
-    resetPassword
+    resetPassword,
+    updateEmployee
 } = require("../controllers/employeeController");
 
 // 1. ดึงสถิติภาพรวม (เช็คอิน, มาสาย) 
@@ -28,5 +29,8 @@ router.patch("/:id/status", protect, authorize("Admin", "HR"), updateEmployeeSta
 
 // 6. รีเซ็ตรหัสผ่านพนักงาน (Admin/HR)
 router.post("/:id/reset-password", protect, authorize("Admin", "HR"), resetPassword);
+
+// 7. แก้ไขข้อมูลพนักงาน (ชื่อ-นามสกุล) - PUT
+router.put("/:id", protect, authorize("Admin", "HR"), updateEmployee);
 
 module.exports = router;

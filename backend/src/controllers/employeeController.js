@@ -232,3 +232,41 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ error: "ไม่สามารถรีเซ็ตรหัสผ่านได้" });
   }
 };
+
+// 7. แก้ไขข้อมูลพนักงาน (ชื่อ-นามสกุล) - PUT
+exports.updateEmployee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { firstName, lastName } = req.body;
+
+    // 1. ตรวจสอบว่าพนักงานมีตัวตนจริงไหม
+    const existingEmployee = await prisma.employee.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!existingEmployee) {
+      return res.status(404).json({ error: "ไม่พบข้อมูลพนักงานที่ต้องการอัปเดต" });
+    }
+
+    // 2. ทำการอัปเดตข้อมูลเฉพาะที่มีการส่งมา
+    const updatedEmployee = await prisma.employee.update({
+      where: { id: parseInt(id) },
+      data: {
+        firstName: firstName || existingEmployee.firstName,
+        lastName: lastName || existingEmployee.lastName,
+      }
+    });
+
+    res.json({
+      message: "อัปเดตข้อมูลพนักงานสำเร็จ",
+      data: {
+        id: updatedEmployee.id,
+        firstName: updatedEmployee.firstName,
+        lastName: updatedEmployee.lastName
+      }
+    });
+  } catch (error) {
+    console.error("Update Employee Error:", error);
+    res.status(500).json({ error: "เกิดข้อผิดพลาดในการอัปเดตข้อมูลพนักงาน" });
+  }
+};
