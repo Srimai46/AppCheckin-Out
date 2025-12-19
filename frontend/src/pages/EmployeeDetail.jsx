@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import {
   ArrowLeft, PieChart, UserMinus, UserPlus,
-  Briefcase, ShieldCheck, Loader2, Edit3
+  Briefcase, ShieldCheck, Loader2, Edit3, KeyRound
 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
@@ -16,6 +16,9 @@ export default function EmployeeDetail() {
   const [tab, setTab] = useState("attendance");
   const [updating, setUpdating] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  
+  // ✅ เพิ่ม state สำหรับรหัสผ่านใหม่
+  const [newPassword, setNewPassword] = useState("");
   const [formData, setFormData] = useState({
     firstName: "", lastName: "", email: "",
     joiningDate: "", resignationDate: "",
@@ -38,6 +41,27 @@ export default function EmployeeDetail() {
     fetchData();
   }, [id]);
 
+  // ✅ ฟังก์ชันรีเซ็ตรหัสผ่าน
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      return alertError("ผิดพลาด", "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร");
+    }
+
+    const confirmed = await alertConfirm("ยืนยันการรีเซ็ตรหัสผ่าน", `ต้องการเปลี่ยนรหัสผ่านของ ${data.info.fullName} ใช่หรือไม่?`);
+    if (!confirmed) return;
+
+    try {
+      setUpdating(true);
+      await api.post(`/employees/${id}/reset-password`, { newPassword });
+      await alertSuccess("สำเร็จ", "รีเซ็ตรหัสผ่านพนักงานเรียบร้อยแล้ว");
+      setNewPassword(""); // ล้างค่าหลังทำรายการสำเร็จ
+    } catch (err) {
+      alertError("ล้มเหลว", err.response?.data?.error || "ไม่สามารถรีเซ็ตรหัสผ่านได้");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const handleUpdateStatus = async () => {
     if (!data?.info) return;
     const isCurrentlyActive = data.info.isActive === true || data.info.isActive === 1;
@@ -53,7 +77,6 @@ export default function EmployeeDetail() {
       setUpdating(true);
       await api.patch(`/employees/${id}/status`, { isActive: !isCurrentlyActive });
       await alertSuccess("สำเร็จ", "อัปเดตสถานะเรียบร้อยแล้ว");
-      setShowModal(false);
       fetchData();
     } catch (err) {
       alertError("อัปเดตไม่สำเร็จ", err.response?.data?.error || "เกิดข้อผิดพลาด");
@@ -63,14 +86,14 @@ export default function EmployeeDetail() {
   };
 
   const handleUpdateInfo = async (e) => {
-    e.preventDefault(); // ✅ ป้องกัน Reload
+    e.preventDefault();
     try {
       setUpdating(true);
       await api.put(`/employees/${id}`, formData);
       await alertSuccess("สำเร็จ", "อัปเดตข้อมูลพนักงานเรียบร้อย");
       setShowModal(false);
       fetchData();
-    } catch (err) { // ✅ เปลี่ยนชื่อตัวแปรรับ error ไม่ให้ซ้ำกับ alertError
+    } catch (err) {
       alertError("ผิดพลาด", err.response?.data?.error || "ไม่สามารถอัปเดตข้อมูลได้");
     } finally {
       setUpdating(false);
@@ -134,17 +157,18 @@ export default function EmployeeDetail() {
           }}
           className="px-8 py-4 rounded-2xl bg-slate-900 text-white hover:bg-blue-600 font-black flex items-center gap-2 shadow-lg transition-all active:scale-95"
         >
-          <Edit3 size={18} /> แก้ไขข้อมูล
+          <Edit3 size={18} /> จัดการข้อมูล
         </button>
       </div>
 
-      {/* Modal Section */}
+      {/* Modal Section (Enhanced with Password Reset) */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
             <h2 className="text-2xl font-black text-gray-800">จัดการข้อมูลพนักงาน</h2>
             
-            <form onSubmit={handleUpdateInfo} className="space-y-4">
+            {/* 1. ส่วนแก้ไขข้อมูลทั่วไป */}
+            <form onSubmit={handleUpdateInfo} className="space-y-4 border-b border-gray-100 pb-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">ชื่อ</label>
@@ -157,35 +181,41 @@ export default function EmployeeDetail() {
                     className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold focus:ring-2 focus:ring-blue-100 outline-none" />
                 </div>
               </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Email (แก้ไขไม่ได้)</label>
-                <input disabled type="email" value={formData.email} className="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 font-bold text-gray-400 cursor-not-allowed" />
-              </div>
-
-              {/* Action Buttons inside Modal */}
-              <div className="pt-6 flex flex-col gap-3">
-                <div className="flex gap-3">
-                  <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 rounded-2xl border-2 border-gray-100 font-black text-gray-400 hover:bg-gray-50 transition-all">ยกเลิก</button>
-                  <button type="submit" disabled={updating} className="flex-[2] py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:opacity-50">
-                    {updating ? "กำลังบันทึก..." : "บันทึกข้อมูลชื่อ-สกุล"}
-                  </button>
-                </div>
-
-                <div className="pt-4 border-t border-gray-100">
-                  <p className="text-[10px] font-black text-gray-400 uppercase text-center mb-3 tracking-widest">สถานะพนักงาน</p>
-                  <button type="button" onClick={handleUpdateStatus} disabled={updating}
-                    className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black transition-all shadow-md ${isEmpActive ? "bg-rose-50 text-rose-600 border-2 border-rose-100 hover:bg-rose-600 hover:text-white" : "bg-emerald-50 text-emerald-600 border-2 border-emerald-100 hover:bg-emerald-600 hover:text-white"}`}>
-                    {isEmpActive ? <><UserMinus size={18} /> ปรับเป็นพ้นสภาพ</> : <><UserPlus size={18} /> ปรับเป็นพนักงานปัจจุบัน</>}
-                  </button>
-                </div>
-              </div>
+              <button type="submit" disabled={updating} className="w-full py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95">
+                {updating ? "กำลังบันทึก..." : "อัปเดตชื่อ-นามสกุล"}
+              </button>
             </form>
+
+            {/* 2. ส่วนรีเซ็ตรหัสผ่าน */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest flex items-center gap-2">
+                <KeyRound size={12} /> รีเซ็ตรหัสผ่านใหม่
+              </p>
+              <div className="flex gap-2">
+                <input type="password" placeholder="ระบุรหัสผ่านใหม่อย่างน้อย 6 ตัว" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                  className="flex-1 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-100" />
+                <button type="button" onClick={handleResetPassword} disabled={updating} className="px-4 bg-amber-500 text-white rounded-2xl hover:bg-amber-600 transition-all active:scale-95">
+                  รีเซ็ต
+                </button>
+              </div>
+            </div>
+
+            {/* 3. ส่วนเปลี่ยนสถานะและปิด */}
+            <div className="pt-4 space-y-3">
+              <button type="button" onClick={handleUpdateStatus} disabled={updating}
+                className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black transition-all shadow-md ${isEmpActive ? "bg-rose-50 text-rose-600 border-2 border-rose-100 hover:bg-rose-600" : "bg-emerald-50 text-emerald-600 border-2 border-emerald-100 hover:bg-emerald-600 hover:text-white"}`}>
+                {isEmpActive ? <><UserMinus size={18} /> ปรับเป็นพ้นสภาพ</> : <><UserPlus size={18} /> ปรับเป็นพนักงานปกติ</>}
+              </button>
+              
+              <button type="button" onClick={() => setShowModal(false)} className="w-full py-4 text-gray-400 font-black uppercase text-[10px] tracking-widest hover:text-gray-600 transition-all">
+                ปิดหน้าต่างจัดการ
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Leave Quota Cards */}
+      {/* Leave Quota & Tables (ส่วนเดิมที่คงไว้) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {data.quotas?.map((q, idx) => {
           const total = parseFloat(q.total);
@@ -207,7 +237,6 @@ export default function EmployeeDetail() {
         })}
       </div>
 
-      {/* Tabs Selection */}
       <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
         {["attendance", "leave"].map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tab === t ? "bg-white text-blue-600 shadow-md" : "text-gray-400 hover:text-gray-600"}`}>
@@ -216,7 +245,6 @@ export default function EmployeeDetail() {
         ))}
       </div>
 
-      {/* Tables Section */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden mb-8">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50/50 border-b border-gray-100 font-black text-[10px] text-gray-400 uppercase tracking-widest">

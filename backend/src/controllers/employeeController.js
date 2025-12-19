@@ -13,11 +13,12 @@ const formatShortDate = (date) => {
 const formatThaiTime = (date) => {
   if (!date) return "-";
   return new Date(date).toLocaleTimeString("th-TH", {
-    timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit",
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit", minute: "2-digit",
   });
 };
 
-// 1. ดึงรายชื่อพนักงานทุกคน (สำหรับหน้า List)
+// 1. ดึงรายชื่อพนักงานทุกคน
 exports.getAllEmployees = async (req, res) => {
   try {
     const employees = await prisma.employee.findMany({
@@ -27,14 +28,15 @@ exports.getAllEmployees = async (req, res) => {
         lastName: true,
         email: true,
         role: true,
-        isActive: true, 
+        isActive: true,
         joiningDate: true,
       },
-      orderBy: { id: 'asc' }
+      orderBy: { id: "asc" },
     });
     res.json(employees);
   } catch (error) {
-    res.status(500).json({ error: "Server Error" });
+    console.error(error);
+    res.status(500).json({ error: "เกิดข้อผิดพลาดที่เซิร์ฟเวอร์" });
   }
 };
 
@@ -47,55 +49,62 @@ exports.getEmployeeById = async (req, res) => {
     const employee = await prisma.employee.findUnique({
       where: { id: parseInt(id) },
       include: {
-        timeRecords: { orderBy: { workDate: 'desc' }, take: 30 },
-        leaveRequestsAsEmployee: { include: { leaveType: true }, orderBy: { startDate: 'desc' } },
-        leaveQuotas: { where: { year: currentYear }, include: { leaveType: true } }
-      }
+        timeRecords: { orderBy: { workDate: "desc" }, take: 30 },
+        leaveRequestsAsEmployee: {
+          include: { leaveType: true },
+          orderBy: { startDate: "desc" },
+        },
+        leaveQuotas: {
+          where: { year: currentYear },
+          include: { leaveType: true },
+        },
+      },
     });
 
     if (!employee) return res.status(404).json({ error: "ไม่พบพนักงาน" });
 
-    const formattedData = {
+    res.json({
       info: {
         id: employee.id,
         fullName: `${employee.firstName} ${employee.lastName}`,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
         email: employee.email,
         role: employee.role,
         joiningDate: formatShortDate(employee.joiningDate),
-        isActive: employee.isActive // ส่งค่าสถานะปัจจุบันไปให้ Frontend
+        isActive: employee.isActive,
       },
-      quotas: employee.leaveQuotas.map(q => ({
+      quotas: employee.leaveQuotas.map((q) => ({
         type: q.leaveType.typeName,
         total: Number(q.totalDays),
         used: Number(q.usedDays),
-        remaining: Number(q.totalDays) - Number(q.usedDays)
+        remaining: Number(q.totalDays) - Number(q.usedDays),
       })),
-      attendance: employee.timeRecords.map(record => ({
+      attendance: employee.timeRecords.map((record) => ({
         id: record.id,
         date: formatShortDate(record.workDate),
         checkIn: formatThaiTime(record.checkInTime),
         checkOut: record.checkOutTime ? formatThaiTime(record.checkOutTime) : "-",
         status: record.isLate ? "สาย" : "ปกติ",
-        note: record.note || "-" 
+        note: record.note || "-",
       })),
-      leaves: employee.leaveRequestsAsEmployee.map(leave => ({
+      leaves: employee.leaveRequestsAsEmployee.map((leave) => ({
         id: leave.id,
         type: leave.leaveType.typeName,
         start: formatShortDate(leave.startDate),
         end: formatShortDate(leave.endDate),
         days: Number(leave.totalDaysRequested),
         status: leave.status,
-        reason: leave.reason
-      }))
-    };
-
-    res.json(formattedData);
+        reason: leave.reason,
+      })),
+    });
   } catch (error) {
-    res.status(500).json({ error: "Server Error" });
+    console.error(error);
+    res.status(500).json({ error: "ไม่สามารถดึงข้อมูลพนักงานได้" });
   }
 };
 
-// 3. เปลี่ยนสถานะพนักงาน (PATCH)
+// 3. เปลี่ยนสถานะพนักงาน (Active/Inactive)
 exports.updateEmployeeStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -103,7 +112,7 @@ exports.updateEmployeeStatus = async (req, res) => {
 
     await prisma.employee.update({
       where: { id: parseInt(id) },
-      data: { isActive: isActive }
+      data: { isActive: !!isActive }, // มั่นใจว่าเป็น boolean
     });
 
     res.json({ message: "อัปเดตสถานะสำเร็จ" });
@@ -116,6 +125,7 @@ exports.updateEmployeeStatus = async (req, res) => {
 exports.createEmployee = async (req, res) => {
   try {
     const { firstName, lastName, email, password, role, joiningDate } = req.body;
+    
     const existing = await prisma.employee.findUnique({ where: { email } });
     if (existing) return res.status(400).json({ error: "Email นี้ถูกใช้งานแล้ว" });
 
@@ -127,20 +137,21 @@ exports.createEmployee = async (req, res) => {
           firstName, lastName, email,
           passwordHash: hashedPassword,
           role: role || "Worker",
-          joiningDate: new Date(joiningDate),
-          isActive: true
-        }
+          joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
+          isActive: true,
+        },
       });
 
       const leaveTypes = await tx.leaveType.findMany();
       if (leaveTypes.length > 0) {
         await tx.leaveQuota.createMany({
-          data: leaveTypes.map(type => ({
+          data: leaveTypes.map((type) => ({
             employeeId: newEmployee.id,
             leaveTypeId: type.id,
             year: new Date().getFullYear(),
-            totalDays: 30, usedDays: 0
-          }))
+            totalDays: 30, // ค่าเริ่มต้น
+            usedDays: 0,
+          })),
         });
       }
       return newEmployee;
@@ -148,125 +159,96 @@ exports.createEmployee = async (req, res) => {
 
     res.status(201).json({ message: "เพิ่มพนักงานสำเร็จ", employee: result });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "สร้างพนักงานไม่สำเร็จ" });
   }
 };
 
-// 5. ดึงสถิติการเข้างาน (ระบุวันที่ได้)
+// 5. ดึงสถิติการเข้างานรายวัน
 exports.getAttendanceStats = async (req, res) => {
   try {
-    // รับวันที่จาก Query Params (เช่น /stats?date=2024-03-20) 
-    // ถ้าไม่มีให้ใช้ current date
     const { date } = req.query;
     const targetDate = date ? new Date(date) : new Date();
 
-    // ตั้งค่าช่วงเวลา 00:00:00 - 23:59:59 ของวันที่ระบุ
     const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
-
     const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // 1. นับพนักงานที่ Active ทั้งหมด ณ ปัจจุบัน
-    const totalEmployees = await prisma.employee.count({
-      where: { isActive: true }
-    });
+    const totalEmployees = await prisma.employee.count({ where: { isActive: true } });
 
-    // 2. ดึงข้อมูลการลงเวลาของวันที่ระบุ
     const records = await prisma.timeRecord.findMany({
-      where: {
-        workDate: {
-          gte: startOfDay,
-          lte: endOfDay
-        }
-      },
-      include: {
-        employee: {
-          select: { firstName: true, lastName: true }
-        }
-      }
+      where: { workDate: { gte: startOfDay, lte: endOfDay } },
+      include: { employee: { select: { firstName: true, lastName: true } } },
     });
 
     res.json({
       selectedDate: formatShortDate(startOfDay),
       totalEmployees,
       checkedIn: records.length,
-      late: records.filter(r => r.isLate).length,
-      absent: totalEmployees - records.length,
-      // เพิ่มรายชื่อคนที่มาสายเพื่อให้ง่ายต่อการตรวจสอบ
-      lateDetails: records
-        .filter(r => r.isLate)
-        .map(r => ({
-          name: `${r.employee.firstName} ${r.employee.lastName}`,
-          time: formatThaiTime(r.checkInTime)
-        }))
+      late: records.filter((r) => r.isLate).length,
+      absent: Math.max(0, totalEmployees - records.length),
+      lateDetails: records.filter((r) => r.isLate).map((r) => ({
+        name: `${r.employee.firstName} ${r.employee.lastName}`,
+        time: formatThaiTime(r.checkInTime),
+      })),
     });
   } catch (error) {
     res.status(500).json({ error: "ไม่สามารถดึงข้อมูลสถิติได้" });
   }
 };
 
-// 6. รีเซ็ตรหัสผ่านพนักงาน (โดย Admin/HR)
+// 6. รีเซ็ตรหัสผ่าน (ปรับปรุงสิทธิ์)
 exports.resetPassword = async (req, res) => {
   try {
     const { id } = req.params;
     const { newPassword } = req.body;
+    const requester = req.user; // มาจาก middleware protect
+
+    // เช็คสิทธิ์: ต้องเป็น HR/Admin หรือเจ้าของ ID นั้นเอง
+    const canAccess = requester.role === "HR" || requester.role === "Admin" || requester.id === parseInt(id);
+    
+    if (!canAccess) {
+      return res.status(403).json({ error: "คุณไม่มีสิทธิ์เปลี่ยนรหัสผ่านของผู้อื่น" });
+    }
 
     if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({ error: "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร" });
     }
 
-    // 1. Hash รหัสผ่านใหม่
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // 2. อัปเดตลง Database
     await prisma.employee.update({
       where: { id: parseInt(id) },
-      data: { passwordHash: hashedPassword }
+      data: { passwordHash: hashedPassword },
     });
 
     res.json({ message: "รีเซ็ตรหัสผ่านสำเร็จแล้ว" });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: "ไม่สามารถรีเซ็ตรหัสผ่านได้" });
   }
 };
 
-// 7. แก้ไขข้อมูลพนักงาน (ชื่อ-นามสกุล) - PUT
+// 7. แก้ไขข้อมูลพนักงาน (ชื่อ-นามสกุล)
 exports.updateEmployee = async (req, res) => {
   try {
     const { id } = req.params;
     const { firstName, lastName } = req.body;
 
-    // 1. ตรวจสอบว่าพนักงานมีตัวตนจริงไหม
-    const existingEmployee = await prisma.employee.findUnique({
-      where: { id: parseInt(id) }
-    });
-
-    if (!existingEmployee) {
-      return res.status(404).json({ error: "ไม่พบข้อมูลพนักงานที่ต้องการอัปเดต" });
-    }
-
-    // 2. ทำการอัปเดตข้อมูลเฉพาะที่มีการส่งมา
     const updatedEmployee = await prisma.employee.update({
       where: { id: parseInt(id) },
       data: {
-        firstName: firstName || existingEmployee.firstName,
-        lastName: lastName || existingEmployee.lastName,
-      }
+        firstName: firstName?.trim() || undefined, // ถ้าเป็นค่าว่างจะไม่บันทึกทับ
+        lastName: lastName?.trim() || undefined,
+      },
     });
 
     res.json({
       message: "อัปเดตข้อมูลพนักงานสำเร็จ",
-      data: {
-        id: updatedEmployee.id,
-        firstName: updatedEmployee.firstName,
-        lastName: updatedEmployee.lastName
-      }
+      data: updatedEmployee,
     });
   } catch (error) {
-    console.error("Update Employee Error:", error);
-    res.status(500).json({ error: "เกิดข้อผิดพลาดในการอัปเดตข้อมูลพนักงาน" });
+    if (error.code === 'P2025') return res.status(404).json({ error: "ไม่พบข้อมูลพนักงาน" });
+    res.status(500).json({ error: "เกิดข้อผิดพลาดในการอัปเดตข้อมูล" });
   }
 };
