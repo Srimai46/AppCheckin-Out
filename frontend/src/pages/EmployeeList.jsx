@@ -24,6 +24,7 @@ export default function EmployeeList() {
     role: "Worker",
     joiningDate: "",
   });
+  const [search, setSearch] = useState("");
 
   const resetForm = () =>
     setFormData({
@@ -68,21 +69,32 @@ export default function EmployeeList() {
   }, []);
 
   const activeCount = useMemo(
-    () => employees.filter((e) => e.isActive === true || e.isActive === 1).length,
+    () =>
+      employees.filter((e) => e.isActive === true || e.isActive === 1).length,
     [employees]
   );
 
   const inactiveCount = useMemo(
-    () => employees.filter((e) => e.isActive === false || e.isActive === 0).length,
+    () =>
+      employees.filter((e) => e.isActive === false || e.isActive === 0).length,
     [employees]
   );
 
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
       const isEmpActive = emp.isActive === true || emp.isActive === 1;
-      return activeTab === "active" ? isEmpActive : !isEmpActive;
+      const matchStatus = activeTab === "active" ? isEmpActive : !isEmpActive;
+
+      const keyword = search.toLowerCase().trim();
+      const matchSearch =
+        emp.firstName?.toLowerCase().includes(keyword) ||
+        emp.lastName?.toLowerCase().includes(keyword) ||
+        emp.email?.toLowerCase().includes(keyword) ||
+        String(emp.id).includes(keyword);
+
+      return matchStatus && matchSearch;
     });
-  }, [employees, activeTab]);
+  }, [employees, activeTab, search]);
 
   const onChange = (key) => (e) =>
     setFormData((p) => ({ ...p, [key]: e.target.value }));
@@ -189,29 +201,40 @@ export default function EmployeeList() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
-        <button
-          onClick={() => setActiveTab("active")}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-            activeTab === "active"
-              ? "bg-white text-blue-600 shadow-md"
-              : "text-gray-400 hover:text-gray-600"
-          }`}
-        >
-          <Users size={18} /> Active ({activeCount})
-        </button>
+      <div className="flex gap p-1.5 rounded-2xl w-full">
+        <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
+          <button
+            onClick={() => setActiveTab("active")}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+              activeTab === "active"
+                ? "bg-white text-blue-600 shadow-md"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            <Users size={18} /> Active ({activeCount})
+          </button>
 
-        <button
-          onClick={() => setActiveTab("inactive")}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-            activeTab === "inactive"
-              ? "bg-white text-rose-600 shadow-md"
-              : "text-gray-400 hover:text-gray-600"
-          }`}
-        >
-          <UserMinus size={18} /> Resigned ({inactiveCount})
-        </button>
+          <button
+            onClick={() => setActiveTab("inactive")}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+              activeTab === "inactive"
+                ? "bg-white text-rose-600 shadow-md"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            <UserMinus size={18} /> Resigned ({inactiveCount})
+          </button>
+        </div>
+        <input
+          type="text"
+          placeholder="Search employee..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="ml-auto w-72 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none"
+        />
       </div>
+
+      <div className="flex items-center gap-3 "></div>
 
       {/* Table */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
