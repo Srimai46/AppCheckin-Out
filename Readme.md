@@ -51,8 +51,9 @@ socket.io-client	         | V4.8.1
 Day.js                       			
 react-toastify		         | V9.x		
 FullCalendar		         | V6.x		
-CSS ? 
-{ อาจจะมีเพิ่ม }
+CSS
+sweetalet2
+
 
 pnpm create vite frontend
 pnpm add react@18.2.0 react-dom@18.2.0
@@ -66,7 +67,8 @@ pnpm add socket.io-client@4.8.1
 pnpm add dayjs
 pnpm add react-toastify@9
 pnpm add @fullcalendar/react@6 @fullcalendar/daygrid@6
-
+pnpm add sweetalert2
+pnpm add tailwindcss
 
 Folder 
 project-root/
@@ -74,6 +76,7 @@ backend/
 │   ├── prisma/
 │   │   ├── migrations/          # Folder ที่ Prisma สร้างให้อัตโนมัติ
 │   │   ├── schema.prisma        # Database Schema (Model หลักอยู่ที่นี่)
+│   │   ├── clear.js
 │   │   └── seed.js              # Script สำหรับลงข้อมูลตัวอย่าง
 │   │
 │   ├── src/
@@ -84,12 +87,14 @@ backend/
 │   │   │   ├── authController.js         # Login, GetMe
 │   │   │   ├── leaveController.js        # ขอลา, อนุมัติ, แจ้งเตือน
 │   │   │   ├── notificationController.js # ดึงแจ้งเตือน, กดอ่าน
+│   │   │   ├── employeeController.js
 │   │   │   └── timeRecordController.js   # เข้างาน/ออกงาน, เช็คสาย
 │   │   │
 │   │   ├── routes/              # เส้นทาง API
 │   │   │   ├── authRoutes.js
 │   │   │   ├── leaveRoutes.js
 │   │   │   ├── notificationRoutes.js
+│   │   │   ├── employeeRoute.js
 │   │   │   └── timeRecordRoutes.js
 │   │   │
 │   │   ├── middlewares/
@@ -112,16 +117,44 @@ backend/
 │
 ├── frontend/
 │   ├── src/
-│   │   ├── assets/              # รูปภาพ, CSS, icons
-│   │   ├── components/          # UI component เช่น Button, Modal, Form
-│   │   ├── pages/               # หน้า Login, Dashboard, LeaveForm
-│   │   ├── hooks/               # custom hook เช่น useAuth, useLeave
-│   │   ├── context/             # global state เช่น AuthContext
-│   │   ├── router/              # React Router config
 │   │   ├── api/                 # axios instance + service call
-│   │   ├── utils/               # ฟังก์ชันช่วย เช่น formatDate, quotaCalc
+│   │   │    ├── attendanceService.js
+│   │   │    ├── authService.js
+│   │   │    ├── axios.js
+│   │   │    └── leaveService.js
+│   │   │ 
+│   │   ├── assets/              # รูปภาพ, CSS, icons
+│   │   │    └── react.svg
+│   │   │ 
+│   │   ├── components/          # UI component เช่น Button, Modal, Form
+│   │   │    ├── Layout.jsx
+│   │   │    └── Notification.jsx
+│   │   │ 
+│   │   ├── context/            # global state เช่น AuthContext
+│   │   │    └── AuthContext.jsx
+│   │   │
+│   │   ├── pages/               # หน้า Login, Dashboard, LeaveForm
+│   │   │    ├── Dashboard.jsx
+│   │   │    ├── EmployeeDetail.jsx
+│   │   │    ├── EmployeeList.jsx
+│   │   │    ├── LeaveApproval.jsx
+│   │   │    ├── LeaveRequest.jsx
+│   │   │    ├── Login.jsx
+│   │   │    └── TeamCalendar.jsx
+│   │   │ 
+│   │   ├── router/              # React Router config
+│   │   │    └── AppRouter.jsx
+│   │   │    
 │   │   ├── styles/              # global CSS หรือ Tailwind config
+│   │   │    └── index.css
+│   │   │ 
+│   │   ├── utils/               # ฟังก์ชันช่วย เช่น formatDate, quotaCalc
+│   │   │    └── axios.js
+│   │   │    └── sweetAlert.jsx
+│   │   │ 
+│   │   ├── App.jsx
 │   │   └── main.jsx             # Entry point
+│   │
 │   └── index.html               # Template HTML
 │
 ├── .env                         # Environment variables
