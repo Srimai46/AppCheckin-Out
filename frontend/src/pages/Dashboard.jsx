@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [leaveQuotas, setLeaveQuotas] = useState([]);
   const [leaveHistory, setLeaveHistory] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("attendance");
 
   const fetchData = async () => {
     try {
@@ -135,7 +136,6 @@ export default function Dashboard() {
           | {time.toLocaleTimeString("th-TH")}
         </p>
 
-        {/* ✅ optional: แสดงสถานะโหลดข้อมูล */}
         {dataLoading && (
           <div className="mt-3 text-xs font-bold text-gray-400">
             กำลังโหลดข้อมูล...
@@ -199,15 +199,55 @@ export default function Dashboard() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Attendance History Table */}
-        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-50 flex items-center gap-2">
-            <History size={18} className="text-blue-600" />
+      {/* ================= TAB SECTION ================= */}
+      <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
+
+        {/* Tab Header */}
+        <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-2">
+            {activeTab === "attendance" ? (
+              <History size={18} className="text-blue-600" />
+            ) : (
+              <FileText size={18} className="text-amber-500" />
+            )}
+
             <h2 className="font-black text-slate-800 text-sm uppercase tracking-widest">
-              Attendance Log
+              {activeTab === "attendance" ? "Attendance Log" : "Leave History"}
             </h2>
           </div>
+
+          {/* Tabs */}
+          <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1">
+            <button
+              onClick={() => setActiveTab("attendance")}
+              className={`px-5 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2
+                ${
+                  activeTab === "attendance"
+                    ? "bg-white shadow-sm border border-gray-100 text-slate-800"
+                    : "text-gray-400 hover:text-slate-700"
+                }`}
+            >
+              <History size={16} className="text-blue-600" />
+              Attendance
+            </button>
+
+            <button
+              onClick={() => setActiveTab("leave")}
+              className={`px-5 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2
+                ${
+                  activeTab === "leave"
+                    ? "bg-white shadow-sm border border-gray-100 text-slate-800"
+                    : "text-gray-400 hover:text-slate-700"
+                }`}
+            >
+              <FileText size={16} className="text-amber-500" />
+              Leave
+            </button>
+          </div>
+        </div>
+
+        {/* ================= CONTENT ================= */}
+        {activeTab === "attendance" && (
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50">
@@ -217,6 +257,7 @@ export default function Dashboard() {
                   <th className="px-6 py-4 text-center">Status</th>
                 </tr>
               </thead>
+
               <tbody className="text-[11px] font-bold">
                 {attendanceHistory.slice(0, 5).map((row, index) => (
                   <tr
@@ -226,6 +267,7 @@ export default function Dashboard() {
                     <td className="px-6 py-4 text-slate-600">
                       {row.dateDisplay}
                     </td>
+
                     <td className="px-6 py-4">
                       <span className="text-emerald-600">
                         {row.checkInTimeDisplay || "--:--"}
@@ -235,6 +277,7 @@ export default function Dashboard() {
                         {row.checkOutTimeDisplay || "--:--"}
                       </span>
                     </td>
+
                     <td className="px-6 py-4 text-center">
                       <span
                         className={`px-2 py-1 rounded-lg border ${
@@ -251,16 +294,9 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
-        </div>
+        )}
 
-        {/* Leave History Table */}
-        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-50 flex items-center gap-2">
-            <FileText size={18} className="text-amber-500" />
-            <h2 className="font-black text-slate-800 text-sm uppercase tracking-widest">
-              Leave History
-            </h2>
-          </div>
+        {activeTab === "leave" && (
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50">
@@ -271,13 +307,11 @@ export default function Dashboard() {
                   <th className="px-6 py-4 text-center">Status</th>
                 </tr>
               </thead>
+
               <tbody className="text-[11px] font-bold">
                 {leaveHistory.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan="4"
-                      className="px-6 py-10 text-center text-gray-400 italic"
-                    >
+                    <td colSpan="4" className="px-6 py-10 text-center text-gray-400 italic">
                       ไม่มีประวัติการลา
                     </td>
                   </tr>
@@ -293,30 +327,31 @@ export default function Dashboard() {
                           {leave.totalDaysRequested} Days
                         </div>
                       </td>
+
                       <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
                         {new Date(leave.startDate).toLocaleDateString("th-TH", {
                           day: "numeric",
                           month: "short",
-                        })}
-                        {" - "}
+                        })}{" "}
+                        -{" "}
                         {new Date(leave.endDate).toLocaleDateString("th-TH", {
                           day: "numeric",
                           month: "short",
                         })}
                       </td>
+
                       <td className="px-6 py-4">
                         <div
                           className="text-slate-500 font-medium italic max-w-[150px] truncate"
                           title={leave.reason}
                         >
-                          {leave.reason || (
-                            <span className="text-gray-300">No note</span>
-                          )}
+                          {leave.reason || <span className="text-gray-300">No note</span>}
                         </div>
                       </td>
+
                       <td className="px-6 py-4 text-center">
                         <span
-                          className={`px-3 py-1.5 rounded-xl border-2 text-[10px] uppercase font-black tracking-widest transition-all ${getStatusStyle(
+                          className={`px-3 py-1.5 rounded-xl border-2 text-[10px] uppercase font-black tracking-widest ${getStatusStyle(
                             leave.status
                           )}`}
                         >
@@ -329,7 +364,7 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

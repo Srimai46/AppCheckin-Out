@@ -32,6 +32,10 @@ pnpm install
 pnpm prisma migrate dev
 pnpm prisma generate
 
+** Clear Data in Database **
+node prisma/clear.js
+pnpm seed
+
 
 Frontend Tool
 

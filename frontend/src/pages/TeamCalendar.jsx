@@ -18,11 +18,26 @@ import {
   XCircle,
   Clock,
   Calendar as CalendarIcon,
+  Users,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { getAllLeaves } from "../api/leaveService";
 
+// ✅ Team attendance (HR)
+import {
+  getTodayTeamAttendance,
+  hrCheckInEmployee,
+  hrCheckOutEmployee,
+} from "../api/attendanceService";
+
+// ✅ กำหนดเวลาเริ่มงาน (ปรับได้)
+const SHIFT_START = "09:00";
+
 export default function TeamCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  // ===== Leaves (เดิม) =====
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,6 +45,12 @@ export default function TeamCalendar() {
   const [modalLeaves, setModalLeaves] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
+  // ===== ✅ Team Attendance =====
+  const [teamAttendance, setTeamAttendance] = useState([]);
+  const [attLoading, setAttLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState({}); // { [employeeId]: "in" | "out" | null }
+
+  // ===================== Fetch Leaves =====================
   useEffect(() => {
     const fetchLeaves = async () => {
       try {
@@ -54,9 +75,95 @@ export default function TeamCalendar() {
         setLoading(false);
       }
     };
+
     fetchLeaves();
   }, []);
 
+  // ===================== ✅ Attendance helpers =====================
+  const normalizeTime = (t) => {
+    if (!t) return null;
+    try {
+      const d = new Date(t);
+      if (!isNaN(d.getTime())) return format(d, "HH:mm");
+    } catch (_) {}
+    if (typeof t === "string" && t.includes(":")) return t.slice(0, 5);
+    return null;
+  };
+
+  const getAttendanceState = ({ checkInTime, checkOutTime }) => {
+    const hasIn = !!checkInTime;
+    const hasOut = !!checkOutTime;
+    if (!hasIn) return "NOT_IN";
+    if (hasIn && !hasOut) return "IN";
+    return "OUT";
+  };
+
+  const toMinutes = (hhmm) => {
+    if (!hhmm) return null;
+    const [h, m] = String(hhmm).slice(0, 5).split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
+  };
+
+  const nowMinutes = () => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  };
+
+  // ✅ late rule:
+  // - NOT_IN = late (ถ้าเวลาปัจจุบัน > SHIFT_START)
+  // - IN/OUT = late (ถ้า check-in time > SHIFT_START)
+  const isLate = (state, inTime) => {
+    const startM = toMinutes(SHIFT_START);
+    if (startM == null) return false;
+
+    if (state === "NOT_IN") return nowMinutes() > startM;
+
+    const inM = toMinutes(inTime);
+    if (inM == null) return false;
+    return inM > startM;
+  };
+
+  const badgeByAttendance = (state) => {
+    if (state === "NOT_IN") return "bg-gray-50 text-gray-500 border-gray-100";
+    if (state === "IN") return "bg-emerald-50 text-emerald-600 border-emerald-100";
+    return "bg-slate-50 text-slate-600 border-slate-100";
+  };
+
+  const labelByAttendance = (state) => {
+    if (state === "NOT_IN") return "NOT CHECKED IN";
+    if (state === "IN") return "CHECKED IN";
+    return "CHECKED OUT";
+  };
+
+  // ===================== ✅ Fetch Team Attendance =====================
+  const fetchTeamAttendance = async () => {
+    try {
+      setAttLoading(true);
+
+      const res = await getTodayTeamAttendance();
+      const list =
+        (Array.isArray(res) && res) ||
+        (Array.isArray(res?.data) && res.data) ||
+        (Array.isArray(res?.data?.data) && res.data.data) ||
+        (Array.isArray(res?.employees) && res.employees) ||
+        (Array.isArray(res?.data?.employees) && res.data.employees) ||
+        [];
+
+      setTeamAttendance(list);
+    } catch (e) {
+      console.error("Error fetching team attendance:", e);
+      setTeamAttendance([]);
+    } finally {
+      setAttLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTeamAttendance();
+  }, []);
+
+  // ===================== UI Helpers (Leaves) =====================
   const handleDayClick = (day) => {
     const dayLeaves = leaves.filter((l) => isSameDay(l.date, day));
     setSelectedDate(day);
@@ -77,28 +184,59 @@ export default function TeamCalendar() {
     }
   };
 
+  // ✅ สีตามประเภทการลา (กรอบ/พื้น/ตัวอักษร/จุด)
+  const leaveTheme = (type) => {
+    const t = String(type || "").toLowerCase();
+
+    if (t.includes("sick") || t.includes("ป่วย")) {
+      return {
+        dot: "bg-rose-400",
+        border: "border-rose-200",
+        bg: "bg-rose-50/60",
+        text: "text-rose-700",
+      };
+    }
+
+    if (t.includes("personal") || t.includes("กิจ") || t.includes("ธุระ")) {
+      return {
+        dot: "bg-sky-400",
+        border: "border-sky-200",
+        bg: "bg-sky-50/60",
+        text: "text-sky-700",
+      };
+    }
+
+    if (t.includes("annual") || t.includes("vacation") || t.includes("พักร้อน")) {
+      return {
+        dot: "bg-emerald-400",
+        border: "border-emerald-200",
+        bg: "bg-emerald-50/60",
+        text: "text-emerald-700",
+      };
+    }
+
+    // default (อื่นๆ)
+    return {
+      dot: "bg-amber-400",
+      border: "border-amber-200",
+      bg: "bg-amber-50/60",
+      text: "text-amber-700",
+    };
+  };
+
   const calendarDays = eachDayOfInterval({
     start: startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }),
     end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }),
   });
 
   const weekHeaders = useMemo(
-    () => [
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-    ],
+    () => ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
     []
   );
 
   const weekendBgByDow = (dow) => {
-    // dow: 0=Sun, 6=Sat
-    if (dow === 6) return "bg-violet-50/70"; // Saturday
-    if (dow === 0) return "bg-rose-50/70"; // Sunday
+    if (dow === 6) return "bg-violet-50/70";
+    if (dow === 0) return "bg-rose-50/70";
     return "";
   };
 
@@ -110,6 +248,55 @@ export default function TeamCalendar() {
   const goPrev = () => setCurrentDate((d) => subMonths(d, 1));
   const goNext = () => setCurrentDate((d) => addMonths(d, 1));
   const goToday = () => setCurrentDate(new Date());
+
+  // ===================== ✅ Attendance Summary =====================
+  const attendanceSummary = useMemo(() => {
+    const total = teamAttendance.length;
+
+    let checkedIn = 0;
+    let late = 0;
+    let checkedOut = 0;
+
+    teamAttendance.forEach((r) => {
+      const inRaw = r.checkInTimeDisplay || r.checkInTime || r.checkIn || null;
+      const outRaw = r.checkOutTimeDisplay || r.checkOutTime || r.checkOut || null;
+
+      const inTime = normalizeTime(inRaw);
+      const state = getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw });
+
+      if (state === "IN") checkedIn += 1;
+      if (state === "OUT") checkedOut += 1;
+
+      if (isLate(state, inTime)) late += 1;
+    });
+
+    return { total, checkedIn, late, checkedOut };
+  }, [teamAttendance]);
+
+  // ===================== ✅ HR Actions =====================
+  const handleHRCheckIn = async (employeeId) => {
+    try {
+      setActionLoading((p) => ({ ...p, [employeeId]: "in" }));
+      await hrCheckInEmployee(employeeId);
+      await fetchTeamAttendance();
+    } catch (e) {
+      console.error("HR check-in failed:", e);
+    } finally {
+      setActionLoading((p) => ({ ...p, [employeeId]: null }));
+    }
+  };
+
+  const handleHRCheckOut = async (employeeId) => {
+    try {
+      setActionLoading((p) => ({ ...p, [employeeId]: "out" }));
+      await hrCheckOutEmployee(employeeId);
+      await fetchTeamAttendance();
+    } catch (e) {
+      console.error("HR check-out failed:", e);
+    } finally {
+      setActionLoading((p) => ({ ...p, [employeeId]: null }));
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6">
@@ -129,7 +316,6 @@ export default function TeamCalendar() {
         {/* ===== Controls Row ===== */}
         <div className="px-6 sm:px-8 pb-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            {/* LEFT: Overview + Legend */}
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={handleShowTodayLeaves}
@@ -143,11 +329,11 @@ export default function TeamCalendar() {
                 <LegendDot color="bg-blue-600" label="Today" />
                 <LegendDot color="bg-rose-400" label="Sick" />
                 <LegendDot color="bg-sky-400" label="Personal" />
-                <LegendDot color="bg-emerald-400" label="Vacation" />
+                <LegendDot color="bg-emerald-400" label="Annual" />
+                <LegendDot color="bg-yellow-400" label="Emergency" />
               </div>
             </div>
 
-            {/* RIGHT: Nav */}
             <div className="flex items-center justify-end gap-2">
               <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-2xl p-2">
                 <button
@@ -178,26 +364,19 @@ export default function TeamCalendar() {
         {/* ===== Calendar Grid ===== */}
         <div className="p-4 sm:p-6">
           <div className="border border-gray-100 rounded-2xl overflow-hidden">
-            {/* ✅ Weekday header (เอาสีออกหมด) */}
             <div className="grid grid-cols-7 border-b border-gray-100 bg-white">
               {weekHeaders.map((d) => (
-                <div
-                  key={d}
-                  className="py-2 text-center text-[11px] font-black text-slate-700"
-                >
+                <div key={d} className="py-2 text-center text-[11px] font-black text-slate-700">
                   {d}
                 </div>
               ))}
             </div>
 
-            {/* Days */}
             <div className="grid grid-cols-7 bg-white">
               {calendarDays.map((day) => {
-                const dayLeaves = leaves.filter((leaf) =>
-                  isSameDay(leaf.date, day)
-                );
+                const dayLeaves = leaves.filter((leaf) => isSameDay(leaf.date, day));
                 const inMonth = isSameMonth(day, currentDate);
-                const dow = day.getDay(); // 0 Sun ... 6 Sat
+                const dow = day.getDay();
                 const weekendBg = weekendBgByDow(dow);
 
                 return (
@@ -225,24 +404,28 @@ export default function TeamCalendar() {
                     </div>
 
                     {loading ? (
-                      <div className="mt-2 text-[10px] text-gray-300 font-bold">
-                        loading...
-                      </div>
+                      <div className="mt-2 text-[10px] text-gray-300 font-bold">loading...</div>
                     ) : (
                       <div className="mt-2 space-y-1">
-                        {dayLeaves.slice(0, 3).map((leaf) => (
-                          <div
-                            key={leaf.id}
-                            className="text-[10px] px-2 py-1 rounded-lg border flex items-center gap-1 truncate font-bold"
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${getStatusDot(
-                                leaf.status
-                              )}`}
-                            />
-                            <span className="truncate">{leaf.name}</span>
-                          </div>
-                        ))}
+                        {dayLeaves.slice(0, 3).map((leaf) => {
+                          const theme = leaveTheme(leaf.type);
+
+                          return (
+                            <div
+                              key={leaf.id}
+                              className={[
+                                "text-[10px] px-2 py-1 rounded-lg border flex items-center gap-2 truncate font-bold",
+                                theme.border,
+                                theme.bg,
+                                theme.text,
+                              ].join(" ")}
+                              title={`${leaf.name} • ${leaf.type} • ${leaf.status}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${theme.dot}`} />
+                              <span className="truncate">{leaf.name}</span>
+                            </div>
+                          );
+                        })}
                         {dayLeaves.length > 3 && (
                           <div className="text-[10px] text-indigo-600 font-black pl-1">
                             +{dayLeaves.length - 3} more
@@ -256,6 +439,170 @@ export default function TeamCalendar() {
             </div>
           </div>
         </div>
+
+        {/* ===================== ✅ TEAM CHECK-IN/OUT PANEL ===================== */}
+        <div className="px-4 sm:px-6 pb-6">
+          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-gray-50 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-gray-100 flex items-center justify-center">
+                  <Users className="text-slate-600" size={20} />
+                </div>
+                <div>
+                  <div className="text-sm font-black uppercase tracking-widest text-slate-800">
+                    Team Check-in / Check-out (Today)
+                  </div>
+                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                    Total {attendanceSummary.total} • Checked-in {attendanceSummary.checkedIn} • Late{" "}
+                    {attendanceSummary.late} • Checked-out {attendanceSummary.checkedOut}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <SummaryCard
+                title="Checked In"
+                value={attendanceSummary.checkedIn}
+                icon={<LogIn size={18} className="text-emerald-600" />}
+              />
+              <SummaryCard
+                title="Late (มาสาย)"
+                value={attendanceSummary.late}
+                icon={<Clock size={18} className="text-rose-600" />}
+              />
+              <SummaryCard
+                title="Checked Out"
+                value={attendanceSummary.checkedOut}
+                icon={<LogOut size={18} className="text-slate-600" />}
+              />
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto border-t border-gray-50">
+              <table className="w-full text-left">
+                <thead className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50">
+                  <tr>
+                    <th className="px-6 py-4">Employee</th>
+                    <th className="px-6 py-4">Role</th>
+                    <th className="px-6 py-4">In</th>
+                    <th className="px-6 py-4">Out</th>
+                    <th className="px-6 py-4 text-center">Status</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody className="text-[11px] font-bold">
+                  {attLoading ? (
+                    <tr>
+                      <td colSpan="6" className="px-6 py-10 text-center text-gray-400">
+                        Loading attendance...
+                      </td>
+                    </tr>
+                  ) : teamAttendance.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="px-6 py-10 text-center text-gray-400 italic">
+                        No employee attendance data
+                      </td>
+                    </tr>
+                  ) : (
+                    teamAttendance.map((row, idx) => {
+                      const employeeId = row.employeeId ?? row.id ?? idx;
+
+                      const name =
+                        row.fullName ||
+                        row.name ||
+                        `${row.firstName || ""} ${row.lastName || ""}`.trim() ||
+                        "Unknown";
+
+                      const role = row.role || row.position || "-";
+
+                      const inRaw = row.checkInTimeDisplay || row.checkInTime || row.checkIn || null;
+                      const outRaw = row.checkOutTimeDisplay || row.checkOutTime || row.checkOut || null;
+
+                      const inTime = normalizeTime(inRaw);
+                      const outTime = normalizeTime(outRaw);
+
+                      const state = getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw });
+                      const busy = actionLoading[employeeId];
+
+                      const lateFlag = isLate(state, inTime);
+                      const statusText = lateFlag ? "LATE" : labelByAttendance(state);
+                      const statusClass = lateFlag
+                        ? "bg-rose-50 text-rose-600 border-rose-100"
+                        : badgeByAttendance(state);
+
+                      return (
+                        <tr
+                          key={employeeId}
+                          className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
+                        >
+                          <td className="px-6 py-4 text-slate-800">{name}</td>
+
+                          <td className="px-6 py-4 text-gray-500">{role}</td>
+
+                          <td className="px-6 py-4">
+                            <span className="text-emerald-600">{inTime || "--:--"}</span>
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <span className="text-rose-500">{outTime || "--:--"}</span>
+                          </td>
+
+                          <td className="px-6 py-4 text-center">
+                            <span
+                              className={`px-3 py-1.5 rounded-xl border text-[10px] uppercase font-black tracking-widest ${statusClass}`}
+                            >
+                              {statusText}
+                            </span>
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleHRCheckIn(employeeId)}
+                                disabled={state !== "NOT_IN" || !!busy}
+                                className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest border transition-all active:scale-95
+                                  ${
+                                    state !== "NOT_IN" || busy
+                                      ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                                      : "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100"
+                                  }`}
+                              >
+                                <LogIn size={14} />
+                                {busy === "in" ? "Saving..." : "Check In"}
+                              </button>
+
+                              <button
+                                onClick={() => handleHRCheckOut(employeeId)}
+                                disabled={state !== "IN" || !!busy}
+                                className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest border transition-all active:scale-95
+                                  ${
+                                    state !== "IN" || busy
+                                      ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                                      : "bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100"
+                                  }`}
+                              >
+                                <LogOut size={14} />
+                                {busy === "out" ? "Saving..." : "Check Out"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-6 pt-4 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+              * Late rule: after {SHIFT_START}, NOT checked-in is counted as late.
+            </div>
+          </div>
+        </div>
+        {/* ===================== END PANEL ===================== */}
       </div>
 
       {/* Modal */}
@@ -268,9 +615,7 @@ export default function TeamCalendar() {
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden relative animate-in zoom-in duration-300">
             <div className="p-8 pb-4 flex justify-between items-center">
               <div>
-                <h3 className="font-black text-gray-900 text-2xl tracking-tight">
-                  Daily Details
-                </h3>
+                <h3 className="font-black text-gray-900 text-2xl tracking-tight">Daily Details</h3>
                 <p className="text-blue-600 text-sm font-black uppercase tracking-widest mt-1">
                   {format(selectedDate, "dd MMMM yyyy")}
                 </p>
@@ -291,9 +636,7 @@ export default function TeamCalendar() {
                     className="flex justify-between items-center p-4 rounded-2xl border border-gray-50 bg-gray-50/30 shadow-sm hover:shadow-md transition-all"
                   >
                     <div>
-                      <div className="font-black text-gray-800 text-base">
-                        {leaf.name}
-                      </div>
+                      <div className="font-black text-gray-800 text-base">{leaf.name}</div>
                       <div className="text-[10px] text-gray-400 uppercase font-black tracking-tighter mt-0.5">
                         {leaf.type} Leave
                       </div>
@@ -323,9 +666,7 @@ export default function TeamCalendar() {
                   <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
                     <CalendarIcon className="text-gray-300" size={32} />
                   </div>
-                  <p className="font-bold text-gray-400">
-                    No leave requests for this date
-                  </p>
+                  <p className="font-bold text-gray-400">No leave requests for this date</p>
                 </div>
               )}
             </div>
@@ -341,6 +682,20 @@ function LegendDot({ color, label }) {
     <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-gray-50 border border-gray-100">
       <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
       <span className="text-xs font-black text-slate-700">{label}</span>
+    </div>
+  );
+}
+
+function SummaryCard({ title, value, icon }) {
+  return (
+    <div className="bg-white p-5 rounded-[1.75rem] shadow-sm border border-gray-100 flex items-center justify-between">
+      <div>
+        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{title}</div>
+        <div className="text-2xl font-black text-slate-800 tracking-tighter mt-1">{value}</div>
+      </div>
+      <div className="w-11 h-11 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center">
+        {icon}
+      </div>
     </div>
   );
 }

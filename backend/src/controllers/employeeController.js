@@ -151,3 +151,84 @@ exports.createEmployee = async (req, res) => {
     res.status(500).json({ error: "สร้างพนักงานไม่สำเร็จ" });
   }
 };
+
+// 5. ดึงสถิติการเข้างาน (ระบุวันที่ได้)
+exports.getAttendanceStats = async (req, res) => {
+  try {
+    // รับวันที่จาก Query Params (เช่น /stats?date=2024-03-20) 
+    // ถ้าไม่มีให้ใช้ current date
+    const { date } = req.query;
+    const targetDate = date ? new Date(date) : new Date();
+
+    // ตั้งค่าช่วงเวลา 00:00:00 - 23:59:59 ของวันที่ระบุ
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // 1. นับพนักงานที่ Active ทั้งหมด ณ ปัจจุบัน
+    const totalEmployees = await prisma.employee.count({
+      where: { isActive: true }
+    });
+
+    // 2. ดึงข้อมูลการลงเวลาของวันที่ระบุ
+    const records = await prisma.timeRecord.findMany({
+      where: {
+        workDate: {
+          gte: startOfDay,
+          lte: endOfDay
+        }
+      },
+      include: {
+        employee: {
+          select: { firstName: true, lastName: true }
+        }
+      }
+    });
+
+    res.json({
+      selectedDate: formatShortDate(startOfDay),
+      totalEmployees,
+      checkedIn: records.length,
+      late: records.filter(r => r.isLate).length,
+      absent: totalEmployees - records.length,
+      // เพิ่มรายชื่อคนที่มาสายเพื่อให้ง่ายต่อการตรวจสอบ
+      lateDetails: records
+        .filter(r => r.isLate)
+        .map(r => ({
+          name: `${r.employee.firstName} ${r.employee.lastName}`,
+          time: formatThaiTime(r.checkInTime)
+        }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: "ไม่สามารถดึงข้อมูลสถิติได้" });
+  }
+};
+
+// 6. รีเซ็ตรหัสผ่านพนักงาน (โดย Admin/HR)
+exports.resetPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร" });
+    }
+
+    // 1. Hash รหัสผ่านใหม่
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // 2. อัปเดตลง Database
+    await prisma.employee.update({
+      where: { id: parseInt(id) },
+      data: { passwordHash: hashedPassword }
+    });
+
+    res.json({ message: "รีเซ็ตรหัสผ่านสำเร็จแล้ว" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "ไม่สามารถรีเซ็ตรหัสผ่านได้" });
+  }
+};
