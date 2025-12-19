@@ -137,15 +137,6 @@ export default function Layout() {
 
           <div className="flex items-center gap-4">
             <NotificationBell />
-            <div className="h-8 w-[1px] bg-gray-100 mx-2" />
-            <div className="text-right hidden sm:block">
-              <p className="text-[11px] font-black text-slate-800 leading-none">
-                {user?.firstName}
-              </p>
-              <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter">
-                Online
-              </p>
-            </div>
           </div>
         </header>
 
