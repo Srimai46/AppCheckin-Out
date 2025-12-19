@@ -184,6 +184,46 @@ export default function TeamCalendar() {
     }
   };
 
+  // ✅ สีตามประเภทการลา (กรอบ/พื้น/ตัวอักษร/จุด)
+  const leaveTheme = (type) => {
+    const t = String(type || "").toLowerCase();
+
+    if (t.includes("sick") || t.includes("ป่วย")) {
+      return {
+        dot: "bg-rose-400",
+        border: "border-rose-200",
+        bg: "bg-rose-50/60",
+        text: "text-rose-700",
+      };
+    }
+
+    if (t.includes("personal") || t.includes("กิจ") || t.includes("ธุระ")) {
+      return {
+        dot: "bg-sky-400",
+        border: "border-sky-200",
+        bg: "bg-sky-50/60",
+        text: "text-sky-700",
+      };
+    }
+
+    if (t.includes("annual") || t.includes("vacation") || t.includes("พักร้อน")) {
+      return {
+        dot: "bg-emerald-400",
+        border: "border-emerald-200",
+        bg: "bg-emerald-50/60",
+        text: "text-emerald-700",
+      };
+    }
+
+    // default (อื่นๆ)
+    return {
+      dot: "bg-amber-400",
+      border: "border-amber-200",
+      bg: "bg-amber-50/60",
+      text: "text-amber-700",
+    };
+  };
+
   const calendarDays = eachDayOfInterval({
     start: startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }),
     end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }),
@@ -289,7 +329,8 @@ export default function TeamCalendar() {
                 <LegendDot color="bg-blue-600" label="Today" />
                 <LegendDot color="bg-rose-400" label="Sick" />
                 <LegendDot color="bg-sky-400" label="Personal" />
-                <LegendDot color="bg-emerald-400" label="Vacation" />
+                <LegendDot color="bg-emerald-400" label="Annual" />
+                <LegendDot color="bg-yellow-400" label="Emergency" />
               </div>
             </div>
 
@@ -366,15 +407,25 @@ export default function TeamCalendar() {
                       <div className="mt-2 text-[10px] text-gray-300 font-bold">loading...</div>
                     ) : (
                       <div className="mt-2 space-y-1">
-                        {dayLeaves.slice(0, 3).map((leaf) => (
-                          <div
-                            key={leaf.id}
-                            className="text-[10px] px-2 py-1 rounded-lg border flex items-center gap-1 truncate font-bold"
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full ${getStatusDot(leaf.status)}`} />
-                            <span className="truncate">{leaf.name}</span>
-                          </div>
-                        ))}
+                        {dayLeaves.slice(0, 3).map((leaf) => {
+                          const theme = leaveTheme(leaf.type);
+
+                          return (
+                            <div
+                              key={leaf.id}
+                              className={[
+                                "text-[10px] px-2 py-1 rounded-lg border flex items-center gap-2 truncate font-bold",
+                                theme.border,
+                                theme.bg,
+                                theme.text,
+                              ].join(" ")}
+                              title={`${leaf.name} • ${leaf.type} • ${leaf.status}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${theme.dot}`} />
+                              <span className="truncate">{leaf.name}</span>
+                            </div>
+                          );
+                        })}
                         {dayLeaves.length > 3 && (
                           <div className="text-[10px] text-indigo-600 font-black pl-1">
                             +{dayLeaves.length - 3} more
