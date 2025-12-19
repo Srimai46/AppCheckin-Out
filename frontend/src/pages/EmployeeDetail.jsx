@@ -41,6 +41,15 @@ export default function EmployeeDetail() {
     }
   };
 
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    joiningDate: "",
+    resignationDate: "",
+  });
+
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,7 +67,9 @@ export default function EmployeeDetail() {
       isCurrentlyActive
         ? "ต้องการเปลี่ยนสถานะเป็น “ไม่ใช่พนักงาน / พ้นสภาพ” ใช่ไหม?"
         : "ต้องการเปลี่ยนสถานะเป็น “พนักงานปัจจุบัน” ใช่ไหม?",
-      isCurrentlyActive ? "ยืนยันเปลี่ยนเป็นพ้นสภาพ" : "ยืนยันเปลี่ยนเป็นพนักงาน"
+      isCurrentlyActive
+        ? "ยืนยันเปลี่ยนเป็นพ้นสภาพ"
+        : "ยืนยันเปลี่ยนเป็นพนักงาน"
     );
 
     if (!confirmed) return;
@@ -143,9 +154,7 @@ export default function EmployeeDetail() {
                 }`}
               >
                 ตอนนี้:{" "}
-                {isEmpActive
-                  ? "พนักงานปัจจุบัน"
-                  : "ไม่ใช่พนักงาน / พ้นสภาพ"}
+                {isEmpActive ? "พนักงานปัจจุบัน" : "ไม่ใช่พนักงาน / พ้นสภาพ"}
               </span>
             </div>
 
@@ -163,26 +172,135 @@ export default function EmployeeDetail() {
         </div>
 
         <button
-          onClick={handleUpdateStatus}
-          disabled={updating}
-          className={`flex items-center gap-2 px-8 py-4 rounded-2xl text-xs font-black transition-all active:scale-95 shadow-lg ${
-            updating ? "opacity-60 cursor-not-allowed" : ""
-          } ${
-            isEmpActive
-              ? "bg-rose-50 text-rose-600 border-2 border-rose-100 hover:bg-rose-600 hover:text-white"
-              : "bg-emerald-50 text-emerald-600 border-2 border-emerald-100 hover:bg-emerald-600 hover:text-white"
+  onClick={() => {
+    // ถ้า backend มี firstName / lastName
+    const firstName =
+      data.info.firstName ||
+      data.info.fullName?.split(" ")[0] ||
+      "";
+
+    const lastName =
+      data.info.lastName ||
+      data.info.fullName?.split(" ").slice(1).join(" ") ||
+      "";
+
+    setFormData({
+      firstName,
+      lastName,
+      email: data.info.email || "",
+      joiningDate: data.info.joiningDate || "",
+      resignationDate: data.info.resignationDate || "",
+    });
+
+    setShowModal(true);
+  }}
+  className="px-6 py-2.5 rounded-xl bg-sky-50 text-sky-600 border-2 border-sky-100 hover:bg-sky-600 hover:text-white font-black"
+>
+  ✏️ แก้ไขข้อมูล
+</button>
+<form
+  onSubmit={async (e) => {
+    e.preventDefault(); // กัน reload
+    try {
+      await api.put(`/employees/${id}`, formData);
+      await alertSuccess("สำเร็จ", "อัปเดตข้อมูลเรียบร้อย");
+      setShowModal(false);
+      fetchData();
+    } catch (err) {
+      alertError("ผิดพลาด", "ไม่สามารถอัปเดตข้อมูลได้");
+    }
+  }}
+>
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white w-full max-w-lg rounded-3xl p-8 space-y-5 animate-in fade-in zoom-in">
+              <h2 className="text-xl font-black text-gray-800">
+                แก้ไขข้อมูลพนักงาน
+              </h2>
+
+             {[
+  ["firstName", "ชื่อ"],
+  ["lastName", "นามสกุล"],
+  ["email", "Email"],
+].map(([key, label]) => {
+  const isEmail = key === "email";
+
+  return (
+    <div key={key}>
+      <label className="text-xs font-black text-gray-500 uppercase">
+        {label}
+      </label>
+
+      <input
+        type="text"
+        value={formData[key] || ""}
+        onChange={(e) =>
+          setFormData({ ...formData, [key]: e.target.value })
+        }
+        disabled={isEmail}
+        className={`mt-1 w-full rounded-xl border px-4 py-2.5 font-bold
+          focus:outline-none focus:ring-2 focus:ring-blue-500
+          ${
+            isEmail
+              ? "bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200"
+              : "border-gray-200"
           }`}
-        >
-          {isEmpActive ? (
-            <>
-              <UserMinus size={18} /> เปลี่ยนเป็น "ไม่ใช่พนักงาน"
-            </>
-          ) : (
-            <>
-              <UserPlus size={18} /> เปลี่ยนเป็น "พนักงานปัจจุบัน"
-            </>
-          )}
-        </button>
+      />
+                  </div>
+                );
+              })}
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={handleUpdateStatus}
+                  disabled={updating}
+                  className={`flex items-center gap-2 px-8 py-4 rounded-2xl text-xs font-black transition-all active:scale-95 shadow-lg ${
+                    updating ? "opacity-60 cursor-not-allowed" : ""
+                  } ${
+                    isEmpActive
+                      ? "bg-rose-50 text-rose-600 border-2 border-rose-100 hover:bg-rose-600 hover:text-white"
+                      : "bg-emerald-50 text-emerald-600 border-2 border-emerald-100 hover:bg-emerald-600 hover:text-white"
+                  }`}
+                >
+                  {isEmpActive ? (
+                    <>
+                      <UserMinus size={18} /> เปลี่ยนเป็น "ไม่ใช่พนักงาน"
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={18} /> เปลี่ยนเป็น "พนักงานปัจจุบัน"
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="px-5 py-2 rounded-xl border font-black text-gray-500 hover:bg-gray-100"
+                >
+                  ยกเลิก
+                </button>
+
+                <button
+                type="submit"
+                  onClick={async () => {
+                    try {
+                      await api.put(`/employees/${id}`, formData);
+                      await alertSuccess("สำเร็จ", "อัปเดตข้อมูลเรียบร้อย");
+                      setShowModal(false);
+                      fetchData();
+                    } catch (alertError) {
+                      alertError("ผิดพลาด", "ไม่สามารถอัปเดตข้อมูลได้");
+                    }
+                  }}
+                  className="px-6 py-2 rounded-xl bg-blue-600 text-white font-black hover:bg-blue-700"
+                >
+                  บันทึก
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </form>
+
       </div>
 
       {/* Leave Quota Cards */}
@@ -196,7 +314,7 @@ export default function EmployeeDetail() {
             return (
               <div
                 key={idx}
-                className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-md transition-all"
+                className="bg-white p-6 rounded-4xl shadow-sm border border-gray-100 hover:shadow-md transition-all"
               >
                 <div className="flex justify-between items-start mb-4">
                   <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">
@@ -318,7 +436,10 @@ export default function EmployeeDetail() {
               )
             ) : (data.leaves || []).length === 0 ? (
               <tr>
-                <td colSpan="5" className="p-16 text-center text-gray-300 italic">
+                <td
+                  colSpan="5"
+                  className="p-16 text-center text-gray-300 italic"
+                >
                   ไม่มีประวัติการลา
                 </td>
               </tr>
