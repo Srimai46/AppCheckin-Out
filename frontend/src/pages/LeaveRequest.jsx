@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Paperclip, X } from "lucide-react";
 import { createLeaveRequest } from "../api/leaveService";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
@@ -12,16 +12,20 @@ export default function LeaveRequest() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [duration, setDuration] = useState("Full"); // Full, HalfMorning, HalfAfternoon
+  const [attachment, setAttachment] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // ✅ id ต้องตรงกับ typeName ใน Database (Sick, Personal, Annual, Emergency, Other)
-  const leaveTypes = [
-    { id: "Sick", label: "ลาป่วย (Sick Leave)" },
-    { id: "Personal", label: "ลากิจ (Personal Leave)" },
-    { id: "Annual", label: "ลาพักร้อน (Annual Leave)" },
-    { id: "Emergency", label: "ลาฉุกเฉิน (Emergency Leave)" },
-    { id: "Other", label: "อื่นๆ (Other)" },
-  ];
+  const leaveTypes = useMemo(
+    () => [
+      { id: "Sick", label: "ลาป่วย (Sick Leave)" },
+      { id: "Personal", label: "ลากิจ (Personal Leave)" },
+      { id: "Annual", label: "ลาพักร้อน (Annual Leave)" },
+      { id: "Emergency", label: "ลาฉุกเฉิน (Emergency Leave)" },
+      { id: "Other", label: "อื่นๆ (Other)" },
+    ],
+    []
+  );
 
   const durationLabel =
     duration === "Full"
@@ -29,6 +33,36 @@ export default function LeaveRequest() {
       : duration === "HalfMorning"
       ? "ครึ่งวันเช้า"
       : "ครึ่งวันบ่าย";
+
+  const prettyFileSize = (bytes) => {
+    if (!bytes && bytes !== 0) return "";
+    const units = ["B", "KB", "MB", "GB"];
+    let size = bytes;
+    let idx = 0;
+    while (size >= 1024 && idx < units.length - 1) {
+      size /= 1024;
+      idx += 1;
+    }
+    return `${size.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+  };
+  const escapeHtml = (v = "") =>
+    String(v)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setAttachment(file);
+  };
+
+  const clearFile = () => {
+    setAttachment(null);
+    const el = document.getElementById("leave-attachment");
+    if (el) el.value = "";
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,31 +83,57 @@ export default function LeaveRequest() {
     const typeLabel =
       leaveTypes.find((t) => t.id === selectedType)?.label || selectedType;
 
+    const fileLine = attachment
+      ? `${attachment.name} (${prettyFileSize(attachment.size)})`
+      : "- (ไม่มี)";
+
+    // ✅ ทำสรุปให้เป็น bullet แบบอ่านง่าย
+    // ส่งเป็น string HTML (ถ้า wrapper รองรับ html จะสวยเลย / ถ้าไม่รองรับก็ยังแสดงได้ ไม่พัง)
+    const confirmHtml = `
+      <div style="text-align:left; line-height:1.6;">
+        <div style="font-weight:800; margin-bottom:8px;">สรุปรายการคำขอลา</div>
+        <ul style="margin:0; padding-left:18px;">
+          <li><b>ประเภท</b>: ${escapeHtml(typeLabel)}</li>
+          <li><b>ช่วงเวลา</b>: ${escapeHtml(startDate)} - ${escapeHtml(endDate)}</li>
+          <li><b>ระยะเวลา</b>: ${escapeHtml(durationLabel)}</li>
+          <li><b>ไฟล์แนบ</b>: ${escapeHtml(fileLine)}</li>
+          ${
+            reason?.trim()
+              ? `<li><b>เหตุผล</b>: ${escapeHtml(reason.trim())}</li>`
+              : ""
+          }
+        </ul>
+        <div style="margin-top:10px; font-size:12px; opacity:.75;">
+          โปรดตรวจสอบให้ถูกต้องก่อนกดยืนยัน
+        </div>
+      </div>
+    `.trim();
+
     const confirmed = await alertConfirm(
       "ยืนยันการส่งคำขอลา",
-      `ประเภท: ${typeLabel}\nช่วงเวลา: ${startDate} ถึง ${endDate}\nระยะเวลา: ${durationLabel}\n\nต้องการส่งคำขอนี้ใช่ไหม?`,
+      confirmHtml,
       "ยืนยันส่งคำขอ"
     );
     if (!confirmed) return;
 
     setIsLoading(true);
     try {
-      // 👇 payload ให้ตรงกับ backend
-      const payload = {
-        type: selectedType,
-        startDate,
-        endDate,
-        reason,
-        startDuration: duration,
-        endDuration: duration,
-      };
+      const formData = new FormData();
+      formData.append("type", selectedType);
+      formData.append("startDate", startDate);
+      formData.append("endDate", endDate);
+      formData.append("reason", reason || "");
+      formData.append("startDuration", duration);
+      formData.append("endDuration", duration);
 
-      const res = await createLeaveRequest(payload);
+      if (attachment) {
+        // ชื่อ field ต้องตรงกับ backend
+        formData.append("attachment", attachment);
+      }
 
-      await alertSuccess(
-        "ส่งคำขอสำเร็จ",
-        res?.message || "ส่งใบลาเรียบร้อยแล้ว"
-      );
+      const res = await createLeaveRequest(formData);
+
+      await alertSuccess("ส่งคำขอสำเร็จ", res?.message || "ส่งใบลาเรียบร้อยแล้ว");
       navigate("/dashboard");
     } catch (error) {
       console.error(error);
@@ -214,6 +274,62 @@ export default function LeaveRequest() {
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                 />
+              </div>
+
+              {/* Attachment (Optional) */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-2">
+                  4. แนบไฟล์ประกอบ (ไม่บังคับ)
+                </label>
+
+                <div className="bg-gray-50 rounded-[2rem] p-4 border border-gray-100">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm cursor-pointer hover:border-blue-200 transition-all">
+                      <Paperclip size={16} className="text-slate-500" />
+                      <span className="text-xs font-black uppercase tracking-widest text-slate-700">
+                        เลือกไฟล์
+                      </span>
+                      <input
+                        id="leave-attachment"
+                        type="file"
+                        className="hidden"
+                        onChange={handleFileChange}
+                        // accept=".pdf,.jpg,.jpeg,.png"
+                      />
+                    </label>
+
+                    {attachment ? (
+                      <button
+                        type="button"
+                        onClick={clearFile}
+                        className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-red-600 hover:bg-red-50 transition-all"
+                        title="ลบไฟล์แนบ"
+                      >
+                        <X size={16} />
+                        ลบไฟล์
+                      </button>
+                    ) : (
+                      <span className="text-xs font-bold text-gray-400">
+                        ยังไม่ได้เลือกไฟล์
+                      </span>
+                    )}
+                  </div>
+
+                  {attachment && (
+                    <div className="mt-3 rounded-2xl bg-white border border-gray-100 p-4">
+                      <div className="text-xs font-black text-slate-700 break-all">
+                        {attachment.name}
+                      </div>
+                      <div className="text-[10px] font-bold text-gray-400 mt-1">
+                        {prettyFileSize(attachment.size)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[10px] font-bold text-gray-400 ml-2">
+                  แนบหลักฐานได้ เช่น ใบรับรองแพทย์ / เอกสารอื่นๆ (ไม่แนบก็ส่งได้)
+                </p>
               </div>
             </div>
           </div>
