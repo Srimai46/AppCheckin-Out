@@ -45,42 +45,6 @@ exports.getMyLeaves = async (req, res) => {
 };
 
 // 3. ยื่นคำขอลาใหม่
-exports.grantSpecialLeave = async (req, res) => {
-    try {
-        const { employeeId, leaveTypeId, amount, reason, year } = req.body;
-
-        await prisma.$transaction(async (tx) => {
-            // 1. บันทึกประวัติการมอบวันลาพิเศษ (ถ้ามีตาราง SpecialLeaveGrant)
-            // 2. อัปเดตโควตาพนักงานทันที
-            await tx.leaveQuota.upsert({
-                where: {
-                    employeeId_leaveTypeId_year: {
-                        employeeId: parseInt(employeeId),
-                        leaveTypeId: parseInt(leaveTypeId),
-                        year: parseInt(year)
-                    }
-                },
-                update: {
-                    totalDays: { increment: parseFloat(amount) }
-                },
-                create: {
-                    employeeId: parseInt(employeeId),
-                    leaveTypeId: parseInt(leaveTypeId),
-                    year: parseInt(year),
-                    totalDays: parseFloat(amount),
-                    usedDays: 0
-                }
-            });
-        });
-
-        res.json({ message: "มอบสิทธิ์วันลาพิเศษสำเร็จและอัปเดตโควตาแล้ว" });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "ไม่สามารถมอบวันลาพิเศษได้" });
-    }
-};
-
-// แก้ไขฟังก์ชันสร้างคำขอลา (เพิ่มการเช็ควันลาติดต่อกัน)
 exports.createLeaveRequest = async (req, res) => {
     try {
         const { type, startDate, endDate, reason, startDuration, endDuration } = req.body;
@@ -89,12 +53,13 @@ exports.createLeaveRequest = async (req, res) => {
         const end = new Date(endDate);
         const year = start.getFullYear();
 
+        const attachmentUrl = req.file ? `/uploads/attachments/${req.file.filename}` : null;
+
         const leaveType = await prisma.leaveType.findUnique({ where: { typeName: type } });
         if (!leaveType) return res.status(400).json({ error: "ไม่พบประเภทการลานี้" });
 
         const totalDaysRequested = calculateTotalDays(start, end, startDuration, endDuration);
         
-        // ✅ เพิ่ม: ตรวจสอบห้ามลาติดต่อกันเกินกำหนด (Consecutive Check)
         if (leaveType.maxConsecutiveDays > 0 && totalDaysRequested > leaveType.maxConsecutiveDays) {
             return res.status(400).json({ 
                 error: `ประเภทการลา ${type} ห้ามลาติดต่อกันเกิน ${leaveType.maxConsecutiveDays} วัน` 
@@ -106,7 +71,6 @@ exports.createLeaveRequest = async (req, res) => {
         }
 
         const result = await prisma.$transaction(async (tx) => {
-            // ... (Logic เดิม: Check Overlap & Check Quota)
             const overlap = await tx.leaveRequest.findFirst({
                 where: {
                     employeeId: userId,
@@ -132,11 +96,11 @@ exports.createLeaveRequest = async (req, res) => {
                     employeeId: userId, leaveTypeId: leaveType.id,
                     startDate: start, endDate: end, totalDaysRequested,
                     reason, startDuration, endDuration, status: "Pending",
+                    attachmentUrl: attachmentUrl, 
                 },
             });
         });
 
-        // ... (Logic ส่ง Notification)
         res.status(201).json({ message: "ส่งคำขอลาสำเร็จ", data: result });
     } catch (error) {
         res.status(400).json({ error: error.message });
@@ -147,26 +111,24 @@ exports.createLeaveRequest = async (req, res) => {
 // ส่วนของ HR (จัดการและอนุมัติ)
 // ---------------------------------------------------------
 
-// 4. ดูใบลาที่รออนุมัติ (Pending)
+// 1. ดึงคำขอลาที่ยังไม่อนุมัติ
 exports.getPendingRequests = async (req, res) => {
     try {
         const requests = await prisma.leaveRequest.findMany({
             where: { status: "Pending" },
             include: {
-                employee: {
-                    select: { id: true, firstName: true, lastName: true, email: true, profileImageUrl: true },
-                },
+                employee: { select: { id: true, firstName: true, lastName: true, email: true, profileImageUrl: true } },
                 leaveType: true,
             },
             orderBy: { requestedAt: "asc" },
         });
         res.json(requests);
     } catch (error) {
-        res.status(500).json({ error: "ไม่สามารถดึงรายการรออนุมัติได้" });
+        res.status(500).json({ error: "ไม่สามารถดึงรายการได้" });
     }
 };
 
-// 5. ดูใบลาทั้งหมด (Calendar)
+// 2. ดึงคำขอลาทั้งหมด
 exports.getAllLeaves = async (req, res) => {
     try {
         const leaves = await prisma.leaveRequest.findMany({
@@ -176,40 +138,34 @@ exports.getAllLeaves = async (req, res) => {
             },
             orderBy: { startDate: "desc" },
         });
-
-        res.json(leaves.map((leave) => ({
-            id: leave.id,
-            employeeId: leave.employeeId,
-            name: `${leave.employee.firstName} ${leave.employee.lastName}`,
-            type: leave.leaveType.typeName,
-            startDate: leave.startDate,
-            endDate: leave.endDate,
-            totalDays: Number(leave.totalDaysRequested),
-            status: leave.status,
-            reason: leave.reason,
-            requestedAt: leave.requestedAt
+        res.json(leaves.map(l => ({
+            ...l,
+            name: `${l.employee.firstName} ${l.employee.lastName}`,
+            type: l.leaveType.typeName,
+            totalDays: Number(l.totalDaysRequested)
         })));
     } catch (error) {
-        res.status(500).json({ error: "ดึงข้อมูลประวัติการลาทั้งหมดไม่สำเร็จ" });
+        res.status(500).json({ error: "ดึงข้อมูลผิดพลาด" });
     }
 };
 
-// 6. อนุมัติหรือปฏิเสธใบลา
+// 3. อนุมัติหรือปฏิเสธคำขอลา
 exports.updateLeaveStatus = async (req, res) => {
     try {
-        const { id, status, rejectReason } = req.body;
+        const { id, status } = req.body;
         const hrId = req.user.id;
+        const leaveId = parseInt(id);
 
-        await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx) => {
             const request = await tx.leaveRequest.findUnique({
-                where: { id: parseInt(id) },
+                where: { id: leaveId },
                 include: { leaveType: true }
             });
 
             if (!request || request.status !== "Pending") throw new Error("ใบลาไม่อยู่ในสถานะที่ดำเนินการได้");
 
-            await tx.leaveRequest.update({
-                where: { id: request.id },
+            const updatedRequest = await tx.leaveRequest.update({
+                where: { id: leaveId },
                 data: { status, approvedByHrId: hrId, approvalDate: new Date() }
             });
 
@@ -226,7 +182,7 @@ exports.updateLeaveStatus = async (req, res) => {
                 });
             }
 
-            await tx.notification.create({
+            const newNotification = await tx.notification.create({
                 data: {
                     employeeId: request.employeeId,
                     notificationType: status === "Approved" ? "Approval" : "Rejection",
@@ -234,140 +190,100 @@ exports.updateLeaveStatus = async (req, res) => {
                     relatedRequestId: request.id
                 }
             });
+
+            const unreadCount = await tx.notification.count({
+                where: { employeeId: request.employeeId, isRead: false }
+            });
+
+            return { updatedRequest, newNotification, unreadCount };
         });
 
-        res.json({ message: `ดำเนินการ ${status} เรียบร้อยแล้ว` });
+        const io = req.app.get("io");
+        if (io) {
+            io.to(`user_${result.updatedRequest.employeeId}`).emit("new_notification", {
+                ...result.newNotification,
+                unreadCount: result.unreadCount
+            });
+        }
+
+        res.json({ message: `ดำเนินการ ${status} เรียบร้อยแล้ว`, unreadCount: result.unreadCount });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
 };
 
-// 7. แก้ไขโควตาพนักงาน
+
+// 4. ปรับปรุงโควตาวันลาของพนักงาน
 exports.updateEmployeeQuota = async (req, res) => {
     try {
         const { employeeId } = req.params; 
         const { leaveTypeId, year, totalDays } = req.body;
-        const currentYear = new Date().getFullYear();
-
-        if (parseInt(year) < currentYear) {
-            return res.status(400).json({ error: "ห้ามแก้ไขโควตาย้อนหลัง" });
-        }
-
         const result = await prisma.leaveQuota.upsert({
-            where: {
-                employeeId_leaveTypeId_year: {
-                    employeeId: parseInt(employeeId),
-                    leaveTypeId: parseInt(leaveTypeId),
-                    year: parseInt(year)
-                }
-            },
+            where: { employeeId_leaveTypeId_year: { employeeId: parseInt(employeeId), leaveTypeId: parseInt(leaveTypeId), year: parseInt(year) } },
             update: { totalDays: parseFloat(totalDays) },
-            create: {
-                employeeId: parseInt(employeeId),
-                leaveTypeId: parseInt(leaveTypeId),
-                year: parseInt(year),
-                totalDays: parseFloat(totalDays),
-                usedDays: 0
-            }
+            create: { employeeId: parseInt(employeeId), leaveTypeId: parseInt(leaveTypeId), year: parseInt(year), totalDays: parseFloat(totalDays), usedDays: 0 }
         });
-
-        res.json({ message: `จัดการโควตาปี ${year} สำเร็จ`, data: result });
+        res.json({ message: "จัดการโควตาสำเร็จ", data: result });
     } catch (error) {
-        res.status(500).json({ error: "ไม่สามารถจัดการโควตาได้" });
+        res.status(500).json({ error: "ล้มเหลว" });
     }
 };
 
-// 8. ประมวลผลการทบวันลา (Carry Over) สิ้นปี
+
+// 5. ประมวลผลทบวันลาที่เหลือจากปีก่อนหน้า
 exports.processCarryOver = async (req, res) => {
     try {
-        const { targetYear } = req.body; // เช่น 2026
+        const { targetYear } = req.body;
         const lastYear = targetYear - 1;
 
         await prisma.$transaction(async (tx) => {
-            // ดึงโควตาทุกคนของปีที่แล้วมาตรวจสอบวันคงเหลือ
             const oldQuotas = await tx.leaveQuota.findMany({
                 where: { year: lastYear },
                 include: { leaveType: true }
             });
 
             for (const quota of oldQuotas) {
-                // คำนวณวันคงเหลือ: (วันโควตาเดิม + วันที่เคยทบมา) - วันที่ใช้ไป
                 const remaining = Number(quota.totalDays) + Number(quota.carryOverDays) - Number(quota.usedDays);
-                const maxLimit = Number(quota.leaveType.maxCarryOver);
-                
-                // จำนวนวันที่จะทบได้ต้องไม่เกินที่ HR กำหนด
-                const carryAmount = Math.min(Math.max(remaining, 0), maxLimit);
+                const carryAmount = Math.min(Math.max(remaining, 0), Number(quota.leaveType.maxCarryOver));
 
                 if (carryAmount > 0) {
                     await tx.leaveQuota.upsert({
-                        where: {
-                            employeeId_leaveTypeId_year: {
-                                employeeId: quota.employeeId,
-                                leaveTypeId: quota.leaveTypeId,
-                                year: targetYear
-                            }
-                        },
+                        where: { employeeId_leaveTypeId_year: { employeeId: quota.employeeId, leaveTypeId: quota.leaveTypeId, year: targetYear } },
                         update: { carryOverDays: carryAmount },
-                        create: {
-                            employeeId: quota.employeeId,
-                            leaveTypeId: quota.leaveTypeId,
-                            year: targetYear,
-                            totalDays: 0, 
-                            carryOverDays: carryAmount,
-                            usedDays: 0
-                        }
+                        create: { employeeId: quota.employeeId, leaveTypeId: quota.leaveTypeId, year: targetYear, totalDays: 0, carryOverDays: carryAmount, usedDays: 0 }
                     });
                 }
             }
         });
-
-        res.json({ message: `ประมวลผลการทบวันลาเข้าสู่ปี ${targetYear} สำเร็จ` });
+        res.json({ message: "ประมวลผลทบวันลาสำเร็จ" });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
 
-// 9. มอบสิทธิ์วันลาพิเศษให้พนักงาน
+
+// 6. มอบสิทธิ์วันลาพิเศษให้พนักงาน
 exports.grantSpecialLeave = async (req, res) => {
     try {
         const { employeeId, leaveTypeId, amount, reason, year } = req.body;
-
         await prisma.$transaction(async (tx) => {
-            // 1. บันทึกประวัติการให้วันลาพิเศษ
             await tx.specialLeaveGrant.create({
                 data: {
                     employeeId: parseInt(employeeId),
                     leaveTypeId: parseInt(leaveTypeId),
                     amount: parseFloat(amount),
                     reason: reason,
-                    expiryDate: new Date(`${year}-12-31`) // หมดอายุสิ้นปี
+                    expiryDate: new Date(`${year}-12-31`)
                 }
             });
-
-            // 2. อัปเดตโควตาใน LeaveQuota (เพิ่ม totalDays)
             await tx.leaveQuota.upsert({
-                where: {
-                    employeeId_leaveTypeId_year: {
-                        employeeId: parseInt(employeeId),
-                        leaveTypeId: parseInt(leaveTypeId),
-                        year: parseInt(year)
-                    }
-                },
-                update: {
-                    totalDays: { increment: parseFloat(amount) }
-                },
-                create: {
-                    employeeId: parseInt(employeeId),
-                    leaveTypeId: parseInt(leaveTypeId),
-                    year: parseInt(year),
-                    totalDays: parseFloat(amount),
-                    usedDays: 0
-                }
+                where: { employeeId_leaveTypeId_year: { employeeId: parseInt(employeeId), leaveTypeId: parseInt(leaveTypeId), year: parseInt(year) } },
+                update: { totalDays: { increment: parseFloat(amount) } },
+                create: { employeeId: parseInt(employeeId), leaveTypeId: parseInt(leaveTypeId), year: parseInt(year), totalDays: parseFloat(amount), usedDays: 0 }
             });
         });
-
         res.json({ message: "มอบสิทธิ์วันลาพิเศษสำเร็จ" });
     } catch (error) {
-        res.status(500).json({ error: "ล้มเหลวในการมอบสิทธิ์วันลาพิเศษ" });
+        res.status(500).json({ error: "ล้มเหลว" });
     }
 };
