@@ -222,19 +222,19 @@ export default function EmployeeDetail() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
-<div className="flex items-center">
-  <h2 className="text-2xl font-black text-gray-800">
-    จัดการข้อมูลพนักงาน
-  </h2>
+            <div className="flex items-center">
+              <h2 className="text-2xl font-black text-gray-800">
+                จัดการข้อมูลพนักงาน
+              </h2>
 
-  <button
-    type="button"
-    onClick={() => setShowModal(false)}
-    className="ml-auto py-4 text-gray-400 font-black uppercase text-[10px] tracking-widest hover:text-gray-600 transition-all"
-  >
-    <X />
-  </button>
-</div>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="ml-auto py-4 text-gray-400 font-black uppercase text-[10px] tracking-widest hover:text-gray-600 transition-all"
+              >
+                <X />
+              </button>
+            </div>
 
             {/* 1. ส่วนแก้ไขข้อมูลทั่วไป */}
             <form
@@ -367,23 +367,29 @@ export default function EmployeeDetail() {
           );
         })}
       </div>
-
-      <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
-        {["attendance", "leave"].map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-              tab === t
-                ? "bg-white text-blue-600 shadow-md"
-                : "text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            {t === "attendance" ? "ประวัติเข้างาน" : "ประวัติการลา"}
-          </button>
-        ))}
+      <div className="flex items-center">
+        <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
+          {["attendance", "leave"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                tab === t
+                  ? "bg-white text-blue-600 shadow-md"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              {t === "attendance" ? "ประวัติเข้างาน" : "ประวัติการลา"}
+            </button>
+          ))}
+        </div>
+        <button
+          className="ml-auto px-4 py-1.5 rounded-2xl bg-blue-600 text-white hover:bg-blue-400 font-black flex items-center shadow-lg transition-all active:scale-95"
+          // onClick={() => showaddleaveday()
+        >
+          เพิ่มวันลา
+        </button>
       </div>
-
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden mb-8">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50/50 border-b border-gray-100 font-black text-[10px] text-gray-400 uppercase tracking-widest">
