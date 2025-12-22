@@ -52,28 +52,45 @@ model Employee {
   leaveRequestsAsEmployee LeaveRequest[] @relation("EmployeeRequests")
   leaveRequestsAsHr       LeaveRequest[] @relation("HrApprovals")
   notifications           Notification[]
+  specialLeaveGrants      SpecialLeaveGrant[]
 
   @@map("employees")
 }
 
 model LeaveType {
-  id       Int     @id @default(autoincrement()) @map("leave_type_id")
-  typeName String  @unique @map("type_name") @db.VarChar(100)
-  isPaid   Boolean @default(true) @map("is_paid")
-
+  id            Int      @id @default(autoincrement()) @map("leave_type_id")
+  typeName      String   @unique @map("type_name") @db.VarChar(100)
+  isPaid        Boolean  @default(true) @map("is_paid")
+  maxCarryOver  Decimal  @default(0.00) @map("max_carry_over") @db.Decimal(5, 2) 
+  maxConsecutiveDays Int     @default(0) @map("max_consecutive_days")
   leaveQuotas   LeaveQuota[]
   leaveRequests LeaveRequest[]
-
+  specialLeaveGrants SpecialLeaveGrant[]
   @@map("leave_types")
 }
 
+model SpecialLeaveGrant {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int      @map("employee_id")
+  leaveTypeId  Int      @map("leave_type_id")
+  amount       Decimal  @db.Decimal(5, 2) // จำนวนวันที่ได้รับ
+  reason       String   @db.VarChar(255)  // เหตุผลที่ได้รับ (เช่น "ลาเพื่อพิธีสมรส")
+  expiryDate   DateTime @map("expiry_date") @db.Date
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  employee     Employee  @relation(fields: [employeeId], references: [id])
+  leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id])
+  @@map("special_leave_grants")
+}
+
 model LeaveQuota {
-  id          Int     @id @default(autoincrement()) @map("quota_id")
-  employeeId  Int     @map("employee_id")
-  leaveTypeId Int     @map("leave_type_id")
-  year        Int     @db.Year
-  totalDays   Decimal @default(0.00) @map("total_days") @db.Decimal(5, 2)
-  usedDays    Decimal @default(0.00) @map("used_days") @db.Decimal(5, 2)
+  id           Int      @id @default(autoincrement()) @map("quota_id")
+  employeeId   Int      @map("employee_id")
+  leaveTypeId  Int      @map("leave_type_id")
+  year         Int      @db.Year
+  totalDays    Decimal  @default(0.00) @map("total_days") @db.Decimal(5, 2)
+  usedDays     Decimal  @default(0.00) @map("used_days") @db.Decimal(5, 2)
+  carryOverDays Decimal @default(0.00) @map("carry_over_days") @db.Decimal(5, 2)
 
   employee  Employee  @relation(fields: [employeeId], references: [id])
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])

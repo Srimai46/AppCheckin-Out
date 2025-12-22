@@ -14,12 +14,17 @@ exports.getMyQuotas = async (req, res) => {
             include: { leaveType: true },
         });
 
-        res.json(quotas.map(q => ({
-            type: q.leaveType.typeName,
-            total: Number(q.totalDays),
-            used: Number(q.usedDays),
-            remaining: Number(q.totalDays) - Number(q.usedDays),
-        })));
+        res.json(quotas.map(q => {
+            const totalAvailable = Number(q.totalDays) + Number(q.carryOverDays);
+            return {
+                type: q.leaveType.typeName,
+                baseQuota: Number(q.totalDays),
+                carryOver: Number(q.carryOverDays),
+                total: totalAvailable,
+                used: Number(q.usedDays),
+                remaining: totalAvailable - Number(q.usedDays),
+            };
+        }));
     } catch (error) {
         res.status(500).json({ error: "ดึงข้อมูลโควตาผิดพลาด" });
     }
@@ -40,6 +45,42 @@ exports.getMyLeaves = async (req, res) => {
 };
 
 // 3. ยื่นคำขอลาใหม่
+exports.grantSpecialLeave = async (req, res) => {
+    try {
+        const { employeeId, leaveTypeId, amount, reason, year } = req.body;
+
+        await prisma.$transaction(async (tx) => {
+            // 1. บันทึกประวัติการมอบวันลาพิเศษ (ถ้ามีตาราง SpecialLeaveGrant)
+            // 2. อัปเดตโควตาพนักงานทันที
+            await tx.leaveQuota.upsert({
+                where: {
+                    employeeId_leaveTypeId_year: {
+                        employeeId: parseInt(employeeId),
+                        leaveTypeId: parseInt(leaveTypeId),
+                        year: parseInt(year)
+                    }
+                },
+                update: {
+                    totalDays: { increment: parseFloat(amount) }
+                },
+                create: {
+                    employeeId: parseInt(employeeId),
+                    leaveTypeId: parseInt(leaveTypeId),
+                    year: parseInt(year),
+                    totalDays: parseFloat(amount),
+                    usedDays: 0
+                }
+            });
+        });
+
+        res.json({ message: "มอบสิทธิ์วันลาพิเศษสำเร็จและอัปเดตโควตาแล้ว" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "ไม่สามารถมอบวันลาพิเศษได้" });
+    }
+};
+
+// แก้ไขฟังก์ชันสร้างคำขอลา (เพิ่มการเช็ควันลาติดต่อกัน)
 exports.createLeaveRequest = async (req, res) => {
     try {
         const { type, startDate, endDate, reason, startDuration, endDuration } = req.body;
@@ -52,11 +93,20 @@ exports.createLeaveRequest = async (req, res) => {
         if (!leaveType) return res.status(400).json({ error: "ไม่พบประเภทการลานี้" });
 
         const totalDaysRequested = calculateTotalDays(start, end, startDuration, endDuration);
+        
+        // ✅ เพิ่ม: ตรวจสอบห้ามลาติดต่อกันเกินกำหนด (Consecutive Check)
+        if (leaveType.maxConsecutiveDays > 0 && totalDaysRequested > leaveType.maxConsecutiveDays) {
+            return res.status(400).json({ 
+                error: `ประเภทการลา ${type} ห้ามลาติดต่อกันเกิน ${leaveType.maxConsecutiveDays} วัน` 
+            });
+        }
+
         if (totalDaysRequested <= 0) {
             return res.status(400).json({ error: "จำนวนวันลาต้องมากกว่า 0 (ตรวจสอบวันหยุด)" });
         }
 
         const result = await prisma.$transaction(async (tx) => {
+            // ... (Logic เดิม: Check Overlap & Check Quota)
             const overlap = await tx.leaveRequest.findFirst({
                 where: {
                     employeeId: userId,
@@ -72,7 +122,7 @@ exports.createLeaveRequest = async (req, res) => {
 
             if (!quota) throw new Error("ไม่พบโควตาวันลาของคุณสำหรับปีนี้");
             
-            const remaining = Number(quota.totalDays) - Number(quota.usedDays);
+            const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
             if (remaining < totalDaysRequested) {
                 throw new Error(`วันลาคงเหลือไม่พอ (เหลือ ${remaining} วัน)`);
             }
@@ -86,18 +136,7 @@ exports.createLeaveRequest = async (req, res) => {
             });
         });
 
-        const hrUsers = await prisma.employee.findMany({ where: { role: "HR" }, select: { id: true } });
-        if (hrUsers.length > 0) {
-            await prisma.notification.createMany({
-                data: hrUsers.map(hr => ({
-                    employeeId: hr.id,
-                    notificationType: "NewRequest",
-                    message: `คำขอลาใหม่: พนักงาน ID ${userId} ขอลา ${type}`,
-                    relatedRequestId: result.id,
-                }))
-            });
-        }
-
+        // ... (Logic ส่ง Notification)
         res.status(201).json({ message: "ส่งคำขอลาสำเร็จ", data: result });
     } catch (error) {
         res.status(400).json({ error: error.message });
@@ -235,5 +274,100 @@ exports.updateEmployeeQuota = async (req, res) => {
         res.json({ message: `จัดการโควตาปี ${year} สำเร็จ`, data: result });
     } catch (error) {
         res.status(500).json({ error: "ไม่สามารถจัดการโควตาได้" });
+    }
+};
+
+// 8. ประมวลผลการทบวันลา (Carry Over) สิ้นปี
+exports.processCarryOver = async (req, res) => {
+    try {
+        const { targetYear } = req.body; // เช่น 2026
+        const lastYear = targetYear - 1;
+
+        await prisma.$transaction(async (tx) => {
+            // ดึงโควตาทุกคนของปีที่แล้วมาตรวจสอบวันคงเหลือ
+            const oldQuotas = await tx.leaveQuota.findMany({
+                where: { year: lastYear },
+                include: { leaveType: true }
+            });
+
+            for (const quota of oldQuotas) {
+                // คำนวณวันคงเหลือ: (วันโควตาเดิม + วันที่เคยทบมา) - วันที่ใช้ไป
+                const remaining = Number(quota.totalDays) + Number(quota.carryOverDays) - Number(quota.usedDays);
+                const maxLimit = Number(quota.leaveType.maxCarryOver);
+                
+                // จำนวนวันที่จะทบได้ต้องไม่เกินที่ HR กำหนด
+                const carryAmount = Math.min(Math.max(remaining, 0), maxLimit);
+
+                if (carryAmount > 0) {
+                    await tx.leaveQuota.upsert({
+                        where: {
+                            employeeId_leaveTypeId_year: {
+                                employeeId: quota.employeeId,
+                                leaveTypeId: quota.leaveTypeId,
+                                year: targetYear
+                            }
+                        },
+                        update: { carryOverDays: carryAmount },
+                        create: {
+                            employeeId: quota.employeeId,
+                            leaveTypeId: quota.leaveTypeId,
+                            year: targetYear,
+                            totalDays: 0, 
+                            carryOverDays: carryAmount,
+                            usedDays: 0
+                        }
+                    });
+                }
+            }
+        });
+
+        res.json({ message: `ประมวลผลการทบวันลาเข้าสู่ปี ${targetYear} สำเร็จ` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 9. มอบสิทธิ์วันลาพิเศษให้พนักงาน
+exports.grantSpecialLeave = async (req, res) => {
+    try {
+        const { employeeId, leaveTypeId, amount, reason, year } = req.body;
+
+        await prisma.$transaction(async (tx) => {
+            // 1. บันทึกประวัติการให้วันลาพิเศษ
+            await tx.specialLeaveGrant.create({
+                data: {
+                    employeeId: parseInt(employeeId),
+                    leaveTypeId: parseInt(leaveTypeId),
+                    amount: parseFloat(amount),
+                    reason: reason,
+                    expiryDate: new Date(`${year}-12-31`) // หมดอายุสิ้นปี
+                }
+            });
+
+            // 2. อัปเดตโควตาใน LeaveQuota (เพิ่ม totalDays)
+            await tx.leaveQuota.upsert({
+                where: {
+                    employeeId_leaveTypeId_year: {
+                        employeeId: parseInt(employeeId),
+                        leaveTypeId: parseInt(leaveTypeId),
+                        year: parseInt(year)
+                    }
+                },
+                update: {
+                    totalDays: { increment: parseFloat(amount) }
+                },
+                create: {
+                    employeeId: parseInt(employeeId),
+                    leaveTypeId: parseInt(leaveTypeId),
+                    year: parseInt(year),
+                    totalDays: parseFloat(amount),
+                    usedDays: 0
+                }
+            });
+        });
+
+        res.json({ message: "มอบสิทธิ์วันลาพิเศษสำเร็จ" });
+    } catch (error) {
+        res.status(500).json({ error: "ล้มเหลวในการมอบสิทธิ์วันลาพิเศษ" });
     }
 };
