@@ -152,9 +152,12 @@ exports.getAllLeaves = async (req, res) => {
 // 3. อนุมัติหรือปฏิเสธคำขอลา
 exports.updateLeaveStatus = async (req, res) => {
     try {
-        const { id, status } = req.body;
+        // รับค่า id, status และ isSpecial (boolean) จาก Frontend
+        const { id, status, isSpecial } = req.body; 
         const hrId = req.user.id;
         const leaveId = parseInt(id);
+
+        if (!leaveId) return res.status(400).json({ error: "ID ไม่ถูกต้อง" });
 
         const result = await prisma.$transaction(async (tx) => {
             const request = await tx.leaveRequest.findUnique({
@@ -162,14 +165,23 @@ exports.updateLeaveStatus = async (req, res) => {
                 include: { leaveType: true }
             });
 
-            if (!request || request.status !== "Pending") throw new Error("ใบลาไม่อยู่ในสถานะที่ดำเนินการได้");
+            if (!request || request.status !== "Pending") {
+                throw new Error("ใบลาไม่อยู่ในสถานะที่ดำเนินการได้");
+            }
 
+            // 1. อัปเดตสถานะใบลา และบันทึกว่าเป็นการอนุมัติพิเศษหรือไม่
             const updatedRequest = await tx.leaveRequest.update({
                 where: { id: leaveId },
-                data: { status, approvedByHrId: hrId, approvalDate: new Date() }
+                data: { 
+                    status, 
+                    approvedByHrId: hrId, 
+                    approvalDate: new Date(),
+                    isSpecialApproved: status === "Approved" ? (isSpecial || false) : false
+                }
             });
 
-            if (status === "Approved") {
+            // 2. ถ้าอนุมัติ และ "ไม่ใช่" กรณีพิเศษ ถึงจะทำการหักโควตา
+            if (status === "Approved" && !isSpecial) {
                 await tx.leaveQuota.update({
                     where: {
                         employeeId_leaveTypeId_year: {
@@ -182,11 +194,17 @@ exports.updateLeaveStatus = async (req, res) => {
                 });
             }
 
+            // 3. กำหนดข้อความแจ้งเตือนตามสถานะ
+            let notifyMsg = `คำขอลาของคุณได้รับการ ${status === "Approved" ? "อนุมัติ" : "ปฏิเสธ"}`;
+            if (status === "Approved" && isSpecial) {
+                notifyMsg = `คำขอลาของคุณได้รับการอนุมัติเป็นกรณีพิเศษ (ไม่หักวันลา)`;
+            }
+
             const newNotification = await tx.notification.create({
                 data: {
                     employeeId: request.employeeId,
                     notificationType: status === "Approved" ? "Approval" : "Rejection",
-                    message: `คำขอลาของคุณได้รับการ ${status === "Approved" ? "อนุมัติ" : "ปฏิเสธ"}`,
+                    message: notifyMsg,
                     relatedRequestId: request.id
                 }
             });
@@ -198,16 +216,27 @@ exports.updateLeaveStatus = async (req, res) => {
             return { updatedRequest, newNotification, unreadCount };
         });
 
+        // 4. ส่ง Real-time Notification ผ่าน Socket.io
         const io = req.app.get("io");
         if (io) {
             io.to(`user_${result.updatedRequest.employeeId}`).emit("new_notification", {
-                ...result.newNotification,
-                unreadCount: result.unreadCount
+                id: result.newNotification.id,
+                message: result.newNotification.message,
+                type: result.newNotification.notificationType,
+                relatedRequestId: result.newNotification.relatedRequestId,
+                createdAt: result.newNotification.createdAt,
+                unreadCount: result.unreadCount 
             });
         }
 
-        res.json({ message: `ดำเนินการ ${status} เรียบร้อยแล้ว`, unreadCount: result.unreadCount });
+        res.json({ 
+            message: `ดำเนินการ ${status}${isSpecial ? ' (กรณีพิเศษ)' : ''} เรียบร้อยแล้ว`, 
+            data: result.updatedRequest,
+            unreadCount: result.unreadCount 
+        });
+
     } catch (error) {
+        console.error("Update Leave Status Error:", error);
         res.status(400).json({ error: error.message });
     }
 };
