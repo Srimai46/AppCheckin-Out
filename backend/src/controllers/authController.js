@@ -3,47 +3,61 @@ const { z } = require('zod');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/prisma');
 
+// ✅ แก้ไข: เพิ่มฟังก์ชัน Helper สำหรับสร้าง Token เพื่อความ Clean
+const generateToken = (payload) => {
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: '1d', // หรือปรับตามนโยบายความปลอดภัย
+  });
+};
+
 // 1. กำหนด Schema สำหรับตรวจสอบข้อมูลขาเข้าด้วย Zod
 const loginSchema = z.object({
-  email: z.string().email({ message: "รูปแบบอีเมลไม่ถูกต้อง" }),
-  password: z.string().min(6, { message: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }),
+  email: z.string().trim().email({ message: "รูปแบบอีเมลไม่ถูกต้อง" }), // ✅ เพิ่ม .trim()
+  password: z.string().min(1, { message: "กรุณากรอกรหัสผ่าน" }), // ✅ Login ไม่ควรเช็คความยาวละเอียดเกินไปเพื่อกันการเดา (Enumeration)
 });
 
 // 2. ฟังก์ชัน Login
 exports.login = async (req, res) => {
   try {
-    // Validate Input
-    const { email, password } = loginSchema.parse(req.body);
+    // ✅ 1. Validate Input
+    const validatedData = loginSchema.parse(req.body);
 
-    // หา User จาก Email
+    // ✅ 2. หา User และดึงเฉพาะข้อมูลที่จำเป็น
     const user = await prisma.employee.findUnique({
-      where: { email },
+      where: { email: validatedData.email },
     });
 
-    // ถ้าไม่มี User หรือ Password ไม่ตรงกัน
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+    // ✅ แก้ไข (Security): ใช้ข้อความ Error เดียวกันทั้ง Email ผิด และ Password ผิด
+    // เพื่อป้องกัน "Account Enumeration" (การแอบสุ่มหาอีเมลที่มีอยู่จริงในระบบ)
+    const loginError = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+
+    if (!user) {
+      return res.status(401).json({ error: loginError });
     }
 
-    // ถ้า User ลาออกไปแล้ว (is_active = false) ห้ามล็อกอิน
+    // ✅ 3. เช็ค Password
+    const isMatch = await bcrypt.compare(validatedData.password, user.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ error: loginError });
+    }
+
+    // ✅ 4. เช็ค Status บัญชี
     if (!user.isActive) {
-      return res.status(403).json({ error: 'บัญชีนี้ถูกระงับการใช้งาน' });
+      return res.status(403).json({ error: 'บัญชีนี้ถูกระงับการใช้งาน โปรดติดต่อฝ่ายบุคคล' });
     }
 
-    // สร้าง Token
+    // ✅ 5. สร้าง Token
     const payload = {
       id: user.id,
       email: user.email,
       role: user.role,
     };
 
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    });
+    const token = generateToken(payload);
 
-    // Login สำเร็จ -> ส่งข้อมูลกลับพร้อม Token
+    // ✅ 6. ส่งข้อมูลกลับ (ตัด passwordHash ออกอย่างเด็ดขาด)
     res.json({
-      message: "Login Successful",
+      message: "เข้าสู่ระบบสำเร็จ",
       token,
       user: {
         id: user.id,
@@ -56,26 +70,21 @@ exports.login = async (req, res) => {
     });
 
   } catch (error) {
-    // ✅ จุดที่แก้ไข: เช็คประเภท Error ก่อน เพื่อกัน Server Crash
-    
-    // 1. ถ้าเป็น Error จากการ Validate ข้อมูล (Zod)
+    // ✅ 7. Error Handling แบ่งตามประเภท
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors[0]?.message || "ข้อมูลไม่ถูกต้อง" });
+      return res.status(400).json({ error: error.errors[0]?.message });
     }
     
-    // 2. ถ้าเป็น Error อื่นๆ ให้แสดง message ธรรมดา
-    console.error("Login Error:", error);
-    res.status(500).json({ error: error.message || 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });
+    console.error("🔥 Login Error:", error);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });
   }
 };
 
-// 3. ฟังก์ชัน Get Me
+// 3. ฟังก์ชัน Get Me (ตรวจสอบข้อมูลตัวเอง)
 exports.getMe = async (req, res) => {
   try {
-    if (!req.user) {
-        return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    // ✅ แก้ไข: ดึงข้อมูลสดจาก DB เสมอแทนการเชื่อข้อมูลใน Token เพียงอย่างเดียว
+    // เผื่อ User ถูกเปลี่ยน Role หรือถูก Deactivate ระหว่างที่ Token ยังไม่หมดอายุ
     const user = await prisma.employee.findUnique({
       where: { id: req.user.id },
       select: {
@@ -90,20 +99,22 @@ exports.getMe = async (req, res) => {
       }
     });
 
-    if (!user) {
-       return res.status(404).json({ error: 'ไม่พบข้อมูลผู้ใช้' });
+    if (!user || !user.isActive) {
+      return res.status(401).json({ error: 'บัญชีไม่พร้อมใช้งาน' });
     }
 
     res.json(user);
   } catch (error) {
+    console.error("GetMe Error:", error);
     res.status(500).json({ error: "Server Error" });
   }
 };
 
-// 4. ฟังก์ชันดึงพนักงานทั้งหมด
+// 4. ฟังก์ชันดึงพนักงานทั้งหมด (จำกัดสิทธิ์ใน Route)
 exports.getAllEmployees = async (req, res) => {
   try {
     const employees = await prisma.employee.findMany({
+      where: { isActive: true }, // ✅ แสดงเฉพาะคนที่ยังทำงานอยู่เป็น Default
       select: {
         id: true,
         firstName: true,
@@ -112,13 +123,11 @@ exports.getAllEmployees = async (req, res) => {
         role: true,
         profileImageUrl: true,
         joiningDate: true,
-        isActive: true
       },
-      orderBy: { id: 'asc' }
+      orderBy: { firstName: 'asc' }
     });
     res.json(employees);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: 'ดึงข้อมูลพนักงานไม่สำเร็จ' });
   }
 };
