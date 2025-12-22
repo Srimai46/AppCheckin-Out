@@ -10,27 +10,30 @@ const {
     updateLeaveStatus,
     updateEmployeeQuota,
     processCarryOver,
-    grantSpecialLeave // ✅ เพิ่มใหม่
+    grantSpecialLeave
 } = require('../controllers/leaveController');
 
 const { protect, authorize } = require('../middlewares/authMiddleware');
+const { uploadAttachment } = require('../middlewares/uploadMiddleware'); // ✅ Import Middleware สำหรับอัปโหลด
 
-// --- Worker Routes ---
+// --- ส่วนของพนักงานทั่วไป (Worker) ---
+
 router.get('/my-quota', protect, getMyQuotas);
 router.get('/my-history', protect, getMyLeaves);
-router.post('/', protect, createLeaveRequest);
 
-// --- HR & Admin Routes ---
+// ใช้ Middleware สำหรับอัปโหลดไฟล์แนบ
+router.post('/', protect, uploadAttachment.single('attachment'), createLeaveRequest);
+
+
+// --- ส่วนของ HR และ Admin (Management) ---
+
 router.get('/', protect, authorize('HR', 'Admin'), getAllLeaves);
 router.get('/pending', protect, authorize('HR', 'Admin'), getPendingRequests);
 router.patch('/status', protect, authorize('HR', 'Admin'), updateLeaveStatus);
 router.patch('/quota/:employeeId', protect, authorize('HR', 'Admin'), updateEmployeeQuota);
 router.post('/process-carry-over', protect, authorize('HR', 'Admin'), processCarryOver);
-
-// ✅ เพิ่ม: มอบวันลาพิเศษรายกรณี
 router.post('/grant-special', protect, authorize('HR', 'Admin'), grantSpecialLeave);
 
-// ✅ แก้ไข/เพิ่ม: จัดการนโยบายประเภทการลา (Limit ทบวัน และ Limit ลาติดต่อกัน)
 router.patch('/type/:id/policy', protect, authorize('HR', 'Admin'), async (req, res) => {
     const { maxCarryOver, maxConsecutiveDays } = req.body;
     const typeId = parseInt(req.params.id);

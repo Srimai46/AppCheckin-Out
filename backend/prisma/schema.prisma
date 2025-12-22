@@ -112,6 +112,7 @@ model TimeRecord {
 
   employee Employee @relation(fields: [employeeId], references: [id])
 
+  @@index([employeeId, workDate]) // เพิ่ม Index สำหรับการดึงประวัติการเข้างานรายคนตามช่วงเวลา
   @@map("time_records")
 }
 
@@ -128,6 +129,7 @@ model LeaveRequest {
   endDuration   LeaveDuration @map("end_duration")
 
   reason      String?       @db.Text
+  attachmentUrl      String?       @map("attachment_url") @db.VarChar(255)
   status      RequestStatus @map("status")
   requestedAt    DateTime  @default(now()) @map("requested_at")
 
@@ -145,6 +147,8 @@ model LeaveRequest {
 
   notifications Notification[]
 
+  @@index([employeeId, startDate]) // เพิ่ม Index สำหรับตรวจสอบ Overlap และดึงประวัติการลา
+  @@index([status])                // สำหรับ HR ดึงเฉพาะรายการที่ Pending
   @@map("leave_requests")
 }
 
@@ -161,5 +165,8 @@ model Notification {
   employee       Employee      @relation(fields: [employeeId], references: [id])
   relatedRequest LeaveRequest? @relation(fields: [relatedRequestId], references: [id])
 
+  // ดัชนีเพื่อเพิ่มประสิทธิภาพการค้นหา
+  @@index([employeeId, createdAt(sort: Desc)]) // ดึงข้อมูลล่าสุดได้เร็วขึ้น
+  @@index([employeeId, isRead])                // นับจำนวนที่ยังไม่อ่านได้เร็วขึ้น
   @@map("notifications")
 }

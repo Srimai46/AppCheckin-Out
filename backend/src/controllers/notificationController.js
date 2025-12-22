@@ -1,25 +1,21 @@
 const prisma = require('../config/prisma');
 
-// 1. ดูการแจ้งเตือนทั้งหมดของฉัน
+// 1. ดึงการแจ้งเตือนทั้งหมด
 exports.getMyNotifications = async (req, res) => {
     try {
-        // ใช้ Promise.all เพื่อให้ดึงข้อมูลทั้งสองอย่างพร้อมกัน (เร็วขึ้นเล็กน้อย)
         const [notifications, unreadCount] = await Promise.all([
             prisma.notification.findMany({
                 where: { employeeId: req.user.id },
                 orderBy: { createdAt: 'desc' },
-                take: 20,
+                take: 30, // ดึงมา 30 รายการล่าสุด
                 include: {
                     relatedRequest: {
-                        select: { id: true, status: true } 
+                        select: { id: true, status: true, startDate: true } 
                     }
                 }
             }),
             prisma.notification.count({
-                where: { 
-                    employeeId: req.user.id,
-                    isRead: false
-                }
+                where: { employeeId: req.user.id, isRead: false }
             })
         ]);
 
@@ -30,52 +26,56 @@ exports.getMyNotifications = async (req, res) => {
     }
 };
 
-// 2. กดอ่านการแจ้งเตือน (Mark as Read)
+// 2. กดอ่านทีละรายการ
 exports.markAsRead = async (req, res) => {
     try {
         const { id } = req.params;
+        const notiId = parseInt(id);
 
-        // ป้องกัน Error หาก ID ไม่ใช่ตัวเลข
-        if (isNaN(id)) {
-            return res.status(400).json({ error: 'รูปแบบ ID ไม่ถูกต้อง' });
-        }
+        if (isNaN(notiId)) return res.status(400).json({ error: 'ID ไม่ถูกต้อง' });
 
+        // ตรวจสอบและอัปเดตเฉพาะของตัวเอง
         const result = await prisma.notification.updateMany({
             where: {
-                id: Number(id),
-                employeeId: req.user.id
+                id: notiId,
+                employeeId: req.user.id,
+                isRead: false // อัปเดตเฉพาะที่ยังไม่ได้อ่าน
             },
             data: { isRead: true }
         });
 
-        if (result.count === 0) {
-            return res.status(404).json({ error: 'ไม่พบการแจ้งเตือน หรือคุณไม่มีสิทธิ์' });
-        }
+        // ส่งจำนวนที่ยังไม่ได้อ่านล่าสุดกลับไป เพื่อให้ Frontend อัปเดตตัวเลข Badge
+        const latestUnreadCount = await prisma.notification.count({
+            where: { employeeId: req.user.id, isRead: false }
+        });
 
-        res.json({ message: 'อ่านแล้ว' });
+        res.json({ 
+            message: 'อ่านแล้ว', 
+            unreadCount: latestUnreadCount 
+        });
     } catch (error) {
-        console.error("Mark as Read Error:", error); // เพิ่ม log
-        res.status(500).json({ error: 'เกิดข้อผิดพลาดในการอัปเดตสถานะ' });
+        console.error("Mark Read Error:", error);
+        res.status(500).json({ error: 'เกิดข้อผิดพลาด' });
     }
 };
 
 // 3. กดอ่านทั้งหมด
 exports.markAllAsRead = async (req, res) => {
     try {
-        const result = await prisma.notification.updateMany({
-            where: {
-                employeeId: req.user.id,
-                isRead: false
+        await prisma.notification.updateMany({
+            where: { 
+                employeeId: req.user.id, 
+                isRead: false 
             },
             data: { isRead: true }
         });
 
         res.json({ 
-            message: 'อ่านทั้งหมดแล้ว',
-            count: result.count // ส่งจำนวนที่อัปเดตกลับไปด้วยเพื่อให้ Frontend รู้
+            message: 'อ่านทั้งหมดแล้ว', 
+            unreadCount: 0 // อ่านหมดแล้วส่ง 0 กลับไปได้เลย
         });
     } catch (error) {
-        console.error("Mark All as Read Error:", error); // เพิ่ม log
+        console.error("Mark All Read Error:", error);
         res.status(500).json({ error: 'เกิดข้อผิดพลาด' });
     }
 };
