@@ -6,32 +6,35 @@ const {
     getMyQuotas,
     getAllLeaves,
     getPendingRequests,
-    updateLeaveStatus
+    updateLeaveStatus,
+    updateEmployeeQuota
 } = require('../controllers/leaveController')
 
-// ✅ ตรวจสอบ path ของ middlewares ให้ถูกต้อง
 const { protect, authorize } = require('../middlewares/authMiddleware') 
 
-// --- พนักงานทั่วไป (Common / Worker Routes) ---
-// ดึงโควตาคงเหลือของตัวเอง
+// --- ส่วนของพนักงานทั่วไป (Worker) ---
+// ดึงโควตาคงเหลือ (GET /api/leaves/my-quota)
 router.get('/my-quota', protect, getMyQuotas)
 
-// ดูประวัติการลาของตัวเอง
+// ดูประวัติการลาของตนเอง (GET /api/leaves/my-history)
 router.get('/my-history', protect, getMyLeaves)
 
-// ยื่นคำขอลาใหม่
+// ยื่นคำขอลาใหม่ (POST /api/leaves)
 router.post('/', protect, createLeaveRequest)
 
 
-// --- สำหรับ HR/Admin (Management Routes) ---
-// ดูใบลาทั้งหมด (ใช้สำหรับปฏิทินหรือหน้ารวม)
+// --- ส่วนของ HR และ Admin (Management) ---
+// ดูใบลาของพนักงานทุกคน (GET /api/leaves)
 router.get('/', protect, authorize('HR', 'Admin'), getAllLeaves) 
 
-// ดูเฉพาะใบลาที่รออนุมัติ (Pending)
+// ดูใบลาที่รออนุมัติ (GET /api/leaves/pending)
 router.get('/pending', protect, authorize('HR', 'Admin'), getPendingRequests)
 
-// ✅ แก้ไขเป็น PATCH: สำหรับอนุมัติหรือปฏิเสธใบลา
-// แนะนำใช้ path '/status' ให้กระชับ หรือคง '/update-status' ตามเดิมก็ได้ครับ
+// อนุมัติหรือปฏิเสธใบลา (PATCH /api/leaves/status)
 router.patch('/status', protect, authorize('HR', 'Admin'), updateLeaveStatus)
+
+// แก้ไขโควตาพนักงานเฉพาะปีนี้/ปีหน้า (PATCH /api/leaves/quota/:employeeId)
+// หมายเหตุ: ใน Controller ต้องรับค่า employeeId จาก req.params
+router.patch('/quota/:employeeId', protect, authorize('HR', 'Admin'), updateEmployeeQuota)
 
 module.exports = router
