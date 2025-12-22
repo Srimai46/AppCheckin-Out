@@ -168,4 +168,4 @@ pnpm install
 
 ** Login **
 hr@company.com
-password123
+123456

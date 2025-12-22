@@ -7,7 +7,6 @@ import {
   LogOut,
   Calendar,
   Loader2,
-  PieChart,
   History,
   FileText,
 } from "lucide-react";
