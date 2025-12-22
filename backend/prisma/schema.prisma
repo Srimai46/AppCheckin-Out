@@ -145,6 +145,8 @@ model LeaveRequest {
   // 3. ความสัมพันธ์กับ HR ผู้อนุมัติ (ตั้งชื่อว่า "HrApprovals")
   approvedByHr Employee? @relation("HrApprovals", fields: [approvedByHrId], references: [id])
 
+  isSpecialApproved  Boolean       @default(false) @map("is_special_approved")
+
   notifications Notification[]
 
   @@index([employeeId, startDate]) // เพิ่ม Index สำหรับตรวจสอบ Overlap และดึงประวัติการลา
