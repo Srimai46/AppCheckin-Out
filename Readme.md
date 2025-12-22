@@ -101,6 +101,7 @@ backend/
 │   │   │   └── authMiddleware.js # ตรวจสอบ Token (Protect Route)
 │   │   │
 │   │   ├── utils/
+│   │   │   ├── leaveHelpers.js
 │   │   │   └── generateToken.js  # ฟังก์ชันสร้าง JWT
 │   │   │
 │   │   ├── sockets/

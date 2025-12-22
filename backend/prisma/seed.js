@@ -5,32 +5,35 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Start seeding...');
 
-  // 1. ล้างข้อมูลเก่า
+  // 1. ล้างข้อมูลเก่า (ลบจากตารางที่มี Foreign Key ก่อน)
   await prisma.notification.deleteMany();
   await prisma.leaveRequest.deleteMany();
   await prisma.timeRecord.deleteMany();
+  await prisma.specialLeaveGrant.deleteMany();
   await prisma.leaveQuota.deleteMany();
   await prisma.leaveType.deleteMany();
   await prisma.employee.deleteMany();
   console.log('🧹 Cleaned old data.');
 
-  // 2. สร้าง Leave Types
+  // 2. สร้าง Leave Types พร้อมนโยบาย (Carry Over & Consecutive Limit)
   const leaveTypesData = [
-    { typeName: 'Sick', isPaid: true },
-    { typeName: 'Personal', isPaid: true },
-    { typeName: 'Annual', isPaid: true },
-    { typeName: 'Emergency', isPaid: true },
-    { typeName: 'Other', isPaid: false },
+    { typeName: 'Sick', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 30 },
+    { typeName: 'Personal', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 3 },
+    { typeName: 'Annual', isPaid: true, maxCarryOver: 5.0, maxConsecutiveDays: 10 },
+    { typeName: 'Emergency', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 2 },
+    { typeName: 'Marriage', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 5 },
   ];
-  const leaveTypes = [];
+
+  const leaveTypes = {};
   for (const type of leaveTypesData) {
     const created = await prisma.leaveType.create({ data: type });
-    leaveTypes.push(created);
+    leaveTypes[type.typeName] = created;
   }
   console.log('📝 Created Leave Types.');
 
   // 3. สร้าง Employees
   const passwordHash = await bcrypt.hash('123456', 10);
+  
   const hrUser = await prisma.employee.create({
     data: {
       firstName: 'Somsri',
@@ -41,6 +44,7 @@ async function main() {
       joiningDate: new Date('2020-01-01'),
     },
   });
+
   const worker1 = await prisma.employee.create({
     data: {
       firstName: 'Somchai',
@@ -51,6 +55,7 @@ async function main() {
       joiningDate: new Date('2023-05-15'),
     },
   });
+
   const worker2 = await prisma.employee.create({
     data: {
       firstName: 'Suda',
@@ -63,24 +68,31 @@ async function main() {
   });
   console.log('👤 Created Employees.');
 
-  // 4. แจก Quotas
+  // 4. แจก Quotas (รวม carryOverDays)
   const currentYear = new Date().getFullYear();
   const employees = [hrUser, worker1, worker2];
-  for (const emp of employees) {
-    for (const type of leaveTypes) {
-      let defaultDays = 0;
-      if (type.typeName === 'Sick') defaultDays = 30;
-      else if (type.typeName === 'Personal') defaultDays = 6;
-      else if (type.typeName === 'Annual') defaultDays = emp.id === worker2.id ? 0 : 10;
-      else if (type.typeName === 'Emergency') defaultDays = 5;
 
-      if (defaultDays > 0) {
+  for (const emp of employees) {
+    for (const typeName in leaveTypes) {
+      let totalDays = 0;
+      let carryOver = 0;
+
+      if (typeName === 'Sick') totalDays = 30;
+      else if (typeName === 'Personal') totalDays = 6;
+      else if (typeName === 'Emergency') totalDays = 5;
+      else if (typeName === 'Annual') {
+        totalDays = 10;
+        if (emp.id === worker1.id) carryOver = 4.5; // Somchai มีวันทบมา
+      }
+
+      if (totalDays > 0 || carryOver > 0) {
         await prisma.leaveQuota.create({
           data: {
             employeeId: emp.id,
-            leaveTypeId: type.id,
+            leaveTypeId: leaveTypes[typeName].id,
             year: currentYear,
-            totalDays: defaultDays,
+            totalDays,
+            carryOverDays: carryOver,
             usedDays: 0,
           },
         });
@@ -89,121 +101,103 @@ async function main() {
   }
   console.log('📊 Created Leave Quotas.');
 
-  // 5. สร้าง Time Records
+  // 5. สร้าง Special Leave Grants (ตัวอย่างการมอบสิทธิ์พิเศษ)
+  await prisma.specialLeaveGrant.create({
+    data: {
+      employeeId: worker1.id,
+      leaveTypeId: leaveTypes['Marriage'].id,
+      amount: 5.0,
+      reason: 'สวัสดิการสมรสพนักงานใหม่',
+      expiryDate: new Date(`${currentYear}-12-31`),
+    },
+  });
+  console.log('🎁 Created Special Leave Grants.');
+
+  // 6. สร้าง Time Records (พร้อมฟิลด์ Note)
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
+  
   await prisma.timeRecord.create({
     data: {
       employeeId: worker1.id,
       workDate: yesterday,
-      checkInTime: new Date(yesterday.setHours(8, 0, 0)),
-      checkOutTime: new Date(yesterday.setHours(17, 0, 0)),
+      checkInTime: new Date(new Date(yesterday).setHours(8, 0, 0)),
+      checkOutTime: new Date(new Date(yesterday).setHours(17, 30, 0)),
       isLate: false,
+      note: 'ทำงานล่วงเวลาเล็กน้อยเพื่อเคลียร์งาน',
     },
   });
+
   const today = new Date();
   await prisma.timeRecord.create({
     data: {
       employeeId: worker2.id,
       workDate: today,
-      checkInTime: new Date(today.setHours(9, 15, 0)),
+      checkInTime: new Date(new Date(today).setHours(9, 45, 0)),
       checkOutTime: null,
       isLate: true,
+      note: 'รถไฟฟ้าขัดข้อง',
     },
   });
   console.log('⏰ Created Time Records.');
 
-  // 6. สร้าง Leave Requests
-  const sickLeave = leaveTypes.find(t => t.typeName === 'Sick');
-  const annualLeave = leaveTypes.find(t => t.typeName === 'Annual');
-  const personalLeave = leaveTypes.find(t => t.typeName === 'Personal');
-
-  const futureDate1 = new Date();
-  futureDate1.setDate(futureDate1.getDate() + 5);
+  // 7. สร้าง Leave Requests และหักโควตา
+  // Somchai ลาป่วย
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 2);
   const req1 = await prisma.leaveRequest.create({
     data: {
       employeeId: worker1.id,
-      leaveTypeId: sickLeave.id,
-      startDate: futureDate1,
-      endDate: futureDate1,
-      totalDaysRequested: 1,
+      leaveTypeId: leaveTypes['Sick'].id,
+      startDate: futureDate,
+      endDate: futureDate,
+      totalDaysRequested: 1.0,
       startDuration: 'Full',
       endDuration: 'Full',
-      reason: 'ปวดท้อง',
+      reason: 'อาหารเป็นพิษ',
       status: 'Approved',
       approvedByHrId: hrUser.id,
       approvalDate: new Date(),
     },
   });
+  
   await prisma.leaveQuota.updateMany({
-    where: { employeeId: worker1.id, leaveTypeId: sickLeave.id, year: currentYear },
-    data: { usedDays: { increment: 1 } },
+    where: { employeeId: worker1.id, leaveTypeId: leaveTypes['Sick'].id, year: currentYear },
+    data: { usedDays: { increment: 1.0 } },
   });
 
-  const futureDate2 = new Date();
-  futureDate2.setDate(futureDate2.getDate() + 10);
+  // Suda ขอลากิจ (Pending)
   const req2 = await prisma.leaveRequest.create({
     data: {
       employeeId: worker2.id,
-      leaveTypeId: personalLeave.id,
-      startDate: futureDate2,
-      endDate: futureDate2,
+      leaveTypeId: leaveTypes['Personal'].id,
+      startDate: new Date(new Date().setDate(today.getDate() + 10)),
+      endDate: new Date(new Date().setDate(today.getDate() + 10)),
       totalDaysRequested: 0.5,
-      startDuration: 'HalfMorning',
-      endDuration: 'HalfMorning',
-      reason: 'ไปติดต่อราชการ',
+      startDuration: 'HalfAfternoon',
+      endDuration: 'HalfAfternoon',
+      reason: 'ไปรับบุตรที่โรงเรียน',
       status: 'Pending',
-    },
-  });
-
-  const futureDate3Start = new Date();
-  futureDate3Start.setDate(futureDate3Start.getDate() + 20);
-  const futureDate3End = new Date();
-  futureDate3End.setDate(futureDate3End.getDate() + 22);
-  const req3 = await prisma.leaveRequest.create({
-    data: {
-      employeeId: worker1.id,
-      leaveTypeId: annualLeave.id,
-      startDate: futureDate3Start,
-      endDate: futureDate3End,
-      totalDaysRequested: 3,
-      startDuration: 'Full',
-      endDuration: 'Full',
-      reason: 'ไปเที่ยวญี่ปุ่น',
-      status: 'Rejected',
-      approvedByHrId: hrUser.id,
-      approvalDate: new Date(),
     },
   });
   console.log('✈️ Created Leave Requests.');
 
-  // 7. สร้าง Notifications
-  await prisma.notification.create({
-    data: {
-      employeeId: worker1.id,
-      notificationType: 'Approval',
-      message: 'คำขอลาป่วยของคุณได้รับการอนุมัติแล้ว',
-      relatedRequestId: req1.id,
-      isRead: false,
-    },
-  });
-  await prisma.notification.create({
-    data: {
-      employeeId: hrUser.id,
-      notificationType: 'NewRequest',
-      message: 'คุณ Suda ได้ส่งคำขอลากิจใหม่',
-      relatedRequestId: req2.id,
-      isRead: false,
-    },
-  });
-  await prisma.notification.create({
-    data: {
-      employeeId: worker1.id,
-      notificationType: 'Rejection',
-      message: 'คำขอลาพักร้อนของคุณถูกปฏิเสธเนื่องจากงานเร่งด่วน',
-      relatedRequestId: req3.id,
-      isRead: true,
-    },
+  // 8. สร้าง Notifications
+  await prisma.notification.createMany({
+    data: [
+      {
+        employeeId: worker1.id,
+        notificationType: 'Approval',
+        message: 'ใบลาป่วยของคุณได้รับการอนุมัติแล้ว',
+        relatedRequestId: req1.id,
+      },
+      {
+        employeeId: hrUser.id,
+        notificationType: 'NewRequest',
+        message: 'มีคำขอลาใหม่จากคุณ Suda (ลากิจ)',
+        relatedRequestId: req2.id,
+      },
+    ],
   });
   console.log('🔔 Created Notifications.');
 
