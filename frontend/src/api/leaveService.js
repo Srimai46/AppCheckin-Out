@@ -8,16 +8,22 @@ export const getPendingLeaves = async () => {
 };
 
 // 2. อัปเดตสถานะ (Approve / Reject)
-export const updateLeaveStatus = async (id, status) => {
-  // ✅ แก้ไข 1: เปลี่ยนจาก .put เป็น .patch
-  // ✅ แก้ไข 2: เปลี่ยน path จาก /update-status เป็น /status ให้ตรงกับ Routes
-  const { data } = await api.patch('/leaves/status', { id, status });
+export const updateLeaveStatus = async (id, status, isSpecial = false) => {
+  // ✅ เพิ่ม isSpecial เพื่อให้รองรับ Logic "อนุมัติกรณีพิเศษ (ไม่หักวันลา)" ที่เราเขียนไว้ใน Backend
+  const { data } = await api.patch('/leaves/status', { id, status, isSpecial });
   return data;
 };
 
 // 3. สร้างคำขอใบลาใหม่ (สำหรับหน้า LeaveRequest)
-export const createLeaveRequest = async (leaveData) => {
-  const { data } = await api.post('/leaves', leaveData);
+export const createLeaveRequest = async (formData) => {
+  // ✅ สำคัญมาก: เมื่อส่งไฟล์ (FormData) 
+  // Axios จะจัดการ Boundary ของ Multipart ให้อัตโนมัติ 
+  // แต่ต้องมั่นใจว่าสิ่งที่ส่งเข้ามาในฟังก์ชันนี้คือ new FormData() จากหน้า LeaveRequest.jsx
+  const { data } = await api.post('/leaves', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
   return data;
 };
 
@@ -27,13 +33,13 @@ export const getMyQuotas = async () => {
   return data;
 };
 
-// 5. ดึงประวัติการลาของตัวเอง (ใช้แสดงใน Dashboard หรือหน้าประวัติ)
+// 5. ดึงประวัติการลาของตัวเอง
 export const getMyLeaves = async () => {
   const { data } = await api.get('/leaves/my-history');
   return data;
 };
 
-// 6. ดึงรายการลาทั้งหมด (สำหรับหน้าปฏิทินทีม - getAllLeaves)
+// 6. ดึงรายการลาทั้งหมด (สำหรับ Admin/HR ดูภาพรวม)
 export const getAllLeaves = async () => {
   const { data } = await api.get('/leaves');
   return data;

@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../config/prisma');
 const { 
-    createLeaveRequest, 
     getMyLeaves,
     getMyQuotas,
     getAllLeaves,
@@ -21,68 +20,91 @@ const { uploadLeaveAttachment } = require("../middlewares/uploadMiddleware");
 router.get('/my-quota', protect, getMyQuotas);
 router.get('/my-history', protect, getMyLeaves);
 
-// ใช้ Middleware สำหรับอัปโหลดไฟล์แนบ
-// router.post('/', protect, uploadAttachment.single('attachment'), createLeaveRequest);
+/**
+ * @route   POST /api/leaves
+ * @desc    สร้างคำขอลาใหม่ (รองรับไฟล์แนบ)
+ */
 router.post(
-  "/leaves",
-  uploadLeaveAttachment.single("attachment"),
-  async (req, res) => {
-    try {
-      const {
-        selectedType,
-        reason,
-        startDate,
-        endDate,
-        duration,
-      } = req.body;
-      if (!selectedType || !startDate || !endDate) {
-        return res.status(400).json({
-          message: "ข้อมูลไม่ครบ กรุณาระบุประเภทและช่วงวันที่ลา",
-        });
-      }
+    "/", // แก้จาก /leaves เป็น / เพื่อให้เข้ากับ app.use('/api/leaves', ...)
+    protect, 
+    uploadLeaveAttachment.single("attachment"),
+    async (req, res) => {
+        try {
+            const {
+                type,          // รับ 'type' จาก selectedType ใน frontend
+                reason,
+                startDate,
+                endDate,
+                startDuration,
+                endDuration,
+            } = req.body;
 
-      // ✅ คำนวณจำนวนวันลา
-      let totalDaysRequested = 1;
-      if (duration === "HalfMorning" || duration === "HalfAfternoon") {
-        totalDaysRequested = 0.5;
-      } else {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        totalDaysRequested =
-          Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
-      }
+            // 1. Validation เบื้องต้น
+            if (!type || !startDate || !endDate) {
+                return res.status(400).json({
+                    message: "ข้อมูลไม่ครบ กรุณาระบุประเภทและช่วงวันที่ลา",
+                });
+            }
 
-      // ✅ ไฟล์แนบ (ถ้ามี)
-      const attachmentUrl = req.file
-        ? `/uploads/leaves/${req.file.filename}`
-        : null;
+            // 2. ค้นหา LeaveType ID จาก typeName (Sick, Annual, etc.)
+            const leaveType = await prisma.leaveType.findUnique({
+                where: { typeName: type }
+            });
 
-      // ✅ บันทึกลง DB
-      const leave = await prisma.leaveRequest.create({
-        data: {
-          leaveTypeId: Number(selectedType),
-          startDate: new Date(startDate),
-          endDate: new Date(endDate),
-          reason: reason || null,
-          duration,
-          totalDaysRequested,
-          attachmentUrl,
-          status: "Pending",
-          employeeId: req.user.id,
-        },
-      });
+            if (!leaveType) {
+                return res.status(400).json({ message: "ไม่พบประเภทการลาที่ระบุในระบบ" });
+            }
 
-      return res.json({
-        message: "ส่งคำขอลาสำเร็จ",
-        data: leave,
-      });
-    } catch (err) {
-      console.error("Create leave error:", err);
-      return res.status(500).json({
-        message: err.message || "ไม่สามารถส่งคำขอลาได้",
-      });
+            // 3. คำนวณจำนวนวันลาเบื้องต้น
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            let totalDaysRequested = 0;
+
+            if (start.getTime() === end.getTime()) {
+                // กรณีลาวันเดียว
+                totalDaysRequested = startDuration === "Full" ? 1 : 0.5;
+            } else {
+                // กรณีลาหลายวัน (คำนวณแบบหยาบ +1 วัน)
+                totalDaysRequested = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                // ปรับลดถ้าวันแรกหรือวันสุดท้ายลาครึ่งวัน
+                if (startDuration !== "Full") totalDaysRequested -= 0.5;
+                if (endDuration !== "Full") totalDaysRequested -= 0.5;
+            }
+
+            // 4. จัดการ Path ไฟล์แนบ
+            const attachmentUrl = req.file
+                ? `uploads/attachments/${req.file.filename}`
+                : null;
+
+            // 5. บันทึกลงฐานข้อมูล
+            const leave = await prisma.leaveRequest.create({
+                data: {
+                    employeeId: req.user.id,
+                    leaveTypeId: leaveType.id,
+                    startDate: start,
+                    endDate: end,
+                    startDuration: startDuration || "Full",
+                    endDuration: endDuration || "Full",
+                    totalDaysRequested: totalDaysRequested,
+                    reason: reason || null,
+                    attachmentUrl: attachmentUrl,
+                    status: "Pending",
+                },
+            });
+
+            return res.json({
+                message: "ส่งคำขอลาสำเร็จ",
+                data: leave,
+            });
+
+        } catch (err) {
+            console.error("Create leave error:", err);
+            return res.status(500).json({
+                message: "เกิดข้อผิดพลาดในการส่งคำขอลา",
+                error: err.message,
+            });
+        }
     }
-  }
 );
 
 // --- ส่วนของ HR และ Admin (Management) ---
