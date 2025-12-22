@@ -23,15 +23,12 @@ import {
   LogOut,
 } from "lucide-react";
 import { getAllLeaves } from "../api/leaveService";
-
-// ✅ Team attendance (HR)
 import {
   getTodayTeamAttendance,
   hrCheckInEmployee,
   hrCheckOutEmployee,
 } from "../api/attendanceService";
 
-// ✅ กำหนดเวลาเริ่มงาน (ปรับได้)
 const SHIFT_START = "09:00";
 
 export default function TeamCalendar() {
@@ -49,6 +46,10 @@ export default function TeamCalendar() {
   const [teamAttendance, setTeamAttendance] = useState([]);
   const [attLoading, setAttLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState({}); // { [employeeId]: "in" | "out" | null }
+
+  // ===== ✅ Pagination (Team Attendance) =====
+  const PAGE_SIZE = 10;
+  const [teamPage, setTeamPage] = useState(1);
 
   // ===================== Fetch Leaves =====================
   useEffect(() => {
@@ -151,6 +152,7 @@ export default function TeamCalendar() {
         [];
 
       setTeamAttendance(list);
+      setTeamPage(1); // ✅ reset pagination when refresh
     } catch (e) {
       console.error("Error fetching team attendance:", e);
       setTeamAttendance([]);
@@ -163,6 +165,28 @@ export default function TeamCalendar() {
     fetchTeamAttendance();
   }, []);
 
+  // =========================================================
+  // ✅ [NEW] กรองเฉพาะพนักงานที่ยังทำงานอยู่ (isActive = true/1)
+  // วางตรงนี้: "หลัง fetchTeamAttendance/useEffect" ก่อนส่วน Pagination
+  // =========================================================
+  const activeTeamAttendance = useMemo(() => {
+    return (teamAttendance || []).filter((r) => r?.isActive === true || r?.isActive === 1);
+  }, [teamAttendance]);
+
+  // ===================== ✅ Pagination computed (ใช้ activeTeamAttendance) =====================
+  const totalTeamPages = useMemo(() => {
+    return Math.max(1, Math.ceil(activeTeamAttendance.length / PAGE_SIZE));
+  }, [activeTeamAttendance.length]);
+
+  const pagedTeamAttendance = useMemo(() => {
+    const start = (teamPage - 1) * PAGE_SIZE;
+    return activeTeamAttendance.slice(start, start + PAGE_SIZE);
+  }, [activeTeamAttendance, teamPage]);
+
+  useEffect(() => {
+    setTeamPage((p) => Math.min(Math.max(1, p), totalTeamPages));
+  }, [totalTeamPages]);
+
   // ===================== UI Helpers (Leaves) =====================
   const handleDayClick = (day) => {
     const dayLeaves = leaves.filter((l) => isSameDay(l.date, day));
@@ -172,17 +196,6 @@ export default function TeamCalendar() {
   };
 
   const handleShowTodayLeaves = () => handleDayClick(new Date());
-
-  const getStatusDot = (status) => {
-    switch (status) {
-      case "Approved":
-        return "bg-emerald-500";
-      case "Rejected":
-        return "bg-rose-500";
-      default:
-        return "bg-amber-500";
-    }
-  };
 
   // ✅ สีตามประเภทการลา (กรอบ/พื้น/ตัวอักษร/จุด)
   const leaveTheme = (type) => {
@@ -249,15 +262,15 @@ export default function TeamCalendar() {
   const goNext = () => setCurrentDate((d) => addMonths(d, 1));
   const goToday = () => setCurrentDate(new Date());
 
-  // ===================== ✅ Attendance Summary =====================
+  // ===================== ✅ Attendance Summary (ใช้ activeTeamAttendance) =====================
   const attendanceSummary = useMemo(() => {
-    const total = teamAttendance.length;
+    const total = activeTeamAttendance.length;
 
     let checkedIn = 0;
     let late = 0;
     let checkedOut = 0;
 
-    teamAttendance.forEach((r) => {
+    activeTeamAttendance.forEach((r) => {
       const inRaw = r.checkInTimeDisplay || r.checkInTime || r.checkIn || null;
       const outRaw = r.checkOutTimeDisplay || r.checkOutTime || r.checkOut || null;
 
@@ -271,7 +284,7 @@ export default function TeamCalendar() {
     });
 
     return { total, checkedIn, late, checkedOut };
-  }, [teamAttendance]);
+  }, [activeTeamAttendance]);
 
   // ===================== ✅ HR Actions =====================
   const handleHRCheckIn = async (employeeId) => {
@@ -499,14 +512,14 @@ export default function TeamCalendar() {
                         Loading attendance...
                       </td>
                     </tr>
-                  ) : teamAttendance.length === 0 ? (
+                  ) : activeTeamAttendance.length === 0 ? (
                     <tr>
                       <td colSpan="6" className="px-6 py-10 text-center text-gray-400 italic">
-                        No employee attendance data
+                        No active employee attendance data
                       </td>
                     </tr>
                   ) : (
-                    teamAttendance.map((row, idx) => {
+                    pagedTeamAttendance.map((row, idx) => {
                       const employeeId = row.employeeId ?? row.id ?? idx;
 
                       const name =
@@ -518,7 +531,8 @@ export default function TeamCalendar() {
                       const role = row.role || row.position || "-";
 
                       const inRaw = row.checkInTimeDisplay || row.checkInTime || row.checkIn || null;
-                      const outRaw = row.checkOutTimeDisplay || row.checkOutTime || row.checkOut || null;
+                      const outRaw =
+                        row.checkOutTimeDisplay || row.checkOutTime || row.checkOut || null;
 
                       const inTime = normalizeTime(inRaw);
                       const outTime = normalizeTime(outRaw);
@@ -594,6 +608,80 @@ export default function TeamCalendar() {
                   )}
                 </tbody>
               </table>
+
+              {/* ✅ Pagination Bar (ใช้ activeTeamAttendance) */}
+              {!attLoading && activeTeamAttendance.length > 0 && (
+                <div className="px-6 py-4 border-t border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    Showing{" "}
+                    {Math.min((teamPage - 1) * PAGE_SIZE + 1, activeTeamAttendance.length)}-
+                    {Math.min(teamPage * PAGE_SIZE, activeTeamAttendance.length)} of{" "}
+                    {activeTeamAttendance.length}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => setTeamPage(1)}
+                      disabled={teamPage === 1}
+                      className={`h-9 px-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition
+                        ${
+                          teamPage === 1
+                            ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                            : "bg-white text-slate-700 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      title="First"
+                    >
+                      {"<<"}
+                    </button>
+
+                    <button
+                      onClick={() => setTeamPage((p) => Math.max(1, p - 1))}
+                      disabled={teamPage === 1}
+                      className={`h-9 px-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition
+                        ${
+                          teamPage === 1
+                            ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                            : "bg-white text-slate-700 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      title="Previous"
+                    >
+                      {"<"}
+                    </button>
+
+                    <div className="h-9 px-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                      Page {teamPage} / {totalTeamPages}
+                    </div>
+
+                    <button
+                      onClick={() => setTeamPage((p) => Math.min(totalTeamPages, p + 1))}
+                      disabled={teamPage === totalTeamPages}
+                      className={`h-9 px-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition
+                        ${
+                          teamPage === totalTeamPages
+                            ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                            : "bg-white text-slate-700 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      title="Next"
+                    >
+                      {">"}
+                    </button>
+
+                    <button
+                      onClick={() => setTeamPage(totalTeamPages)}
+                      disabled={teamPage === totalTeamPages}
+                      className={`h-9 px-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition
+                        ${
+                          teamPage === totalTeamPages
+                            ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                            : "bg-white text-slate-700 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      title="Last"
+                    >
+                      {">>"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-6 pt-4 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
@@ -689,7 +777,9 @@ function SummaryCard({ title, value, icon }) {
   return (
     <div className="bg-white p-5 rounded-[1.75rem] shadow-sm border border-gray-100 flex items-center justify-between">
       <div>
-        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{title}</div>
+        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          {title}
+        </div>
         <div className="text-2xl font-black text-slate-800 tracking-tighter mt-1">{value}</div>
       </div>
       <div className="w-11 h-11 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center">
