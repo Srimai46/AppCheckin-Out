@@ -11,12 +11,45 @@ import {
   FileText,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
-import {
-  alertConfirm,
-  alertSuccess,
-  alertError,
-} from "../utils/sweetAlert";
+function PaginationBar({ page, totalPages, onPrev, onNext }) {
+  return (
+    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-50">
+      <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+        Page {page} / {totalPages}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onPrev}
+          disabled={page <= 1}
+          className={`h-9 px-4 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all active:scale-95
+            ${
+              page <= 1
+                ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                : "bg-white text-slate-800 border-gray-200 hover:bg-gray-50"
+            }`}
+        >
+          Prev
+        </button>
+
+        <button
+          onClick={onNext}
+          disabled={page >= totalPages}
+          className={`h-9 px-4 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all active:scale-95
+            ${
+              page >= totalPages
+                ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                : "bg-white text-slate-800 border-gray-200 hover:bg-gray-50"
+            }`}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -27,7 +60,16 @@ export default function Dashboard() {
   const [leaveQuotas, setLeaveQuotas] = useState([]);
   const [leaveHistory, setLeaveHistory] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
+
+  // ✅ tab
   const [activeTab, setActiveTab] = useState("attendance");
+
+  // ✅ pagination
+  const PAGE_SIZE = 10;
+  const [attPage, setAttPage] = useState(1);
+  const [leavePage, setLeavePage] = useState(1);
+
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
   const fetchData = async () => {
     try {
@@ -39,16 +81,20 @@ export default function Dashboard() {
         getMyLeaves(),
       ]);
 
-      setAttendanceHistory(
+      const att =
         Array.isArray(historyRes?.data)
           ? historyRes.data
           : Array.isArray(historyRes)
           ? historyRes
-          : []
-      );
+          : [];
 
+      setAttendanceHistory(att);
       setLeaveQuotas(Array.isArray(quotaRes) ? quotaRes : []);
       setLeaveHistory(Array.isArray(leaveRes) ? leaveRes : []);
+
+      // ✅ reset page on refresh
+      setAttPage(1);
+      setLeavePage(1);
     } catch (err) {
       console.error("Error fetching data:", err);
       const msg =
@@ -69,6 +115,19 @@ export default function Dashboard() {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, [user, authLoading]);
+
+  // ✅ clamp page if data length changes
+  useEffect(() => {
+    const total = Math.max(1, Math.ceil(attendanceHistory.length / PAGE_SIZE));
+    setAttPage((p) => clamp(p, 1, total));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attendanceHistory.length]);
+
+  useEffect(() => {
+    const total = Math.max(1, Math.ceil(leaveHistory.length / PAGE_SIZE));
+    setLeavePage((p) => clamp(p, 1, total));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaveHistory.length]);
 
   const getStatusStyle = (status) => {
     switch (status) {
@@ -117,6 +176,23 @@ export default function Dashboard() {
     return null;
   }
 
+  // ✅ pagination computed
+  const attTotalPages = Math.max(
+    1,
+    Math.ceil(attendanceHistory.length / PAGE_SIZE)
+  );
+  const leaveTotalPages = Math.max(1, Math.ceil(leaveHistory.length / PAGE_SIZE));
+
+  const attPageItems = attendanceHistory.slice(
+    (attPage - 1) * PAGE_SIZE,
+    attPage * PAGE_SIZE
+  );
+
+  const leavePageItems = leaveHistory.slice(
+    (leavePage - 1) * PAGE_SIZE,
+    leavePage * PAGE_SIZE
+  );
+
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-8 animate-in fade-in duration-500">
       {/* Header Section */}
@@ -153,6 +229,7 @@ export default function Dashboard() {
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 {q.type}
               </span>
+              <PieChart size={18} className="text-blue-500" />
             </div>
             <div>
               <div className="text-2xl font-black text-slate-800 tracking-tighter">
@@ -183,15 +260,17 @@ export default function Dashboard() {
         >
           <LogIn size={24} /> CHECK IN
         </button>
+
         <button
           onClick={() => handleAction("out")}
           className="flex items-center justify-center gap-3 bg-rose-500 hover:bg-rose-600 text-white py-4 px-6 rounded-2xl font-black shadow-lg shadow-rose-100 transition-all active:scale-95"
         >
           <LogOut size={24} /> CHECK OUT
         </button>
-       <button
+
+        <button
           onClick={() => navigate("/leave-request")}
-          className="flex items-center justify-center gap-3 bg-amber-300 hover:bg-amber-400 text-slate-900  py-4 px-6 rounded-2xl font-black shadow-lg shadow-amber-200/60 transition-all active:scale-95 "
+          className="flex items-center justify-center gap-3 bg-amber-300 hover:bg-amber-400 text-slate-900 py-4 px-6 rounded-2xl font-black shadow-lg shadow-amber-200/60 transition-all active:scale-95"
         >
           <Calendar size={24} /> REQUEST LEAVE
         </button>
@@ -199,7 +278,6 @@ export default function Dashboard() {
 
       {/* ================= TAB SECTION ================= */}
       <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
-
         {/* Tab Header */}
         <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -217,7 +295,10 @@ export default function Dashboard() {
           {/* Tabs */}
           <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1">
             <button
-              onClick={() => setActiveTab("attendance")}
+              onClick={() => {
+                setActiveTab("attendance");
+                setAttPage(1);
+              }}
               className={`px-5 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2
                 ${
                   activeTab === "attendance"
@@ -230,7 +311,10 @@ export default function Dashboard() {
             </button>
 
             <button
-              onClick={() => setActiveTab("leave")}
+              onClick={() => {
+                setActiveTab("leave");
+                setLeavePage(1);
+              }}
               className={`px-5 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2
                 ${
                   activeTab === "leave"
@@ -257,40 +341,58 @@ export default function Dashboard() {
               </thead>
 
               <tbody className="text-[11px] font-bold">
-                {attendanceHistory.slice(0, 5).map((row, index) => (
-                  <tr
-                    key={index}
-                    className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
-                  >
-                    <td className="px-6 py-4 text-slate-600">
-                      {row.dateDisplay}
-                    </td>
-
-                    <td className="px-6 py-4">
-                      <span className="text-emerald-600">
-                        {row.checkInTimeDisplay || "--:--"}
-                      </span>
-                      <span className="mx-2 text-gray-300">/</span>
-                      <span className="text-rose-500">
-                        {row.checkOutTimeDisplay || "--:--"}
-                      </span>
-                    </td>
-
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={`px-2 py-1 rounded-lg border ${
-                          row.statusDisplay === "สาย"
-                            ? "bg-rose-50 text-rose-600 border-rose-100"
-                            : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                        }`}
-                      >
-                        {row.statusDisplay || "ปกติ"}
-                      </span>
+                {attPageItems.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan="3"
+                      className="px-6 py-10 text-center text-gray-400 italic"
+                    >
+                      ไม่มีข้อมูล Attendance
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  attPageItems.map((row, index) => (
+                    <tr
+                      key={index}
+                      className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 text-slate-600">
+                        {row.dateDisplay}
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <span className="text-emerald-600">
+                          {row.checkInTimeDisplay || "--:--"}
+                        </span>
+                        <span className="mx-2 text-gray-300">/</span>
+                        <span className="text-rose-500">
+                          {row.checkOutTimeDisplay || "--:--"}
+                        </span>
+                      </td>
+
+                      <td className="px-6 py-4 text-center">
+                        <span
+                          className={`px-2 py-1 rounded-lg border ${
+                            row.statusDisplay === "สาย"
+                              ? "bg-rose-50 text-rose-600 border-rose-100"
+                              : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                          }`}
+                        >
+                          {row.statusDisplay || "ปกติ"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
+
+            <PaginationBar
+              page={attPage}
+              totalPages={attTotalPages}
+              onPrev={() => setAttPage((p) => Math.max(1, p - 1))}
+              onNext={() => setAttPage((p) => Math.min(attTotalPages, p + 1))}
+            />
           </div>
         )}
 
@@ -307,14 +409,17 @@ export default function Dashboard() {
               </thead>
 
               <tbody className="text-[11px] font-bold">
-                {leaveHistory.length === 0 ? (
+                {leavePageItems.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="px-6 py-10 text-center text-gray-400 italic">
+                    <td
+                      colSpan="4"
+                      className="px-6 py-10 text-center text-gray-400 italic"
+                    >
                       ไม่มีประวัติการลา
                     </td>
                   </tr>
                 ) : (
-                  leaveHistory.slice(0, 5).map((leave, index) => (
+                  leavePageItems.map((leave, index) => (
                     <tr
                       key={index}
                       className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
@@ -343,7 +448,9 @@ export default function Dashboard() {
                           className="text-slate-500 font-medium italic max-w-[150px] truncate"
                           title={leave.reason}
                         >
-                          {leave.reason || <span className="text-gray-300">No note</span>}
+                          {leave.reason || (
+                            <span className="text-gray-300">No note</span>
+                          )}
                         </div>
                       </td>
 
@@ -361,6 +468,15 @@ export default function Dashboard() {
                 )}
               </tbody>
             </table>
+
+            <PaginationBar
+              page={leavePage}
+              totalPages={leaveTotalPages}
+              onPrev={() => setLeavePage((p) => Math.max(1, p - 1))}
+              onNext={() =>
+                setLeavePage((p) => Math.min(leaveTotalPages, p + 1))
+              }
+            />
           </div>
         )}
       </div>

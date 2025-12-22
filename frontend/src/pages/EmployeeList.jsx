@@ -4,6 +4,44 @@ import api from "../api/axios";
 import { Plus, User, X, Users, UserMinus, Loader2 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
+function PaginationBar({ page, totalPages, onPrev, onNext }) {
+  return (
+    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-50">
+      <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+        Page {page} / {totalPages}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onPrev}
+          disabled={page <= 1}
+          className={`h-9 px-4 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all active:scale-95
+            ${
+              page <= 1
+                ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                : "bg-white text-slate-800 border-gray-200 hover:bg-gray-50"
+            }`}
+        >
+          Prev
+        </button>
+
+        <button
+          onClick={onNext}
+          disabled={page >= totalPages}
+          className={`h-9 px-4 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all active:scale-95
+            ${
+              page >= totalPages
+                ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                : "bg-white text-slate-800 border-gray-200 hover:bg-gray-50"
+            }`}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function EmployeeList() {
   const navigate = useNavigate();
 
@@ -13,7 +51,7 @@ export default function EmployeeList() {
   const [showModal, setShowModal] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
 
-  // ✅ FIX: ต้องมี isLoading ไม่งั้นเปิด modal แล้วหน้าขาว
+  // ✅ กันเปิด modal แล้วหน้าขาว
   const [isLoading, setIsLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -24,7 +62,13 @@ export default function EmployeeList() {
     role: "Worker",
     joiningDate: "",
   });
+
   const [search, setSearch] = useState("");
+
+  // ✅ pagination
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
   const resetForm = () =>
     setFormData({
@@ -51,6 +95,7 @@ export default function EmployeeList() {
         : [];
 
       setEmployees(list);
+      setPage(1); // ✅ รีเซ็ตหน้าเมื่อโหลดใหม่
     } catch (err) {
       console.error("Fetch Error:", err);
       const msg =
@@ -69,14 +114,12 @@ export default function EmployeeList() {
   }, []);
 
   const activeCount = useMemo(
-    () =>
-      employees.filter((e) => e.isActive === true || e.isActive === 1).length,
+    () => employees.filter((e) => e.isActive === true || e.isActive === 1).length,
     [employees]
   );
 
   const inactiveCount = useMemo(
-    () =>
-      employees.filter((e) => e.isActive === false || e.isActive === 0).length,
+    () => employees.filter((e) => e.isActive === false || e.isActive === 0).length,
     [employees]
   );
 
@@ -96,23 +139,32 @@ export default function EmployeeList() {
     });
   }, [employees, activeTab, search]);
 
-  const onChange = (key) => (e) =>
-    setFormData((p) => ({ ...p, [key]: e.target.value }));
+  // ✅ เมื่อเปลี่ยน tab หรือ search ให้กลับไปหน้า 1
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, search]);
+
+  // ✅ clamp หน้าเมื่อจำนวน filtered ลดลง
+  useEffect(() => {
+    const total = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
+    setPage((p) => clamp(p, 1, total));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredEmployees.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
+  const pageItems = filteredEmployees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const onChange = (key) => (e) => setFormData((p) => ({ ...p, [key]: e.target.value }));
 
   const handleCreate = async (e) => {
     e.preventDefault();
 
     // ✅ Basic validation
-    if (!formData.firstName.trim())
-      return alertError("ข้อมูลไม่ครบ", "กรุณากรอก First Name");
-    if (!formData.lastName.trim())
-      return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Last Name");
-    if (!formData.email.trim())
-      return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Email");
-    if (!formData.password)
-      return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Password");
-    if (!formData.joiningDate)
-      return alertError("ข้อมูลไม่ครบ", "กรุณาเลือก Joining Date");
+    if (!formData.firstName.trim()) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก First Name");
+    if (!formData.lastName.trim()) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Last Name");
+    if (!formData.email.trim()) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Email");
+    if (!formData.password) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Password");
+    if (!formData.joiningDate) return alertError("ข้อมูลไม่ครบ", "กรุณาเลือก Joining Date");
 
     const roleBadge =
       formData.role === "HR"
@@ -157,10 +209,7 @@ export default function EmployeeList() {
       setIsLoading(true);
       await api.post("/employees", formData);
 
-      await alertSuccess(
-        "เพิ่มพนักงานสำเร็จ",
-        "ระบบได้บันทึกข้อมูลพนักงานเรียบร้อยแล้ว"
-      );
+      await alertSuccess("เพิ่มพนักงานสำเร็จ", "ระบบได้บันทึกข้อมูลพนักงานเรียบร้อยแล้ว");
 
       setShowModal(false);
       resetForm();
@@ -179,7 +228,7 @@ export default function EmployeeList() {
   };
 
   const closeModal = () => {
-    if (isLoading) return; // กันปิดระหว่างส่งข้อมูล (กัน state แปลกๆ)
+    if (isLoading) return;
     setShowModal(false);
     resetForm();
   };
@@ -187,7 +236,7 @@ export default function EmployeeList() {
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-4">
         <h1 className="text-2xl font-black text-gray-800 flex items-center gap-2">
           <User className="text-blue-600" /> Employee Directory
         </h1>
@@ -200,8 +249,8 @@ export default function EmployeeList() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap p-1.5 rounded-2xl w-full">
+      {/* Tabs + Search */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
           <button
             onClick={() => setActiveTab("active")}
@@ -225,16 +274,15 @@ export default function EmployeeList() {
             <UserMinus size={18} /> Resigned ({inactiveCount})
           </button>
         </div>
+
         <input
           type="text"
           placeholder="Search employee..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="ml-auto w-72 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none"
+          className="sm:ml-auto w-full sm:w-80 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none"
         />
       </div>
-
-      <div className="flex items-center gap-3 "></div>
 
       {/* Table */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
@@ -254,13 +302,11 @@ export default function EmployeeList() {
               <tr>
                 <td colSpan="5" className="p-20 text-center">
                   <Loader2 className="animate-spin mx-auto text-blue-600 mb-2" />
-                  <span className="font-bold text-gray-400">
-                    Loading directory...
-                  </span>
+                  <span className="font-bold text-gray-400">Loading directory...</span>
                 </td>
               </tr>
-            ) : filteredEmployees.length > 0 ? (
-              filteredEmployees.map((emp) => {
+            ) : pageItems.length > 0 ? (
+              pageItems.map((emp) => {
                 const isActive = emp.isActive === true || emp.isActive === 1;
 
                 return (
@@ -269,17 +315,13 @@ export default function EmployeeList() {
                     onClick={() => navigate(`/employees/${emp.id}`)}
                     className="hover:bg-blue-50/30 cursor-pointer transition-all group"
                   >
-                    <td className="p-6 text-gray-400 font-bold text-sm">
-                      #{emp.id}
-                    </td>
+                    <td className="p-6 text-gray-400 font-bold text-sm">#{emp.id}</td>
 
                     <td className="p-6 font-black text-slate-800">
                       {emp.firstName} {emp.lastName}
                     </td>
 
-                    <td className="p-6 text-gray-500 text-sm font-medium italic">
-                      {emp.email}
-                    </td>
+                    <td className="p-6 text-gray-500 text-sm font-medium italic">{emp.email}</td>
 
                     <td className="p-6 text-center">
                       <span
@@ -326,6 +368,15 @@ export default function EmployeeList() {
             )}
           </tbody>
         </table>
+
+        {!loading && filteredEmployees.length > 0 && (
+          <PaginationBar
+            page={page}
+            totalPages={totalPages}
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          />
+        )}
       </div>
 
       {/* Modal */}

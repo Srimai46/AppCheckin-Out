@@ -246,20 +246,27 @@ exports.getUserHistory = async (req, res) => {
 };
 
 // =============================
-// ✅ HR: TEAM TODAY ATTENDANCE
+// ✅ HR: TEAM TODAY ATTENDANCE (ACTIVE ONLY)
 // =============================
 exports.getTeamTodayAttendance = async (req, res) => {
   try {
     const todayStart = getThaiStartOfDay(); // 00:00 ไทย
 
-    // 1) ดึงพนักงานทั้งหมด (เอา Worker/HR ก็ได้)
-    // ถ้าต้องการเฉพาะ Worker ให้ใส่ where: { role: "Worker" }
+    // ✅ 1) ดึงพนักงานที่ยังทำงานอยู่เท่านั้น
+    // NOTE: ถ้าฟิลด์คุณชื่อ is_active หรือ status ให้ปรับชื่อให้ตรง schema
     const employees = await prisma.employee.findMany({
-      select: { id: true, firstName: true, lastName: true, role: true },
+      where: { isActive: true }, // ✅ กรองที่ DB เลย (กันหลุด 100%)
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true, // ✅ ส่งออกไปด้วย
+      },
       orderBy: { id: "asc" },
     });
 
-    // 2) ดึง timeRecord ของ "วันนี้"
+    // ✅ 2) ดึง timeRecord ของ "วันนี้"
     const todayRecords = await prisma.timeRecord.findMany({
       where: { workDate: { gte: todayStart } },
       select: {
@@ -274,13 +281,13 @@ exports.getTeamTodayAttendance = async (req, res) => {
       orderBy: { id: "desc" },
     });
 
-    // 3) เอา record ล่าสุดของแต่ละคน
+    // ✅ 3) เอา record ล่าสุดของแต่ละคน
     const recordMap = new Map();
     for (const r of todayRecords) {
       if (!recordMap.has(r.employeeId)) recordMap.set(r.employeeId, r);
     }
 
-    // 4) merge ให้ทุกคนมีสถานะ แม้ยังไม่ check-in
+    // ✅ 4) merge เฉพาะ active employees
     const result = employees.map((emp) => {
       const r = recordMap.get(emp.id);
 
@@ -290,6 +297,8 @@ exports.getTeamTodayAttendance = async (req, res) => {
         lastName: emp.lastName,
         fullName: `${emp.firstName} ${emp.lastName}`.trim(),
         role: emp.role,
+
+        isActive: emp.isActive, // ✅ สำคัญ: frontend จะได้ filter ได้ถูก
 
         checkInTime: r?.checkInTime || null,
         checkOutTime: r?.checkOutTime || null,
