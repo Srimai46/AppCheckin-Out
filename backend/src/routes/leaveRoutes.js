@@ -14,7 +14,7 @@ const {
 } = require('../controllers/leaveController');
 
 const { protect, authorize } = require('../middlewares/authMiddleware');
-const { uploadAttachment } = require('../middlewares/uploadMiddleware'); // ✅ Import Middleware สำหรับอัปโหลด
+const { uploadLeaveAttachment } = require("../middlewares/uploadMiddleware");
 
 // --- ส่วนของพนักงานทั่วไป (Worker) ---
 
@@ -22,8 +22,68 @@ router.get('/my-quota', protect, getMyQuotas);
 router.get('/my-history', protect, getMyLeaves);
 
 // ใช้ Middleware สำหรับอัปโหลดไฟล์แนบ
-router.post('/', protect, uploadAttachment.single('attachment'), createLeaveRequest);
+// router.post('/', protect, uploadAttachment.single('attachment'), createLeaveRequest);
+router.post(
+  "/leaves",
+  uploadLeaveAttachment.single("attachment"),
+  async (req, res) => {
+    try {
+      const {
+        selectedType,
+        reason,
+        startDate,
+        endDate,
+        duration,
+      } = req.body;
+      if (!selectedType || !startDate || !endDate) {
+        return res.status(400).json({
+          message: "ข้อมูลไม่ครบ กรุณาระบุประเภทและช่วงวันที่ลา",
+        });
+      }
 
+      // ✅ คำนวณจำนวนวันลา
+      let totalDaysRequested = 1;
+      if (duration === "HalfMorning" || duration === "HalfAfternoon") {
+        totalDaysRequested = 0.5;
+      } else {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        totalDaysRequested =
+          Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      }
+
+      // ✅ ไฟล์แนบ (ถ้ามี)
+      const attachmentUrl = req.file
+        ? `/uploads/leaves/${req.file.filename}`
+        : null;
+
+      // ✅ บันทึกลง DB
+      const leave = await prisma.leaveRequest.create({
+        data: {
+          leaveTypeId: Number(selectedType),
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          reason: reason || null,
+          duration,
+          totalDaysRequested,
+          attachmentUrl,
+          status: "Pending",
+          employeeId: req.user.id,
+        },
+      });
+
+      return res.json({
+        message: "ส่งคำขอลาสำเร็จ",
+        data: leave,
+      });
+    } catch (err) {
+      console.error("Create leave error:", err);
+      return res.status(500).json({
+        message: err.message || "ไม่สามารถส่งคำขอลาได้",
+      });
+    }
+  }
+);
 
 // --- ส่วนของ HR และ Admin (Management) ---
 

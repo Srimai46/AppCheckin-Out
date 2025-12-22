@@ -484,27 +484,35 @@ export default function EmployeeList() {
                   />
                 </div>
               </div>
+              {/* Actions */}
+              <div className="mt-6 flex gap-3">
+                {/* Cancel – ซ้าย */}
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={isLoading}
+                  className="flex-1 py-5 rounded-3xl font-black text-[11px] uppercase tracking-widest
+                    border border-gray-200 bg-white text-gray-500
+                    hover:bg-gray-50 hover:text-slate-700
+                    transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className={`w-full py-5 rounded-3xl font-black text-sm shadow-xl mt-6 transition-all active:scale-[0.98] ${
-                  isLoading
-                    ? "bg-blue-600/60 text-white cursor-not-allowed"
-                    : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200"
-                }`}
-              >
-                {isLoading ? "PROCESSING..." : "REGISTER EMPLOYEE"}
-              </button>
-
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={isLoading}
-                className="w-full py-4 rounded-3xl font-black text-[11px] uppercase tracking-widest text-gray-400 hover:text-slate-600 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
+                {/* Register – ขวา */}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className={`flex-1 py-5 rounded-3xl font-black text-sm shadow-xl
+                    transition-all active:scale-[0.98] ${
+                      isLoading
+                        ? "bg-blue-600/60 text-white cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200"
+                    }`}
+                >
+                  {isLoading ? "PROCESSING..." : "REGISTER"}
+                </button>
+              </div>
             </form>
           </div>
         </div>
