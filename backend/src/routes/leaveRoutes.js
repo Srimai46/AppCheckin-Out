@@ -16,7 +16,6 @@ const { protect, authorize } = require('../middlewares/authMiddleware');
 const { uploadLeaveAttachment } = require("../middlewares/uploadMiddleware");
 
 // --- ส่วนของพนักงานทั่วไป (Worker) ---
-
 router.get('/my-quota', protect, getMyQuotas);
 router.get('/my-history', protect, getMyLeaves);
 
@@ -25,13 +24,15 @@ router.get('/my-history', protect, getMyLeaves);
  * @desc    สร้างคำขอลาใหม่ (รองรับไฟล์แนบ)
  */
 router.post(
-    "/", // แก้จาก /leaves เป็น / เพื่อให้เข้ากับ app.use('/api/leaves', ...)
+    "/",
+    // 1. วาง Multer ไว้ก่อน เพื่อแกะ Stream ของ Multipart/form-data
+    uploadLeaveAttachment.single("attachment"), 
+    // 2. ตามด้วย protect เพื่อตรวจสอบ Token (Multer จะเติม req.body ให้เราแล้ว)
     protect, 
-    uploadLeaveAttachment.single("attachment"),
     async (req, res) => {
         try {
             const {
-                type,          // รับ 'type' จาก selectedType ใน frontend
+                type,
                 reason,
                 startDate,
                 endDate,
@@ -39,14 +40,14 @@ router.post(
                 endDuration,
             } = req.body;
 
-            // 1. Validation เบื้องต้น
+            // 1. Validation
             if (!type || !startDate || !endDate) {
                 return res.status(400).json({
                     message: "ข้อมูลไม่ครบ กรุณาระบุประเภทและช่วงวันที่ลา",
                 });
             }
 
-            // 2. ค้นหา LeaveType ID จาก typeName (Sick, Annual, etc.)
+            // 2. หา LeaveType
             const leaveType = await prisma.leaveType.findUnique({
                 where: { typeName: type }
             });
@@ -55,28 +56,35 @@ router.post(
                 return res.status(400).json({ message: "ไม่พบประเภทการลาที่ระบุในระบบ" });
             }
 
-            // 3. คำนวณจำนวนวันลาเบื้องต้น
+            // 3. คำนวณวันลา (ใช้ฟังก์ชันที่รองรับครึ่งวันทั้งวันเริ่มและวันจบ)
             const start = new Date(startDate);
             const end = new Date(endDate);
-            let totalDaysRequested = 0;
+            
+            // คำนวณวันต่างพื้นฐาน
+            let totalDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
 
-            if (start.getTime() === end.getTime()) {
-                // กรณีลาวันเดียว
-                totalDaysRequested = startDuration === "Full" ? 1 : 0.5;
-            } else {
-                // กรณีลาหลายวัน (คำนวณแบบหยาบ +1 วัน)
-                totalDaysRequested = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
-                // ปรับลดถ้าวันแรกหรือวันสุดท้ายลาครึ่งวัน
-                if (startDuration !== "Full") totalDaysRequested -= 0.5;
-                if (endDuration !== "Full") totalDaysRequested -= 0.5;
+            // หักออกถ้าวันเริ่มลาแค่ครึ่งวัน
+            if (startDuration === "HalfMorning" || startDuration === "HalfAfternoon") {
+                totalDays -= 0.5;
             }
+            
+            // หักออกถ้าวันจบลาแค่ครึ่งวัน (กรณีลามากกว่า 1 วัน)
+            // ถ้าลาวันเดียวจบ การหักด้านบนครอบคลุมแล้ว
+            if (start.getTime() !== end.getTime()) {
+                if (endDuration === "HalfMorning" || endDuration === "HalfAfternoon") {
+                    totalDays -= 0.5;
+                }
+            }
+
+            // ป้องกันค่าติดลบหรือเป็น 0
+            const finalDays = Math.max(0.5, totalDays);
 
             // 4. จัดการ Path ไฟล์แนบ
             const attachmentUrl = req.file
                 ? `uploads/attachments/${req.file.filename}`
                 : null;
 
-            // 5. บันทึกลงฐานข้อมูล
+            // 5. บันทึก
             const leave = await prisma.leaveRequest.create({
                 data: {
                     employeeId: req.user.id,
@@ -85,7 +93,7 @@ router.post(
                     endDate: end,
                     startDuration: startDuration || "Full",
                     endDuration: endDuration || "Full",
-                    totalDaysRequested: totalDaysRequested,
+                    totalDaysRequested: finalDays,
                     reason: reason || null,
                     attachmentUrl: attachmentUrl,
                     status: "Pending",
@@ -108,7 +116,6 @@ router.post(
 );
 
 // --- ส่วนของ HR และ Admin (Management) ---
-
 router.get('/', protect, authorize('HR', 'Admin'), getAllLeaves);
 router.get('/pending', protect, authorize('HR', 'Admin'), getPendingRequests);
 router.patch('/status', protect, authorize('HR', 'Admin'), updateLeaveStatus);
