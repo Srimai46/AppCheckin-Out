@@ -1,9 +1,10 @@
 import axios from 'axios';
 
 // สร้าง instance ของ axios และกำหนด Base URL เป็น IP เครื่อง Server
+// วิธีนี้จะทำให้เครื่องเพื่อนที่เข้าผ่าน IP คุณ วิ่งเข้าหา Backend ได้อัตโนมัติ
 const api = axios.create({
-  baseURL: 'http://192.168.1.35:8080/api', // ✅ ถูกต้องแล้วครับ
-  timeout: 10000, // (Optional) ตั้งเวลา timeout ไว้ 10 วินาที กันค้าง
+  baseURL: '/api', 
+  timeout: 10000,
 });
 
 // ----------------------------------------------------------------

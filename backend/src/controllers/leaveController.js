@@ -133,7 +133,7 @@ exports.createLeaveRequest = async (req, res) => {
     const end = new Date(endDate);
     const year = start.getFullYear();
 
-    // ✅ Validate วันที่
+    // ✅ 1. Validate วันที่
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({ error: "รูปแบบวันที่ไม่ถูกต้อง" });
     }
@@ -148,37 +148,13 @@ exports.createLeaveRequest = async (req, res) => {
 
     const totalDaysRequested = calculateTotalDays(start, end, startDuration, endDuration);
 
-    // ✅ Validate จำนวนวันลา
     if (totalDaysRequested <= 0) {
-      return res.status(400).json({
-        error: "จำนวนวันลาต้องมากกว่า 0 (ตรวจสอบวันหยุดหรือวันหยุดสุดสัปดาห์)",
-      });
-    }
-    if (totalDaysRequested % 0.5 !== 0) {
-      return res.status(400).json({
-        error: "รูปแบบวันลาไม่ถูกต้อง (ต้องเป็นเต็มวันหรือครึ่งวัน)",
-      });
+      return res.status(400).json({ error: "จำนวนวันลาต้องมากกว่า 0" });
     }
 
-    // (เลือกใช้ตาม policy) กรณีลาหลายวันห้ามครึ่งวันทั้งต้นและท้าย
-    if (
-      start.getTime() !== end.getTime() &&
-      startDuration !== "Full" &&
-      endDuration !== "Full"
-    ) {
-      return res.status(400).json({
-        error: "การลาหลายวัน ต้องมีอย่างน้อย 1 วันเป็นเต็มวัน",
-      });
-    }
-
-    // ✅ validate maxConsecutiveDays
-    if (leaveType.maxConsecutiveDays > 0 && totalDaysRequested > leaveType.maxConsecutiveDays) {
-      return res.status(400).json({
-        error: `ประเภทการลา ${type} ห้ามลาติดต่อกันเกิน ${leaveType.maxConsecutiveDays} วัน`,
-      });
-    }
-
+    // ✅ 2. Transaction การสร้างใบลาและการแจ้งเตือน
     const result = await prisma.$transaction(async (tx) => {
+      // ตรวจสอบใบลาทับซ้อน
       const overlap = await tx.leaveRequest.findFirst({
         where: {
           employeeId: userId,
@@ -188,26 +164,20 @@ exports.createLeaveRequest = async (req, res) => {
       });
       if (overlap) throw new Error("คุณมีรายการลาทับซ้อนในช่วงเวลานี้อยู่แล้ว");
 
+      // ตรวจสอบโควตา
       const quota = await tx.leaveQuota.findUnique({
-        where: {
-          employeeId_leaveTypeId_year: {
-            employeeId: userId,
-            leaveTypeId: leaveType.id,
-            year,
-          },
-        },
+        where: { employeeId_leaveTypeId_year: { employeeId: userId, leaveTypeId: leaveType.id, year } },
       });
 
       if (!quota) throw new Error("ไม่พบโควตาวันลาของคุณสำหรับปีนี้");
 
-      const remaining =
-        Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
-
+      const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
       if (remaining < totalDaysRequested) {
         throw new Error(`วันลาคงเหลือไม่พอ (เหลือ ${remaining} วัน)`);
       }
 
-      return await tx.leaveRequest.create({
+      // --- สร้างใบลา ---
+      const newLeave = await tx.leaveRequest.create({
         data: {
           employeeId: userId,
           leaveTypeId: leaveType.id,
@@ -220,11 +190,67 @@ exports.createLeaveRequest = async (req, res) => {
           status: "Pending",
           attachmentUrl,
         },
+        include: { employee: true, leaveType: true }
       });
+
+      const fullName = `${newLeave.employee.firstName} ${newLeave.employee.lastName}`;
+
+      // --- 🔍 ค้นหา HR/Admin ---
+      const admins = await tx.employee.findMany({
+        where: { 
+          role: { in: ["HR"] },
+          id: { not: userId } 
+        },
+        select: { id: true }
+      });
+
+      // --- 📝 บันทึกแจ้งเตือนลง Database ---
+      if (admins.length > 0) {
+        // ใช้ Promise.all เพื่อสร้าง Notification และนับ Unread Count พร้อมกัน
+        const notificationMsg = `คำขอลาใหม่: ${fullName} ขอลา${type} ${totalDaysRequested} วัน`;
+        
+        await tx.notification.createMany({
+          data: admins.map(admin => ({
+            employeeId: admin.id,
+            notificationType: "NewRequest",
+            message: notificationMsg,
+            relatedRequestId: newLeave.id,
+          }))
+        });
+
+        // ดึงข้อมูล Unread Count ล่าสุดของทุกคนเพื่อส่งผ่าน Socket
+        const adminUpdates = await Promise.all(
+          admins.map(async (admin) => {
+            const count = await tx.notification.count({
+              where: { employeeId: admin.id, isRead: false }
+            });
+            return { adminId: admin.id, unreadCount: count };
+          })
+        );
+
+        return { newLeave, adminUpdates, message: notificationMsg };
+      }
+
+      return { newLeave, adminUpdates: [] };
     });
 
-    res.status(201).json({ message: "ส่งคำขอลาสำเร็จ", data: result });
+    // ✅ 3. ส่ง Real-time Socket.io ไปหา HR/Admin ทุกคน
+    const io = req.app.get("io");
+    if (io && result.adminUpdates.length > 0) {
+      result.adminUpdates.forEach(update => {
+        io.to(`user_${update.adminId}`).emit("new_notification", {
+          id: Date.now(), 
+          message: result.message,
+          notificationType: "NewRequest",
+          createdAt: new Date(),
+          unreadCount: update.unreadCount // ✅ ส่งตัวเลข Badge ไปให้อัปเดตทันที
+        });
+      });
+    }
+
+    res.status(201).json({ message: "ส่งคำขอลาสำเร็จ", data: result.newLeave });
   } catch (error) {
+    console.error("Create Leave Request Error:", error);
     res.status(400).json({ error: error.message });
   }
 };

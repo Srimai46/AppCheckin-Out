@@ -1,14 +1,14 @@
 import axios from 'axios';
 
 const api = axios.create({
-  // ⚠️ อย่าลืมแก้ IP เป็นของเครื่องคุณ (ตามที่คุยกันเรื่อง LAN)
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api', 
+  // ✅ ใช้ '/api' เพื่อให้ Vite Proxy (192.168.1.36) จัดการต่อให้
+  // ไม่ต้องระบุ IP หรือ localhost ที่นี่
+  baseURL: '/api', 
   timeout: 10000,
 });
 
-// แนบ Token อัตโนมัติ
+// Request Interceptor: แนบ Token อัตโนมัติ
 api.interceptors.request.use((config) => {
-  // ✅ ต้องอ่านจาก localStorage ทุกครั้งที่มีการยิง Request
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -18,13 +18,16 @@ api.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
-// ดักจับ Token หมดอายุ
+// Response Interceptor: ดักจับ Error 401 (Token หมดอายุ)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      // ดีดกลับหน้า Login ถ้าไม่ได้อยู่ที่หน้า Login
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
