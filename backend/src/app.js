@@ -10,6 +10,7 @@ const timeRecordRoutes = require('./routes/timeRecordRoutes');
 const leaveRoutes = require('./routes/leaveRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const employeeRoutes = require('./routes/employeeRoute');
+const { startCarryOverJob } = require("./jobs/carryOverJob");
 
 const app = express();
 
@@ -47,6 +48,8 @@ app.use('/api/attendance', timeRecordRoutes);
 app.use('/api/leaves', leaveRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/employees', employeeRoutes);
+
+startCarryOverJob();
 
 // Health Check
 app.get('/', (req, res) => {
