@@ -10,7 +10,10 @@ const {
   updateEmployeeQuota,
   processCarryOver,
   grantSpecialLeave,
-  createLeaveRequest, // ✅ ใช้ controller ตัวเดียว
+  createLeaveRequest,
+  updateCompanyQuotasByType,
+  updateEmployeeQuotasByType,
+
 } = require("../controllers/leaveController");
 
 const { protect, authorize } = require("../middlewares/authMiddleware");
@@ -38,5 +41,7 @@ router.patch("/status", protect, authorize("HR", "Admin"), updateLeaveStatus);
 router.patch("/quota/:employeeId", protect, authorize("HR", "Admin"), updateEmployeeQuota);
 router.post("/process-carry-over", protect, authorize("HR", "Admin"), processCarryOver);
 router.post("/grant-special", protect, authorize("HR", "Admin"), grantSpecialLeave);
+router.put("/policy/quotas", protect, authorize("HR", "Admin"), updateCompanyQuotasByType ); // ✅ ปรับทั้งบริษัท (แยกประเภท)
+router.put("/policy/quotas/:employeeId", protect, authorize("HR", "Admin"), updateEmployeeQuotasByType ); // ✅ ปรับรายคน (แยกประเภทหลายอัน)
 
 module.exports = router;

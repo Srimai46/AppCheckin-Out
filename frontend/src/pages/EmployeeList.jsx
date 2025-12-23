@@ -9,6 +9,8 @@ import {
   UserMinus,
   Loader2,
   SlidersHorizontal,
+  Minus,
+  Plus as PlusIcon,
 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
@@ -62,10 +64,17 @@ export default function EmployeeList() {
   // ✅ กันเปิด modal แล้วหน้าขาว
   const [isLoading, setIsLoading] = useState(false);
 
-  // ✅ Leave Policy (bulk update)
+  // ✅ Leave Policy (bulk update) — ปรับแยกประเภท
   const [showPolicyModal, setShowPolicyModal] = useState(false);
-  const [policyDays, setPolicyDays] = useState("12");
   const [policyLoading, setPolicyLoading] = useState(false);
+
+  // ✅ โควต้าเริ่มต้น (แก้ได้ตามต้องการ)
+  const [policyQuotas, setPolicyQuotas] = useState({
+    SICK: 30,
+    PERSONAL: 6,
+    ANNUAL: 10,
+    EMERGENCY: 5,
+  });
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -98,7 +107,6 @@ export default function EmployeeList() {
       setLoading(true);
       const res = await api.get("/employees");
 
-      // รองรับหลายรูปแบบ response
       const list = Array.isArray(res?.data)
         ? res.data
         : Array.isArray(res?.data?.data)
@@ -108,7 +116,7 @@ export default function EmployeeList() {
         : [];
 
       setEmployees(list);
-      setPage(1); // ✅ รีเซ็ตหน้าเมื่อโหลดใหม่
+      setPage(1);
     } catch (err) {
       console.error("Fetch Error:", err);
       const msg =
@@ -152,12 +160,10 @@ export default function EmployeeList() {
     });
   }, [employees, activeTab, search]);
 
-  // ✅ เมื่อเปลี่ยน tab หรือ search ให้กลับไปหน้า 1
   useEffect(() => {
     setPage(1);
   }, [activeTab, search]);
 
-  // ✅ clamp หน้าเมื่อจำนวน filtered ลดลง
   useEffect(() => {
     const total = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
     setPage((p) => clamp(p, 1, total));
@@ -172,7 +178,6 @@ export default function EmployeeList() {
   const handleCreate = async (e) => {
     e.preventDefault();
 
-    // ✅ Basic validation
     if (!formData.firstName.trim()) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก First Name");
     if (!formData.lastName.trim()) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Last Name");
     if (!formData.email.trim()) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Email");
@@ -246,39 +251,65 @@ export default function EmployeeList() {
     resetForm();
   };
 
+  // =========================
+  // ✅ Leave Policy Helpers
+  // =========================
   const closePolicyModal = () => {
     if (policyLoading) return;
     setShowPolicyModal(false);
   };
 
-  const handleUpdateLeavePolicy = async () => {
-    const maxDays = Number(policyDays);
+  const clampInt = (v, min = 0, max = 365) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return min;
+    return Math.max(min, Math.min(max, Math.floor(n)));
+  };
 
-    if (!Number.isFinite(maxDays) || maxDays <= 0) {
-      return alertError("ข้อมูลไม่ถูกต้อง", "กรุณากรอกจำนวนวันลาสูงสุดเป็นตัวเลขมากกว่า 0");
-    }
-    if (maxDays > 365) {
-      return alertError("ตัวเลขสูงเกินไป", "กรุณากรอกจำนวนวันลาสูงสุดไม่เกิน 365");
+  const setQuota = (key, value) => {
+    setPolicyQuotas((p) => ({ ...p, [key]: clampInt(value, 0, 365) }));
+  };
+
+  const incQuota = (key, delta) => {
+    setPolicyQuotas((p) => ({ ...p, [key]: clampInt((p[key] ?? 0) + delta, 0, 365) }));
+  };
+
+  const handleUpdateLeavePolicy = async () => {
+    // validate
+    for (const [k, v] of Object.entries(policyQuotas)) {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0) {
+        return alertError("ข้อมูลไม่ถูกต้อง", `จำนวนวันของ ${k} ต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป`);
+      }
+      if (n > 365) {
+        return alertError("ตัวเลขสูงเกินไป", `จำนวนวันของ ${k} ต้องไม่เกิน 365`);
+      }
     }
 
     const confirmed = await alertConfirm(
       "ปรับนโยบายการลา (ทั้งบริษัท)",
       `
-      <div style="text-align:left; line-height:1.6">
-        <div style="margin-bottom:8px; color:#64748b; font-weight:700">
-          คุณกำลังจะปรับ “วันลาสูงสุด” ของพนักงาน <b>ทุกคน</b>
+      <div style="text-align:left; line-height:1.7">
+        <div style="margin-bottom:10px; color:#64748b; font-weight:800">
+          คุณกำลังจะปรับ “วันลาสูงสุด” ของพนักงาน <b>ทุกคน</b> แยกตามประเภท
         </div>
+
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:14px">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
-            <div style="color:#94a3b8; font-weight:800; letter-spacing:.12em; text-transform:uppercase; font-size:11px">
-              Max Leave Days
-            </div>
-            <div style="color:#0f172a; font-weight:900; font-size:18px">
-              ${maxDays} วัน
-            </div>
+          <div style="display:grid; grid-template-columns: 1fr auto; gap:8px 12px; font-size:14px">
+            <div style="color:#94a3b8; font-weight:900; letter-spacing:.08em">SICK</div>
+            <div style="color:#0f172a; font-weight:900">${policyQuotas.SICK} วัน</div>
+
+            <div style="color:#94a3b8; font-weight:900; letter-spacing:.08em">PERSONAL</div>
+            <div style="color:#0f172a; font-weight:900">${policyQuotas.PERSONAL} วัน</div>
+
+            <div style="color:#94a3b8; font-weight:900; letter-spacing:.08em">ANNUAL</div>
+            <div style="color:#0f172a; font-weight:900">${policyQuotas.ANNUAL} วัน</div>
+
+            <div style="color:#94a3b8; font-weight:900; letter-spacing:.08em">EMERGENCY</div>
+            <div style="color:#0f172a; font-weight:900">${policyQuotas.EMERGENCY} วัน</div>
           </div>
         </div>
-        <div style="margin-top:10px; color:#ef4444; font-size:12px; font-weight:700">
+
+        <div style="margin-top:10px; color:#ef4444; font-size:12px; font-weight:800">
           หมายเหตุ: การเปลี่ยนแปลงนี้มีผลกับพนักงานทุกคนทันที
         </div>
       </div>
@@ -291,9 +322,10 @@ export default function EmployeeList() {
     try {
       setPolicyLoading(true);
 
-      await api.put("/leave-policy/max-days", { maxDays });
+      // แนะนำให้ทำ backend รับแบบนี้: { quotas: { SICK, PERSONAL, ANNUAL, EMERGENCY } }
+      await api.put("/leaves/policy/quotas", { quotas: policyQuotas });
 
-      await alertSuccess("อัปเดตนโยบายการลาสำเร็จ", `ตั้งวันลาสูงสุดเป็น ${maxDays} วันแล้ว`);
+      await alertSuccess("อัปเดตนโยบายการลาสำเร็จ", "บันทึกโควต้ารายประเภทเรียบร้อยแล้ว");
       setShowPolicyModal(false);
     } catch (err) {
       console.error("Policy Update Error:", err);
@@ -308,6 +340,16 @@ export default function EmployeeList() {
     }
   };
 
+  // =========================
+  // ✅ UI
+  // =========================
+  const cards = [
+    { key: "SICK", title: "SICK", unit: "Days" },
+    { key: "PERSONAL", title: "PERSONAL", unit: "Days" },
+    { key: "ANNUAL", title: "ANNUAL", unit: "Days" },
+    { key: "EMERGENCY", title: "EMERGENCY", unit: "Days" },
+  ];
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
       {/* Header */}
@@ -316,7 +358,7 @@ export default function EmployeeList() {
           <User className="text-blue-600" /> Employee Directory
         </h1>
 
-        {/* ✅ Right actions (เพิ่มปุ่มนโยบายการลา) */}
+        {/* Right actions */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowPolicyModal(true)}
@@ -466,10 +508,10 @@ export default function EmployeeList() {
         )}
       </div>
 
-      {/* ✅ Leave Policy Modal */}
+      {/* ✅ Leave Policy Modal (แก้ไขวันลาแยกประเภท) */}
       {showPolicyModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
-          <div className="bg-white rounded-[3rem] w-full max-w-md p-10 relative animate-in zoom-in duration-300 shadow-2xl">
+          <div className="bg-white rounded-[3rem] w-full max-w-5xl p-10 relative animate-in zoom-in duration-300 shadow-2xl">
             <button
               onClick={closePolicyModal}
               className="absolute top-8 right-8 text-gray-300 hover:text-rose-500 transition-colors"
@@ -484,32 +526,76 @@ export default function EmployeeList() {
               Leave Policy
             </h2>
             <p className="text-sm font-bold text-slate-500 mb-8">
-              ปรับ “วันลาสูงสุด” ให้พนักงานทุกคนในครั้งเดียว
+              ปรับวันลาสูงสุดแยกประเภท (Sick / Personal / Annual / Emergency) ให้พนักงานทุกคน
             </p>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-1">
-                Max Leave Days (Days)
-              </label>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {cards.map((c) => (
+                <div
+                  key={c.key}
+                  className="rounded-[2rem] border border-gray-100 bg-white shadow-sm p-6"
+                >
+                  <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+                    {c.title}
+                  </div>
 
-              <input
-                type="number"
-                min={1}
-                max={365}
-                value={policyDays}
-                onChange={(e) => setPolicyDays(e.target.value)}
-                disabled={policyLoading}
-                className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm font-black focus:ring-2 focus:ring-blue-100 outline-none"
-                placeholder="เช่น 12"
-              />
+                  <div className="mt-3 flex items-end gap-2">
+                    <div className="text-4xl font-black text-slate-900 leading-none">
+                      {policyQuotas[c.key]}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-300 pb-1">
+                      {c.unit}
+                    </div>
+                  </div>
 
-              <div className="mt-2 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
-                <div className="text-[11px] font-black text-rose-600 uppercase tracking-widest">
-                  Warning
+                  <div className="mt-4 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => incQuota(c.key, -1)}
+                      disabled={policyLoading}
+                      className="h-10 w-10 rounded-2xl border border-gray-200 bg-white
+                        hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center"
+                      aria-label={`Decrease ${c.title}`}
+                    >
+                      <Minus size={18} className="text-slate-700" />
+                    </button>
+
+                    <input
+                      type="number"
+                      min={0}
+                      max={365}
+                      value={policyQuotas[c.key]}
+                      onChange={(e) => setQuota(c.key, e.target.value)}
+                      disabled={policyLoading}
+                      className="flex-1 h-10 rounded-2xl bg-gray-50 border-none px-4 text-sm font-black
+                        focus:ring-2 focus:ring-blue-100 outline-none text-slate-900"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => incQuota(c.key, +1)}
+                      disabled={policyLoading}
+                      className="h-10 w-10 rounded-2xl border border-gray-200 bg-white
+                        hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center"
+                      aria-label={`Increase ${c.title}`}
+                    >
+                      <PlusIcon size={18} className="text-slate-700" />
+                    </button>
+                  </div>
+
+                  <div className="mt-3 text-[11px] font-black uppercase tracking-widest text-slate-300">
+                    Used 0 / Total {policyQuotas[c.key]}
+                  </div>
                 </div>
-                <div className="text-sm font-bold text-rose-700 mt-1">
-                  การเปลี่ยนแปลงนี้มีผลกับพนักงานทุกคน
-                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+              <div className="text-[11px] font-black text-rose-600 uppercase tracking-widest">
+                Warning
+              </div>
+              <div className="text-sm font-bold text-rose-700 mt-1">
+                การเปลี่ยนแปลงนี้มีผลกับพนักงานทุกคนทันที
               </div>
             </div>
 
@@ -651,7 +737,6 @@ export default function EmployeeList() {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="mt-6 flex gap-3">
                 <button
                   type="button"

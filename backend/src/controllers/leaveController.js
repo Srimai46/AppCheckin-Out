@@ -316,3 +316,213 @@ exports.grantSpecialLeave = async (req, res) => {
         res.status(500).json({ error: "ล้มเหลว" });
     }
 };
+
+// =========================================================
+// ✅ HR: Update quotas by TYPE (Company-wide + Single employee)
+// =========================================================
+
+// helper: validate & normalize quotas object
+const normalizeQuotas = (quotas) => {
+  if (!quotas || typeof quotas !== "object") {
+    throw new Error("ต้องส่ง quotas เป็น object เช่น { SICK: 30, PERSONAL: 6, ANNUAL: 10, EMERGENCY: 5 }");
+  }
+
+  const normalized = {};
+  for (const [k, v] of Object.entries(quotas)) {
+    const key = String(k).toUpperCase().trim();
+    const n = Number(v);
+
+    if (!key) continue;
+    if (!Number.isFinite(n) || n < 0 || n > 365) {
+      throw new Error(`ค่าโควต้าของ ${key} ต้องเป็นตัวเลข 0-365`);
+    }
+    normalized[key] = Math.floor(n);
+  }
+
+  if (Object.keys(normalized).length === 0) {
+    throw new Error("quotas ว่างเปล่า");
+  }
+  return normalized;
+};
+
+// helper: get leaveTypes by typeName (SICK/PERSONAL/...)
+const getLeaveTypesByNames = async (typeNames) => {
+  const leaveTypes = await prisma.leaveType.findMany({
+    where: { typeName: { in: typeNames } },
+    select: { id: true, typeName: true },
+  });
+
+  const found = new Set(leaveTypes.map((t) => t.typeName.toUpperCase()));
+  const missing = typeNames.filter((t) => !found.has(t));
+  if (missing.length) {
+    throw new Error(`ไม่พบ leaveType ในระบบ: ${missing.join(", ")}`);
+  }
+
+  return leaveTypes;
+};
+
+// 7) ✅ HR: ปรับโควต้า "ทั้งบริษัท" แยกประเภท
+exports.updateCompanyQuotasByType = async (req, res) => {
+  try {
+    const { quotas, year, onlyActive } = req.body;
+
+    const normalized = normalizeQuotas(quotas);
+    const typeNames = Object.keys(normalized);
+
+    const targetYear = year ? parseInt(year) : new Date().getFullYear();
+    if (!Number.isFinite(targetYear)) throw new Error("year ไม่ถูกต้อง");
+
+    const leaveTypes = await getLeaveTypesByNames(typeNames);
+
+    const employees = await prisma.employee.findMany({
+      where: onlyActive ? { OR: [{ isActive: true }, { isActive: 1 }] } : undefined,
+      select: { id: true },
+    });
+
+    const result = await prisma.$transaction(async (tx) => {
+      let updatedCount = 0;
+
+      for (const emp of employees) {
+        for (const lt of leaveTypes) {
+          const key = lt.typeName.toUpperCase();
+          const newTotal = normalized[key];
+
+          // ดึง quota เดิมเพื่อไม่ให้ totalDays < usedDays
+          const existing = await tx.leaveQuota.findUnique({
+            where: {
+              employeeId_leaveTypeId_year: {
+                employeeId: emp.id,
+                leaveTypeId: lt.id,
+                year: targetYear,
+              },
+            },
+            select: { usedDays: true, carryOverDays: true },
+          });
+
+          const usedDays = existing ? Number(existing.usedDays || 0) : 0;
+          const carryOverDays = existing ? Number(existing.carryOverDays || 0) : 0;
+
+          // ป้องกัน quota ใหม่ต่ำกว่า usedDays (ไม่ให้ remaining ติดลบ)
+          const safeTotal = Math.max(newTotal, usedDays);
+
+          await tx.leaveQuota.upsert({
+            where: {
+              employeeId_leaveTypeId_year: {
+                employeeId: emp.id,
+                leaveTypeId: lt.id,
+                year: targetYear,
+              },
+            },
+            update: { totalDays: safeTotal },
+            create: {
+              employeeId: emp.id,
+              leaveTypeId: lt.id,
+              year: targetYear,
+              totalDays: safeTotal,
+              carryOverDays,
+              usedDays: 0,
+            },
+          });
+
+          updatedCount++;
+        }
+      }
+
+      return { updatedCount, employeeCount: employees.length };
+    });
+
+    res.json({
+      message: "อัปเดตโควต้าวันลา (ทั้งบริษัท) สำเร็จ",
+      year: targetYear,
+      appliedTypes: typeNames,
+      ...result,
+    });
+  } catch (error) {
+    console.error("updateCompanyQuotasByType error:", error);
+    res.status(400).json({ error: error.message || "อัปเดตไม่สำเร็จ" });
+  }
+};
+
+// 8) ✅ HR: ปรับโควต้า "พนักงานคนเดียว" แยกประเภท (หลายประเภทพร้อมกัน)
+exports.updateEmployeeQuotasByType = async (req, res) => {
+  try {
+    const employeeId = parseInt(req.params.employeeId);
+    const { quotas, year } = req.body;
+
+    if (!employeeId) throw new Error("employeeId ไม่ถูกต้อง");
+
+    const normalized = normalizeQuotas(quotas);
+    const typeNames = Object.keys(normalized);
+
+    const targetYear = year ? parseInt(year) : new Date().getFullYear();
+    if (!Number.isFinite(targetYear)) throw new Error("year ไม่ถูกต้อง");
+
+    // ตรวจว่ามีพนักงานจริง
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { id: true },
+    });
+    if (!employee) throw new Error("ไม่พบพนักงาน");
+
+    const leaveTypes = await getLeaveTypesByNames(typeNames);
+
+    const result = await prisma.$transaction(async (tx) => {
+      let updatedCount = 0;
+
+      for (const lt of leaveTypes) {
+        const key = lt.typeName.toUpperCase();
+        const newTotal = normalized[key];
+
+        const existing = await tx.leaveQuota.findUnique({
+          where: {
+            employeeId_leaveTypeId_year: {
+              employeeId,
+              leaveTypeId: lt.id,
+              year: targetYear,
+            },
+          },
+          select: { usedDays: true, carryOverDays: true },
+        });
+
+        const usedDays = existing ? Number(existing.usedDays || 0) : 0;
+        const carryOverDays = existing ? Number(existing.carryOverDays || 0) : 0;
+
+        const safeTotal = Math.max(newTotal, usedDays);
+
+        await tx.leaveQuota.upsert({
+          where: {
+            employeeId_leaveTypeId_year: {
+              employeeId,
+              leaveTypeId: lt.id,
+              year: targetYear,
+            },
+          },
+          update: { totalDays: safeTotal },
+          create: {
+            employeeId,
+            leaveTypeId: lt.id,
+            year: targetYear,
+            totalDays: safeTotal,
+            carryOverDays,
+            usedDays: 0,
+          },
+        });
+
+        updatedCount++;
+      }
+
+      return { updatedCount };
+    });
+
+    res.json({
+      message: "อัปเดตโควต้าวันลา (รายคน) สำเร็จ",
+      employeeId,
+      year: targetYear,
+      appliedTypes: typeNames,
+      ...result,
+    });
+  } catch (error) {
+    console.error("updateEmployeeQuotasByType error:", error);
+    res.status(400).json({ error: error.message || "อัปเดตไม่สำเร็จ" });
+  }
+};
