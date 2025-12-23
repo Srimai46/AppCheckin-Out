@@ -1,7 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
-import { Plus, User, X, Users, UserMinus, Loader2 } from "lucide-react";
+import {
+  Plus,
+  User,
+  X,
+  Users,
+  UserMinus,
+  Loader2,
+  SlidersHorizontal,
+} from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
 function PaginationBar({ page, totalPages, onPrev, onNext }) {
@@ -53,6 +61,11 @@ export default function EmployeeList() {
 
   // ✅ กันเปิด modal แล้วหน้าขาว
   const [isLoading, setIsLoading] = useState(false);
+
+  // ✅ Leave Policy (bulk update)
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [policyDays, setPolicyDays] = useState("12");
+  const [policyLoading, setPolicyLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -233,6 +246,68 @@ export default function EmployeeList() {
     resetForm();
   };
 
+  const closePolicyModal = () => {
+    if (policyLoading) return;
+    setShowPolicyModal(false);
+  };
+
+  const handleUpdateLeavePolicy = async () => {
+    const maxDays = Number(policyDays);
+
+    if (!Number.isFinite(maxDays) || maxDays <= 0) {
+      return alertError("ข้อมูลไม่ถูกต้อง", "กรุณากรอกจำนวนวันลาสูงสุดเป็นตัวเลขมากกว่า 0");
+    }
+    if (maxDays > 365) {
+      return alertError("ตัวเลขสูงเกินไป", "กรุณากรอกจำนวนวันลาสูงสุดไม่เกิน 365");
+    }
+
+    const confirmed = await alertConfirm(
+      "ปรับนโยบายการลา (ทั้งบริษัท)",
+      `
+      <div style="text-align:left; line-height:1.6">
+        <div style="margin-bottom:8px; color:#64748b; font-weight:700">
+          คุณกำลังจะปรับ “วันลาสูงสุด” ของพนักงาน <b>ทุกคน</b>
+        </div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:14px">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+            <div style="color:#94a3b8; font-weight:800; letter-spacing:.12em; text-transform:uppercase; font-size:11px">
+              Max Leave Days
+            </div>
+            <div style="color:#0f172a; font-weight:900; font-size:18px">
+              ${maxDays} วัน
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:10px; color:#ef4444; font-size:12px; font-weight:700">
+          หมายเหตุ: การเปลี่ยนแปลงนี้มีผลกับพนักงานทุกคนทันที
+        </div>
+      </div>
+      `,
+      "ยืนยันปรับนโยบาย"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setPolicyLoading(true);
+
+      await api.put("/leave-policy/max-days", { maxDays });
+
+      await alertSuccess("อัปเดตนโยบายการลาสำเร็จ", `ตั้งวันลาสูงสุดเป็น ${maxDays} วันแล้ว`);
+      setShowPolicyModal(false);
+    } catch (err) {
+      console.error("Policy Update Error:", err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "ไม่สามารถอัปเดตนโยบายการลาได้";
+      alertError("อัปเดตไม่สำเร็จ", msg);
+    } finally {
+      setPolicyLoading(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
       {/* Header */}
@@ -241,12 +316,24 @@ export default function EmployeeList() {
           <User className="text-blue-600" /> Employee Directory
         </h1>
 
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 font-bold text-sm"
-        >
-          <Plus size={20} /> Add New Employee
-        </button>
+        {/* ✅ Right actions (เพิ่มปุ่มนโยบายการลา) */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowPolicyModal(true)}
+            className="bg-white text-slate-800 px-4 py-2.5 rounded-xl flex items-center gap-2
+              border border-gray-200 hover:bg-gray-50 shadow-sm transition-all active:scale-95 font-black text-xs uppercase tracking-widest"
+          >
+            <SlidersHorizontal size={18} className="text-blue-600" />
+            Leave Policy
+          </button>
+
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-blue-600 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 font-bold text-sm"
+          >
+            <Plus size={20} /> Add New Employee
+          </button>
+        </div>
       </div>
 
       {/* Tabs + Search */}
@@ -379,7 +466,86 @@ export default function EmployeeList() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* ✅ Leave Policy Modal */}
+      {showPolicyModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
+          <div className="bg-white rounded-[3rem] w-full max-w-md p-10 relative animate-in zoom-in duration-300 shadow-2xl">
+            <button
+              onClick={closePolicyModal}
+              className="absolute top-8 right-8 text-gray-300 hover:text-rose-500 transition-colors"
+              aria-label="Close"
+              type="button"
+              disabled={policyLoading}
+            >
+              <X size={24} />
+            </button>
+
+            <h2 className="text-2xl font-black mb-2 text-slate-800 tracking-tight">
+              Leave Policy
+            </h2>
+            <p className="text-sm font-bold text-slate-500 mb-8">
+              ปรับ “วันลาสูงสุด” ให้พนักงานทุกคนในครั้งเดียว
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-1">
+                Max Leave Days (Days)
+              </label>
+
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={policyDays}
+                onChange={(e) => setPolicyDays(e.target.value)}
+                disabled={policyLoading}
+                className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm font-black focus:ring-2 focus:ring-blue-100 outline-none"
+                placeholder="เช่น 12"
+              />
+
+              <div className="mt-2 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                <div className="text-[11px] font-black text-rose-600 uppercase tracking-widest">
+                  Warning
+                </div>
+                <div className="text-sm font-bold text-rose-700 mt-1">
+                  การเปลี่ยนแปลงนี้มีผลกับพนักงานทุกคน
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="mt-8 flex gap-3">
+              <button
+                type="button"
+                onClick={closePolicyModal}
+                disabled={policyLoading}
+                className="flex-1 py-5 rounded-3xl font-black text-[11px] uppercase tracking-widest
+                  border border-gray-200 bg-white text-gray-500
+                  hover:bg-gray-50 hover:text-slate-700
+                  transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleUpdateLeavePolicy}
+                disabled={policyLoading}
+                className={`flex-1 py-5 rounded-3xl font-black text-sm shadow-xl
+                  transition-all active:scale-[0.98] ${
+                    policyLoading
+                      ? "bg-blue-600/60 text-white cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200"
+                  }`}
+              >
+                {policyLoading ? "UPDATING..." : "APPLY TO ALL"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal (Add Employee) */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
           <div className="bg-white rounded-[3rem] w-full max-w-md p-10 relative animate-in zoom-in duration-300 shadow-2xl">
@@ -484,9 +650,9 @@ export default function EmployeeList() {
                   />
                 </div>
               </div>
+
               {/* Actions */}
               <div className="mt-6 flex gap-3">
-                {/* Cancel – ซ้าย */}
                 <button
                   type="button"
                   onClick={closeModal}
@@ -499,7 +665,6 @@ export default function EmployeeList() {
                   Cancel
                 </button>
 
-                {/* Register – ขวา */}
                 <button
                   type="submit"
                   disabled={isLoading}

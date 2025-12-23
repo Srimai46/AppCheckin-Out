@@ -53,7 +53,7 @@ exports.createLeaveRequest = async (req, res) => {
         const end = new Date(endDate);
         const year = start.getFullYear();
 
-        const attachmentUrl = req.file ? `/uploads/attachments/${req.file.filename}` : null;
+        const attachmentUrl = req.file ? `/uploads/leaves/${req.file.filename}` : null;
 
         const leaveType = await prisma.leaveType.findUnique({ where: { typeName: type } });
         if (!leaveType) return res.status(400).json({ error: "ไม่พบประเภทการลานี้" });

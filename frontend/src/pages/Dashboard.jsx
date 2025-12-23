@@ -9,9 +9,11 @@ import {
   Loader2,
   History,
   FileText,
+  Image as ImageIcon,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
+import { openAttachment } from "../utils/attachmentPreview";
 
 function PaginationBar({ page, totalPages, onPrev, onNext }) {
   return (
@@ -70,6 +72,38 @@ export default function Dashboard() {
   const [leavePage, setLeavePage] = useState(1);
 
   const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+
+  // ✅ API_BASE อาจเป็น http://IP:PORT/api หรือ http://IP:PORT/api/
+const API_BASE = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
+
+// ✅ FILE_BASE = ตัด /api หรือ /api/ ออก เพื่อใช้กับ /uploads
+const FILE_BASE = API_BASE.replace(/\/api\/?$/, "");
+
+// ✅ ต่อ URL ของไฟล์แนบให้รองรับ: full url, /uploads..., uploads..., windows path
+const buildFileUrl = (pathOrUrl) => {
+  if (!pathOrUrl) return "";
+
+  // 1) ถ้าเป็น URL เต็มอยู่แล้ว
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+
+  // 2) ถ้าเป็น Windows path เก่า -> ตัดให้เหลือ /uploads/...
+  if (/^[a-zA-Z]:\\/.test(pathOrUrl)) {
+    const normalized = pathOrUrl.replace(/\\/g, "/");
+    const idx = normalized.toLowerCase().indexOf("/uploads/");
+    if (idx !== -1) {
+      const p = normalized.slice(idx); // /uploads/...
+      return `${FILE_BASE || window.location.origin}${p}`;
+    }
+    return "";
+  }
+
+  // 3) ทำให้เป็น /uploads/... เสมอ
+  const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
+
+  // 4) ถ้ามี FILE_BASE ใช้ FILE_BASE (prod/lan), ถ้าไม่มีใช้ origin (dev)
+  return `${FILE_BASE || window.location.origin}${p}`;
+};
+
 
   const fetchData = async () => {
     try {
@@ -177,21 +211,11 @@ export default function Dashboard() {
   }
 
   // ✅ pagination computed
-  const attTotalPages = Math.max(
-    1,
-    Math.ceil(attendanceHistory.length / PAGE_SIZE)
-  );
+  const attTotalPages = Math.max(1, Math.ceil(attendanceHistory.length / PAGE_SIZE));
   const leaveTotalPages = Math.max(1, Math.ceil(leaveHistory.length / PAGE_SIZE));
 
-  const attPageItems = attendanceHistory.slice(
-    (attPage - 1) * PAGE_SIZE,
-    attPage * PAGE_SIZE
-  );
-
-  const leavePageItems = leaveHistory.slice(
-    (leavePage - 1) * PAGE_SIZE,
-    leavePage * PAGE_SIZE
-  );
+  const attPageItems = attendanceHistory.slice((attPage - 1) * PAGE_SIZE, attPage * PAGE_SIZE);
+  const leavePageItems = leaveHistory.slice((leavePage - 1) * PAGE_SIZE, leavePage * PAGE_SIZE);
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-8 animate-in fade-in duration-500">
@@ -212,9 +236,7 @@ export default function Dashboard() {
         </p>
 
         {dataLoading && (
-          <div className="mt-3 text-xs font-bold text-gray-400">
-            กำลังโหลดข้อมูล...
-          </div>
+          <div className="mt-3 text-xs font-bold text-gray-400">กำลังโหลดข้อมูล...</div>
         )}
       </div>
 
@@ -233,9 +255,7 @@ export default function Dashboard() {
             <div>
               <div className="text-2xl font-black text-slate-800 tracking-tighter">
                 {q.remaining}{" "}
-                <span className="text-xs font-bold text-gray-400 uppercase">
-                  Days
-                </span>
+                <span className="text-xs font-bold text-gray-400 uppercase">Days</span>
               </div>
               <div className="text-[9px] font-bold text-gray-400 uppercase mt-1">
                 Used {q.used} / Total {q.total}
@@ -342,10 +362,7 @@ export default function Dashboard() {
               <tbody className="text-[11px] font-bold">
                 {attPageItems.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan="3"
-                      className="px-6 py-10 text-center text-gray-400 italic"
-                    >
+                    <td colSpan="3" className="px-6 py-10 text-center text-gray-400 italic">
                       ไม่มีข้อมูล Attendance
                     </td>
                   </tr>
@@ -355,9 +372,7 @@ export default function Dashboard() {
                       key={index}
                       className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
                     >
-                      <td className="px-6 py-4 text-slate-600">
-                        {row.dateDisplay}
-                      </td>
+                      <td className="px-6 py-4 text-slate-600">{row.dateDisplay}</td>
 
                       <td className="px-6 py-4">
                         <span className="text-emerald-600">
@@ -403,6 +418,7 @@ export default function Dashboard() {
                   <th className="px-6 py-4">Type</th>
                   <th className="px-6 py-4">Period</th>
                   <th className="px-6 py-4">Note</th>
+                  <th className="px-6 py-4 text-center">File</th>
                   <th className="px-6 py-4 text-center">Status</th>
                 </tr>
               </thead>
@@ -410,10 +426,7 @@ export default function Dashboard() {
               <tbody className="text-[11px] font-bold">
                 {leavePageItems.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan="4"
-                      className="px-6 py-10 text-center text-gray-400 italic"
-                    >
+                    <td colSpan="5" className="px-6 py-10 text-center text-gray-400 italic">
                       ไม่มีประวัติการลา
                     </td>
                   </tr>
@@ -447,10 +460,29 @@ export default function Dashboard() {
                           className="text-slate-500 font-medium italic max-w-[150px] truncate"
                           title={leave.reason}
                         >
-                          {leave.reason || (
-                            <span className="text-gray-300">No note</span>
-                          )}
+                          {leave.reason || <span className="text-gray-300">No note</span>}
                         </div>
+                      </td>
+
+                      {/* ปุ่มดูไฟล์แนบ */}
+                      <td className="px-6 py-4 text-center">
+                        {leave.attachmentUrl ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openAttachment(buildFileUrl(leave.attachmentUrl))
+                            }
+                            className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200
+                                       px-3 py-2 rounded-xl inline-flex items-center gap-2
+                                       text-[11px] font-black transition active:scale-95"
+                            title="ดูไฟล์แนบ"
+                          >
+                            <ImageIcon size={16} />
+                            VIEW
+                          </button>
+                        ) : (
+                          <span className="text-gray-300 text-[10px] font-black">-</span>
+                        )}
                       </td>
 
                       <td className="px-6 py-4 text-center">
@@ -472,9 +504,7 @@ export default function Dashboard() {
               page={leavePage}
               totalPages={leaveTotalPages}
               onPrev={() => setLeavePage((p) => Math.max(1, p - 1))}
-              onNext={() =>
-                setLeavePage((p) => Math.min(leaveTotalPages, p + 1))
-              }
+              onNext={() => setLeavePage((p) => Math.min(leaveTotalPages, p + 1))}
             />
           </div>
         )}
