@@ -4,7 +4,6 @@ import api from "../api/axios";
 import {
   X,
   ArrowLeft,
-  PieChart,
   UserMinus,
   UserPlus,
   Briefcase,
@@ -326,7 +325,6 @@ export default function EmployeeDetail() {
                 <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">
                   {q.type}
                 </span>
-                <PieChart size={18} className="text-blue-500" />
               </div>
               <div className="text-3xl font-black text-slate-800 tracking-tighter">
                 {q.remaining} <span className="text-xs font-normal text-gray-400">วัน</span>
