@@ -7,17 +7,11 @@ import { openAttachment } from "../utils/attachmentPreview";
 export default function LeaveApproval() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // ✅ ต้องชี้ไป backend (ห้ามปล่อยว่าง ไม่งั้นจะวิ่งไป 5173)
   const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(/\/$/, "");
 
   const buildFileUrl = (pathOrUrl) => {
     if (!pathOrUrl) return "";
-
-    // ถ้าเป็น url เต็มอยู่แล้ว
     if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
-
-    // ✅ กันเคสไม่มี / นำหน้า (เช่น "uploads/leaves/..")
     const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
 
     return `${API_BASE}${p}`;
@@ -201,19 +195,18 @@ export default function LeaveApproval() {
                     {req.reason || "-"}
                   </td>
 
-                  {/* ✅ ไฟล์แนบ */}
+                  {/* ไฟล์แนบ */}
                   <td className="p-4 text-center">
                     {req.attachmentUrl ? (
                       <button
                         type="button"
                         onClick={() => openAttachment(buildFileUrl(req.attachmentUrl))}
                         className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200
-                                   px-4 py-2 rounded-xl flex items-center gap-2
+                                   px-2 py-2 rounded-xl flex items-center gap-2
                                    text-sm font-bold transition mx-auto"
                         title="ดูไฟล์แนบ"
                       >
                         <ImageIcon size={16} />
-                        ดูไฟล์
                       </button>
                     ) : (
                       <span className="text-xs text-gray-300 font-bold">-</span>
