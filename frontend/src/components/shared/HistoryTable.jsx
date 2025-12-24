@@ -86,10 +86,7 @@ export default function HistoryTable({
               <tr>
                 <th className="px-6 py-4">Type</th>
                 <th className="px-6 py-4">Period</th>
-
-                {/* ✅ NEW: Days column (between Period and File) */}
                 <th className="px-6 py-4 text-center">Days</th>
-
                 <th className="px-6 py-4 text-center">File</th>
                 <th className="px-6 py-4 text-center">Status</th>
               </tr>
