@@ -51,15 +51,19 @@ export default function EmployeeDetail() {
     EMERGENCY: 0,
   });
 
-  // ✅ เพิ่ม state สำหรับรหัสผ่านใหม่
-  const [newPassword, setNewPassword] = useState("");
+  // ✅ ฟอร์มแก้ไข (ตามบรรทัดที่ต้องการ)
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
+    role: "Worker",
     joiningDate: "",
     resignationDate: "",
   });
+
+  // ✅ รหัสผ่าน + ยืนยันรหัสผ่าน (แถว 3-4)
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const fetchData = async () => {
     try {
@@ -113,37 +117,15 @@ export default function EmployeeDetail() {
     }));
   };
 
-  // ✅ ฟังก์ชันรีเซ็ตรหัสผ่าน
-  const handleResetPassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      return alertError("ผิดพลาด", "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร");
-    }
-
-    const confirmed = await alertConfirm(
-      "ยืนยันการรีเซ็ตรหัสผ่าน",
-      `ต้องการเปลี่ยนรหัสผ่านของ ${data.info.fullName} ใช่หรือไม่?`
-    );
-    if (!confirmed) return;
-
-    try {
-      setUpdating(true);
-      await api.post(`/employees/${id}/reset-password`, { newPassword });
-      await alertSuccess("สำเร็จ", "รีเซ็ตรหัสผ่านพนักงานเรียบร้อยแล้ว");
-      setNewPassword("");
-    } catch (err) {
-      alertError("ล้มเหลว", err.response?.data?.error || "ไม่สามารถรีเซ็ตรหัสผ่านได้");
-    } finally {
-      setUpdating(false);
-    }
-  };
-
   const handleUpdateStatus = async () => {
     if (!data?.info) return;
     const isCurrentlyActive = data.info.isActive === true || data.info.isActive === 1;
 
     const confirmed = await alertConfirm(
       "ยืนยันการเปลี่ยนสถานะ",
-      isCurrentlyActive ? "ต้องการเปลี่ยนเป็น 'พ้นสภาพ' ใช่ไหม?" : "ต้องการเปลี่ยนเป็น 'พนักงานปัจจุบัน' ใช่ไหม?"
+      isCurrentlyActive
+        ? "ต้องการเปลี่ยนเป็น 'พ้นสภาพ' ใช่ไหม?"
+        : "ต้องการเปลี่ยนเป็น 'พนักงานปัจจุบัน' ใช่ไหม?"
     );
     if (!confirmed) return;
 
@@ -151,6 +133,7 @@ export default function EmployeeDetail() {
       setUpdating(true);
       await api.patch(`/employees/${id}/status`, { isActive: !isCurrentlyActive });
       await alertSuccess("สำเร็จ", "อัปเดตสถานะเรียบร้อยแล้ว");
+      setShowModal(false);
       fetchData();
     } catch (err) {
       alertError("อัปเดตไม่สำเร็จ", err.response?.data?.error || "เกิดข้อผิดพลาด");
@@ -159,16 +142,68 @@ export default function EmployeeDetail() {
     }
   };
 
-  const handleUpdateInfo = async (e) => {
+  // ✅ บันทึกแบบรวม (ชื่อ+นามสกุล+อีเมล+รหัสผ่านใหม่ ถ้ามี)
+  const handleSaveAll = async (e) => {
     e.preventDefault();
+
+    // validate password ถ้ามีการกรอก
+    const wantsChangePassword = Boolean(newPassword || confirmPassword);
+    if (wantsChangePassword) {
+      if (!newPassword || newPassword.length < 6) {
+        return alertError("ผิดพลาด", "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร");
+      }
+      if (newPassword !== confirmPassword) {
+        return alertError("ผิดพลาด", "รหัสผ่านใหม่ และ ยืนยันรหัสผ่าน ต้องตรงกัน");
+      }
+    }
+
+    const confirmed = await alertConfirm(
+      "ยืนยันการบันทึกข้อมูล",
+      `
+      <div style="text-align:left; line-height:1.7">
+        <div style="font-weight:900; color:#0f172a; margin-bottom:6px">
+          พนักงาน: ${data?.info?.fullName || "-"}
+        </div>
+        <div style="color:#64748b; font-weight:800">
+          - ชื่อ: ${formData.firstName || "-"}<br/>
+          - นามสกุล: ${formData.lastName || "-"}<br/>
+          - อีเมล: ${formData.email || "-"}<br/>
+          ${
+            wantsChangePassword
+              ? `<span style="color:#f59e0b; font-weight:900">* มีการเปลี่ยนรหัสผ่าน</span>`
+              : `<span style="color:#94a3b8; font-weight:900">* ไม่เปลี่ยนรหัสผ่าน</span>`
+          }
+        </div>
+      </div>
+      `,
+      "บันทึก"
+    );
+    if (!confirmed) return;
+
     try {
       setUpdating(true);
-      await api.put(`/employees/${id}`, formData);
-      await alertSuccess("สำเร็จ", "อัปเดตข้อมูลพนักงานเรียบร้อย");
+
+      // 1) อัปเดตข้อมูลพื้นฐาน (รวมอีเมล)
+      await api.put(`/employees/${id}`, {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        joiningDate: formData.joiningDate,
+        resignationDate: formData.resignationDate,
+      });
+
+      // 2) ถ้าต้องการเปลี่ยนรหัสผ่าน ค่อยยิง reset-password
+      if (wantsChangePassword) {
+        await api.post(`/employees/${id}/reset-password`, { newPassword });
+      }
+
+      await alertSuccess("สำเร็จ", "บันทึกข้อมูลเรียบร้อยแล้ว");
+      setNewPassword("");
+      setConfirmPassword("");
       setShowModal(false);
       fetchData();
     } catch (err) {
-      alertError("ผิดพลาด", err.response?.data?.error || "ไม่สามารถอัปเดตข้อมูลได้");
+      alertError("ผิดพลาด", err.response?.data?.error || "ไม่สามารถบันทึกข้อมูลได้");
     } finally {
       setUpdating(false);
     }
@@ -176,7 +211,6 @@ export default function EmployeeDetail() {
 
   // ✅ Apply โควต้า “รายคน” (SICK/PERSONAL/ANNUAL/EMERGENCY)
   const handleApplyQuota = async () => {
-    // validate
     for (const t of TYPES) {
       const v = Number(quotaDraft[t]);
       if (!Number.isFinite(v) || v < 0 || v > 365) {
@@ -211,7 +245,6 @@ export default function EmployeeDetail() {
     try {
       setQuotaLoading(true);
 
-      // ✅ เรียก endpoint ที่คุณเพิ่มแล้ว: PUT /api/leaves/policy/quotas/:employeeId
       await api.put(`/leaves/policy/quotas/${id}`, {
         quotas: {
           SICK: Number(quotaDraft.SICK),
@@ -219,7 +252,6 @@ export default function EmployeeDetail() {
           ANNUAL: Number(quotaDraft.ANNUAL),
           EMERGENCY: Number(quotaDraft.EMERGENCY),
         },
-        // year: new Date().getFullYear(), // ถ้าต้องการล็อคปี
       });
 
       await alertSuccess("สำเร็จ", "อัปเดตโควต้าวันลาเรียบร้อยแล้ว");
@@ -227,7 +259,10 @@ export default function EmployeeDetail() {
       fetchData();
     } catch (err) {
       console.error("Apply quota error:", err);
-      alertError("อัปเดตไม่สำเร็จ", err.response?.data?.error || err.response?.data?.message || "เกิดข้อผิดพลาด");
+      alertError(
+        "อัปเดตไม่สำเร็จ",
+        err.response?.data?.error || err.response?.data?.message || "เกิดข้อผิดพลาด"
+      );
     } finally {
       setQuotaLoading(false);
     }
@@ -242,9 +277,7 @@ export default function EmployeeDetail() {
     );
 
   if (!data || !data.info)
-    return (
-      <div className="p-10 text-center text-rose-600 font-black">ไม่พบข้อมูลพนักงาน</div>
-    );
+    return <div className="p-10 text-center text-rose-600 font-black">ไม่พบข้อมูลพนักงาน</div>;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
@@ -299,8 +332,12 @@ export default function EmployeeDetail() {
               firstName: data.info.firstName || fName,
               lastName: data.info.lastName || lNames.join(" "),
               email: data.info.email || "",
+              role: data.info.role || "Worker",
               joiningDate: data.info.joiningDate || "",
+              resignationDate: data.info.resignationDate || "",
             });
+            setNewPassword("");
+            setConfirmPassword("");
             setShowModal(true);
           }}
           className="px-8 py-4 rounded-2xl bg-blue-600 text-white hover:bg-blue-400 font-black flex items-center gap-2 shadow-lg transition-all active:scale-95"
@@ -353,9 +390,7 @@ export default function EmployeeDetail() {
               key={t}
               onClick={() => setTab(t)}
               className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                tab === t
-                  ? "bg-white text-blue-600 shadow-md"
-                  : "text-gray-400 hover:text-gray-600"
+                tab === t ? "bg-white text-blue-600 shadow-md" : "text-gray-400 hover:text-gray-600"
               }`}
             >
               {t === "attendance" ? "ประวัติเข้างาน" : "ประวัติการลา"}
@@ -456,7 +491,7 @@ export default function EmployeeDetail() {
         </table>
       </div>
 
-      {/* ✅ Modal Section (Enhanced with Password Reset) */}
+      {/* จัดการข้อมูลพนักงาน */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
@@ -472,8 +507,8 @@ export default function EmployeeDetail() {
               </button>
             </div>
 
-            {/* 1. ส่วนแก้ไขข้อมูลทั่วไป */}
-            <form onSubmit={handleUpdateInfo} className="space-y-4 border-b border-gray-100 pb-6">
+            <form onSubmit={handleSaveAll} className="space-y-4">
+              {/* Name */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
@@ -487,6 +522,7 @@ export default function EmployeeDetail() {
                     className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold focus:ring-2 focus:ring-blue-100 outline-none"
                   />
                 </div>
+
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
                     นามสกุล
@@ -500,74 +536,111 @@ export default function EmployeeDetail() {
                   />
                 </div>
               </div>
-              <button
-                type="submit"
-                disabled={updating}
-                className="w-full py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
-              >
-                {updating ? "กำลังบันทึก..." : "อัปเดตชื่อ-นามสกุล"}
-              </button>
-            </form>
 
-            {/* 2. ส่วนรีเซ็ตรหัสผ่าน */}
-            <div className="space-y-3">
-              <p className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest flex items-center gap-2">
-                <KeyRound size={12} /> รีเซ็ตรหัสผ่านใหม่
-              </p>
-              <div className="flex gap-2">
+              {/* Email */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                  อีเมล
+                </label>
+                <input
+                  required
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold focus:ring-2 focus:ring-blue-100 outline-none"
+                />
+              </div>
+
+              {/* Role */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                  Role
+                </label>
+                <select
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold focus:ring-2 focus:ring-blue-100 outline-none"
+                >
+                  <option value="Worker">Worker</option>
+                  <option value="HR">HR</option>
+                </select>
+
+                <p className="text-[11px] text-gray-400 font-bold ml-1">
+                  หมายเหตุ: เปลี่ยน Role จะมีผลกับสิทธิ์การเข้าถึงระบบ
+                </p>
+              </div>
+
+              {/* Password */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
+                  <KeyRound size={12} /> รหัสผ่านใหม่
+                  <span className="text-[10px] font-black text-gray-300">(เว้นว่าง = ไม่เปลี่ยน)</span>
+                </label>
                 <input
                   type="password"
-                  placeholder="ระบุรหัสผ่านใหม่อย่างน้อย 6 ตัว"
+                  placeholder="อย่างน้อย 6 ตัวอักษร"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="flex-1 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-100"
+                  className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-100"
                 />
+              </div>
+
+              {/* Confirm Password */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                  ยืนยันรหัสผ่าน
+                </label>
+                <input
+                  type="password"
+                  placeholder="พิมพ์ให้ตรงกับรหัสผ่านใหม่"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-100"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={handleResetPassword}
+                  onClick={handleUpdateStatus}
                   disabled={updating}
-                  className="px-4 bg-amber-500 text-white rounded-2xl hover:bg-amber-600 transition-all active:scale-95"
+                  className={`py-4 rounded-2xl font-black transition-all shadow-md border-2 flex items-center justify-center gap-2 ${
+                    isEmpActive
+                      ? "bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-600 hover:text-white"
+                      : "bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-600 hover:text-white"
+                  }`}
                 >
-                  รีเซ็ต
+                  {isEmpActive ? (
+                    <>
+                      <UserMinus size={18} /> ปรับพ้นสภาพ
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={18} /> ปรับเป็นปัจจุบัน
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={updating}
+                  className="py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
+                >
+                  {updating ? "กำลังบันทึก..." : "บันทึกแก้ไข"}
                 </button>
               </div>
-            </div>
-
-            {/* 3. ส่วนเปลี่ยนสถานะ */}
-            <div className="pt-4 space-y-3">
-              <button
-                type="button"
-                onClick={handleUpdateStatus}
-                disabled={updating}
-                className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black transition-all shadow-md ${
-                  isEmpActive
-                    ? "bg-rose-50 text-rose-600 border-2 border-rose-100 hover:bg-rose-600 hover:text-white"
-                    : "bg-emerald-50 text-emerald-600 border-2 border-emerald-100 hover:bg-emerald-600 hover:text-white"
-                }`}
-              >
-                {isEmpActive ? (
-                  <>
-                    <UserMinus size={18} /> ปรับเป็นพ้นสภาพ
-                  </>
-                ) : (
-                  <>
-                    <UserPlus size={18} /> ปรับเป็นพนักงานปกติ
-                  </>
-                )}
-              </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* ✅ Modal: ปรับโควต้าวันลา (รายคน) */}
+      {/* ปรับโควต้าวันลา (รายคน) */}
       {showQuotaModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-xl rounded-[2.5rem] p-8 space-y-6 shadow-2xl">
             <div className="flex items-center">
-              <h2 className="text-xl font-black">
-                ปรับโควต้าวันลา (รายคน)
-              </h2>
+              <h2 className="text-xl font-black">ปรับโควต้าวันลา (รายคน)</h2>
               <button
                 onClick={closeQuotaModal}
                 disabled={quotaLoading}
@@ -623,9 +696,7 @@ export default function EmployeeDetail() {
                     </button>
                   </div>
 
-                  <div className="mt-2 text-[11px] text-gray-500 font-bold">
-                    ช่วงที่แนะนำ: 0 - 365 วัน
-                  </div>
+                  <div className="mt-2 text-[11px] text-gray-500 font-bold">ช่วงที่แนะนำ: 0 - 365 วัน</div>
                 </div>
               ))}
             </div>
