@@ -1,8 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
-import { ArrowLeft, Briefcase, ShieldCheck, Edit3, Settings2 } from "lucide-react";
-import { alertError } from "../utils/sweetAlert";
+import {
+  ArrowLeft,
+  Briefcase,
+  ShieldCheck,
+  Edit3,
+  Settings2,
+  X,
+  KeyRound,
+  UserMinus,
+  UserPlus,
+  Minus,
+  Plus,
+} from "lucide-react";
+import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
 // Shared Components
 import { QuotaCards, HistoryTable } from "../components/shared";
@@ -14,18 +26,41 @@ export default function EmployeeDetail() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("attendance");
 
-  // ✅ ปรับปรุงให้รองรับทั้ง Windows path และ URL มาตรฐาน
+  // ✅ States สำหรับ Modal จัดการข้อมูล
+  const [showModal, setShowModal] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    role: "Worker",
+    joiningDate: "",
+    resignationDate: "",
+  });
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // ✅ States สำหรับ Modal ปรับโควตา
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [quotaLoading, setQuotaLoading] = useState(false);
+  const [quotaDraft, setQuotaDraft] = useState({
+    SICK: 0,
+    PERSONAL: 0,
+    ANNUAL: 0,
+    EMERGENCY: 0,
+  });
+
   const buildFileUrl = (pathOrUrl) => {
     if (!pathOrUrl) return "";
     if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
-
-    const API_BASE = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
+    const API_BASE = (import.meta.env.VITE_API_URL || "")
+      .trim()
+      .replace(/\/$/, "");
     const FILE_BASE = API_BASE.replace(/\/api\/?$/, "");
-    
-    // จัดการเรื่อง slash ให้ถูกต้อง
     const normalizedPath = pathOrUrl.replace(/\\/g, "/");
-    const p = normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`;
-
+    const p = normalizedPath.startsWith("/")
+      ? normalizedPath
+      : `/${normalizedPath}`;
     return `${FILE_BASE || window.location.origin}${p}`;
   };
 
@@ -46,17 +81,88 @@ export default function EmployeeDetail() {
     fetchData();
   }, [fetchData]);
 
+  // --- Logic สำหรับจัดการข้อมูลพนักงาน ---
+  const handleSaveAll = async (e) => {
+    e.preventDefault();
+    if (newPassword && newPassword !== confirmPassword)
+      return alertError("ผิดพลาด", "รหัสผ่านไม่ตรงกัน");
+
+    const confirmed = await alertConfirm(
+      "ยืนยันการบันทึก",
+      "คุณต้องการแก้ไขข้อมูลพนักงานใช่หรือไม่?"
+    );
+    if (!confirmed) return;
+
+    try {
+      setUpdating(true);
+      await api.put(`/employees/${id}`, formData);
+      if (newPassword)
+        await api.post(`/employees/${id}/reset-password`, { newPassword });
+      await alertSuccess("สำเร็จ", "อัปเดตข้อมูลเรียบร้อยแล้ว");
+      setShowModal(false);
+      fetchData();
+    } catch (err) {
+      alertError("ล้มเหลว", err.response?.data?.error || "เกิดข้อผิดพลาด");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleUpdateStatus = async () => {
+    const isCurrentlyActive = data.info.isActive;
+    const confirmed = await alertConfirm(
+      "ยืนยันเปลี่ยนสถานะ",
+      `เปลี่ยนเป็น ${isCurrentlyActive ? "พ้นสภาพ" : "พนักงานปกติ"} ใช่หรือไม่?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setUpdating(true);
+      await api.patch(`/employees/${id}/status`, {
+        isActive: !isCurrentlyActive,
+      });
+      alertSuccess("สำเร็จ", "เปลี่ยนสถานะเรียบร้อย");
+      setShowModal(false);
+      fetchData();
+    } catch (err) {
+      alertError("ล้มเหลว", "ไม่สามารถเปลี่ยนสถานะได้");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // --- Logic สำหรับปรับโควตา ---
+  const handleApplyQuota = async () => {
+    const confirmed = await alertConfirm(
+      "ยืนยันปรับโควตา",
+      "ต้องการอัปเดตโควตาวันลาของพนักงานรายนี้ใช่หรือไม่?"
+    );
+    if (!confirmed) return;
+
+    try {
+      setQuotaLoading(true);
+      await api.put(`/leaves/policy/quotas/${id}`, { quotas: quotaDraft });
+      alertSuccess("สำเร็จ", "อัปเดตโควตาเรียบร้อย");
+      setShowQuotaModal(false);
+      fetchData();
+    } catch (err) {
+      alertError("ล้มเหลว", "ไม่สามารถอัปเดตโควตาได้");
+    } finally {
+      setQuotaLoading(false);
+    }
+  };
+
   if (loading)
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <span className="font-black text-slate-400 uppercase tracking-[0.2em] text-xs">Loading Profile...</span>
+          <span className="font-black text-slate-400 uppercase tracking-[0.2em] text-xs">
+            Loading Profile...
+          </span>
         </div>
       </div>
     );
-
-  if (!data?.info) return <div className="p-20 text-center font-black text-rose-500">ERROR: Employee Not Found</div>;
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
@@ -64,7 +170,10 @@ export default function EmployeeDetail() {
         onClick={() => navigate(-1)}
         className="flex items-center text-gray-400 hover:text-blue-600 font-black transition-all group text-sm"
       >
-        <ArrowLeft size={16} className="mr-2 group-hover:-translate-x-1 transition-transform" />
+        <ArrowLeft
+          size={16}
+          className="mr-2 group-hover:-translate-x-1 transition-transform"
+        />
         BACK TO DIRECTORY
       </button>
 
@@ -77,13 +186,21 @@ export default function EmployeeDetail() {
           <div className="space-y-2 text-center md:text-left">
             <div className="flex flex-col md:flex-row items-center gap-3">
               <h1 className="text-4xl font-black text-slate-800 tracking-tight">
-                {data.info.fullName || `${data.info.firstName} ${data.info.lastName}`}
+                {data.info.fullName}
               </h1>
-              <span className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 ${data.info.isActive ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100"}`}>
+              <span
+                className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 ${
+                  data.info.isActive
+                    ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                    : "bg-rose-50 text-rose-600 border-rose-100"
+                }`}
+              >
                 {data.info.isActive ? "Working" : "Resigned"}
               </span>
             </div>
-            <p className="text-slate-400 font-bold text-lg italic">{data.info.email}</p>
+            <p className="text-slate-400 font-bold text-lg italic">
+              {data.info.email}
+            </p>
             <div className="flex flex-wrap justify-center md:justify-start gap-2 pt-2">
               <span className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl border border-blue-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                 <Briefcase size={14} /> {data.info.role}
@@ -94,48 +211,281 @@ export default function EmployeeDetail() {
             </div>
           </div>
         </div>
-        <button className="px-8 py-5 rounded-[2rem] bg-slate-900 text-white font-black flex items-center gap-3 hover:bg-slate-800 active:scale-95 transition-all shadow-xl shadow-slate-200 text-sm uppercase tracking-widest">
+        <button
+          onClick={() => {
+            setFormData({
+              firstName: data.info.firstName,
+              lastName: data.info.lastName,
+              email: data.info.email,
+              role: data.info.role,
+              joiningDate: data.info.joiningDate,
+            });
+            setShowModal(true);
+          }}
+          className="px-8 py-5 rounded-[2rem] bg-slate-900 text-white font-black flex items-center gap-3 hover:bg-slate-800 active:scale-95 transition-all shadow-xl shadow-slate-200 text-sm uppercase tracking-widest"
+        >
           <Edit3 size={18} /> Manage Info
         </button>
       </div>
 
-      {/* Quota Cards Section */}
+      {/* Quota Section */}
       <div className="space-y-4">
         <div className="px-4 flex items-center gap-2 font-black text-slate-400 text-[11px] uppercase tracking-[0.2em]">
-          <Settings2 size={14}/> Leave Balance
+          <Settings2 size={14} /> Leave Balance
         </div>
         <QuotaCards quotas={data.quotas || []} />
       </div>
 
       <div className="flex justify-between items-end pb-2">
         <div className="px-4 space-y-1">
-          <h2 className="font-black text-slate-800 uppercase tracking-widest text-lg">Performance Log</h2>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Attendance and Leave Records</p>
+          <h2 className="font-black text-slate-800 uppercase tracking-widest text-lg">
+            Performance Log
+          </h2>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            Attendance and Leave Records
+          </p>
         </div>
-        <button className="px-6 py-3 rounded-2xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95">
+        <button
+          onClick={() => {
+            const currentQuotas = {};
+            data.quotas.forEach(
+              (q) => (currentQuotas[q.type.toUpperCase()] = q.total)
+            );
+            setQuotaDraft(currentQuotas);
+            setShowQuotaModal(true);
+          }}
+          className="px-6 py-3 rounded-2xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95"
+        >
           Adjust Quota
         </button>
       </div>
 
-      {/* History Table */}
       <HistoryTable
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        attendanceData={data.attendance?.map((row) => ({
-          ...row,
-          dateDisplay: row.date || row.dateDisplay, 
-          checkInTimeDisplay: row.checkIn || row.checkInTimeDisplay,
-          checkOutTimeDisplay: row.checkOut || row.checkOutTimeDisplay,
-          statusDisplay: row.status || row.statusDisplay,
-        })) || []}
-        leaveData={data.leaves?.map((leave) => ({
-          ...leave,
-          leaveType: leave.leaveType || { typeName: leave.type },
-          totalDaysRequested: leave.totalDaysRequested || leave.days,
-          attachmentUrl: leave.attachmentUrl // ✅ ปุ่ม VIEW จะขึ้นตามเงื่อนไขใน HistoryTable
-        })) || []}
+        attendanceData={data.attendance || []}
+        leaveData={
+          data.leaves?.map((l) => ({
+            ...l,
+            leaveType: { typeName: l.type },
+            totalDaysRequested: l.days,
+          })) || []
+        }
         buildFileUrl={buildFileUrl}
       />
+
+      {/* --- MODAL: Manage Info --- */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
+            {/* Header */}
+            <div className="flex items-center">
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                จัดการข้อมูลพนักงาน
+              </h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="ml-auto text-gray-400 hover:text-rose-500 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAll} className="space-y-4 text-left">
+              {/* Name Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                    ชื่อ
+                  </label>
+                  <input
+                    required
+                    value={formData.firstName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, firstName: e.target.value })
+                    }
+                    className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold border-none outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                    นามสกุล
+                  </label>
+                  <input
+                    required
+                    value={formData.lastName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, lastName: e.target.value })
+                    }
+                    className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold border-none outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                  อีเมล
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  readOnly
+                  className="w-full rounded-2xl bg-gray-100 px-4 py-3 font-bold text-gray-400 cursor-not-allowed outline-none"
+                />
+              </div>
+
+              {/* Role */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                  ROLE
+                </label>
+                <select
+                  value={formData.role}
+                  onChange={(e) =>
+                    setFormData({ ...formData, role: e.target.value })
+                  }
+                  className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold border-none outline-none focus:ring-2 focus:ring-blue-100 appearance-none cursor-pointer"
+                >
+                  <option value="Worker">Worker</option>
+                  <option value="HR">HR</option>
+                </select>
+                <p className="text-[11px] text-gray-400 font-bold ml-1">
+                  หมายเหตุ: เปลี่ยน Role จะมีผลกับสิทธิ์การเข้าถึงระบบ
+                </p>
+              </div>
+
+              {/* Password Fields */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
+                  <KeyRound size={12} /> รหัสผ่านใหม่{" "}
+                  <span className="text-[10px] font-black text-gray-300 normal-case">
+                    (เว้นว่าง = ไม่เปลี่ยน)
+                  </span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="อย่างน้อย 6 ตัวอักษร"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-100 placeholder:font-medium placeholder:text-gray-300"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                  ยืนยันรหัสผ่าน
+                </label>
+                <input
+                  type="password"
+                  placeholder="พิมพ์ให้ตรงกับรหัสผ่านใหม่"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-100 placeholder:font-medium placeholder:text-gray-300"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={handleUpdateStatus}
+                  className={`py-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 ${
+                    data.info.isActive
+                      ? "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100"
+                      : "bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100"
+                  }`}
+                >
+                  {data.info.isActive ? (
+                    <UserMinus size={18} />
+                  ) : (
+                    <UserPlus size={18} />
+                  )}
+                  {data.info.isActive ? "ปรับพ้นสภาพ" : "ปรับเป็นปัจจุบัน"}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={updating}
+                  className="py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:bg-gray-400 disabled:shadow-none"
+                >
+                  {updating ? "กำลังบันทึก..." : "บันทึกแก้ไข"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: Adjust Quota --- */}
+      {showQuotaModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-xl rounded-[2.5rem] p-8 space-y-6 shadow-2xl">
+            <div className="flex items-center">
+              <h2 className="text-xl font-black uppercase tracking-tight">
+                Adjust Quota
+              </h2>
+              <button
+                onClick={() => setShowQuotaModal(false)}
+                className="ml-auto text-gray-400 hover:text-gray-600"
+              >
+                <X />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {Object.keys(quotaDraft).map((t) => (
+                <div
+                  key={t}
+                  className="rounded-3xl border border-gray-100 bg-gray-50 p-5"
+                >
+                  <div className="text-[10px] font-black text-gray-400 uppercase mb-3">
+                    {t}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        setQuotaDraft({
+                          ...quotaDraft,
+                          [t]: Math.max(0, quotaDraft[t] - 1),
+                        })
+                      }
+                      className="h-10 w-10 rounded-xl bg-white border flex items-center justify-center font-bold"
+                    >
+                      <Minus size={16} />
+                    </button>
+                    <input
+                      type="number"
+                      value={quotaDraft[t]}
+                      onChange={(e) =>
+                        setQuotaDraft({
+                          ...quotaDraft,
+                          [t]: Number(e.target.value),
+                        })
+                      }
+                      className="flex-1 text-center font-black bg-transparent outline-none"
+                    />
+                    <button
+                      onClick={() =>
+                        setQuotaDraft({ ...quotaDraft, [t]: quotaDraft[t] + 1 })
+                      }
+                      className="h-10 w-10 rounded-xl bg-white border flex items-center justify-center font-bold"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={handleApplyQuota}
+              disabled={quotaLoading}
+              className="w-full py-5 rounded-3xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all"
+            >
+              {quotaLoading ? "UPDATING..." : "APPLY QUOTA"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
