@@ -74,36 +74,37 @@ export default function Dashboard() {
   const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
   // ✅ API_BASE อาจเป็น http://IP:PORT/api หรือ http://IP:PORT/api/
-const API_BASE = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
+  const API_BASE = (import.meta.env.VITE_API_URL || "")
+    .trim()
+    .replace(/\/$/, "");
 
-// ✅ FILE_BASE = ตัด /api หรือ /api/ ออก เพื่อใช้กับ /uploads
-const FILE_BASE = API_BASE.replace(/\/api\/?$/, "");
+  // ✅ FILE_BASE = ตัด /api หรือ /api/ ออก เพื่อใช้กับ /uploads
+  const FILE_BASE = API_BASE.replace(/\/api\/?$/, "");
 
-// ✅ ต่อ URL ของไฟล์แนบให้รองรับ: full url, /uploads..., uploads..., windows path
-const buildFileUrl = (pathOrUrl) => {
-  if (!pathOrUrl) return "";
+  // ✅ ต่อ URL ของไฟล์แนบให้รองรับ: full url, /uploads..., uploads..., windows path
+  const buildFileUrl = (pathOrUrl) => {
+    if (!pathOrUrl) return "";
 
-  // 1) ถ้าเป็น URL เต็มอยู่แล้ว
-  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+    // 1) ถ้าเป็น URL เต็มอยู่แล้ว
+    if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
 
-  // 2) ถ้าเป็น Windows path เก่า -> ตัดให้เหลือ /uploads/...
-  if (/^[a-zA-Z]:\\/.test(pathOrUrl)) {
-    const normalized = pathOrUrl.replace(/\\/g, "/");
-    const idx = normalized.toLowerCase().indexOf("/uploads/");
-    if (idx !== -1) {
-      const p = normalized.slice(idx); // /uploads/...
-      return `${FILE_BASE || window.location.origin}${p}`;
+    // 2) ถ้าเป็น Windows path เก่า -> ตัดให้เหลือ /uploads/...
+    if (/^[a-zA-Z]:\\/.test(pathOrUrl)) {
+      const normalized = pathOrUrl.replace(/\\/g, "/");
+      const idx = normalized.toLowerCase().indexOf("/uploads/");
+      if (idx !== -1) {
+        const p = normalized.slice(idx); // /uploads/...
+        return `${FILE_BASE || window.location.origin}${p}`;
+      }
+      return "";
     }
-    return "";
-  }
 
-  // 3) ทำให้เป็น /uploads/... เสมอ
-  const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
+    // 3) ทำให้เป็น /uploads/... เสมอ
+    const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
 
-  // 4) ถ้ามี FILE_BASE ใช้ FILE_BASE (prod/lan), ถ้าไม่มีใช้ origin (dev)
-  return `${FILE_BASE || window.location.origin}${p}`;
-};
-
+    // 4) ถ้ามี FILE_BASE ใช้ FILE_BASE (prod/lan), ถ้าไม่มีใช้ origin (dev)
+    return `${FILE_BASE || window.location.origin}${p}`;
+  };
 
   const fetchData = async () => {
     try {
@@ -115,12 +116,11 @@ const buildFileUrl = (pathOrUrl) => {
         getMyLeaves(),
       ]);
 
-      const att =
-        Array.isArray(historyRes?.data)
-          ? historyRes.data
-          : Array.isArray(historyRes)
-          ? historyRes
-          : [];
+      const att = Array.isArray(historyRes?.data)
+        ? historyRes.data
+        : Array.isArray(historyRes)
+        ? historyRes
+        : [];
 
       setAttendanceHistory(att);
       setLeaveQuotas(Array.isArray(quotaRes) ? quotaRes : []);
@@ -179,7 +179,9 @@ const buildFileUrl = (pathOrUrl) => {
 
     const confirmed = await alertConfirm(
       "ยืนยันการทำรายการ",
-      `ต้องการ${isCheckIn ? "เข้างาน (Check In)" : "ออกงาน (Check Out)"} ใช่ไหม?`,
+      `ต้องการ${
+        isCheckIn ? "เข้างาน (Check In)" : "ออกงาน (Check Out)"
+      } ใช่ไหม?`,
       isCheckIn ? "ยืนยันเข้างาน" : "ยืนยันออกงาน"
     );
 
@@ -191,10 +193,11 @@ const buildFileUrl = (pathOrUrl) => {
       fetchData();
     } catch (err) {
       const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        "เกิดข้อผิดพลาด กรุณาลองใหม่";
-      alertError("ทำรายการไม่สำเร็จ", msg);
+        err?.response?.data?.message || // สำหรับดึง message
+        err?.response?.data?.error || // สำหรับดึง error (ที่คุณใช้อยู่ตอนนี้)
+        "เกิดข้อผิดพลาดในการเชื่อมต่อ";
+
+      alertError("แจ้งเตือน", msg); // "Request failed..." จะหายไปแล้ว
     }
   };
 
@@ -211,11 +214,23 @@ const buildFileUrl = (pathOrUrl) => {
   }
 
   // ✅ pagination computed
-  const attTotalPages = Math.max(1, Math.ceil(attendanceHistory.length / PAGE_SIZE));
-  const leaveTotalPages = Math.max(1, Math.ceil(leaveHistory.length / PAGE_SIZE));
+  const attTotalPages = Math.max(
+    1,
+    Math.ceil(attendanceHistory.length / PAGE_SIZE)
+  );
+  const leaveTotalPages = Math.max(
+    1,
+    Math.ceil(leaveHistory.length / PAGE_SIZE)
+  );
 
-  const attPageItems = attendanceHistory.slice((attPage - 1) * PAGE_SIZE, attPage * PAGE_SIZE);
-  const leavePageItems = leaveHistory.slice((leavePage - 1) * PAGE_SIZE, leavePage * PAGE_SIZE);
+  const attPageItems = attendanceHistory.slice(
+    (attPage - 1) * PAGE_SIZE,
+    attPage * PAGE_SIZE
+  );
+  const leavePageItems = leaveHistory.slice(
+    (leavePage - 1) * PAGE_SIZE,
+    leavePage * PAGE_SIZE
+  );
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-8 animate-in fade-in duration-500">
@@ -236,7 +251,9 @@ const buildFileUrl = (pathOrUrl) => {
         </p>
 
         {dataLoading && (
-          <div className="mt-3 text-xs font-bold text-gray-400">กำลังโหลดข้อมูล...</div>
+          <div className="mt-3 text-xs font-bold text-gray-400">
+            กำลังโหลดข้อมูล...
+          </div>
         )}
       </div>
 
@@ -255,7 +272,9 @@ const buildFileUrl = (pathOrUrl) => {
             <div>
               <div className="text-2xl font-black text-slate-800 tracking-tighter">
                 {q.remaining}{" "}
-                <span className="text-xs font-bold text-gray-400 uppercase">Days</span>
+                <span className="text-xs font-bold text-gray-400 uppercase">
+                  Days
+                </span>
               </div>
               <div className="text-[9px] font-bold text-gray-400 uppercase mt-1">
                 Used {q.used} / Total {q.total}
@@ -362,7 +381,10 @@ const buildFileUrl = (pathOrUrl) => {
               <tbody className="text-[11px] font-bold">
                 {attPageItems.length === 0 ? (
                   <tr>
-                    <td colSpan="3" className="px-6 py-10 text-center text-gray-400 italic">
+                    <td
+                      colSpan="3"
+                      className="px-6 py-10 text-center text-gray-400 italic"
+                    >
                       ไม่มีข้อมูล Attendance
                     </td>
                   </tr>
@@ -372,7 +394,9 @@ const buildFileUrl = (pathOrUrl) => {
                       key={index}
                       className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
                     >
-                      <td className="px-6 py-4 text-slate-600">{row.dateDisplay}</td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {row.dateDisplay}
+                      </td>
 
                       <td className="px-6 py-4">
                         <span className="text-emerald-600">
@@ -426,7 +450,10 @@ const buildFileUrl = (pathOrUrl) => {
               <tbody className="text-[11px] font-bold">
                 {leavePageItems.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="px-6 py-10 text-center text-gray-400 italic">
+                    <td
+                      colSpan="5"
+                      className="px-6 py-10 text-center text-gray-400 italic"
+                    >
                       ไม่มีประวัติการลา
                     </td>
                   </tr>
@@ -460,7 +487,9 @@ const buildFileUrl = (pathOrUrl) => {
                           className="text-slate-500 font-medium italic max-w-[150px] truncate"
                           title={leave.reason}
                         >
-                          {leave.reason || <span className="text-gray-300">No note</span>}
+                          {leave.reason || (
+                            <span className="text-gray-300">No note</span>
+                          )}
                         </div>
                       </td>
 
@@ -481,7 +510,9 @@ const buildFileUrl = (pathOrUrl) => {
                             VIEW
                           </button>
                         ) : (
-                          <span className="text-gray-300 text-[10px] font-black">-</span>
+                          <span className="text-gray-300 text-[10px] font-black">
+                            -
+                          </span>
                         )}
                       </td>
 
@@ -504,7 +535,9 @@ const buildFileUrl = (pathOrUrl) => {
               page={leavePage}
               totalPages={leaveTotalPages}
               onPrev={() => setLeavePage((p) => Math.max(1, p - 1))}
-              onNext={() => setLeavePage((p) => Math.min(leaveTotalPages, p + 1))}
+              onNext={() =>
+                setLeavePage((p) => Math.min(leaveTotalPages, p + 1))
+              }
             />
           </div>
         )}

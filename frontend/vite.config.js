@@ -4,18 +4,20 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: "0.0.0.0",
+    // ✅ "0.0.0.0" ทำให้เครื่องอื่นในวง LAN สามารถเข้าถึงหน้าเว็บผ่าน IP เครื่องคุณได้
+    host: "0.0.0.0", 
     port: 5173,
     proxy: {
-      // ✅ API ไป Backend
+      // ✅ เปลี่ยนจาก IP ตรงๆ เป็น localhost:8080
+      // เพราะคนรัน Vite มักจะรัน Backend ไว้ในเครื่องเดียวกัน
       "/api": {
-        target: "http://192.168.1.39:8080",
+        target: "http://localhost:8080", 
         changeOrigin: true,
       },
 
-      // ✅ ไฟล์แนบ (สำคัญมาก)
+      // ✅ ไฟล์แนบก็ชี้ไปที่ localhost เช่นกัน
       "/uploads": {
-        target: "http://192.168.1.39:8080",
+        target: "http://localhost:8080",
         changeOrigin: true,
       },
     },

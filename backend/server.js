@@ -4,25 +4,22 @@ const { Server } = require('socket.io')
 const app = require('./src/app') 
 const prisma = require('./src/config/prisma')
 const startCronJobs = require('./src/jobs/attendanceJob') 
-const socketHandler = require('./src/sockets/socketHandler') // Import ถูกต้องครับ
+const socketHandler = require('./src/sockets/socketHandler')
+const os = require('os'); // ✅ เพิ่ม os module เพื่อดึง IP เครื่องอัตโนมัติ
 
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 8080 // ปกติ API มักใช้ 8080
 
 const server = http.createServer(app)
 
 // ตั้งค่า Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "*", // ยอมรับทุกที่ (สำคัญสำหรับ LAN)
+    origin: "*", // ✅ สำคัญมาก: ยอมรับทุกที่เพื่อให้คนใน LAN เชื่อมต่อ Socket ได้
     methods: ["GET", "POST"]
   }
 })
 
-// --- เรียกใช้ Socket Handler ---
 socketHandler(io)
-// ----------------------------
-
-// เก็บ io instance ไว้ใน app เพื่อเรียกใช้ใน Controller
 app.set('io', io)
 
 async function startServer() {
@@ -30,13 +27,24 @@ async function startServer() {
     await prisma.$connect()
     console.log('✅ Database connected')
 
-    // เริ่มต้น Cron Job
     startCronJobs(io) 
 
-    // 👇 แก้ไขตรงนี้ครับ: เติม '0.0.0.0' เพื่อให้เครื่องอื่นมองเห็น IP เครื่องเรา
+    // ✅ ฟังที่ 0.0.0.0 เพื่อเปิดรับการเชื่อมต่อจาก LAN
     server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on port ${PORT}`)
-      console.log(`🌐 LAN Access: http://192.168.1.35:${PORT}`) // (IP เครื่องคุณ)
+      // 💡 โค้ดส่วนนี้จะช่วยหาเลข IP ในเครื่องคุณมาโชว์ที่ Log โดยอัตโนมัติ
+      const interfaces = os.networkInterfaces();
+      let ipAddress = 'localhost';
+      for (const devName in interfaces) {
+        interfaces[devName].forEach((iface) => {
+          if (iface.family === 'IPv4' && !iface.internal) {
+            ipAddress = iface.address;
+          }
+        });
+      }
+
+      console.log(`🚀 Server is running!`);
+      console.log(`🏠 Local: http://localhost:${PORT}`);
+      console.log(`🌐 LAN:   http://${ipAddress}:${PORT}`); // ✅ โชว์ IP จริงให้เพื่อนเห็น
     })
   } catch (error) {
     console.error('❌ Error starting server:', error)

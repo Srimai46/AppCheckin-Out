@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
+import LeavePolicyModal from "../components/LeavePolicyModal";
 import {
   Plus,
   User,
@@ -9,8 +10,6 @@ import {
   UserMinus,
   Loader2,
   SlidersHorizontal,
-  Minus,
-  Plus as PlusIcon,
 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
@@ -20,30 +19,22 @@ function PaginationBar({ page, totalPages, onPrev, onNext }) {
       <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
         Page {page} / {totalPages}
       </div>
-
       <div className="flex items-center gap-2">
         <button
           onClick={onPrev}
           disabled={page <= 1}
-          className={`h-9 px-4 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all active:scale-95
-            ${
-              page <= 1
-                ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
-                : "bg-white text-slate-800 border-gray-200 hover:bg-gray-50"
-            }`}
+          className={`h-9 px-4 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+            page <= 1 ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-slate-800 border-gray-200 hover:bg-gray-50"
+          }`}
         >
           Prev
         </button>
-
         <button
           onClick={onNext}
           disabled={page >= totalPages}
-          className={`h-9 px-4 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all active:scale-95
-            ${
-              page >= totalPages
-                ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
-                : "bg-white text-slate-800 border-gray-200 hover:bg-gray-50"
-            }`}
+          className={`h-9 px-4 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+            page >= totalPages ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-slate-800 border-gray-200 hover:bg-gray-50"
+          }`}
         >
           Next
         </button>
@@ -54,301 +45,86 @@ function PaginationBar({ page, totalPages, onPrev, onNext }) {
 
 export default function EmployeeList() {
   const navigate = useNavigate();
-
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const [showModal, setShowModal] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
-
-  // ✅ กันเปิด modal แล้วหน้าขาว
   const [isLoading, setIsLoading] = useState(false);
-
-  // ✅ Leave Policy (bulk update) — ปรับแยกประเภท
   const [showPolicyModal, setShowPolicyModal] = useState(false);
-  const [policyLoading, setPolicyLoading] = useState(false);
-
-  // ✅ โควต้าเริ่มต้น (แก้ได้ตามต้องการ)
-  const [policyQuotas, setPolicyQuotas] = useState({
-    SICK: 30,
-    PERSONAL: 6,
-    ANNUAL: 10,
-    EMERGENCY: 5,
-  });
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    role: "Worker",
-    joiningDate: "",
+    firstName: "", lastName: "", email: "", password: "", role: "Worker", joiningDate: ""
   });
 
-  const [search, setSearch] = useState("");
-
-  // ✅ pagination
-  const PAGE_SIZE = 10;
-  const [page, setPage] = useState(1);
-  const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-
-  const resetForm = () =>
-    setFormData({
-      firstName: "",
-      lastName: "",
-      email: "",
-      password: "",
-      role: "Worker",
-      joiningDate: "",
-    });
-
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     try {
       setLoading(true);
       const res = await api.get("/employees");
-
-      const list = Array.isArray(res?.data)
-        ? res.data
-        : Array.isArray(res?.data?.data)
-        ? res.data.data
-        : Array.isArray(res?.data?.employees)
-        ? res.data.employees
-        : [];
-
+      const list = Array.isArray(res?.data) ? res.data : (res?.data?.employees || res?.data?.data || []);
       setEmployees(list);
-      setPage(1);
     } catch (err) {
-      console.error("Fetch Error:", err);
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        "ไม่สามารถดึงรายชื่อพนักงานได้";
-      alertError("โหลดข้อมูลไม่สำเร็จ", msg);
+      alertError("โหลดข้อมูลไม่สำเร็จ", err?.response?.data?.message || "เกิดข้อผิดพลาด");
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchEmployees();
   }, []);
 
-  const activeCount = useMemo(
-    () => employees.filter((e) => e.isActive === true || e.isActive === 1).length,
-    [employees]
-  );
+  useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
 
-  const inactiveCount = useMemo(
-    () => employees.filter((e) => e.isActive === false || e.isActive === 0).length,
-    [employees]
-  );
+  // ✅ Optimized Count Logic
+  const counts = useMemo(() => {
+    return employees.reduce((acc, emp) => {
+      const isActive = emp.isActive === true || emp.isActive === 1;
+      isActive ? acc.active++ : acc.inactive++;
+      return acc;
+    }, { active: 0, inactive: 0 });
+  }, [employees]);
 
+  // ✅ Optimized Search & Filter
   const filteredEmployees = useMemo(() => {
+    const keyword = search.toLowerCase().trim();
     return employees.filter((emp) => {
       const isEmpActive = emp.isActive === true || emp.isActive === 1;
       const matchStatus = activeTab === "active" ? isEmpActive : !isEmpActive;
-
-      const keyword = search.toLowerCase().trim();
-      const matchSearch =
+      if (!matchStatus) return false;
+      if (!keyword) return true;
+      return (
         emp.firstName?.toLowerCase().includes(keyword) ||
         emp.lastName?.toLowerCase().includes(keyword) ||
         emp.email?.toLowerCase().includes(keyword) ||
-        String(emp.id).includes(keyword);
-
-      return matchStatus && matchSearch;
+        String(emp.id).includes(keyword)
+      );
     });
   }, [employees, activeTab, search]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [activeTab, search]);
-
-  useEffect(() => {
-    const total = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
-    setPage((p) => clamp(p, 1, total));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredEmployees.length]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
   const pageItems = filteredEmployees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const onChange = (key) => (e) => setFormData((p) => ({ ...p, [key]: e.target.value }));
+  useEffect(() => { setPage(1); }, [activeTab, search]);
+
+  const onChange = (key) => (e) => setFormData(p => ({ ...p, [key]: e.target.value }));
 
   const handleCreate = async (e) => {
     e.preventDefault();
-
-    if (!formData.firstName.trim()) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก First Name");
-    if (!formData.lastName.trim()) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Last Name");
-    if (!formData.email.trim()) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Email");
-    if (!formData.password) return alertError("ข้อมูลไม่ครบ", "กรุณากรอก Password");
-    if (!formData.joiningDate) return alertError("ข้อมูลไม่ครบ", "กรุณาเลือก Joining Date");
-
-    const roleBadge =
-      formData.role === "HR"
-        ? `<span style="display:inline-block;padding:4px 10px;border-radius:999px;background:#eef2ff;color:#4f46e5;font-weight:800">HR</span>`
-        : `<span style="display:inline-block;padding:4px 10px;border-radius:999px;background:#f1f5f9;color:#334155;font-weight:800">Worker</span>`;
-
-    const confirmed = await alertConfirm(
-      "ยืนยันการเพิ่มพนักงาน",
-      `
-      <div style="text-align:left; line-height:1.6">
-        <div style="margin-bottom:10px; color:#64748b; font-weight:600">
-          โปรดตรวจสอบข้อมูลก่อนยืนยัน
-        </div>
-
-        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:14px">
-          <div style="display:grid; grid-template-columns:120px 1fr; gap:8px 12px; font-size:14px">
-            <div style="color:#94a3b8; font-weight:700">ชื่อ</div>
-            <div style="color:#0f172a; font-weight:800">${formData.firstName} ${formData.lastName}</div>
-
-            <div style="color:#94a3b8; font-weight:700">Email</div>
-            <div style="color:#0f172a; font-weight:700">${formData.email}</div>
-
-            <div style="color:#94a3b8; font-weight:700">Role</div>
-            <div>${roleBadge}</div>
-
-            <div style="color:#94a3b8; font-weight:700">Joining</div>
-            <div style="color:#0f172a; font-weight:700">${formData.joiningDate}</div>
-          </div>
-        </div>
-
-        <div style="margin-top:10px; color:#64748b; font-size:12px">
-          กด “ยืนยันเพิ่มพนักงาน” เพื่อบันทึกข้อมูล
-        </div>
-      </div>
-      `,
-      "ยืนยันเพิ่มพนักงาน"
-    );
-
+    const confirmed = await alertConfirm("ยืนยันการเพิ่มพนักงาน", "โปรดตรวจสอบข้อมูลให้ถูกต้อง", "เพิ่มพนักงาน");
     if (!confirmed) return;
 
     try {
       setIsLoading(true);
       await api.post("/employees", formData);
-
-      await alertSuccess("เพิ่มพนักงานสำเร็จ", "ระบบได้บันทึกข้อมูลพนักงานเรียบร้อยแล้ว");
-
+      await alertSuccess("สำเร็จ", "เพิ่มพนักงานใหม่เรียบร้อยแล้ว");
       setShowModal(false);
-      resetForm();
+      setFormData({ firstName: "", lastName: "", email: "", password: "", role: "Worker", joiningDate: "" });
       fetchEmployees();
     } catch (err) {
-      console.error("Create Error:", err);
-      const msg =
-        err?.response?.data?.error ||
-        err?.response?.data?.message ||
-        err?.message ||
-        "ไม่สามารถเพิ่มพนักงานได้";
-      alertError("เพิ่มพนักงานไม่สำเร็จ", msg);
+      alertError("ล้มเหลว", err?.response?.data?.error || "ไม่สามารถเพิ่มพนักงานได้");
     } finally {
       setIsLoading(false);
     }
   };
-
-  const closeModal = () => {
-    if (isLoading) return;
-    setShowModal(false);
-    resetForm();
-  };
-
-  // =========================
-  // ✅ Leave Policy Helpers
-  // =========================
-  const closePolicyModal = () => {
-    if (policyLoading) return;
-    setShowPolicyModal(false);
-  };
-
-  const clampInt = (v, min = 0, max = 365) => {
-    const n = Number(v);
-    if (!Number.isFinite(n)) return min;
-    return Math.max(min, Math.min(max, Math.floor(n)));
-  };
-
-  const setQuota = (key, value) => {
-    setPolicyQuotas((p) => ({ ...p, [key]: clampInt(value, 0, 365) }));
-  };
-
-  const incQuota = (key, delta) => {
-    setPolicyQuotas((p) => ({ ...p, [key]: clampInt((p[key] ?? 0) + delta, 0, 365) }));
-  };
-
-  const handleUpdateLeavePolicy = async () => {
-    // validate
-    for (const [k, v] of Object.entries(policyQuotas)) {
-      const n = Number(v);
-      if (!Number.isFinite(n) || n < 0) {
-        return alertError("ข้อมูลไม่ถูกต้อง", `จำนวนวันของ ${k} ต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป`);
-      }
-      if (n > 365) {
-        return alertError("ตัวเลขสูงเกินไป", `จำนวนวันของ ${k} ต้องไม่เกิน 365`);
-      }
-    }
-
-    const confirmed = await alertConfirm(
-      "ปรับนโยบายการลา (ทั้งบริษัท)",
-      `
-      <div style="text-align:left; line-height:1.7">
-        <div style="margin-bottom:10px; color:#64748b; font-weight:800">
-          คุณกำลังจะปรับ “วันลาสูงสุด” ของพนักงาน <b>ทุกคน</b> แยกตามประเภท
-        </div>
-
-        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:14px">
-          <div style="display:grid; grid-template-columns: 1fr auto; gap:8px 12px; font-size:14px">
-            <div style="color:#94a3b8; font-weight:900; letter-spacing:.08em">SICK</div>
-            <div style="color:#0f172a; font-weight:900">${policyQuotas.SICK} วัน</div>
-
-            <div style="color:#94a3b8; font-weight:900; letter-spacing:.08em">PERSONAL</div>
-            <div style="color:#0f172a; font-weight:900">${policyQuotas.PERSONAL} วัน</div>
-
-            <div style="color:#94a3b8; font-weight:900; letter-spacing:.08em">ANNUAL</div>
-            <div style="color:#0f172a; font-weight:900">${policyQuotas.ANNUAL} วัน</div>
-
-            <div style="color:#94a3b8; font-weight:900; letter-spacing:.08em">EMERGENCY</div>
-            <div style="color:#0f172a; font-weight:900">${policyQuotas.EMERGENCY} วัน</div>
-          </div>
-        </div>
-
-        <div style="margin-top:10px; color:#ef4444; font-size:12px; font-weight:800">
-          หมายเหตุ: การเปลี่ยนแปลงนี้มีผลกับพนักงานทุกคนทันที
-        </div>
-      </div>
-      `,
-      "ยืนยันปรับนโยบาย"
-    );
-
-    if (!confirmed) return;
-
-    try {
-      setPolicyLoading(true);
-
-      // แนะนำให้ทำ backend รับแบบนี้: { quotas: { SICK, PERSONAL, ANNUAL, EMERGENCY } }
-      await api.put("/leaves/policy/quotas", { quotas: policyQuotas });
-
-      await alertSuccess("อัปเดตนโยบายการลาสำเร็จ", "บันทึกโควต้ารายประเภทเรียบร้อยแล้ว");
-      setShowPolicyModal(false);
-    } catch (err) {
-      console.error("Policy Update Error:", err);
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        "ไม่สามารถอัปเดตนโยบายการลาได้";
-      alertError("อัปเดตไม่สำเร็จ", msg);
-    } finally {
-      setPolicyLoading(false);
-    }
-  };
-
-  // =========================
-  // ✅ UI
-  // =========================
-  const cards = [
-    { key: "SICK", title: "SICK", unit: "Days" },
-    { key: "PERSONAL", title: "PERSONAL", unit: "Days" },
-    { key: "ANNUAL", title: "ANNUAL", unit: "Days" },
-    { key: "EMERGENCY", title: "EMERGENCY", unit: "Days" },
-  ];
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
@@ -357,18 +133,14 @@ export default function EmployeeList() {
         <h1 className="text-2xl font-black text-gray-800 flex items-center gap-2">
           <User className="text-blue-600" /> Employee Directory
         </h1>
-
-        {/* Right actions */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowPolicyModal(true)}
-            className="bg-white text-slate-800 px-4 py-2.5 rounded-xl flex items-center gap-2
-              border border-gray-200 hover:bg-gray-50 shadow-sm transition-all active:scale-95 font-black text-xs uppercase tracking-widest"
+            className="bg-white text-slate-800 px-4 py-2.5 rounded-xl flex items-center gap-2 border border-gray-200 hover:bg-gray-50 shadow-sm transition-all active:scale-95 font-black text-xs uppercase tracking-widest"
           >
             <SlidersHorizontal size={18} className="text-blue-600" />
             Leave Policy
           </button>
-
           <button
             onClick={() => setShowModal(true)}
             className="bg-blue-600 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 font-bold text-sm"
@@ -378,38 +150,22 @@ export default function EmployeeList() {
         </div>
       </div>
 
-      {/* Tabs + Search */}
+      {/* Tabs & Search */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
-          <button
-            onClick={() => setActiveTab("active")}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-              activeTab === "active"
-                ? "bg-white text-blue-600 shadow-md"
-                : "text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            <Users size={18} /> Active ({activeCount})
+          <button onClick={() => setActiveTab("active")} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "active" ? "bg-white text-blue-600 shadow-md" : "text-gray-400"}`}>
+            <Users size={18} /> Active ({counts.active})
           </button>
-
-          <button
-            onClick={() => setActiveTab("inactive")}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-              activeTab === "inactive"
-                ? "bg-white text-rose-600 shadow-md"
-                : "text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            <UserMinus size={18} /> Resigned ({inactiveCount})
+          <button onClick={() => setActiveTab("inactive")} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "inactive" ? "bg-white text-rose-600 shadow-md" : "text-gray-400"}`}>
+            <UserMinus size={18} /> Resigned ({counts.inactive})
           </button>
         </div>
-
         <input
           type="text"
           placeholder="Search employee..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="sm:ml-auto w-full sm:w-80 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none"
+          className="sm:ml-auto w-full sm:w-80 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100"
         />
       </div>
 
@@ -419,349 +175,68 @@ export default function EmployeeList() {
           <thead className="bg-gray-50/50 border-b border-gray-100 font-black text-[10px] text-gray-400 uppercase tracking-widest">
             <tr>
               <th className="p-6">ID</th>
-              <th className="p-6">Employee Name</th>
-              <th className="p-6">Email Address</th>
+              <th className="p-6">Name</th>
+              <th className="p-6">Email</th>
               <th className="p-6 text-center">Role</th>
               <th className="p-6 text-center">Status</th>
             </tr>
           </thead>
-
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr>
-                <td colSpan="5" className="p-20 text-center">
-                  <Loader2 className="animate-spin mx-auto text-blue-600 mb-2" />
-                  <span className="font-bold text-gray-400">Loading directory...</span>
-                </td>
-              </tr>
+              <tr><td colSpan="5" className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" /></td></tr>
             ) : pageItems.length > 0 ? (
-              pageItems.map((emp) => {
-                const isActive = emp.isActive === true || emp.isActive === 1;
-
-                return (
-                  <tr
-                    key={emp.id}
-                    onClick={() => navigate(`/employees/${emp.id}`)}
-                    className="hover:bg-blue-50/30 cursor-pointer transition-all group"
-                  >
-                    <td className="p-6 text-gray-400 font-bold text-sm">#{emp.id}</td>
-
-                    <td className="p-6 font-black text-slate-800">
-                      {emp.firstName} {emp.lastName}
-                    </td>
-
-                    <td className="p-6 text-gray-500 text-sm font-medium italic">{emp.email}</td>
-
-                    <td className="p-6 text-center">
-                      <span
-                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
-                          emp.role === "HR"
-                            ? "bg-indigo-50 text-indigo-600 border border-indigo-100"
-                            : "bg-slate-50 text-slate-600 border border-slate-100"
-                        }`}
-                      >
-                        {emp.role}
-                      </span>
-                    </td>
-
-                    <td className="p-6 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <div
-                          className={`w-2 h-2 rounded-full ${
-                            isActive
-                              ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                              : "bg-rose-500"
-                          }`}
-                        />
-                        <span
-                          className={`text-[10px] font-black uppercase tracking-widest ${
-                            isActive ? "text-emerald-600" : "text-rose-600"
-                          }`}
-                        >
-                          {isActive ? "Working" : "Resigned"}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+              pageItems.map((emp) => (
+                <tr key={emp.id} onClick={() => navigate(`/employees/${emp.id}`)} className="hover:bg-blue-50/30 cursor-pointer transition-all group">
+                  <td className="p-6 text-gray-400 font-bold text-sm">#{emp.id}</td>
+                  <td className="p-6 font-black text-slate-800">{emp.firstName} {emp.lastName}</td>
+                  <td className="p-6 text-gray-500 text-sm font-medium italic">{emp.email}</td>
+                  <td className="p-6 text-center">
+                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${emp.role === "HR" ? "bg-indigo-50 text-indigo-600" : "bg-slate-50 text-slate-600"}`}>{emp.role}</span>
+                  </td>
+                  <td className="p-6 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${emp.isActive ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-rose-500"}`} />
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${emp.isActive ? "text-emerald-600" : "text-rose-600"}`}>{emp.isActive ? "Working" : "Resigned"}</span>
+                    </div>
+                  </td>
+                </tr>
+              ))
             ) : (
-              <tr>
-                <td
-                  colSpan="5"
-                  className="p-20 text-center text-gray-300 font-black uppercase tracking-widest text-xs"
-                >
-                  No employees found in this category
-                </td>
-              </tr>
+              <tr><td colSpan="5" className="p-20 text-center text-gray-300 font-black text-xs uppercase">No employees found</td></tr>
             )}
           </tbody>
         </table>
-
-        {!loading && filteredEmployees.length > 0 && (
-          <PaginationBar
-            page={page}
-            totalPages={totalPages}
-            onPrev={() => setPage((p) => Math.max(1, p - 1))}
-            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-          />
+        {totalPages > 1 && (
+          <PaginationBar page={page} totalPages={totalPages} onPrev={() => setPage(p => Math.max(1, p - 1))} onNext={() => setPage(p => Math.min(totalPages, p + 1))} />
         )}
       </div>
 
-      {/* ✅ Leave Policy Modal (แก้ไขวันลาแยกประเภท) */}
-      {showPolicyModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
-          <div className="bg-white rounded-[3rem] w-full max-w-5xl p-10 relative animate-in zoom-in duration-300 shadow-2xl">
-            <button
-              onClick={closePolicyModal}
-              className="absolute top-8 right-8 text-gray-300 hover:text-rose-500 transition-colors"
-              aria-label="Close"
-              type="button"
-              disabled={policyLoading}
-            >
-              <X size={24} />
-            </button>
+      {/* ✅ Leave Policy Modal Component */}
+      <LeavePolicyModal isOpen={showPolicyModal} onClose={() => setShowPolicyModal(false)} />
 
-            <h2 className="text-2xl font-black mb-2 text-slate-800 tracking-tight">
-              Leave Policy
-            </h2>
-            <p className="text-sm font-bold text-slate-500 mb-8">
-              ปรับวันลาสูงสุดแยกประเภท (Sick / Personal / Annual / Emergency) ให้พนักงานทุกคน
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              {cards.map((c) => (
-                <div
-                  key={c.key}
-                  className="rounded-[2rem] border border-gray-100 bg-white shadow-sm p-6"
-                >
-                  <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">
-                    {c.title}
-                  </div>
-
-                  <div className="mt-3 flex items-end gap-2">
-                    <div className="text-4xl font-black text-slate-900 leading-none">
-                      {policyQuotas[c.key]}
-                    </div>
-                    <div className="text-xs font-black uppercase tracking-widest text-slate-300 pb-1">
-                      {c.unit}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => incQuota(c.key, -1)}
-                      disabled={policyLoading}
-                      className="h-10 w-10 rounded-2xl border border-gray-200 bg-white
-                        hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center"
-                      aria-label={`Decrease ${c.title}`}
-                    >
-                      <Minus size={18} className="text-slate-700" />
-                    </button>
-
-                    <input
-                      type="number"
-                      min={0}
-                      max={365}
-                      value={policyQuotas[c.key]}
-                      onChange={(e) => setQuota(c.key, e.target.value)}
-                      disabled={policyLoading}
-                      className="flex-1 h-10 rounded-2xl bg-gray-50 border-none px-4 text-sm font-black
-                        focus:ring-2 focus:ring-blue-100 outline-none text-slate-900"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => incQuota(c.key, +1)}
-                      disabled={policyLoading}
-                      className="h-10 w-10 rounded-2xl border border-gray-200 bg-white
-                        hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center"
-                      aria-label={`Increase ${c.title}`}
-                    >
-                      <PlusIcon size={18} className="text-slate-700" />
-                    </button>
-                  </div>
-
-                  <div className="mt-3 text-[11px] font-black uppercase tracking-widest text-slate-300">
-                    Used 0 / Total {policyQuotas[c.key]}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
-              <div className="text-[11px] font-black text-rose-600 uppercase tracking-widest">
-                Warning
-              </div>
-              <div className="text-sm font-bold text-rose-700 mt-1">
-                การเปลี่ยนแปลงนี้มีผลกับพนักงานทุกคนทันที
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="mt-8 flex gap-3">
-              <button
-                type="button"
-                onClick={closePolicyModal}
-                disabled={policyLoading}
-                className="flex-1 py-5 rounded-3xl font-black text-[11px] uppercase tracking-widest
-                  border border-gray-200 bg-white text-gray-500
-                  hover:bg-gray-50 hover:text-slate-700
-                  transition-all active:scale-[0.98] disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleUpdateLeavePolicy}
-                disabled={policyLoading}
-                className={`flex-1 py-5 rounded-3xl font-black text-sm shadow-xl
-                  transition-all active:scale-[0.98] ${
-                    policyLoading
-                      ? "bg-blue-600/60 text-white cursor-not-allowed"
-                      : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200"
-                  }`}
-              >
-                {policyLoading ? "UPDATING..." : "APPLY TO ALL"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal (Add Employee) */}
+      {/* Add Employee Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
-          <div className="bg-white rounded-[3rem] w-full max-w-md p-10 relative animate-in zoom-in duration-300 shadow-2xl">
-            <button
-              onClick={closeModal}
-              className="absolute top-8 right-8 text-gray-300 hover:text-rose-500 transition-colors"
-              aria-label="Close"
-              type="button"
-              disabled={isLoading}
-            >
-              <X size={24} />
-            </button>
-
-            <h2 className="text-2xl font-black mb-8 text-slate-800 tracking-tight">
-              Add New Employee
-            </h2>
-
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in fade-in">
+          <div className="bg-white rounded-[3rem] w-full max-w-md p-10 relative shadow-2xl animate-in zoom-in duration-300">
+            <button onClick={() => !isLoading && setShowModal(false)} className="absolute top-8 right-8 text-gray-300 hover:text-rose-500" disabled={isLoading}><X size={24} /></button>
+            <h2 className="text-2xl font-black mb-8 text-slate-800 tracking-tight">Add New Employee</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-gray-400 ml-1">
-                    First Name
-                  </label>
-                  <input
-                    required
-                    className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none"
-                    value={formData.firstName}
-                    onChange={onChange("firstName")}
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-gray-400 ml-1">
-                    Last Name
-                  </label>
-                  <input
-                    required
-                    className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none"
-                    value={formData.lastName}
-                    onChange={onChange("lastName")}
-                    disabled={isLoading}
-                  />
-                </div>
+                <input required placeholder="First Name" className="bg-gray-50 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" value={formData.firstName} onChange={onChange("firstName")} disabled={isLoading} />
+                <input required placeholder="Last Name" className="bg-gray-50 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" value={formData.lastName} onChange={onChange("lastName")} disabled={isLoading} />
               </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-gray-400 ml-1">
-                  Email Address
-                </label>
-                <input
-                  required
-                  type="email"
-                  className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none"
-                  value={formData.email}
-                  onChange={onChange("email")}
-                  disabled={isLoading}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-gray-400 ml-1">
-                  Password
-                </label>
-                <input
-                  required
-                  type="password"
-                  className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none"
-                  value={formData.password}
-                  onChange={onChange("password")}
-                  disabled={isLoading}
-                />
-              </div>
-
+              <input required placeholder="Email Address" type="email" className="w-full bg-gray-50 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" value={formData.email} onChange={onChange("email")} disabled={isLoading} />
+              <input required placeholder="Password" type="password" className="w-full bg-gray-50 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" value={formData.password} onChange={onChange("password")} disabled={isLoading} />
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-gray-400 ml-1">
-                    Role
-                  </label>
-                  <select
-                    className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none"
-                    value={formData.role}
-                    onChange={onChange("role")}
-                    disabled={isLoading}
-                  >
-                    <option value="Worker">Worker</option>
-                    <option value="HR">HR</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-gray-400 ml-1">
-                    Joining Date
-                  </label>
-                  <input
-                    required
-                    type="date"
-                    className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none"
-                    value={formData.joiningDate}
-                    onChange={onChange("joiningDate")}
-                    disabled={isLoading}
-                  />
-                </div>
+                <select className="bg-gray-50 rounded-2xl p-4 text-sm font-bold outline-none" value={formData.role} onChange={onChange("role")} disabled={isLoading}>
+                  <option value="Worker">Worker</option>
+                  <option value="HR">HR</option>
+                </select>
+                <input required type="date" className="bg-gray-50 rounded-2xl p-4 text-sm font-bold outline-none" value={formData.joiningDate} onChange={onChange("joiningDate")} disabled={isLoading} />
               </div>
-
               <div className="mt-6 flex gap-3">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={isLoading}
-                  className="flex-1 py-5 rounded-3xl font-black text-[11px] uppercase tracking-widest
-                    border border-gray-200 bg-white text-gray-500
-                    hover:bg-gray-50 hover:text-slate-700
-                    transition-all active:scale-[0.98] disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className={`flex-1 py-5 rounded-3xl font-black text-sm shadow-xl
-                    transition-all active:scale-[0.98] ${
-                      isLoading
-                        ? "bg-blue-600/60 text-white cursor-not-allowed"
-                        : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200"
-                    }`}
-                >
-                  {isLoading ? "PROCESSING..." : "REGISTER"}
-                </button>
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-5 rounded-3xl font-black text-[11px] uppercase border border-gray-200 text-gray-500">Cancel</button>
+                <button type="submit" disabled={isLoading} className="flex-1 py-5 rounded-3xl font-black text-sm bg-blue-600 text-white shadow-xl">{isLoading ? "PROCESSING..." : "REGISTER"}</button>
               </div>
             </form>
           </div>

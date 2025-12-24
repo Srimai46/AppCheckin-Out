@@ -114,7 +114,7 @@ exports.checkIn = async (req, res) => {
 
   } catch (error) {
     console.error("CheckIn Error:", error);
-    res.status(500).json({ error: "เกิดข้อผิดพลาดในการลงเวลา" });
+    res.status(500).json({ message: "เกิดข้อผิดพลาดในการลงเวลา" });
   }
 };
 
