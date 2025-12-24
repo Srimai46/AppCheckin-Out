@@ -170,3 +170,11 @@ model Notification {
   @@index([employeeId, isRead])                // นับจำนวนที่ยังไม่อ่านได้เร็วขึ้น
   @@map("notifications")
 }
+
+model SystemConfig {
+  id           Int      @id @default(autoincrement())
+  year         Int      @unique
+  isClosed     Boolean  @default(false) // ถ้า true คือปิดยอดปีนี้แล้ว ห้ามรัน Carry Over อีก
+  closedAt     DateTime?
+  processedBy  Int?
+}

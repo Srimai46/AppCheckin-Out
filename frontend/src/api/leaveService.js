@@ -44,3 +44,23 @@ export const getAllLeaves = async () => {
   const { data } = await api.get('/leaves');
   return data;
 };
+
+// ประมวลผลทบวันลา Annual ไปปีถัดไป (เพิ่มตัวนี้เข้าไปครับ)
+export const processCarryOver = async (payload) => {
+  // payload หน้าตาจะเป็น { targetYear: 2026, quotas: { ANNUAL: 6, ... } }
+  const { data } = await api.post('/leaves/process-carry-over', payload);
+  return data;
+};
+
+// ดึงประวัติการปิดงวด
+export const getSystemConfigs = async () => {
+  const { data } = await api.get('/leaves/system-configs');
+  return data;
+};
+
+// ยกเลิกการปิดงวด
+export const reopenYear = async (year) => {
+  const { data } = await api.post('/leaves/reopen-year', { year });
+  return data;
+};
+

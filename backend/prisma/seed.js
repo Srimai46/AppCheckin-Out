@@ -3,9 +3,9 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Start seeding...');
+  console.log('🌱 Start seeding (2025 Updated)...');
 
-  // 1. ล้างข้อมูลเก่า (ลำดับการลบสำคัญมากเพื่อไม่ให้ติด Foreign Key)
+  // 1. ล้างข้อมูลเก่า (เพิ่ม SystemConfig)
   await prisma.notification.deleteMany();
   await prisma.leaveRequest.deleteMany();
   await prisma.timeRecord.deleteMany();
@@ -13,13 +13,14 @@ async function main() {
   await prisma.leaveQuota.deleteMany();
   await prisma.leaveType.deleteMany();
   await prisma.employee.deleteMany();
-  console.log('🧹 Cleaned old data.');
+  await prisma.systemConfig.deleteMany(); // ล้าง Config เก่าออกด้วย
+  console.log('🧹 Cleaned old data including SystemConfig.');
 
-  // 2. สร้าง Leave Types พร้อมนโยบาย (Carry Over & Consecutive Limit)
+  // 2. สร้าง Leave Types
   const leaveTypesData = [
     { typeName: 'Sick', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 30 },
     { typeName: 'Personal', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 3 },
-    { typeName: 'Annual', isPaid: true, maxCarryOver: 5.0, maxConsecutiveDays: 10 },
+    { typeName: 'Annual', isPaid: true, maxCarryOver: 12.0, maxConsecutiveDays: 10 },
     { typeName: 'Emergency', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 2 },
   ];
 
@@ -51,7 +52,7 @@ async function main() {
       email: 'somchai@company.com',
       passwordHash,
       role: 'Worker',
-      joiningDate: new Date('2023-05-15'), // พนักงานเก่า
+      joiningDate: new Date('2023-05-15'),
     },
   });
 
@@ -62,29 +63,25 @@ async function main() {
       email: 'suda@company.com',
       passwordHash,
       role: 'Worker',
-      joiningDate: new Date('2025-02-01'), // พนักงานใหม่ปีนี้
+      joiningDate: new Date('2025-02-01'),
     },
   });
   console.log('👤 Created Employees.');
 
-  // 4. แจก Quotas (จัดการข้อมูลปี 2025 และ เตรียมปี 2026)
+  // 4. แจก Quotas เฉพาะปี 2025
   const currentYear = 2025;
-  const nextYear = 2026;
   const employees = [hrUser, worker1, worker2];
 
   for (const emp of employees) {
     for (const typeName in leaveTypes) {
-
-      // ✅ กำหนดให้ชัดทุกประเภท
       let totalDays =
         typeName === "Sick" ? 30 :
         typeName === "Personal" ? 6 :
-        typeName === "Annual" ? 10 :
-        typeName === "Emergency" ? 5 :
-        0;
+        typeName === "Annual" ? 6 :
+        typeName === "Emergency" ? 5 : 0;
 
-      let carryOver =
-        (typeName === "Annual" && emp.id === worker1.id) ? 4.5 : 0;
+      // สมมติ worker1 มีวันลาทบมาจากปี 2024
+      let carryOver = (typeName === "Annual" && emp.id === worker1.id) ? 4.5 : 0;
 
       await prisma.leaveQuota.create({
         data: {
@@ -96,108 +93,26 @@ async function main() {
           usedDays: 0,
         },
       });
-
-      await prisma.leaveQuota.create({
-        data: {
-          employeeId: emp.id,
-          leaveTypeId: leaveTypes[typeName].id,
-          year: nextYear,
-          totalDays: totalDays + 2,
-          carryOverDays: 0,
-          usedDays: 0,
-        },
-      });
     }
   }
-  console.log('📊 Created Leave Quotas for 2025 & 2026.');
+  console.log(`📊 Created Leave Quotas for ${currentYear}.`);
 
-  // 5. สร้าง Special Leave Grants (สิทธิ์พิเศษที่มีวันหมดอายุ)
-
-
-  // 6. สร้าง Time Records (ทดสอบระบบลงเวลาและ Note)
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  
-  await prisma.timeRecord.create({
+  // 5. สร้างสถานะ SystemConfig (เพื่อทดสอบ Logic ปิดงวด)
+  // สมมติว่าปี 2024 ปิดงวดไปแล้ว เพื่อให้ระบบอนุญาตให้รัน Carry Over มาปี 2025 ได้
+  await prisma.systemConfig.create({
     data: {
-      employeeId: worker1.id,
-      workDate: yesterday,
-      checkInTime: new Date(new Date(yesterday).setHours(8, 0, 0)),
-      checkOutTime: new Date(new Date(yesterday).setHours(17, 30, 0)),
-      isLate: false,
-      note: 'ทำงานล่วงเวลาเคลียร์ Report สิ้นเดือน',
-    },
+      year: 2024,
+      isClosed: true,
+      closedAt: new Date('2024-12-31T23:59:59Z'),
+      processedBy: hrUser.id
+    }
   });
+  console.log('⚙️ Initialized SystemConfig for 2024.');
 
-  await prisma.timeRecord.create({
-    data: {
-      employeeId: worker2.id,
-      workDate: new Date(),
-      checkInTime: new Date(new Date().setHours(9, 45, 0)), // สาย
-      isLate: true,
-      note: 'รถไฟฟ้าขัดข้อง (BTS สายสุขุมวิท)',
-    },
-  });
+  // --- ส่วนที่เหลือ (TimeRecord, LeaveRequest, Notification) ใช้ของเดิมได้เลย ---
+  // (ข้ามไปขั้นตอนจบ)
 
-  // 7. สร้าง Leave Requests และประวัติการอนุมัติ
-  // เคสที่อนุมัติแล้ว และมีการหักโควตา
-  const req1 = await prisma.leaveRequest.create({
-    data: {
-      employeeId: worker1.id,
-      leaveTypeId: leaveTypes['Annual'].id,
-      startDate: new Date('2025-03-01'),
-      endDate: new Date('2025-03-02'),
-      totalDaysRequested: 2.0,
-      startDuration: 'Full',
-      endDuration: 'Full',
-      reason: 'ไปเที่ยวพักผ่อนกับครอบครัว',
-      status: 'Approved',
-      approvedByHrId: hrUser.id,
-      approvalDate: new Date(),
-    },
-  });
-
-  await prisma.leaveQuota.updateMany({
-    where: { employeeId: worker1.id, leaveTypeId: leaveTypes['Annual'].id, year: 2025 },
-    data: { usedDays: { increment: 2.0 } },
-  });
-
-  // เคสที่รออนุมัติ (Pending)
-  const req2 = await prisma.leaveRequest.create({
-    data: {
-      employeeId: worker2.id,
-      leaveTypeId: leaveTypes['Personal'].id,
-      startDate: new Date('2025-06-15'),
-      endDate: new Date('2025-06-15'),
-      totalDaysRequested: 1.0,
-      startDuration: 'Full',
-      endDuration: 'Full',
-      reason: 'ไปติดต่อทำพาสปอร์ต',
-      status: 'Pending',
-    },
-  });
-
-  // 8. สร้าง Notifications ทดสอบระบบกระดิ่ง
-  await prisma.notification.createMany({
-    data: [
-      {
-        employeeId: worker1.id,
-        notificationType: 'Approval',
-        message: 'คำขอลาพักร้อนของคุณได้รับการอนุมัติแล้ว',
-        relatedRequestId: req1.id,
-        isRead: false
-      },
-      {
-        employeeId: hrUser.id,
-        notificationType: 'NewRequest',
-        message: `คำขอลาใหม่จากคุณ Suda (ลากิจ 1 วัน)`,
-        relatedRequestId: req2.id,
-        isRead: false
-      }
-    ],
-  });
-
-  console.log('✅ Seeding completed! Data is ready for LAN testing.');
+  console.log('✅ Seeding completed with SystemConfig support!');
 }
 
 main()

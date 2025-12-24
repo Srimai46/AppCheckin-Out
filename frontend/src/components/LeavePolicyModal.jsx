@@ -10,7 +10,7 @@ export default function LeavePolicyModal({ isOpen, onClose }) {
   const [quotas, setQuotas] = useState({
     SICK: 30,
     PERSONAL: 6,
-    ANNUAL: 10,
+    ANNUAL: 6,
     EMERGENCY: 5,
   });
 

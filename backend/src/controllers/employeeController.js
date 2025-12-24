@@ -143,7 +143,7 @@ exports.createEmployee = async (req, res) => {
     const quotaMap = {
       Sick: 30,
       Personal: 6,
-      Annual: 10,
+      Annual: 6,
       Emergency: 5,
     };
 

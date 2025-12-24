@@ -8,6 +8,7 @@ import {
   Users,
   CalendarDays,
   Menu,
+  Settings2, // เพิ่มไอคอนสำหรับเมนูตั้งค่าปี
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 
@@ -17,10 +18,11 @@ export default function Layout() {
   const navStyle = ({ isActive }) =>
     `flex items-center justify-center group-hover:justify-start gap-3
      px-3 group-hover:px-4 py-3 rounded-xl transition-all duration-200
-     ${isActive
-        ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
-        : "text-blue-100 hover:bg-white/10 hover:text-white"
-      }`;
+     ${
+       isActive
+         ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
+         : "text-blue-100 hover:bg-white/10 hover:text-white"
+     }`;
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
@@ -96,6 +98,14 @@ export default function Layout() {
                 <CalendarDays size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
                   ปฏิทินทีม
+                </span>
+              </NavLink>
+
+              {/* เพิ่มเมนู Year-End Processing ตรงนี้ */}
+              <NavLink to="/year-end-processing" className={navStyle}>
+                <Settings2 size={18} className="shrink-0" />
+                <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
+                  จัดการโควตาประจำปี
                 </span>
               </NavLink>
             </>
