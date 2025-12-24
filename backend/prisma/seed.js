@@ -21,7 +21,6 @@ async function main() {
     { typeName: 'Personal', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 3 },
     { typeName: 'Annual', isPaid: true, maxCarryOver: 5.0, maxConsecutiveDays: 10 },
     { typeName: 'Emergency', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 2 },
-    { typeName: 'Marriage', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 5 },
   ];
 
   const leaveTypes = {};
@@ -106,15 +105,7 @@ async function main() {
   console.log('📊 Created Leave Quotas for 2025 & 2026.');
 
   // 5. สร้าง Special Leave Grants (สิทธิ์พิเศษที่มีวันหมดอายุ)
-  await prisma.specialLeaveGrant.create({
-    data: {
-      employeeId: worker1.id,
-      leaveTypeId: leaveTypes['Marriage'].id,
-      amount: 5.0,
-      reason: 'สวัสดิการสมรสสำหรับพนักงานเก่า',
-      expiryDate: new Date('2025-12-31'),
-    },
-  });
+
 
   // 6. สร้าง Time Records (ทดสอบระบบลงเวลาและ Note)
   const yesterday = new Date();
