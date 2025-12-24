@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   getSystemConfigs,
   processCarryOver,
@@ -14,6 +14,8 @@ import {
   Save,
 } from "lucide-react";
 
+import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
+
 const YearEndProcessing = () => {
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -27,12 +29,15 @@ const YearEndProcessing = () => {
     EMERGENCY: 5,
   });
 
+  const lastYear = useMemo(() => Number(targetYear) - 1, [targetYear]);
+
   const fetchConfigs = async () => {
     try {
       const data = await getSystemConfigs();
       setConfigs(data);
     } catch (error) {
       console.error("Fetch error:", error);
+      alertError("โหลดข้อมูลไม่สำเร็จ", "ไม่สามารถดึงข้อมูลการตั้งค่าระบบได้");
     }
   };
 
@@ -44,47 +49,106 @@ const YearEndProcessing = () => {
     setQuotas((prev) => ({ ...prev, [type]: Number(value) }));
   };
 
+  const escapeHtml = (v = "") =>
+    String(v)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+
+  const buildProcessConfirmHtml = () => {
+    const items = [
+      `ระบบจะทบยอดวันลา <b>Annual</b> จากปี <b>${escapeHtml(
+        lastYear
+      )}</b> (สูงสุด 12 วัน)`,
+      `แจกโควตาใหม่ปี <b>${escapeHtml(targetYear)}</b>:
+        พักร้อน <b>${escapeHtml(quotas.ANNUAL)}</b> วัน,
+        ลาป่วย <b>${escapeHtml(quotas.SICK)}</b> วัน,
+        ลากิจ <b>${escapeHtml(quotas.PERSONAL)}</b> วัน,
+        ฉุกเฉิน <b>${escapeHtml(quotas.EMERGENCY)}</b> วัน`,
+      `ข้อมูลปี <b>${escapeHtml(lastYear)}</b> จะถูก "<b>ล็อค</b>" ทันที`,
+    ];
+
+    return `
+      <div style="text-align:left; line-height:1.7;">
+        <div style="font-weight:900; margin-bottom:8px;">
+          สรุปการปิดงวดและแจกโควตาประจำปี
+        </div>
+        <ul style="margin:0; padding-left:18px;">
+          ${items.map((t) => `<li>${t}</li>`).join("")}
+        </ul>
+        <div style="margin-top:10px; font-size:12px; opacity:.8;">
+          โปรดตรวจสอบจำนวนวันลาให้ถูกต้องก่อนกดยืนยัน
+        </div>
+      </div>
+    `.trim();
+  };
+
   const handleProcess = async () => {
-    const lastYear = Number(targetYear) - 1;
+    // กันกดรัว
+    if (loading) return;
 
-    const confirmMessage =
-      `⚠️ ยืนยันการประมวลผลประจำปี?\n\n` +
-      `1. ระบบจะทบยอดวันลา Annual จากปี ${lastYear} (สูงสุด 12 วัน)\n` +
-      `2. แจกโควตาใหม่ปี ${targetYear}: พักร้อน ${quotas.ANNUAL} วัน, ลาป่วย ${quotas.SICK} วัน ฯลฯ\n` +
-      `3. ข้อมูลปี ${lastYear} จะถูก "ล็อค" ทันที\n\n` +
-      `คุณต้องการดำเนินการต่อใช่หรือไม่?`;
-
-    if (!window.confirm(confirmMessage)) return;
+    // SweetAlert confirm
+    const confirmed = await alertConfirm(
+      "ยืนยันการประมวลผลประจำปี",
+      buildProcessConfirmHtml(),
+      "ยืนยันดำเนินการ"
+    );
+    if (!confirmed) return;
 
     setLoading(true);
     try {
-      // ✅ มั่นใจว่าส่ง Object ที่มี key targetYear และ quotas
       const res = await processCarryOver({
         targetYear: Number(targetYear),
         quotas: quotas,
       });
-      alert(res.message || "ประมวลผลและแจกโควตาสำเร็จ!");
+
+      await alertSuccess(
+        "ดำเนินการสำเร็จ",
+        res?.message || "ประมวลผลและแจกโควตาสำเร็จ!"
+      );
       await fetchConfigs();
     } catch (error) {
       const errorMsg =
-        error.response?.data?.error || "เกิดข้อผิดพลาดในการประมวลผล";
-      alert(errorMsg);
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "เกิดข้อผิดพลาดในการประมวลผล";
+
+      alertError("ดำเนินการไม่สำเร็จ", errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
   const handleReopen = async (year) => {
-    if (!window.confirm(`ต้องการปลดล็อคปี ${year} ใช่หรือไม่?`)) return;
+    const confirmed = await alertConfirm(
+      "ยืนยันการปลดล็อคปี",
+      `
+        <div style="text-align:left; line-height:1.7;">
+          ต้องการปลดล็อคปี <b>${escapeHtml(year)}</b> ใช่หรือไม่?
+          <div style="margin-top:8px; font-size:12px; opacity:.8;">
+            เมื่อปลดล็อคแล้ว ปีนี้จะกลับมาเป็นสถานะ Open และสามารถแก้ไขข้อมูลได้
+          </div>
+        </div>
+      `.trim(),
+      "ยืนยันปลดล็อค"
+    );
+    if (!confirmed) return;
+
     try {
       await reopenYear(year);
-      alert(`ปลดล็อคปี ${year} เรียบร้อยแล้ว`);
+      await alertSuccess("ปลดล็อคสำเร็จ", `ปลดล็อคปี ${year} เรียบร้อยแล้ว`);
       fetchConfigs();
     } catch (error) {
-      alert(
-        "ไม่สามารถปลดล็อคได้: " +
-          (error.response?.data?.error || "Unknown error")
-      );
+      const msg =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "Unknown error";
+
+      alertError("ปลดล็อคไม่สำเร็จ", msg);
     }
   };
 
@@ -93,12 +157,9 @@ const YearEndProcessing = () => {
       <div className="max-w-5xl mx-auto">
         <header className="mb-8">
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <Calendar className="text-indigo-600" />{" "}
-            ระบบปิดงวดและแจกโควตาประจำปี
+            <Calendar className="text-indigo-600" /> ระบบปิดงวดและแจกโควตาประจำปี
           </h1>
-          <p className="text-gray-500">
-            ทบวันลาสะสมและเริ่มโควตาใหม่ในปุ่มเดียว
-          </p>
+          <p className="text-gray-500">ทบวันลาสะสมและเริ่มโควตาใหม่ในปุ่มเดียว</p>
         </header>
 
         {/* ส่วนประมวลผลและตั้งค่าโควตา */}
@@ -237,9 +298,8 @@ const YearEndProcessing = () => {
         <div className="mt-6 flex items-center gap-3 text-amber-700 bg-amber-50 p-4 rounded-2xl border border-amber-100">
           <AlertTriangle size={20} className="shrink-0" />
           <div className="text-xs font-bold leading-relaxed uppercase tracking-tight">
-            คำเตือน: การกดปุ่มนี้จะทำการ "เขียนทับ"
-            โควตาของพนักงานทุกคนในปีเป้าหมาย และล็อคข้อมูลปีที่แล้วทันที
-            โปรดตรวจสอบจำนวนวันลาที่จะแจกให้ถูกต้อง
+            คำเตือน: การกดปุ่มนี้จะทำการ "เขียนทับ" โควตาของพนักงานทุกคนในปีเป้าหมาย
+            และล็อคข้อมูลปีที่แล้วทันที โปรดตรวจสอบจำนวนวันลาที่จะแจกให้ถูกต้อง
           </div>
         </div>
       </div>

@@ -13,10 +13,10 @@ import {
   UserPlus,
   Minus,
   Plus,
+  ChevronDown,
 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
-// Shared Components
 import { QuotaCards, HistoryTable } from "../components/shared";
 
 export default function EmployeeDetail() {
@@ -37,10 +37,9 @@ export default function EmployeeDetail() {
     joiningDate: "",
     resignationDate: "",
   });
+  const [roleOpen, setRoleOpen] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
-  // ✅ States สำหรับ Modal ปรับโควตา
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [quotaDraft, setQuotaDraft] = useState({
@@ -325,7 +324,7 @@ export default function EmployeeDetail() {
               {/* Email */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  อีเมล
+                  Email
                 </label>
                 <input
                   type="email"
@@ -340,16 +339,115 @@ export default function EmployeeDetail() {
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
                   ROLE
                 </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) =>
-                    setFormData({ ...formData, role: e.target.value })
-                  }
-                  className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold border-none outline-none focus:ring-2 focus:ring-blue-100 appearance-none cursor-pointer"
-                >
-                  <option value="Worker">Worker</option>
-                  <option value="HR">HR</option>
-                </select>
+
+                <div className="relative">
+                  {/* Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => setRoleOpen((v) => !v)}
+                    className={`w-full rounded-2xl px-4 py-3 font-bold outline-none transition-all
+                      bg-gray-50 ring-1 ring-transparent hover:bg-gray-100
+                      focus:ring-2 focus:ring-blue-100
+                      ${roleOpen ? "ring-2 ring-blue-100 bg-gray-100" : ""}
+                    `}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`h-9 w-9 rounded-xl flex items-center justify-center border
+                            ${formData.role === "HR"
+                              ? "bg-blue-50 text-blue-700 border-blue-100"
+                              : "bg-slate-50 text-slate-700 border-slate-100"}
+                          `}
+                        >
+                          {formData.role === "HR" ? <ShieldCheck size={16} /> : <Briefcase size={16} />}
+                        </span>
+
+                        <div className="text-left">
+                          <div className="text-slate-800">{formData.role}</div>
+                          <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
+                            {formData.role === "HR" ? "Full Access" : "Standard Access"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <ChevronDown
+                        size={18}
+                        className={`text-gray-400 transition-transform ${roleOpen ? "rotate-180" : ""}`}
+                      />
+                    </div>
+                  </button>
+
+                  {/* Dropdown */}
+                  {roleOpen && (
+                    <>
+                      {/* click outside */}
+                      <button
+                        type="button"
+                        onClick={() => setRoleOpen(false)}
+                        className="fixed inset-0 z-[70] cursor-default"
+                        aria-label="Close role dropdown"
+                      />
+
+                      <div className="absolute z-[80] mt-2 w-full rounded-2xl border border-gray-100 bg-white shadow-xl overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, role: "Worker" });
+                            setRoleOpen(false);
+                          }}
+                          className={`w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-all
+                            ${formData.role === "Worker" ? "bg-blue-50/40" : ""}
+                          `}
+                        >
+                          <span className="h-9 w-9 rounded-xl bg-slate-50 text-slate-700 border border-slate-100 flex items-center justify-center">
+                            <Briefcase size={16} />
+                          </span>
+                          <div className="flex-1">
+                            <div className="font-black text-slate-800">Worker</div>
+                            <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
+                              Standard Access
+                            </div>
+                          </div>
+                          {formData.role === "Worker" && (
+                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-700">
+                              Selected
+                            </span>
+                          )}
+                        </button>
+
+                        <div className="h-px bg-gray-100" />
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, role: "HR" });
+                            setRoleOpen(false);
+                          }}
+                          className={`w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-all
+                            ${formData.role === "HR" ? "bg-blue-50/40" : ""}
+                          `}
+                        >
+                          <span className="h-9 w-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center">
+                            <ShieldCheck size={16} />
+                          </span>
+                          <div className="flex-1">
+                            <div className="font-black text-slate-800">HR</div>
+                            <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
+                              Full Access
+                            </div>
+                          </div>
+                          {formData.role === "HR" && (
+                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-700">
+                              Selected
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <p className="text-[11px] text-gray-400 font-bold ml-1">
                   หมายเหตุ: เปลี่ยน Role จะมีผลกับสิทธิ์การเข้าถึงระบบ
                 </p>

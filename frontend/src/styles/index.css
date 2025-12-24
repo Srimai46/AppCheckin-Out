@@ -20,8 +20,10 @@ html, body {
 
 /* ===== Popup ===== */
 .swal-pill-popup {
+  width: auto !important;
+  max-width: 720px !important;
+  padding: 2rem 2.5rem !important;
   border-radius: 28px;
-  padding: 1.5rem;
 }
 
 /* ===== Title ===== */
@@ -32,6 +34,8 @@ html, body {
 /* ===== Content ===== */
 .swal-pill-html {
   line-height: 1.6;
+  max-width: 100%;
+  font-size: 14px;
 }
 
 /* ===== Buttons (PILL STYLE) ===== */
@@ -79,3 +83,5 @@ html, body {
   background: #b91c1c;
   transform: translateY(-1px);
 }
+
+.swal2-actions { gap: 16px; }
