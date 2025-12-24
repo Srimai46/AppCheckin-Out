@@ -110,6 +110,12 @@ exports.updateEmployeeStatus = async (req, res) => {
     const { id } = req.params;
     const { isActive } = req.body;
 
+    console.log("PUT /employees/:id called", {
+      params: req.params,
+      body: req.body,
+      user: req.user,
+    });
+
     await prisma.employee.update({
       where: { id: parseInt(id) },
       data: { isActive: !!isActive }, // มั่นใจว่าเป็น boolean
@@ -247,23 +253,53 @@ exports.resetPassword = async (req, res) => {
 // 7. แก้ไขข้อมูลพนักงาน (ชื่อ-นามสกุล)
 exports.updateEmployee = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { firstName, lastName } = req.body;
+    const id = Number(req.params.id);
 
-    const updatedEmployee = await prisma.employee.update({
-      where: { id: parseInt(id) },
-      data: {
-        firstName: firstName?.trim() || undefined, // ถ้าเป็นค่าว่างจะไม่บันทึกทับ
-        lastName: lastName?.trim() || undefined,
+    const { firstName, lastName, email, role } = req.body;
+
+    // ✅ enum ใน schema มีแค่ Worker, HR
+    const allowedRoles = ["Worker", "HR"];
+
+    if (role !== undefined) {
+      const r = String(role).trim(); // กันช่องว่าง
+      if (!allowedRoles.includes(r)) {
+        return res.status(400).json({
+          error: `Invalid role (allowed: ${allowedRoles.join(", ")})`,
+        });
+      }
+    }
+
+    const dataToUpdate = {};
+    if (firstName !== undefined) dataToUpdate.firstName = firstName;
+    if (lastName !== undefined) dataToUpdate.lastName = lastName;
+    if (email !== undefined) dataToUpdate.email = email;
+    if (role !== undefined) dataToUpdate.role = String(role).trim(); // ✅ ต้องเป็น Worker/HR
+
+    const updated = await prisma.employee.update({
+      where: { id }, // ✅ ถูกแล้ว เพราะ model ใช้ id (map employee_id)
+      data: dataToUpdate,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        isActive: true,
+        joiningDate: true,
       },
     });
 
-    res.json({
-      message: "อัปเดตข้อมูลพนักงานสำเร็จ",
-      data: updatedEmployee,
-    });
-  } catch (error) {
-    if (error.code === 'P2025') return res.status(404).json({ error: "ไม่พบข้อมูลพนักงาน" });
-    res.status(500).json({ error: "เกิดข้อผิดพลาดในการอัปเดตข้อมูล" });
+    return res.json({ message: "Employee updated", employee: updated });
+  } catch (err) {
+    console.error(err);
+
+    if (err.code === "P2002") {
+      return res.status(400).json({ error: "Email นี้ถูกใช้งานแล้ว" });
+    }
+    if (err.code === "P2025") {
+      return res.status(404).json({ error: "ไม่พบพนักงานที่ต้องการอัปเดต" });
+    }
+
+    return res.status(500).json({ error: "Update employee failed" });
   }
 };

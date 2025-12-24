@@ -183,11 +183,12 @@ export default function EmployeeDetail() {
     try {
       setUpdating(true);
 
-      // 1) อัปเดตข้อมูลพื้นฐาน (รวมอีเมล)
+      // 1) อัปเดตข้อมูลพื้นฐาน
       await api.put(`/employees/${id}`, {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
+        role: formData.role,
         joiningDate: formData.joiningDate,
         resignationDate: formData.resignationDate,
       });
@@ -546,7 +547,7 @@ export default function EmployeeDetail() {
                   required
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  readOnly
                   className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold focus:ring-2 focus:ring-blue-100 outline-none"
                 />
               </div>
