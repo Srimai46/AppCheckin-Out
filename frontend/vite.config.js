@@ -9,13 +9,13 @@ export default defineConfig({
     proxy: {
       // ✅ API ไป Backend
       "/api": {
-        target: "http://192.168.1.35:8080",
+        target: "http://192.168.1.39:8080",
         changeOrigin: true,
       },
 
       // ✅ ไฟล์แนบ (สำคัญมาก)
       "/uploads": {
-        target: "http://192.168.1.35:8080",
+        target: "http://192.168.1.39:8080",
         changeOrigin: true,
       },
     },

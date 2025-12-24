@@ -125,16 +125,28 @@ exports.updateEmployeeStatus = async (req, res) => {
 exports.createEmployee = async (req, res) => {
   try {
     const { firstName, lastName, email, password, role, joiningDate } = req.body;
-    
+
     const existing = await prisma.employee.findUnique({ where: { email } });
     if (existing) return res.status(400).json({ error: "Email นี้ถูกใช้งานแล้ว" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // ✅ ตารางวันลาเริ่มต้น (ตรงกับภาพแรก)
+    const quotaMap = {
+      Sick: 30,
+      Personal: 6,
+      Annual: 10,
+      Emergency: 5,
+    };
+
+    const currentYear = new Date().getFullYear();
+
     const result = await prisma.$transaction(async (tx) => {
       const newEmployee = await tx.employee.create({
         data: {
-          firstName, lastName, email,
+          firstName,
+          lastName,
+          email,
           passwordHash: hashedPassword,
           role: role || "Worker",
           joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
@@ -143,17 +155,20 @@ exports.createEmployee = async (req, res) => {
       });
 
       const leaveTypes = await tx.leaveType.findMany();
+
       if (leaveTypes.length > 0) {
         await tx.leaveQuota.createMany({
           data: leaveTypes.map((type) => ({
             employeeId: newEmployee.id,
             leaveTypeId: type.id,
-            year: new Date().getFullYear(),
-            totalDays: 30, // ค่าเริ่มต้น
+            year: currentYear,
+            totalDays: Number(quotaMap[type.typeName] ?? 0), // ✅ ใช้ตามประเภทลา
+            carryOverDays: 0,
             usedDays: 0,
           })),
         });
       }
+
       return newEmployee;
     });
 

@@ -74,9 +74,17 @@ async function main() {
 
   for (const emp of employees) {
     for (const typeName in leaveTypes) {
-      // Logic สำหรับปีปัจจุบัน 2025
-      let totalDays = (typeName === 'Sick') ? 30 : (typeName === 'Personal' ? 6 : 10);
-      let carryOver = (typeName === 'Annual' && emp.id === worker1.id) ? 4.5 : 0; // Somchai มีวันทบ
+
+      // ✅ กำหนดให้ชัดทุกประเภท
+      let totalDays =
+        typeName === "Sick" ? 30 :
+        typeName === "Personal" ? 6 :
+        typeName === "Annual" ? 10 :
+        typeName === "Emergency" ? 5 :
+        0;
+
+      let carryOver =
+        (typeName === "Annual" && emp.id === worker1.id) ? 4.5 : 0;
 
       await prisma.leaveQuota.create({
         data: {
@@ -89,14 +97,13 @@ async function main() {
         },
       });
 
-      // ✅ เตรียมโควตาล่วงหน้าปี 2026 (ตามที่คุณต้องการ)
       await prisma.leaveQuota.create({
         data: {
           employeeId: emp.id,
           leaveTypeId: leaveTypes[typeName].id,
           year: nextYear,
-          totalDays: totalDays + 2, // สมมติว่าปีหน้าได้วันลาเพิ่มคนละ 2 วัน
-          carryOverDays: 0, // จะถูกคำนวณตอนสิ้นปี 2025
+          totalDays: totalDays + 2,
+          carryOverDays: 0,
           usedDays: 0,
         },
       });
