@@ -553,57 +553,66 @@ export default function EmployeeDetail() {
             </div>
 
             {/* Grid ของประเภทการลา */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {Object.keys(quotaDraft).map((t) => (
                 <div
                   key={t}
-                  className="rounded-[2rem] border border-gray-50 bg-gray-50/50 p-6 space-y-4"
+                  className="rounded-[1.75rem] border border-gray-100 bg-gray-50/50 p-5"
                 >
-                  <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
                       {t}
-                    </span>
-                    <span className="text-[11px] font-black text-gray-400 uppercase tracking-[0.1em]">
+                    </div>
+                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.12em]">
                       TOTAL DAYS
-                    </span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between px-1">
+                    {/* Minus */}
                     <button
+                      type="button"
                       onClick={() =>
-                        setQuotaDraft({
-                          ...quotaDraft,
-                          [t]: Math.max(0, quotaDraft[t] - 1),
-                        })
+                        setQuotaDraft((prev) => ({
+                          ...prev,
+                          [t]: Math.max(0, (prev[t] ?? 0) - 1),
+                        }))
                       }
-                      className="h-12 w-12 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-slate-600 hover:bg-gray-50 transition-all active:scale-90"
+                      className="h-10 w-10 rounded-full bg-white/70 border border-gray-100
+                                flex items-center justify-center text-slate-700
+                                hover:bg-white active:scale-95 transition-all"
                     >
-                      <Minus size={20} strokeWidth={3} />
+                      <Minus size={16} strokeWidth={3} />
                     </button>
 
-                    <input
-                      type="number"
-                      value={quotaDraft[t]}
-                      onChange={(e) =>
-                        setQuotaDraft({
-                          ...quotaDraft,
-                          [t]: Number(e.target.value),
-                        })
-                      }
-                      className="flex-1 h-12 rounded-2xl border border-gray-100 bg-white text-center text-xl font-black text-slate-800 outline-none focus:ring-2 focus:ring-blue-100 transition-all"
-                    />
+                    {/* Value */}
+                    <div className="flex flex-col items-center">
+                      <div className="text-2xl font-black text-slate-900 leading-none">
+                        {quotaDraft[t]}
+                      </div>
+                      <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">
+                        Days
+                      </div>
+                    </div>
 
+                    {/* Plus */}
                     <button
+                      type="button"
                       onClick={() =>
-                        setQuotaDraft({ ...quotaDraft, [t]: quotaDraft[t] + 1 })
+                        setQuotaDraft((prev) => ({
+                          ...prev,
+                          [t]: (prev[t] ?? 0) + 1,
+                        }))
                       }
-                      className="h-12 w-12 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-slate-600 hover:bg-gray-50 transition-all active:scale-90"
+                      className="h-10 w-10 rounded-full bg-white/70 border border-gray-100
+                                flex items-center justify-center text-slate-700
+                                hover:bg-white active:scale-95 transition-all"
                     >
-                      <Plus size={20} strokeWidth={3} />
+                      <Plus size={16} strokeWidth={3} />
                     </button>
                   </div>
-
-                  <div className="text-[11px] text-gray-400 font-bold">
+                  <div className="mt-3 text-[10px] text-gray-400 font-bold">
                     ช่วงที่แนะนำ: 0 - 365 วัน
                   </div>
                 </div>
@@ -617,7 +626,7 @@ export default function EmployeeDetail() {
               </div>
               <div className="text-sm font-bold text-rose-700 leading-relaxed">
                 หากตั้ง “Total” ต่ำกว่า “Used” ระบบจะปรับให้เท่ากับ Used
-                อัตโนมัติ (เพื่อไม่ให้คงเหลือติดลบ)
+                อัตโนมัติ
               </div>
             </div>
 
