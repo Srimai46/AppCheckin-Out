@@ -152,6 +152,18 @@ exports.createLeaveRequest = async (req, res) => {
       return res.status(400).json({ error: "จำนวนวันลาต้องมากกว่า 0" });
     }
 
+    // ✅ 1.5 RULE: ห้ามลาติดต่อกันเกิน maxConsecutiveDays ของประเภทลา
+    // เช่น Personal = 3 วัน, Emergency = 2 วัน
+    const maxConsecutive = Number(leaveType.maxConsecutiveDays ?? 0);
+
+    // ถ้าใน DB ตั้งไว้ 0 หรือ null ถือว่า "ไม่อนุญาต" / หรือจะตีความเป็น "ไม่จำกัด" ก็ได้
+    // ที่นี่เลือกแบบปลอดภัย: ถ้าไม่มีค่า ให้ข้ามกฎนี้ไป
+    if (maxConsecutive > 0 && totalDaysRequested > maxConsecutive) {
+      return res.status(400).json({
+        error: `ไม่สามารถลาประเภท ${leaveType.typeName} ติดต่อกันเกิน ${maxConsecutive} วันได้`,
+      });
+    }
+
     // ✅ 2. Transaction การสร้างใบลาและการแจ้งเตือน
     const result = await prisma.$transaction(async (tx) => {
       // ตรวจสอบใบลาทับซ้อน
@@ -166,12 +178,20 @@ exports.createLeaveRequest = async (req, res) => {
 
       // ตรวจสอบโควตา
       const quota = await tx.leaveQuota.findUnique({
-        where: { employeeId_leaveTypeId_year: { employeeId: userId, leaveTypeId: leaveType.id, year } },
+        where: {
+          employeeId_leaveTypeId_year: {
+            employeeId: userId,
+            leaveTypeId: leaveType.id,
+            year,
+          },
+        },
       });
 
       if (!quota) throw new Error("ไม่พบโควตาวันลาของคุณสำหรับปีนี้");
 
-      const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
+      const remaining =
+        Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
+
       if (remaining < totalDaysRequested) {
         throw new Error(`วันลาคงเหลือไม่พอ (เหลือ ${remaining} วัน)`);
       }
@@ -190,39 +210,38 @@ exports.createLeaveRequest = async (req, res) => {
           status: "Pending",
           attachmentUrl,
         },
-        include: { employee: true, leaveType: true }
+        include: { employee: true, leaveType: true },
       });
 
       const fullName = `${newLeave.employee.firstName} ${newLeave.employee.lastName}`;
 
       // --- 🔍 ค้นหา HR/Admin ---
       const admins = await tx.employee.findMany({
-        where: { 
+        where: {
           role: { in: ["HR"] },
-          id: { not: userId } 
+          id: { not: userId },
         },
-        select: { id: true }
+        select: { id: true },
       });
 
       // --- 📝 บันทึกแจ้งเตือนลง Database ---
       if (admins.length > 0) {
-        // ใช้ Promise.all เพื่อสร้าง Notification และนับ Unread Count พร้อมกัน
         const notificationMsg = `คำขอลาใหม่: ${fullName} ขอลา${type} ${totalDaysRequested} วัน`;
-        
+
         await tx.notification.createMany({
-          data: admins.map(admin => ({
+          data: admins.map((admin) => ({
             employeeId: admin.id,
             notificationType: "NewRequest",
             message: notificationMsg,
             relatedRequestId: newLeave.id,
-          }))
+          })),
         });
 
         // ดึงข้อมูล Unread Count ล่าสุดของทุกคนเพื่อส่งผ่าน Socket
         const adminUpdates = await Promise.all(
           admins.map(async (admin) => {
             const count = await tx.notification.count({
-              where: { employeeId: admin.id, isRead: false }
+              where: { employeeId: admin.id, isRead: false },
             });
             return { adminId: admin.id, unreadCount: count };
           })
@@ -237,13 +256,13 @@ exports.createLeaveRequest = async (req, res) => {
     // ✅ 3. ส่ง Real-time Socket.io ไปหา HR/Admin ทุกคน
     const io = req.app.get("io");
     if (io && result.adminUpdates.length > 0) {
-      result.adminUpdates.forEach(update => {
+      result.adminUpdates.forEach((update) => {
         io.to(`user_${update.adminId}`).emit("new_notification", {
-          id: Date.now(), 
+          id: Date.now(),
           message: result.message,
           notificationType: "NewRequest",
           createdAt: new Date(),
-          unreadCount: update.unreadCount // ✅ ส่งตัวเลข Badge ไปให้อัปเดตทันที
+          unreadCount: update.unreadCount,
         });
       });
     }
@@ -254,6 +273,7 @@ exports.createLeaveRequest = async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 };
+
 
 // ---------------------------------------------------------
 // ส่วนของ HR (จัดการและอนุมัติ)
