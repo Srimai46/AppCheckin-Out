@@ -88,6 +88,7 @@ exports.getEmployeeById = async (req, res) => {
         status: record.isLate ? "สาย" : "ปกติ",
         note: record.note || "-",
       })),
+      // ✅ แก้ไขส่วนนี้: เพิ่ม attachmentUrl ลงในก้อนข้อมูล leaves
       leaves: employee.leaveRequestsAsEmployee.map((leave) => ({
         id: leave.id,
         type: leave.leaveType.typeName,
@@ -96,6 +97,7 @@ exports.getEmployeeById = async (req, res) => {
         days: Number(leave.totalDaysRequested),
         status: leave.status,
         reason: leave.reason,
+        attachmentUrl: leave.attachmentUrl, // 👈 เพิ่มบรรทัดนี้เพื่อส่งข้อมูลไฟล์แนบ
       })),
     });
   } catch (error) {

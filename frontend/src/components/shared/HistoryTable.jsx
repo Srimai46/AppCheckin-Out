@@ -1,0 +1,86 @@
+import React from "react";
+import { History, FileText, Image as ImageIcon } from "lucide-react";
+import { openAttachment } from "../../utils/attachmentPreview";
+
+export default function HistoryTable({ 
+  activeTab, 
+  setActiveTab, 
+  attendanceData = [], 
+  leaveData = [], 
+  buildFileUrl 
+}) {
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case "Approved": return "bg-emerald-50 text-emerald-600 border-emerald-100";
+      case "Rejected": return "bg-rose-50 text-rose-600 border-rose-100";
+      default: return "bg-amber-50 text-amber-600 border-amber-100";
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+      {/* Header & Tabs */}
+      <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-2">
+          {activeTab === "attendance" ? <History size={18} className="text-blue-600" /> : <FileText size={18} className="text-amber-500" />}
+          <h2 className="font-black text-slate-800 text-sm uppercase tracking-widest">
+            {activeTab === "attendance" ? "Attendance Log" : "Leave History"}
+          </h2>
+        </div>
+        <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1">
+          <button onClick={() => setActiveTab("attendance")} className={`px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${activeTab === "attendance" ? "bg-white shadow-sm text-slate-800" : "text-gray-400"}`}>Attendance</button>
+          <button onClick={() => setActiveTab("leave")} className={`px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${activeTab === "leave" ? "bg-white shadow-sm text-slate-800" : "text-gray-400"}`}>Leave</button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50">
+            {activeTab === "attendance" ? (
+              <tr><th className="px-6 py-4">Date</th><th className="px-6 py-4">In / Out</th><th className="px-6 py-4 text-center">Status</th></tr>
+            ) : (
+              <tr><th className="px-6 py-4">Type</th><th className="px-6 py-4">Period</th><th className="px-6 py-4 text-center">File</th><th className="px-6 py-4 text-center">Status</th></tr>
+            )}
+          </thead>
+          <tbody className="text-[11px] font-bold uppercase">
+            {activeTab === "attendance" ? (
+              attendanceData.length > 0 ? attendanceData.map((row, i) => (
+                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
+                  <td className="px-6 py-4 text-slate-600">{row.date || row.dateDisplay}</td>
+                  <td className="px-6 py-4">
+                    <span className="text-emerald-600">{row.checkIn || row.checkInTimeDisplay || "--:--"}</span>
+                    <span className="mx-2 text-gray-300">/</span>
+                    <span className="text-rose-500">{row.checkOut || row.checkOutTimeDisplay || "--:--"}</span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`px-3 py-1 rounded-lg border ${row.status === "สาย" || row.statusDisplay === "สาย" ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"}`}>{row.status || row.statusDisplay || "ปกติ"}</span>
+                  </td>
+                </tr>
+              )) : <tr><td colSpan="3" className="p-10 text-center text-gray-300 italic">No Data</td></tr>
+            ) : (
+              leaveData.length > 0 ? leaveData.map((leave, i) => (
+                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
+                  <td className="px-6 py-4">
+                    <div className="text-slate-800">{leave.leaveType?.typeName || leave.type}</div>
+                    <div className="text-[9px] text-gray-400 font-black">{leave.totalDaysRequested || leave.days} Days</div>
+                  </td>
+                  <td className="px-6 py-4 text-gray-500">
+                    {leave.start || new Date(leave.startDate).toLocaleDateString("th-TH")} - {leave.end || new Date(leave.endDate).toLocaleDateString("th-TH")}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    {(leave.attachmentUrl) && (
+                      <button onClick={() => openAttachment(buildFileUrl(leave.attachmentUrl))} className="bg-indigo-100 text-indigo-700 p-2 rounded-xl active:scale-95 transition-all"><ImageIcon size={16} /></button>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`px-3 py-1.5 rounded-xl border-2 ${getStatusStyle(leave.status)}`}>{leave.status}</span>
+                  </td>
+                </tr>
+              )) : <tr><td colSpan="4" className="p-10 text-center text-gray-300 italic">No Data</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
