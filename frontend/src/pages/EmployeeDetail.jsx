@@ -355,25 +355,35 @@ export default function EmployeeDetail() {
                       <div className="flex items-center gap-3">
                         <span
                           className={`h-9 w-9 rounded-xl flex items-center justify-center border
-                            ${formData.role === "HR"
-                              ? "bg-blue-50 text-blue-700 border-blue-100"
-                              : "bg-slate-50 text-slate-700 border-slate-100"}
+                            ${
+                              formData.role === "HR"
+                                ? "bg-blue-50 text-blue-700 border-blue-100"
+                                : "bg-slate-50 text-slate-700 border-slate-100"
+                            }
                           `}
                         >
-                          {formData.role === "HR" ? <ShieldCheck size={16} /> : <Briefcase size={16} />}
+                          {formData.role === "HR" ? (
+                            <ShieldCheck size={16} />
+                          ) : (
+                            <Briefcase size={16} />
+                          )}
                         </span>
 
                         <div className="text-left">
                           <div className="text-slate-800">{formData.role}</div>
                           <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                            {formData.role === "HR" ? "Full Access" : "Standard Access"}
+                            {formData.role === "HR"
+                              ? "Full Access"
+                              : "Standard Access"}
                           </div>
                         </div>
                       </div>
 
                       <ChevronDown
                         size={18}
-                        className={`text-gray-400 transition-transform ${roleOpen ? "rotate-180" : ""}`}
+                        className={`text-gray-400 transition-transform ${
+                          roleOpen ? "rotate-180" : ""
+                        }`}
                       />
                     </div>
                   </button>
@@ -404,7 +414,9 @@ export default function EmployeeDetail() {
                             <Briefcase size={16} />
                           </span>
                           <div className="flex-1">
-                            <div className="font-black text-slate-800">Worker</div>
+                            <div className="font-black text-slate-800">
+                              Worker
+                            </div>
                             <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
                               Standard Access
                             </div>
@@ -517,29 +529,46 @@ export default function EmployeeDetail() {
 
       {/* --- MODAL: Adjust Quota --- */}
       {showQuotaModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-xl rounded-[2.5rem] p-8 space-y-6 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] p-10 space-y-8 shadow-2xl animate-in zoom-in duration-300 relative my-auto">
+            {/* Header และปุ่มปิด */}
             <div className="flex items-center">
-              <h2 className="text-xl font-black uppercase tracking-tight">
-                Adjust Quota
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                ปรับโควตาวันลา (รายคน)
               </h2>
               <button
                 onClick={() => setShowQuotaModal(false)}
-                className="ml-auto text-gray-400 hover:text-gray-600"
+                className="ml-auto text-gray-400 hover:text-gray-600 transition-all"
               >
-                <X />
+                <X size={28} />
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            {/* ข้อมูลพนักงาน */}
+            <div className="text-lg font-bold text-slate-500">
+              พนักงาน:{" "}
+              <span className="text-slate-800 font-black">
+                {data?.info?.fullName}
+              </span>
+            </div>
+
+            {/* Grid ของประเภทการลา */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {Object.keys(quotaDraft).map((t) => (
                 <div
                   key={t}
-                  className="rounded-3xl border border-gray-100 bg-gray-50 p-5"
+                  className="rounded-[2rem] border border-gray-50 bg-gray-50/50 p-6 space-y-4"
                 >
-                  <div className="text-[10px] font-black text-gray-400 uppercase mb-3">
-                    {t}
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                      {t}
+                    </span>
+                    <span className="text-[11px] font-black text-gray-400 uppercase tracking-[0.1em]">
+                      TOTAL DAYS
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  <div className="flex items-center gap-3">
                     <button
                       onClick={() =>
                         setQuotaDraft({
@@ -547,10 +576,11 @@ export default function EmployeeDetail() {
                           [t]: Math.max(0, quotaDraft[t] - 1),
                         })
                       }
-                      className="h-10 w-10 rounded-xl bg-white border flex items-center justify-center font-bold"
+                      className="h-12 w-12 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-slate-600 hover:bg-gray-50 transition-all active:scale-90"
                     >
-                      <Minus size={16} />
+                      <Minus size={20} strokeWidth={3} />
                     </button>
+
                     <input
                       type="number"
                       value={quotaDraft[t]}
@@ -560,27 +590,53 @@ export default function EmployeeDetail() {
                           [t]: Number(e.target.value),
                         })
                       }
-                      className="flex-1 text-center font-black bg-transparent outline-none"
+                      className="flex-1 h-12 rounded-2xl border border-gray-100 bg-white text-center text-xl font-black text-slate-800 outline-none focus:ring-2 focus:ring-blue-100 transition-all"
                     />
+
                     <button
                       onClick={() =>
                         setQuotaDraft({ ...quotaDraft, [t]: quotaDraft[t] + 1 })
                       }
-                      className="h-10 w-10 rounded-xl bg-white border flex items-center justify-center font-bold"
+                      className="h-12 w-12 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-slate-600 hover:bg-gray-50 transition-all active:scale-90"
                     >
-                      <Plus size={16} />
+                      <Plus size={20} strokeWidth={3} />
                     </button>
+                  </div>
+
+                  <div className="text-[11px] text-gray-400 font-bold">
+                    ช่วงที่แนะนำ: 0 - 365 วัน
                   </div>
                 </div>
               ))}
             </div>
-            <button
-              onClick={handleApplyQuota}
-              disabled={quotaLoading}
-              className="w-full py-5 rounded-3xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all"
-            >
-              {quotaLoading ? "UPDATING..." : "APPLY QUOTA"}
-            </button>
+
+            {/* ส่วน Warning */}
+            <div className="rounded-3xl border border-rose-100 bg-rose-50/50 p-6 space-y-1">
+              <div className="text-[11px] font-black text-rose-500 uppercase tracking-widest">
+                WARNING
+              </div>
+              <div className="text-sm font-bold text-rose-700 leading-relaxed">
+                หากตั้ง “Total” ต่ำกว่า “Used” ระบบจะปรับให้เท่ากับ Used
+                อัตโนมัติ (เพื่อไม่ให้คงเหลือติดลบ)
+              </div>
+            </div>
+
+            {/* ปุ่มกดดำเนินการ */}
+            <div className="flex flex-col sm:flex-row gap-4 pt-2">
+              <button
+                onClick={() => setShowQuotaModal(false)}
+                className="flex-1 py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest border-2 border-gray-100 text-gray-400 hover:bg-gray-50 transition-all active:scale-95"
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleApplyQuota}
+                disabled={quotaLoading}
+                className="flex-1 py-5 rounded-[2rem] bg-blue-600 text-white font-black text-sm uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all active:scale-95 disabled:bg-gray-400"
+              >
+                {quotaLoading ? "UPDATING..." : "APPLY"}
+              </button>
+            </div>
           </div>
         </div>
       )}
