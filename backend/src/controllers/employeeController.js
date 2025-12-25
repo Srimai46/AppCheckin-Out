@@ -85,7 +85,7 @@ exports.getEmployeeById = async (req, res) => {
         date: formatShortDate(record.workDate),
         checkIn: formatThaiTime(record.checkInTime),
         checkOut: record.checkOutTime ? formatThaiTime(record.checkOutTime) : "-",
-        status: record.isLate ? "สาย" : "ปกติ",
+        status: record.isLate ? "Late" : "On time",
         note: record.note || "-",
       })),
       // ✅ แก้ไขส่วนนี้: เพิ่ม attachmentUrl ลงในก้อนข้อมูล leaves
