@@ -188,7 +188,12 @@ export default function TeamCalendar() {
 
   // ===================== UI Helpers (Leaves) =====================
   const handleDayClick = (day) => {
-    const dayLeaves = leaves.filter((l) => isSameDay(l.date, day));
+    const dayLeaves = leaves.filter((leaf) => {
+  if (!isSameDay(leaf.date, day)) return false;
+  if (selectedTypes.length === 0) return true; // ยังไม่เลือก = แสดงทั้งหมด
+  return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
+});
+
     setSelectedDate(day);
     setModalLeaves(dayLeaves);
     setShowModal(true);
@@ -310,6 +315,18 @@ export default function TeamCalendar() {
     }
   };
 
+  const [selectedTypes, setSelectedTypes] = useState([]); // [] = show all
+const matchLeaveType = (leaveType, filter) => {
+  const t = String(leaveType || "").toLowerCase();
+  if (filter === "sick") return t.includes("sick") || t.includes("ป่วย");
+  if (filter === "personal") return t.includes("personal") || t.includes("กิจ") || t.includes("ธุระ");
+  if (filter === "annual") return t.includes("annual") || t.includes("vacation") || t.includes("พักร้อน");
+  if (filter === "emergency") return t.includes("emergency") || t.includes("ฉุกเฉิน");
+  return false;
+};
+
+
+
   return (
     <div className="p-4 sm:p-6">
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
@@ -338,11 +355,40 @@ export default function TeamCalendar() {
               </button>
 
               <div className="flex flex-wrap items-center gap-2">
-                <LegendDot color="bg-rose-400" label="Sick" />
-                <LegendDot color="bg-sky-400" label="Personal" />
-                <LegendDot color="bg-emerald-400" label="Annual" />
-                <LegendDot color="bg-yellow-400" label="Emergency" />
-              </div>
+  {[
+    { key: "sick", color: "bg-rose-400", label: "Sick" },
+    { key: "personal", color: "bg-sky-400", label: "Personal" },
+    { key: "annual", color: "bg-emerald-400", label: "Annual" },
+    { key: "emergency", color: "bg-yellow-400", label: "Emergency" },
+  ].map((item) => {
+    const active = selectedTypes.includes(item.key);
+
+    return (
+      <button
+        key={item.key}
+        type="button"
+        onClick={() =>
+          setSelectedTypes((prev) =>
+            prev.includes(item.key)
+              ? prev.filter((t) => t !== item.key)
+              : [...prev, item.key]
+          )
+        }
+        className={`flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-black transition-all
+          ${
+            active
+              ? "bg-white border-blue-400 ring-2 ring-blue-200 scale-[1.03]"
+              : "bg-gray-50 border-gray-100 opacity-60 hover:opacity-100"
+          }
+        `}
+      >
+        <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
+        <span className="text-slate-700">{item.label}</span>
+      </button>
+    );
+  })}
+</div>
+
             </div>
 
             <div className="flex items-center justify-end gap-2">
@@ -374,7 +420,8 @@ export default function TeamCalendar() {
 
         {/* ===== Calendar Grid ===== */}
         <div className="p-4 sm:p-6">
-          <div className="border border-gray-100 rounded-2xl overflow-hidden">
+          <div className="bg-white rounded-[2rem] border border-blue-200 ring-2  overflow-hidden">
+
             <div className="grid grid-cols-7 border-b border-gray-100 bg-white">
               {weekHeaders.map((d) => (
                 <div key={d} className="py-2 text-center text-[11px] font-black text-slate-700">
@@ -385,7 +432,12 @@ export default function TeamCalendar() {
 
             <div className="grid grid-cols-7 bg-white">
               {calendarDays.map((day) => {
-                const dayLeaves = leaves.filter((leaf) => isSameDay(leaf.date, day));
+               const dayLeaves = leaves.filter((leaf) => {
+  if (!isSameDay(leaf.date, day)) return false;
+  if (selectedTypes.length === 0) return true; // ยังไม่เลือก = แสดงทั้งหมด
+  return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
+});
+
                 const inMonth = isSameMonth(day, currentDate);
                 const dow = day.getDay();
                 const weekendBg = weekendBgByDow(dow);
@@ -449,18 +501,16 @@ export default function TeamCalendar() {
               })}
             </div>
           </div>
-        </div>
 
         {/* ===================== ✅ TEAM CHECK-IN/OUT PANEL ===================== */}
-        <div className="px-4 sm:px-6 pb-6">
-          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-hidden mt-28 ">
             <div className="p-6 border-b border-gray-50 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-gray-100 flex items-center justify-center">
-                  <Users className="text-slate-600" size={20} />
+                <div className="w-11 h-11 rounded-2xl bg-blue-600 border border-gray-100 flex items-center justify-center">
+                  <Users className="text-slate-50" size={20} />
                 </div>
                 <div>
-                  <div className="text-sm font-black uppercase tracking-widest text-slate-800">
+                  <div className="text-4xl font-black uppercase tracking-widest text-slate-800 " >
                     Team Check-in / Check-out (Today)
                   </div>
                   <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
