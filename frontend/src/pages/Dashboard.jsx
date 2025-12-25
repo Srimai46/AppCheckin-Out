@@ -132,7 +132,7 @@ export default function Dashboard() {
             `}
           >
             <div className="flex justify-between items-center">
-              <span>Year {selectedYear} (AD)</span>
+              <span>Year {selectedYear} </span>
               <ChevronDown
                 size={18}
                 className={`transition-transform ${
@@ -160,7 +160,7 @@ export default function Dashboard() {
                     }
                   `}
                 >
-                  Year {y} (AD)
+                  Year {y}
                 </button>
               ))}
             </div>
