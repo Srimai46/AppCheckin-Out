@@ -50,7 +50,7 @@ exports.checkIn = async (req, res) => {
     });
 
     if (existingRecord) {
-      return res.status(400).json({ error: "วันนี้คุณได้ลงเวลาเข้างานไปแล้ว" });
+      return res.status(400).json({ error: "You have already checked in for today." });
     }
 
     // 2. คำนวณว่าสายหรือไม่
@@ -59,7 +59,7 @@ exports.checkIn = async (req, res) => {
     workStartTime.setMinutes(WORK_START_MINUTE);
 
     const isLate = now > workStartTime;
-    const statusText = isLate ? "สาย" : "ปกติ";
+    const statusText = isLate ? "Late" : "Normal";
 
     // 3. บันทึกข้อมูล
     const record = await prisma.timeRecord.create({
@@ -76,7 +76,7 @@ exports.checkIn = async (req, res) => {
     if (isLate) {
       const hrUsers = await prisma.employee.findMany({ where: { role: "HR" } });
       const thaiTimeStr = formatThaiTime(now);
-      const lateMessage = `คุณ ${req.user.firstName} ${req.user.lastName} เข้างานสาย (${thaiTimeStr})`;
+      const lateMessage = `Employee ${req.user.firstName} ${req.user.lastName} is late (${thaiTimeStr})`;
 
       if (hrUsers.length > 0) {
         const notifications = hrUsers.map((hr) => ({
@@ -102,7 +102,7 @@ exports.checkIn = async (req, res) => {
     }
 
     res.status(201).json({
-      message: isLate ? "ลงเวลาเข้างานสำเร็จ (สาย)" : "ลงเวลาเข้างานสำเร็จ",
+      message: isLate ? "Check-in successful (Late)" : "Check-in successful",
       result: {
         date: formatShortDate(now),
         time: formatThaiTime(now),
@@ -114,7 +114,7 @@ exports.checkIn = async (req, res) => {
 
   } catch (error) {
     console.error("CheckIn Error:", error);
-    res.status(500).json({ message: "เกิดข้อผิดพลาดในการลงเวลา" });
+    res.status(500).json({ message: "An error occurred during check-in" });
   }
 };
 
@@ -133,7 +133,7 @@ exports.checkOut = async (req, res) => {
     });
 
     if (!record) {
-      return res.status(400).json({ error: "ไม่พบข้อมูลการเข้างานวันนี้ กรุณา Check-in ก่อน" });
+      return res.status(400).json({ error: "Check-in record not found. Please check in first." });
     }
 
     const updatedRecord = await prisma.timeRecord.update({
