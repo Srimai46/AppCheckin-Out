@@ -22,7 +22,7 @@ exports.getMyNotifications = async (req, res) => {
         res.json({ notifications, unreadCount });
     } catch (error) {
         console.error("Get Notifications Error:", error);
-        res.status(500).json({ error: 'ดึงข้อมูลการแจ้งเตือนล้มเหลว' });
+        res.status(500).json({ error: 'Retrieving notification data failed.' });
     }
 };
 
@@ -32,7 +32,7 @@ exports.markAsRead = async (req, res) => {
         const { id } = req.params;
         const notiId = parseInt(id);
 
-        if (isNaN(notiId)) return res.status(400).json({ error: 'ID ไม่ถูกต้อง' });
+        if (isNaN(notiId)) return res.status(400).json({ error: 'ID incorrect' });
 
         // ตรวจสอบและอัปเดตเฉพาะของตัวเอง
         const result = await prisma.notification.updateMany({
@@ -50,12 +50,12 @@ exports.markAsRead = async (req, res) => {
         });
 
         res.json({ 
-            message: 'อ่านแล้ว', 
+            message: 'Read', 
             unreadCount: latestUnreadCount 
         });
     } catch (error) {
         console.error("Mark Read Error:", error);
-        res.status(500).json({ error: 'เกิดข้อผิดพลาด' });
+        res.status(500).json({ error: 'There is something wrong' });
     }
 };
 
@@ -71,11 +71,11 @@ exports.markAllAsRead = async (req, res) => {
         });
 
         res.json({ 
-            message: 'อ่านทั้งหมดแล้ว', 
+            message: 'Read All', 
             unreadCount: 0 // อ่านหมดแล้วส่ง 0 กลับไปได้เลย
         });
     } catch (error) {
         console.error("Mark All Read Error:", error);
-        res.status(500).json({ error: 'เกิดข้อผิดพลาด' });
+        res.status(500).json({ error: 'There is something wrong' });
     }
 };
