@@ -47,14 +47,14 @@ export const openAttachment = async (fileUrl) => {
     // =====================
     Swal.fire({
       icon: "error",
-      title: "เปิดไฟล์ไม่สำเร็จ",
-      text: `ลิงก์นี้ไม่ได้ส่งไฟล์ PDF หรือรูปภาพกลับมา`,
+      title: "Unable to Open File",
+      text: "The link did not return a PDF or image file.",
     });
-  } catch (err) {
-    Swal.fire({
-      icon: "error",
-      title: "เกิดข้อผิดพลาด",
-      text: "ไม่สามารถโหลดไฟล์จากเซิร์ฟเวอร์ได้",
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "An Error Occurred",
+        text: "Unable to load the file from the server.",
     });
   }
 };

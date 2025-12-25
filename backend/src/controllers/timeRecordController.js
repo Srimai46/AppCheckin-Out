@@ -59,7 +59,7 @@ exports.checkIn = async (req, res) => {
     workStartTime.setMinutes(WORK_START_MINUTE);
 
     const isLate = now > workStartTime;
-    const statusText = isLate ? "Late" : "Normal";
+    const statusText = isLate ? "Late" : "On Time";
 
     // 3. บันทึกข้อมูล
     const record = await prisma.timeRecord.create({

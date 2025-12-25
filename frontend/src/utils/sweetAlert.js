@@ -39,7 +39,7 @@ export const alertSuccess = async (title, text = "") => {
 
 export const alertError = async (title, text = "") => {
   return Swal.fire({
-    icon: "error",
+    icon: "warning",
     title,
     text,
     buttonsStyling: false,
