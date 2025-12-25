@@ -29,49 +29,36 @@ export default function NotificationBell() {
   };
 
   useEffect(() => {
-    fetchNotifications();
+  fetchNotifications();
 
-    // 1. สร้างการเชื่อมต่อ Socket ชี้ไปที่ IP Server
-    const newSocket = io(SOCKET_URL, {
-      auth: { token: localStorage.getItem("token") },
-      // ✅ เปลี่ยนจาก transports: ["websocket"]
-      // เป็นการยอมให้ใช้ polling ก่อน (default behavior)
-      transports: ["polling", "websocket"],
-      upgrade: true, // อนุญาตให้ขยับจาก polling เป็น websocket เมื่อพร้อม
-      reconnection: true,
-      reconnectionAttempts: 5,
-    });
+  const newSocket = io(SOCKET_URL, {
+    auth: { token: localStorage.getItem("token") },
+    transports: ["polling", "websocket"],
+    upgrade: true,
+    reconnection: true,
+  });
 
-    // 2. ดึง User ID จาก Token เพื่อ Join Room
-    try {
-      const token = localStorage.getItem("token");
-      if (token) {
-        const decoded = jwtDecode(token);
-        // ✅ ตรวจสอบสถานะการเชื่อมต่อก่อน emit
-        newSocket.on("connect", () => {
-          console.log("✅ Socket Connected!");
-          // newSocket.emit("join", decoded.id);
-        });
-      }
-    } catch (error) {
-      console.error("Token decode error:", error);
-    }
+  newSocket.on("connect", () => {
+    console.log("✅ Notification Socket Connected!");
+  });
 
-    // 3. รอรับการแจ้งเตือนใหม่
-    newSocket.on("new_notification", (data) => {
-      console.log("📩 Received notification:", data);
-      setNotifications((prev) => [data, ...prev]);
-      if (data.unreadCount !== undefined) {
-        setUnreadCount(data.unreadCount);
-      } else {
-        setUnreadCount((prev) => prev + 1);
-      }
-    });
+  // ✅ แก้ไขตรงนี้: รับสัญญาณ "notification_refresh" เพิ่มเติม
+  // เพราะ Backend ฟังก์ชัน processCarryOver ส่งสัญญาณชื่อนี้ออกมา
+  newSocket.on("notification_refresh", () => {
+    console.log("🔔 New process detected! Fetching new notifications...");
+    fetchNotifications(); // สั่งให้โหลดข้อความใหม่จาก API ทันที
+  });
 
-    setSocket(newSocket);
+  // ส่วนเดิม "new_notification" ก็เก็บไว้สำหรับแจ้งเตือนประเภทอื่นๆ (เช่น การอนุมัติลา)
+  newSocket.on("new_notification", (data) => {
+    console.log("📩 Received notification:", data);
+    setNotifications((prev) => [data, ...prev]);
+    setUnreadCount((prev) => (data.unreadCount !== undefined ? data.unreadCount : prev + 1));
+  });
 
-    return () => newSocket.close();
-  }, []);
+  setSocket(newSocket);
+  return () => newSocket.close();
+}, []);
 
   const handleMarkAsRead = async (id) => {
     try {

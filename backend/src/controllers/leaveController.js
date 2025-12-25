@@ -522,7 +522,7 @@ exports.processCarryOver = async (req, res) => {
         const typeName = String(quota.leaveType?.typeName || "").toUpperCase();
 
         // --- คำนวณวันทบ (เฉพาะ ANNUAL) ---
-        let carryAmount = 0;
+       let carryAmount = 0;
         if (typeName === "ANNUAL") {
           const remaining =
             Number(quota.totalDays) +
@@ -532,7 +532,7 @@ exports.processCarryOver = async (req, res) => {
         }
 
         const newBaseQuota = Number(quotas[typeName] || 0);
-
+ 
         // --- Upsert เข้าปีใหม่ ---
         await tx.leaveQuota.upsert({
           where: {
