@@ -74,7 +74,7 @@ export default function Dashboard() {
     } catch (err) {
       alertError(
         "Operation Failed",
-        err?.response?.data?.message || "An unexpected error occurred. Please try again."
+        err?.response?.data?.message || "You cannot perform this action at the moment. Please try again later."
       );
     }
   };
