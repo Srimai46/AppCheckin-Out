@@ -86,28 +86,47 @@ const capAnnual = ({ typeName, totalDays, carryOverDays }) => {
 // 1. ดึงโควตาของตัวเอง
 exports.getMyQuotas = async (req, res) => {
   try {
-    const currentYear = new Date().getFullYear();
+    let year = req.query.year 
+      ? parseInt(req.query.year, 10) 
+      : new Date().getFullYear();
+
+    // ✅ Normalization: ถ้าส่ง พ.ศ. มา (เช่น 2568) ให้แปลงเป็น ค.ศ. (2025) อัตโนมัติ
+    if (year > 2500) {
+      year -= 543;
+    }
 
     const quotas = await prisma.leaveQuota.findMany({
-      where: { employeeId: req.user.id, year: currentYear },
+      where: { 
+        employeeId: req.user.id, 
+        year: year 
+      },
       include: { leaveType: true },
     });
 
-    res.json(
-      quotas.map((q) => {
-        const totalAvailable = Number(q.totalDays) + Number(q.carryOverDays);
-        return {
-          type: q.leaveType.typeName,
-          baseQuota: Number(q.totalDays),
-          carryOver: Number(q.carryOverDays),
-          total: totalAvailable,
-          used: Number(q.usedDays),
-          remaining: totalAvailable - Number(q.usedDays),
-        };
-      })
-    );
+    // ✅ ตรวจสอบข้อมูลก่อนส่งกลับ
+    const result = quotas.map((q) => {
+      // ใช้ parseFloat และกำหนด default เป็น 0 เพื่อป้องกัน NaN
+      const base = parseFloat(q.totalDays) || 0;
+      const carry = parseFloat(q.carryOverDays) || 0;
+      const used = parseFloat(q.usedDays) || 0;
+      const totalAvailable = base + carry;
+
+      return {
+        type: q.leaveType ? q.leaveType.typeName : "Unknown",
+        baseQuota: base,
+        carryOver: carry,
+        total: totalAvailable,
+        used: used,
+        remaining: totalAvailable - used,
+        year: q.year
+      };
+    });
+
+    // ส่งกลับเป็น Array เสมอ (Empty Array [] หากหาไม่พบ)
+    res.json(result);
   } catch (error) {
-    res.status(500).json({ error: "ดึงข้อมูลโควตาผิดพลาด" });
+    console.error("getMyQuotas Error:", error);
+    res.status(500).json({ error: "Failed to fetch quota data" });
   }
 };
 
@@ -471,32 +490,23 @@ exports.updateEmployeeQuota = async (req, res) => {
 // 5. ✅ ประมวลผลทบวันลาที่เหลือจากปีก่อนหน้า (Annual only, cap 12)
 exports.processCarryOver = async (req, res) => {
   try {
-    const targetYear = req.body?.targetYear
-      ? parseInt(req.body.targetYear, 10)
-      : null;
+    const targetYear = req.body?.targetYear ? parseInt(req.body.targetYear, 10) : null;
     const quotas = req.body?.quotas || {};
-
-    // ✅ เพิ่มการประกาศตัวแปรสำคัญตรงนี้
     const lastYear = targetYear ? targetYear - 1 : null;
     const ANNUAL_CARRY_CAP = 12;
 
-    // ตรวจสอบค่า targetYear
     if (!targetYear || isNaN(targetYear) || targetYear < 2000) {
-      return res
-        .status(400)
-        .json({ error: "targetYear ไม่ถูกต้อง หรือไม่ได้ส่งมา" });
+      return res.status(400).json({ error: "Invalid targetYear or not provided." });
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. ตรวจสอบสถานะการปิดงวด (ตัวแปร lastYear จะมีค่าแล้ว)
+      // 1. ตรวจสอบสถานะการปิดงวด
       const config = await tx.systemConfig.findUnique({
         where: { year: lastYear },
       });
 
       if (config?.isClosed) {
-        throw new Error(
-          `year ${lastYear} The transaction has been closed and cannot be processed again.`
-        );
+        throw new Error(`Year ${lastYear} is already closed.`);
       }
 
       // 2. ดึงข้อมูลโควตาปีที่แล้ว
@@ -506,11 +516,12 @@ exports.processCarryOver = async (req, res) => {
       });
 
       let processedCount = 0;
+      const notifications = [];
 
       for (const quota of oldQuotas) {
         const typeName = String(quota.leaveType?.typeName || "").toUpperCase();
 
-        // --- ส่วนที่ 1: คำนวณวันทบ (เฉพาะ ANNUAL) ---
+        // --- คำนวณวันทบ (เฉพาะ ANNUAL) ---
         let carryAmount = 0;
         if (typeName === "ANNUAL") {
           const remaining =
@@ -522,7 +533,7 @@ exports.processCarryOver = async (req, res) => {
 
         const newBaseQuota = Number(quotas[typeName] || 0);
 
-        // --- ส่วนที่ 3: Upsert เข้าปีใหม่ ---
+        // --- Upsert เข้าปีใหม่ ---
         await tx.leaveQuota.upsert({
           where: {
             employeeId_leaveTypeId_year: {
@@ -544,10 +555,26 @@ exports.processCarryOver = async (req, res) => {
             usedDays: 0,
           },
         });
+
+        // ✅ เตรียมข้อมูล Notification (เฉพาะ ANNUAL หรือทุกประเภทตามต้องการ)
+        if (typeName === "ANNUAL") {
+          notifications.push({
+            employeeId: quota.employeeId,
+            notificationType: "Approval",
+            message: `Your leave carry-over for ${targetYear} has been processed. New balance available!`,
+            isRead: false,
+          });
+        }
+        
         processedCount++;
       }
 
-      // 3. ปิดงวดปีที่แล้ว
+      // 3. บันทึก Notifications ทั้งหมด
+      if (notifications.length > 0) {
+        await tx.notification.createMany({ data: notifications });
+      }
+
+      // 4. ปิดงวดปีที่แล้ว
       await tx.systemConfig.upsert({
         where: { year: lastYear },
         update: { isClosed: true, closedAt: new Date() },
@@ -557,8 +584,14 @@ exports.processCarryOver = async (req, res) => {
       return processedCount;
     });
 
+    // ✅ ส่ง Signal ผ่าน Socket.io เพื่อให้หน้าจอพนักงาน Refresh ข้อมูล
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("notification_refresh"); 
+    }
+
     res.json({
-      message: `Processing for the year ${targetYear} is complete (accumulation and new quota allocation completed).`,
+      message: `Processing for ${targetYear} successful. Employees notified.`,
       employeesProcessed: result,
     });
   } catch (error) {

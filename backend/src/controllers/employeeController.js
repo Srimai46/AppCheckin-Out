@@ -44,18 +44,42 @@ exports.getAllEmployees = async (req, res) => {
 exports.getEmployeeById = async (req, res) => {
   try {
     const { id } = req.params;
-    const currentYear = new Date().getFullYear();
+    
+    // ✅ 1. รับค่าปีจาก Query String (ถ้าไม่มีให้ใช้ปีปัจจุบัน)
+    let year = req.query.year 
+      ? parseInt(req.query.year, 10) 
+      : new Date().getFullYear();
+
+    // ✅ 2. Normalization พ.ศ. เป็น ค.ศ.
+    if (year > 2500) year -= 543;
 
     const employee = await prisma.employee.findUnique({
       where: { id: parseInt(id) },
       include: {
-        timeRecords: { orderBy: { workDate: "desc" }, take: 30 },
+        // ✅ 3. กรองเวลาเข้างานตามปีที่เลือก
+        timeRecords: { 
+          where: {
+            workDate: {
+              gte: new Date(`${year}-01-01`),
+              lte: new Date(`${year}-12-31`)
+            }
+          },
+          orderBy: { workDate: "desc" } 
+        },
+        // ✅ 4. กรองรายการลาตามปีที่เลือก
         leaveRequestsAsEmployee: {
+          where: {
+            startDate: {
+              gte: new Date(`${year}-01-01`),
+              lte: new Date(`${year}-12-31`)
+            }
+          },
           include: { leaveType: true },
           orderBy: { startDate: "desc" },
         },
+        // ✅ 5. กรองโควตาตามปีที่เลือก
         leaveQuotas: {
-          where: { year: currentYear },
+          where: { year: year },
           include: { leaveType: true },
         },
       },
@@ -74,12 +98,23 @@ exports.getEmployeeById = async (req, res) => {
         joiningDate: formatShortDate(employee.joiningDate),
         isActive: employee.isActive,
       },
-      quotas: employee.leaveQuotas.map((q) => ({
-        type: q.leaveType.typeName,
-        total: Number(q.totalDays),
-        used: Number(q.usedDays),
-        remaining: Number(q.totalDays) - Number(q.usedDays),
-      })),
+      // ✅ 6. ปรับโครงสร้าง Quotas ให้รองรับ Carry Over เหมือนหน้า Dashboard
+      quotas: employee.leaveQuotas.map((q) => {
+        const base = parseFloat(q.totalDays) || 0;
+        const carry = parseFloat(q.carryOverDays) || 0;
+        const used = parseFloat(q.usedDays) || 0;
+        const totalAvailable = base + carry;
+
+        return {
+          type: q.leaveType.typeName,
+          baseQuota: base,
+          carryOver: carry,
+          total: totalAvailable,
+          used: used,
+          remaining: totalAvailable - used,
+          year: q.year
+        };
+      }),
       attendance: employee.timeRecords.map((record) => ({
         id: record.id,
         date: formatShortDate(record.workDate),

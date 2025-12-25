@@ -28,9 +28,9 @@ export const createLeaveRequest = async (formData) => {
 };
 
 // 4. ดึงโควตาวันลาคงเหลือของพนักงานเอง
-export const getMyQuotas = async () => {
-  const { data } = await api.get('/leaves/my-quota');
-  return data;
+export const getMyQuotas = async (year) => {
+  const res = await api.get(`/leaves/my-quota?year=${year}`);
+  return res.data; // ต้อง return ข้อมูลข้างใน
 };
 
 // 5. ดึงประวัติการลาของตัวเอง
