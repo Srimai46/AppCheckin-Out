@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import {
@@ -14,42 +14,43 @@ import {
   Minus,
   Plus,
   ChevronDown,
-  Calendar, // ✅ เพิ่ม Calendar Icon
 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
 // Shared Components
 import { QuotaCards, HistoryTable } from "../components/shared";
 
+
+
 export default function EmployeeDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+const [roleOpen, setRoleOpen] = useState(false);
+
+const [newPassword, setNewPassword] = useState("");
+const [confirmPassword, setConfirmPassword] = useState("");
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("attendance");
-  const years = [2025, 2026];
-const [yearOpen, setYearOpen] = useState(false);
 
-
-  // ✅ 1. เพิ่ม State สำหรับเลือกปี (ใช้ปี ค.ศ. ตามมาตรฐานหน้า Dashboard)
+  const [yearOpen, setYearOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  // ✅ States สำหรับ Modal จัดการข้อมูล
   const [showModal, setShowModal] = useState(false);
-  const [updating, setUpdating] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    role: "Worker",
-    joiningDate: "",
-    resignationDate: "",
-  });
-  const [roleOpen, setRoleOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [quotaLoading, setQuotaLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [formData, setFormData] = useState({
+  firstName: "",
+  lastName: "",
+  email: "",
+  role: "",
+  joiningDate: "",
+});
+
+
+
   const [quotaDraft, setQuotaDraft] = useState({
     SICK: 0,
     PERSONAL: 0,
@@ -57,25 +58,14 @@ const [yearOpen, setYearOpen] = useState(false);
     EMERGENCY: 0,
   });
 
-  const buildFileUrl = (pathOrUrl) => {
-    if (!pathOrUrl) return "";
-    if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
-    const API_BASE = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
-    const FILE_BASE = API_BASE.replace(/\/api\/?$/, "");
-    const normalizedPath = pathOrUrl.replace(/\\/g, "/");
-    const p = normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`;
-    return `${FILE_BASE || window.location.origin}${p}`;
-  };
-
-  // ✅ 2. ปรับ fetchData ให้รับพารามิเตอร์ปีเพื่อดึงโควตาข้ามปี
+  // ================= Fetch Data =================
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      // ส่ง query ?year=... ไปที่ API เพื่อดึงโควตาที่ถูกต้องของปีนั้นๆ
       const res = await api.get(`/employees/${id}?year=${selectedYear}`);
       setData(res.data);
     } catch (err) {
-      console.error("Fetch error:", err);
+      console.error(err);
       alertError("Request Failed", "Could not retrieve employee data.");
     } finally {
       setLoading(false);
@@ -86,7 +76,68 @@ const [yearOpen, setYearOpen] = useState(false);
     fetchData();
   }, [fetchData]);
 
-  // --- Logic สำหรับจัดการข้อมูลพนักงาน ---
+  // ================= Years (Auto) =================
+  const years = useMemo(() => {
+    if (!data) return [selectedYear];
+
+    const currentYear = new Date().getFullYear();
+    const FUTURE_YEARS = 2; // ปรับได้ตามที่มี
+
+    const dataYears = [
+      ...(data.attendance || []).map((r) =>
+        new Date(r.date || r.dateDisplay).getFullYear()
+      ),
+      ...(data.leaves || []).map((r) => new Date(r.startDate).getFullYear()),
+    ].filter(Number.isFinite);
+
+    const maxYear = Math.max(currentYear, ...dataYears);
+
+    const futureYears = Array.from(
+      { length: FUTURE_YEARS },
+      (_, i) => maxYear + i + 1
+    );
+
+    return [...new Set([currentYear, ...dataYears, ...futureYears])].sort(
+      (a, b) => a - b
+    );
+  }, [data, selectedYear]);
+
+  
+  // ================= Quota Update =================
+  const handleApplyQuota = async () => {
+    const confirmed = await alertConfirm(
+      "Confirm Quota Update",
+      "Update leave quotas for this year?"
+    );
+    if (!confirmed) return;
+
+    try {
+      setQuotaLoading(true);
+      await api.put(`/leaves/policy/quotas/${id}`, {
+        quotas: quotaDraft,
+        year: selectedYear,
+      });
+      alertSuccess("Success", "Quota updated successfully.");
+      setShowQuotaModal(false);
+      fetchData();
+    } catch {
+      alertError("Failed", "Failed to update quota.");
+    } finally {
+      setQuotaLoading(false);
+    }
+  };
+  
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center font-black italic text-blue-600">
+        LOADING PROFILE...
+      </div>
+    );
+  }
+
+  
+
   const handleSaveAll = async (e) => {
     e.preventDefault();
     if (newPassword && newPassword !== confirmPassword)
@@ -104,7 +155,10 @@ const [yearOpen, setYearOpen] = useState(false);
       setShowModal(false);
       fetchData();
     } catch (err) {
-      alertError("Request Failed", err.response?.data?.error || "An error occurred");
+      alertError(
+        "Request Failed",
+        err.response?.data?.error || "An error occurred"
+      );
     } finally {
       setUpdating(false);
     }
@@ -112,12 +166,17 @@ const [yearOpen, setYearOpen] = useState(false);
 
   const handleUpdateStatus = async () => {
     const isCurrentlyActive = data.info.isActive;
-    const confirmed = await alertConfirm("Confirm Status Change", `Change to ${isCurrentlyActive ? "Resigned" : "Active"}?`);
+    const confirmed = await alertConfirm(
+      "Confirm Status Change",
+      `Change to ${isCurrentlyActive ? "Resigned" : "Active"}?`
+    );
     if (!confirmed) return;
 
     try {
       setUpdating(true);
-      await api.patch(`/employees/${id}/status`, { isActive: !isCurrentlyActive });
+      await api.patch(`/employees/${id}/status`, {
+        isActive: !isCurrentlyActive,
+      });
       alertSuccess("Success", "Status changed successfully.");
       setShowModal(false);
       fetchData();
@@ -127,36 +186,21 @@ const [yearOpen, setYearOpen] = useState(false);
       setUpdating(false);
     }
   };
-
-  const handleApplyQuota = async () => {
-    const confirmed = await alertConfirm("Confirm Quota Update", "Update leave quotas for this year?");
-    if (!confirmed) return;
-
-    try {
-      setQuotaLoading(true);
-      // ✅ ส่งปีไปด้วยเพื่อให้ปรับโควตาถูกปี
-      await api.put(`/leaves/policy/quotas/${id}`, { quotas: quotaDraft, year: selectedYear });
-      alertSuccess("Success", "Quota updated successfully.");
-      setShowQuotaModal(false);
-      fetchData();
-    } catch (err) {
-      alertError("Failed", "Failed to update quota.");
-    } finally {
-      setQuotaLoading(false);
-    }
-  };
-
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-slate-50 italic font-black text-blue-600">LOADING PROFILE...</div>
-  );
-
+  // ================= UI =================
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
-      <button onClick={() => navigate(-1)} className="flex items-center text-gray-400 hover:text-blue-600 font-black transition-all group text-sm">
-        <ArrowLeft size={16} className="mr-2 group-hover:-translate-x-1 transition-transform" /> BACK TO DIRECTORY
+
+    
+    
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center text-gray-400 hover:text-blue-600 font-black text-sm"
+      >
+        <ArrowLeft size={16} className="mr-2" />
+        BACK
       </button>
 
-      {/* Header Profile */}
+
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-6 transition-all hover:shadow-md">
         <div className="flex flex-col md:flex-row items-center gap-8">
           <div className="h-28 w-28 rounded-[2rem] bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-5xl font-black shadow-xl shadow-blue-100 uppercase">
@@ -164,12 +208,22 @@ const [yearOpen, setYearOpen] = useState(false);
           </div>
           <div className="space-y-2 text-center md:text-left">
             <div className="flex flex-col md:flex-row items-center gap-3">
-              <h1 className="text-4xl font-black text-slate-800 tracking-tight">{data.info.fullName}</h1>
-              <span className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 ${data.info.isActive ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100"}`}>
+              <h1 className="text-4xl font-black text-slate-800 tracking-tight">
+                {data.info.fullName}
+              </h1>
+              <span
+                className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 ${
+                  data.info.isActive
+                    ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                    : "bg-rose-50 text-rose-600 border-rose-100"
+                }`}
+              >
                 {data.info.isActive ? "Working" : "Resigned"}
               </span>
             </div>
-            <p className="text-slate-400 font-bold text-lg italic">{data.info.email}</p>
+            <p className="text-slate-400 font-bold text-lg italic">
+              {data.info.email}
+            </p>
             <div className="flex flex-wrap justify-center md:justify-start gap-2 pt-2">
               <span className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl border border-blue-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                 <Briefcase size={14} /> {data.info.role}
@@ -180,109 +234,144 @@ const [yearOpen, setYearOpen] = useState(false);
             </div>
           </div>
         </div>
-        <button onClick={() => { 
-          setFormData({ firstName: data.info.firstName, lastName: data.info.lastName, email: data.info.email, role: data.info.role, joiningDate: data.info.joiningDate });
-          setShowModal(true);
-        }} className="px-8 py-5 rounded-[2rem] bg-slate-900 text-white font-black flex items-center gap-3 hover:bg-slate-800 active:scale-95 transition-all shadow-xl shadow-slate-200 text-sm uppercase tracking-widest">
+        <button
+          onClick={() => {
+            setFormData({
+              firstName: data.info.firstName,
+              lastName: data.info.lastName,
+              email: data.info.email,
+              role: data.info.role,
+              joiningDate: data.info.joiningDate,
+            });
+            setShowModal(true);
+          }}
+          className="px-8 py-5 rounded-[2rem] bg-slate-900 text-white font-black flex items-center gap-3 hover:bg-slate-800 active:scale-95 transition-all shadow-xl shadow-slate-200 text-sm uppercase tracking-widest"
+        >
           <Edit3 size={18} /> Manage Info
         </button>
       </div>
-
-      {/* ✅ 3. ส่วน Quota Section พร้อม Dropdown เลือกปี */}
+      {/* ===== Leave Balance ===== */}
       <div className="space-y-4">
         <div className="flex justify-between items-center px-4">
-          <div className="flex items-center gap-2 font-black text-slate-400 text-[11px] uppercase tracking-[0.2em]">
+          <div className="flex items-center gap-2 font-black text-slate-400 text-[11px] uppercase tracking-widest">
             <Settings2 size={14} /> Leave Balance
           </div>
 
-          {/* Year Dropdown ดีไซน์เดียวกับหน้า Dashboard */}
-          <div className="relative inline-block w-44 text-left">
-  {/* Button */}
-  <button
-    type="button"
-    onClick={() => setYearOpen((v) => !v)}
-    className={`w-full rounded-xl px-4 py-2.5 text-xs font-black transition-all
-      bg-white border border-gray-100 shadow-sm
-      hover:border-gray-200 hover:shadow-md
-      focus:outline-none
-      ${yearOpen ? "ring-2 ring-blue-100" : ""}
-    `}
-  >
-    <div className="flex items-center justify-between">
-      <span className="text-slate-700">
-        Year {selectedYear} (AD)
-      </span>
+          {/* Year Dropdown */}
+          <div className="relative w-44">
+            <button
+              type="button"
+              onClick={() => setYearOpen((v) => !v)}
+              className={`w-full px-4 py-2.5 rounded-xl text-xs font-black bg-white border border-gray-100 shadow-sm
+                ${yearOpen ? "ring-2 ring-blue-100" : ""}
+              `}
+            >
+              <div className="flex justify-between items-center">
+                <span>Year {selectedYear}</span>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${
+                    yearOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </div>
+            </button>
 
-      <ChevronDown
-        size={14}
-        className={`text-gray-400 transition-transform ${
-          yearOpen ? "rotate-180" : ""
-        }`}
-      />
-    </div>
-  </button>
-
-  {/* Dropdown */}
-  {yearOpen && (
-    <div className="absolute z-20 mt-1.5 w-full rounded-xl bg-white shadow-lg border border-gray-100 overflow-hidden">
-      {years.map((y) => (
-        <button
-          key={y}
-          type="button"
-          onClick={() => {
-            setSelectedYear(y);
-            setYearOpen(false);
-          }}
-          className={`w-full px-4 py-2.5 text-left text-xs font-black transition-all
-            hover:bg-blue-50
-            ${
-              selectedYear === y
-                ? "bg-blue-50 text-blue-700"
-                : "text-slate-700"
-            }
-          `}
-        >
-          Year {y} (AD)
-        </button>
-      ))}
-    </div>
-  )}
-</div>
-
+            {yearOpen && (
+              <div className="absolute z-20 mt-1.5 w-full rounded-xl bg-white shadow-lg border border-gray-100 overflow-hidden">
+                {years.map((y) => (
+                  <button
+                    key={y}
+                    onClick={() => {
+                      setSelectedYear(y);
+                      setYearOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left text-xs font-black hover:bg-blue-50
+                      ${
+                        selectedYear === y
+                          ? "bg-blue-50 text-blue-700"
+                          : "text-slate-700"
+                      }
+                    `}
+                  >
+                    Year {y}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        
-        {/* แสดง Card วันลาที่จะขึ้น Badge Carry Over อัตโนมัติถ้ามีข้อมูล */}
+
         <QuotaCards quotas={data.quotas || []} />
-      </div>
-
-      <div className="flex justify-between items-end pb-2">
-        <div className="px-4 space-y-1">
-          <h2 className="font-black text-slate-800 uppercase tracking-widest text-lg">Performance Log</h2>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Attendance and Leave Records ({selectedYear})</p>
-        </div>
-        <button
-          onClick={() => {
-            const currentQuotas = {};
-            // ✅ ดึง baseQuota มาตั้งต้นเพื่อให้ HR ปรับโควตาหลักแยกจากยอดทบได้
-            data.quotas.forEach((q) => (currentQuotas[q.type.toUpperCase()] = q.baseQuota || q.total));
-            setQuotaDraft(currentQuotas);
-            setShowQuotaModal(true);
-          }}
-          className="px-6 py-3 rounded-2xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 shadow-lg shadow-blue-100"
-        >
-          Adjust Quota
-        </button>
       </div>
 
       <HistoryTable
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         attendanceData={data.attendance || []}
-        leaveData={data.leaves?.map((l) => ({ ...l, leaveType: { typeName: l.type }, totalDaysRequested: l.days })) || []}
-        buildFileUrl={buildFileUrl}
+        leaveData={data.leaves || []}
       />
 
-      {/* --- MODAL: Manage Info --- */}
+      {/* ===== Adjust Quota Modal ===== */}
+      {showQuotaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white w-full max-w-2xl rounded-3xl p-8 space-y-6">
+            <h2 className="text-xl font-black">
+              Adjust Quota ({selectedYear})
+            </h2>
+
+            <div className="grid grid-cols-2 gap-4">
+              {Object.keys(quotaDraft).map((t) => (
+                <div key={t} className="p-4 rounded-2xl bg-gray-50">
+                  <div className="flex justify-between mb-2 text-xs font-black">
+                    <span>{t}</span>
+                    <span>{quotaDraft[t]} days</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <button
+                      onClick={() =>
+                        setQuotaDraft((p) => ({
+                          ...p,
+                          [t]: Math.max(0, p[t] - 1),
+                        }))
+                      }
+                    >
+                      <Minus />
+                    </button>
+                    <button
+                      onClick={() =>
+                        setQuotaDraft((p) => ({
+                          ...p,
+                          [t]: p[t] + 1,
+                        }))
+                      }
+                    >
+                      <Plus />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowQuotaModal(false)}
+                className="flex-1 py-4 rounded-2xl border font-black"
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleApplyQuota}
+                disabled={quotaLoading}
+                className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-black"
+              >
+                {quotaLoading ? "UPDATING..." : "APPLY"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
@@ -536,128 +625,6 @@ const [yearOpen, setYearOpen] = useState(false);
         </div>
       )}
 
-      {/* --- MODAL: Adjust Quota --- */}
-      {showQuotaModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white w-full max-w-2xl rounded-[3rem] p-10 space-y-8 shadow-2xl animate-in zoom-in duration-300 relative my-auto">
-            {/* Header และปุ่มปิด */}
-            <div className="flex items-center">
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-                ปรับโควตาวันลา (รายคน)
-              </h2>
-              <button
-                onClick={() => setShowQuotaModal(false)}
-                className="ml-auto text-gray-400 hover:text-gray-600 transition-all"
-              >
-                <X size={28} />
-              </button>
-            </div>
-
-            {/* ข้อมูลพนักงาน */}
-            <div className="text-lg font-bold text-slate-500">
-              พนักงาน:{" "}
-              <span className="text-slate-800 font-black">
-                {data?.info?.fullName}
-              </span>
-            </div>
-
-            {/* Grid ของประเภทการลา */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {Object.keys(quotaDraft).map((t) => (
-                <div
-                  key={t}
-                  className="rounded-[1.75rem] border border-gray-100 bg-gray-50/50 p-5"
-                >
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
-                      {t}
-                    </div>
-                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.12em]">
-                      TOTAL DAYS
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between px-1">
-                    {/* Minus */}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setQuotaDraft((prev) => ({
-                          ...prev,
-                          [t]: Math.max(0, (prev[t] ?? 0) - 1),
-                        }))
-                      }
-                      className="h-10 w-10 rounded-full bg-white/70 border border-gray-100
-                                flex items-center justify-center text-slate-700
-                                hover:bg-white active:scale-95 transition-all"
-                    >
-                      <Minus size={16} strokeWidth={3} />
-                    </button>
-
-                    {/* Value */}
-                    <div className="flex flex-col items-center">
-                      <div className="text-2xl font-black text-slate-900 leading-none">
-                        {quotaDraft[t]}
-                      </div>
-                      <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">
-                        Days
-                      </div>
-                    </div>
-
-                    {/* Plus */}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setQuotaDraft((prev) => ({
-                          ...prev,
-                          [t]: (prev[t] ?? 0) + 1,
-                        }))
-                      }
-                      className="h-10 w-10 rounded-full bg-white/70 border border-gray-100
-                                flex items-center justify-center text-slate-700
-                                hover:bg-white active:scale-95 transition-all"
-                    >
-                      <Plus size={16} strokeWidth={3} />
-                    </button>
-                  </div>
-                  <div className="mt-3 text-[10px] text-gray-400 font-bold">
-                    ช่วงที่แนะนำ: 0 - 365 วัน
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* ส่วน Warning */}
-            <div className="rounded-3xl border border-rose-100 bg-rose-50/50 p-6 space-y-1">
-              <div className="text-[11px] font-black text-rose-500 uppercase tracking-widest">
-                WARNING
-              </div>
-              <div className="text-sm font-bold text-rose-700 leading-relaxed">
-                หากตั้ง “Total” ต่ำกว่า “Used” ระบบจะปรับให้เท่ากับ Used
-                อัตโนมัติ
-              </div>
-            </div>
-
-            {/* ปุ่มกดดำเนินการ */}
-            <div className="flex flex-col sm:flex-row gap-4 pt-2">
-              <button
-                onClick={() => setShowQuotaModal(false)}
-                className="flex-1 py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest border-2 border-gray-100 text-gray-400 hover:bg-gray-50 transition-all active:scale-95"
-              >
-                CANCEL
-              </button>
-              <button
-                onClick={handleApplyQuota}
-                disabled={quotaLoading}
-                className="flex-1 py-5 rounded-[2rem] bg-blue-600 text-white font-black text-sm uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all active:scale-95 disabled:bg-gray-400"
-              >
-                {quotaLoading ? "UPDATING..." : "APPLY"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
