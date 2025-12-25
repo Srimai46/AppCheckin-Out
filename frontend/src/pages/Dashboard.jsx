@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { checkIn, checkOut, getMyHistory } from "../api/attendanceService";
 import { getMyQuotas, getMyLeaves } from "../api/leaveService";
@@ -6,21 +6,39 @@ import { LogIn, LogOut, Calendar, ChevronDown } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
-// Shared Components
 import { QuotaCards, HistoryTable } from "../components/shared";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+
   const [time, setTime] = useState(new Date());
   const [data, setData] = useState({ att: [], quotas: [], leaves: [] });
   const [activeTab, setActiveTab] = useState("attendance");
-  const years = [2025, 2026];
-const [yearOpen, setYearOpen] = useState(false);
 
-  
-  // ✅ กำหนด State ปีเป็น ค.ศ. ตามมาตรฐาน DB
+  const [yearOpen, setYearOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  /* -------------------- Year List Logic -------------------- */
+  const currentYear = new Date().getFullYear();
+   const FUTURE_YEARS = 2; //ปรับให้แสดงปีในอานคกี่ปี
+
+  const years = useMemo(() => {
+    const yearsFromHistory = data.att
+      .map((r) => new Date(r.date || r.dateDisplay).getFullYear())
+      .filter(Boolean);
+
+    const maxYear = Math.max(currentYear, ...yearsFromHistory);
+
+    const futureYears = Array.from(
+      { length: FUTURE_YEARS },
+      (_, i) => maxYear + i + 1
+    );
+
+    return [...new Set([...yearsFromHistory, currentYear, ...futureYears])]
+      .sort((a, b) => a - b);
+  }, [data.att, currentYear]);
+  /* --------------------------------------------------------- */
 
   const buildFileUrl = (path) => {
     if (!path) return "";
@@ -31,46 +49,29 @@ const [yearOpen, setYearOpen] = useState(false);
   const fetchData = useCallback(async (year) => {
     try {
       const [h, q, l] = await Promise.all([
-        getMyHistory(), 
-        getMyQuotas(year), 
-        getMyLeaves()
+        getMyHistory(),
+        getMyQuotas(year),
+        getMyLeaves(),
       ]);
-      
-      // ✅ ตรวจสอบและจัดการข้อมูล Array ป้องกัน Error map is not a function
-      const quotaArray = Array.isArray(q) ? q : (q?.data || []);
-      const historyArray = Array.isArray(h) ? h : (h?.data || []);
-      const leavesArray = Array.isArray(l) ? l : (l?.data || []);
 
-      const mappedAtt = historyArray.map(row => ({
-        ...row,
-        dateDisplay: row.dateDisplay || row.date,
-        checkInTimeDisplay: row.checkInTimeDisplay || row.checkIn,
-        checkOutTimeDisplay: row.checkOutTimeDisplay || row.checkOut,
-        statusDisplay: row.statusDisplay || row.status
-      }));
-
-      const mappedLeaves = leavesArray.map(leave => ({
-        ...leave,
-        leaveType: leave.leaveType || { typeName: leave.type },
-        totalDaysRequested: leave.totalDaysRequested || leave.days
-      }));
+      const historyArray = Array.isArray(h) ? h : h?.data || [];
+      const quotaArray = Array.isArray(q) ? q : q?.data || [];
+      const leavesArray = Array.isArray(l) ? l : l?.data || [];
 
       setData({
-        att: mappedAtt,
+        att: historyArray,
         quotas: quotaArray,
-        leaves: mappedLeaves
+        leaves: leavesArray,
       });
     } catch (err) {
-      console.error("Dashboard Fetch Error:", err);
-      alertError("Unable to Retrieve Data", "An error occurred while loading the information.");
+      console.error(err);
+      alertError("Unable to Retrieve Data", "Failed to load dashboard data.");
       setData({ att: [], quotas: [], leaves: [] });
     }
   }, []);
 
   useEffect(() => {
-    if (user) {
-      fetchData(selectedYear);
-    }
+    if (user) fetchData(selectedYear);
   }, [user, selectedYear, fetchData]);
 
   useEffect(() => {
@@ -78,90 +79,94 @@ const [yearOpen, setYearOpen] = useState(false);
     return () => clearInterval(timer);
   }, []);
 
-  const handleAction = async (action) => {
-    const isCheckIn = action === "in";
-    const confirmed = await alertConfirm("Attendance Confirmation", `Are you sure you want to ${isCheckIn ? "check in" : "check out"}?`);
+  const handleAction = async (type) => {
+    const confirmed = await alertConfirm(
+      "Attendance Confirmation",
+      `Are you sure you want to check ${type === "in" ? "in" : "out"}?`
+    );
     if (!confirmed) return;
+
     try {
-      const res = isCheckIn ? await checkIn() : await checkOut();
-      await alertSuccess("Success", res?.message || "Operation successful.");
+      const res = type === "in" ? await checkIn() : await checkOut();
+      await alertSuccess("Success", res?.message || "Success");
       fetchData(selectedYear);
     } catch (err) {
-      alertError("Operation Failed", err?.response?.data?.message || "Error occurred.");
+      alertError("Operation Failed", err?.response?.data?.message || "Error");
     }
   };
 
-  if (authLoading) return <div className="h-screen flex items-center justify-center text-blue-600 font-black italic tracking-widest">LOADING...</div>;
+  if (authLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center text-blue-600 font-black">
+        LOADING...
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-8 animate-in fade-in duration-500">
+    <div className="max-w-6xl mx-auto p-6 space-y-8">
+      {/* Header */}
       <div className="text-center">
         <h1 className="text-3xl font-black text-slate-800">Dashboard</h1>
-        <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-1">Welcome, {user?.firstName} {user?.lastName}</p>
-        <p className="text-xs text-blue-600 font-black mt-2">{time.toLocaleString("th-TH")}</p>
+        <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest">
+          Welcome, {user?.firstName} {user?.lastName}
+        </p>
+        <p className="text-xs text-blue-600 font-black mt-2">
+          {time.toLocaleString("th-TH")}
+        </p>
       </div>
 
-      {/* ✅ ส่วนเลือกปีแบบ Dropdown (ดีไซน์ใหม่) */}
-      <div className="flex justify-center mb-6">
-  <div className="relative inline-block w-56 text-left">
-  {/* Label */}
-  <div className="mb-1.5 ml-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-    Select Year
-  </div>
+      {/* Year Dropdown */}
+      <div className="flex justify-center">
+        <div className="relative w-56">
+          <div className="mb-1 ml-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            Select Year
+          </div>
 
-  {/* Button */}
-  <button
-    type="button"
-    onClick={() => setYearOpen((v) => !v)}
-    className={`w-full rounded-[1.8rem] px-6 py-3.5 font-black text-sm transition-all
-      bg-white border border-gray-100 shadow-sm
-      hover:border-gray-200 hover:shadow-md
-      focus:outline-none focus:ring-4 focus:ring-blue-500/10
-      ${yearOpen ? "ring-2 ring-blue-100" : ""}
-    `}
-  >
-    <div className="flex items-center justify-between">
-      <div className="text-slate-700">
-        Year {selectedYear} (AD)
+          <button
+            type="button"
+            onClick={() => setYearOpen((v) => !v)}
+            className={`w-full rounded-[1.8rem] px-6 py-3.5 font-black text-sm
+              bg-white border border-gray-100 shadow-sm transition-all
+              ${yearOpen ? "ring-2 ring-blue-100" : ""}
+            `}
+          >
+            <div className="flex justify-between items-center">
+              <span>Year {selectedYear} (AD)</span>
+              <ChevronDown
+                size={18}
+                className={`transition-transform ${
+                  yearOpen ? "rotate-180" : ""
+                }`}
+              />
+            </div>
+          </button>
+
+          {yearOpen && (
+            <div className="absolute z-20 mt-2 w-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              {years.map((y) => (
+                <button
+                  key={y}
+                  onClick={() => {
+                    setSelectedYear(y);
+                    setYearOpen(false);
+                  }}
+                  className={`w-full px-6 py-3 text-left text-sm font-black
+                    hover:bg-blue-50 transition-all
+                    ${
+                      selectedYear === y
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-slate-700"
+                    }
+                  `}
+                >
+                  Year {y} (AD)
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-
-      <ChevronDown
-        size={18}
-        className={`text-gray-400 transition-transform ${
-          yearOpen ? "rotate-180" : ""
-        }`}
-      />
-    </div>
-  </button>
-
-  {/* Dropdown */}
-  {yearOpen && (
-    <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
-      {years.map((y) => (
-        <button
-          key={y}
-          type="button"
-          onClick={() => {
-            setSelectedYear(y);
-            setYearOpen(false);
-          }}
-          className={`w-full px-6 py-3 text-left text-sm font-black transition-all
-            hover:bg-blue-50
-            ${
-              selectedYear === y
-                ? "bg-blue-50 text-blue-700"
-                : "text-slate-700"
-            }
-          `}
-        >
-          Year {y} (AD)
-        </button>
-      ))}
-    </div>
-  )}
-</div>
-
-</div>
 
       <QuotaCards quotas={data.quotas} />
 
@@ -171,11 +176,11 @@ const [yearOpen, setYearOpen] = useState(false);
         <button onClick={() => navigate("/leave-request")} className="flex items-center justify-center gap-3 bg-amber-300 text-slate-900 py-4 rounded-3xl font-black shadow-lg hover:bg-amber-400 transition-all hover:-translate-y-1"><Calendar size={20}/> LEAVE</button>
       </div>
 
-      <HistoryTable 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        attendanceData={data.att} 
-        leaveData={data.leaves} 
+      <HistoryTable
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        attendanceData={data.att}
+        leaveData={data.leaves}
         buildFileUrl={buildFileUrl}
       />
     </div>
