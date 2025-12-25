@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { History, FileText, Image as ImageIcon } from "lucide-react";
 import { openAttachment } from "../../utils/attachmentPreview";
 
+
+const PAGE_SIZE = 10 ;
 export default function HistoryTable({
   activeTab,
   setActiveTab,
@@ -18,7 +20,18 @@ export default function HistoryTable({
       default:
         return "bg-amber-50 text-amber-600 border-amber-100";
     }
+    
   };
+    const [page, setPage] = useState(1);
+
+    const data = activeTab === "attendance" ? attendanceData : leaveData;
+
+const totalPages = Math.ceil(data.length / PAGE_SIZE);
+
+const pagedData = useMemo(() => {
+  const start = (page - 1) * PAGE_SIZE;
+  return data.slice(start, start + PAGE_SIZE);
+}, [data, page]);
 
   const calcLeaveDays = (leave) => {
     const raw = leave?.totalDaysRequested ?? leave?.days;
@@ -34,6 +47,7 @@ export default function HistoryTable({
     return Math.max(1, Math.round((e - s) / ms) + 1);
   };
 
+  
   return (
     <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
       {/* Header & Tabs */}
@@ -96,7 +110,7 @@ export default function HistoryTable({
           <tbody className="text-[11px] font-bold uppercase">
             {activeTab === "attendance" ? (
               attendanceData.length > 0 ? (
-                attendanceData.map((row, i) => (
+                pagedData.map((row, i) => (
                   <tr
                     key={i}
                     className="border-b border-gray-50 hover:bg-gray-50/30"
@@ -202,6 +216,53 @@ export default function HistoryTable({
             )}
           </tbody>
         </table>
+        {data.length > 0 && (
+  <div className="px-6 py-4 border-t border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+      Showing {(page - 1) * PAGE_SIZE + 1}–
+      {Math.min(page * PAGE_SIZE, data.length)} of {data.length}
+    </div>
+
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => setPage(1)}
+        disabled={page === 1}
+        className="h-9 px-3 rounded-xl border text-[10px] font-black disabled:opacity-40"
+      >
+        {"<<"}
+      </button>
+
+      <button
+        onClick={() => setPage(p => Math.max(1, p - 1))}
+        disabled={page === 1}
+        className="h-9 px-3 rounded-xl border text-[10px] font-black disabled:opacity-40"
+      >
+        {"<"}
+      </button>
+
+      <div className="h-9 px-4 rounded-xl bg-gray-50 border flex items-center text-[10px] font-black">
+        Page {page} / {totalPages}
+      </div>
+
+      <button
+        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+        disabled={page === totalPages}
+        className="h-9 px-3 rounded-xl border text-[10px] font-black disabled:opacity-40"
+      >
+        {">"}
+      </button>
+
+      <button
+        onClick={() => setPage(totalPages)}
+        disabled={page === totalPages}
+        className="h-9 px-3 rounded-xl border text-[10px] font-black disabled:opacity-40"
+      >
+        {">>"}
+      </button>
+    </div>
+  </div>
+)}
+
       </div>
     </div>
   );
