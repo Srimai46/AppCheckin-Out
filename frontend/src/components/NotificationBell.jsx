@@ -4,7 +4,6 @@ import { Bell, CheckCheck, Clock } from "lucide-react";
 import { io } from "socket.io-client";
 import { jwtDecode } from "jwt-decode";
 
-// ✅ แก้ไข: เปลี่ยนจาก localhost เป็น IP เครื่อง Server ให้หมด
 const SERVER_HOSTNAME = window.location.hostname;
 const API_URL = `http://${SERVER_HOSTNAME}:8080/api/notifications`;
 const SOCKET_URL = `http://${SERVER_HOSTNAME}:8080`;
@@ -60,7 +59,7 @@ export default function NotificationBell() {
 
     // 3. รอรับการแจ้งเตือนใหม่
     newSocket.on("new_notification", (data) => {
-      console.log("📩 Received notification:", data); // ✅ เพิ่ม log เพื่อเช็คว่าข้อมูลเข้าไหม
+      console.log("📩 Received notification:", data);
       setNotifications((prev) => [data, ...prev]);
       if (data.unreadCount !== undefined) {
         setUnreadCount(data.unreadCount);
@@ -125,14 +124,14 @@ export default function NotificationBell() {
           <div className="absolute right-0 mt-3 w-80 rounded-[1.5rem] border border-gray-100 bg-white shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
             <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                การแจ้งเตือน
+                Notifications
               </h3>
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllRead}
                   className="text-[10px] font-black text-blue-600 hover:underline flex items-center gap-1"
                 >
-                  <CheckCheck size={12} /> อ่านทั้งหมด
+                  <CheckCheck size={12} /> Read everything
                 </button>
               )}
             </div>
@@ -140,7 +139,7 @@ export default function NotificationBell() {
             <div className="max-h-[400px] overflow-y-auto scrollbar-hide">
               {notifications.length === 0 ? (
                 <div className="p-10 text-center text-gray-300 font-bold text-sm italic">
-                  ไม่มีการแจ้งเตือนใหม่
+                  No new notifications
                 </div>
               ) : (
                 notifications.map((n) => (

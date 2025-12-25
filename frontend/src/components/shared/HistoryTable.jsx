@@ -116,12 +116,12 @@ export default function HistoryTable({
                     <td className="px-6 py-4 text-center">
                       <span
                         className={`px-3 py-1 rounded-lg border ${
-                          row.status === "สาย" || row.statusDisplay === "สาย"
+                          row.status === "สาย" || row.statusDisplay === "Late"
                             ? "bg-rose-50 text-rose-600"
                             : "bg-emerald-50 text-emerald-600"
                         }`}
                       >
-                        {row.status || row.statusDisplay || "ปกติ"}
+                        {row.status || row.statusDisplay || "On Time"}
                       </span>
                     </td>
                   </tr>
