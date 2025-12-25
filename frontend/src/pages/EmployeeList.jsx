@@ -77,7 +77,6 @@ export default function EmployeeList() {
   const [roleOpen, setRoleOpen] = useState(false);
   const [roleOpenFilter, setRoleOpenFilter] = useState(false);
 
-
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -284,131 +283,61 @@ export default function EmployeeList() {
         <div className="flex gap-2 sm:ml-auto w-full sm:w-auto">
           {/* Role Filter */}
 
-{/* Role Filter (Custom Dropdown) */}
-<div className="relative w-40">
-  <button
-    type="button"
-    onClick={() => setRoleOpenFilter((v) => !v)}
-    className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5
+          {/* Role Filter (Custom Dropdown) */}
+          <div className="relative w-40">
+            <button
+              type="button"
+              onClick={() => setRoleOpenFilter((v) => !v)}
+              className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5
       text-xs font-black uppercase tracking-widest text-slate-700
       flex items-center justify-between transition-all
       hover:bg-gray-50
       ${roleOpenFilter ? "ring-2 ring-blue-100" : ""}
     `}
-  >
-    <span>
-      {roleFilter === "all"
-        ? "All Roles"
-        : roleFilter === "HR"
-        ? "HR"
-        : "Worker"}
-    </span>
-
-    <ChevronDown
-      size={14}
-      className={`transition-transform ${
-        roleOpenFilter ? "rotate-180" : ""
-      }`}
-    />
-  </button>
-
-  {roleOpenFilter && (
-    <>
-      {/* click outside */}
-      <button
-        type="button"
-        className="fixed inset-0 z-10 cursor-default"
-        onClick={() => setRoleOpenFilter(false)}
-        aria-label="Close role dropdown"
-      />
-
-      <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
-        {[
-          { value: "all", label: "All Roles" },
-          { value: "Worker", label: "Worker" },
-          { value: "HR", label: "HR" },
-        ].map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => {
-              setRoleFilter(opt.value);
-              setRoleOpenFilter(false);
-            }}
-            className={`w-full px-6 py-3 text-left text-sm font-black transition-all
-              hover:bg-blue-50
-              ${
-                roleFilter === opt.value
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-slate-700"
-              }
-            `}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-    </>
-  )}
-</div>
-
-
-          {/* Status Filter */}
-          {/* Status Filter (Custom Dropdown) */}
-          <div className="relative w-40">
-            <button
-              type="button"
-              onClick={() => setStatusOpen((v) => !v)}
-              className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5
-      text-xs font-black uppercase tracking-widest text-slate-700
-      flex items-center justify-between transition-all
-      hover:bg-gray-50
-      ${statusOpen ? "ring-2 ring-blue-100" : ""}
-    `}
             >
               <span>
-                {statusFilter === "all"
-                  ? "All Status"
-                  : statusFilter === "active"
-                  ? "Active"
-                  : "Resigned"}
+                {roleFilter === "all"
+                  ? "All Roles"
+                  : roleFilter === "HR"
+                  ? "HR"
+                  : "Worker"}
               </span>
 
               <ChevronDown
                 size={14}
                 className={`transition-transform ${
-                  statusOpen ? "rotate-180" : ""
+                  roleOpenFilter ? "rotate-180" : ""
                 }`}
               />
             </button>
 
-            {statusOpen && (
+            {roleOpenFilter && (
               <>
                 {/* click outside */}
                 <button
                   type="button"
                   className="fixed inset-0 z-10 cursor-default"
-                  onClick={() => setStatusOpen(false)}
-                  aria-label="Close status dropdown"
+                  onClick={() => setRoleOpenFilter(false)}
+                  aria-label="Close role dropdown"
                 />
 
                 <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
                   {[
-                    { value: "all", label: "All Status" },
-                    { value: "active", label: "Active" },
-                    { value: "inactive", label: "Resigned" },
+                    { value: "all", label: "All Roles" },
+                    { value: "Worker", label: "Worker" },
+                    { value: "HR", label: "HR" },
                   ].map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => {
-                        setStatusFilter(opt.value);
-                        setStatusOpen(false);
+                        setRoleFilter(opt.value);
+                        setRoleOpenFilter(false);
                       }}
                       className={`w-full px-6 py-3 text-left text-sm font-black transition-all
               hover:bg-blue-50
               ${
-                statusFilter === opt.value
+                roleFilter === opt.value
                   ? "bg-blue-50 text-blue-700"
                   : "text-slate-700"
               }
@@ -421,22 +350,19 @@ export default function EmployeeList() {
               </>
             )}
           </div>
-          
           {/* Search */}
-<input
-  type="text"
-  value={search}
-  onChange={(e) => setSearch(e.target.value)}
-  placeholder="Search name, email, ID..."
-  className="w-full sm:w-64 bg-white border border-gray-200 rounded-xl
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, email, ID..."
+            className="w-full sm:w-64 bg-white border border-gray-200 rounded-xl
     px-4 py-2.5 text-xs font-bold text-slate-700
     placeholder:text-gray-400
     focus:outline-none focus:ring-2 focus:ring-blue-100"
-/>
-
+          />
         </div>
       </div>
-      
 
       {/* Table */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
