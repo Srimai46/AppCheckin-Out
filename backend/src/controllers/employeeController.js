@@ -36,7 +36,7 @@ exports.getAllEmployees = async (req, res) => {
     res.json(employees);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "เกิดข้อผิดพลาดที่เซิร์ฟเวอร์" });
+    res.status(500).json({ error: "There is something wrong with the server" });
   }
 };
 
@@ -61,7 +61,7 @@ exports.getEmployeeById = async (req, res) => {
       },
     });
 
-    if (!employee) return res.status(404).json({ error: "ไม่พบพนักงาน" });
+    if (!employee) return res.status(404).json({ error: "Not found employee" });
 
     res.json({
       info: {
@@ -102,7 +102,7 @@ exports.getEmployeeById = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "ไม่สามารถดึงข้อมูลพนักงานได้" });
+    res.status(500).json({ error: "Employee data retrieval failed." });
   }
 };
 
@@ -123,9 +123,9 @@ exports.updateEmployeeStatus = async (req, res) => {
       data: { isActive: !!isActive }, // มั่นใจว่าเป็น boolean
     });
 
-    res.json({ message: "อัปเดตสถานะสำเร็จ" });
+    res.json({ message: "Upadted status" });
   } catch (error) {
-    res.status(500).json({ error: "ไม่สามารถอัปเดตสถานะได้" });
+    res.status(500).json({ error: "Cannot update status" });
   }
 };
 
@@ -135,7 +135,7 @@ exports.createEmployee = async (req, res) => {
     const { firstName, lastName, email, password, role, joiningDate } = req.body;
 
     const existing = await prisma.employee.findUnique({ where: { email } });
-    if (existing) return res.status(400).json({ error: "Email นี้ถูกใช้งานแล้ว" });
+    if (existing) return res.status(400).json({ error: "Email has been used" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -180,10 +180,10 @@ exports.createEmployee = async (req, res) => {
       return newEmployee;
     });
 
-    res.status(201).json({ message: "เพิ่มพนักงานสำเร็จ", employee: result });
+    res.status(201).json({ message: "Add employee succeedful", employee: result });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "สร้างพนักงานไม่สำเร็จ" });
+    res.status(500).json({ error: "Add employee fail" });
   }
 };
 
@@ -217,7 +217,7 @@ exports.getAttendanceStats = async (req, res) => {
       })),
     });
   } catch (error) {
-    res.status(500).json({ error: "ไม่สามารถดึงข้อมูลสถิติได้" });
+    res.status(500).json({ error: "Unable to retrieve statistical data." });
   }
 };
 
@@ -232,11 +232,11 @@ exports.resetPassword = async (req, res) => {
     const canAccess = requester.role === "HR" || requester.role === "Admin" || requester.id === parseInt(id);
     
     if (!canAccess) {
-      return res.status(403).json({ error: "คุณไม่มีสิทธิ์เปลี่ยนรหัสผ่านของผู้อื่น" });
+      return res.status(403).json({ error: "You do not have the right to change other people's passwords." });
     }
 
     if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ error: "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร" });
+      return res.status(400).json({ error: "The password must be at least 6 characters long." });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -246,9 +246,9 @@ exports.resetPassword = async (req, res) => {
       data: { passwordHash: hashedPassword },
     });
 
-    res.json({ message: "รีเซ็ตรหัสผ่านสำเร็จแล้ว" });
+    res.json({ message: "Password reset successful." });
   } catch (error) {
-    res.status(500).json({ error: "ไม่สามารถรีเซ็ตรหัสผ่านได้" });
+    res.status(500).json({ error: "The password cannot be reset." });
   }
 };
 
@@ -296,10 +296,10 @@ exports.updateEmployee = async (req, res) => {
     console.error(err);
 
     if (err.code === "P2002") {
-      return res.status(400).json({ error: "Email นี้ถูกใช้งานแล้ว" });
+      return res.status(400).json({ error: "This email address is already in use." });
     }
     if (err.code === "P2025") {
-      return res.status(404).json({ error: "ไม่พบพนักงานที่ต้องการอัปเดต" });
+      return res.status(404).json({ error: "No employees requiring update were found." });
     }
 
     return res.status(500).json({ error: "Update employee failed" });

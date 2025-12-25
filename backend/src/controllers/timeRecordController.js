@@ -50,7 +50,7 @@ exports.checkIn = async (req, res) => {
     });
 
     if (existingRecord) {
-      return res.status(400).json({ error: "วันนี้คุณได้ลงเวลาเข้างานไปแล้ว" });
+      return res.status(400).json({ error: "You have already checked in for today." });
     }
 
     // 2. คำนวณว่าสายหรือไม่
@@ -59,7 +59,7 @@ exports.checkIn = async (req, res) => {
     workStartTime.setMinutes(WORK_START_MINUTE);
 
     const isLate = now > workStartTime;
-    const statusText = isLate ? "สาย" : "ปกติ";
+    const statusText = isLate ? "Late" : "Normal";
 
     // 3. บันทึกข้อมูล
     const record = await prisma.timeRecord.create({
@@ -76,7 +76,7 @@ exports.checkIn = async (req, res) => {
     if (isLate) {
       const hrUsers = await prisma.employee.findMany({ where: { role: "HR" } });
       const thaiTimeStr = formatThaiTime(now);
-      const lateMessage = `คุณ ${req.user.firstName} ${req.user.lastName} เข้างานสาย (${thaiTimeStr})`;
+      const lateMessage = `Employee ${req.user.firstName} ${req.user.lastName} is late (${thaiTimeStr})`;
 
       if (hrUsers.length > 0) {
         const notifications = hrUsers.map((hr) => ({
@@ -102,7 +102,7 @@ exports.checkIn = async (req, res) => {
     }
 
     res.status(201).json({
-      message: isLate ? "ลงเวลาเข้างานสำเร็จ (สาย)" : "ลงเวลาเข้างานสำเร็จ",
+      message: isLate ? "Check-in successful (Late)" : "Check-in successful",
       result: {
         date: formatShortDate(now),
         time: formatThaiTime(now),
@@ -114,7 +114,7 @@ exports.checkIn = async (req, res) => {
 
   } catch (error) {
     console.error("CheckIn Error:", error);
-    res.status(500).json({ message: "เกิดข้อผิดพลาดในการลงเวลา" });
+    res.status(500).json({ message: "An error occurred during check-in" });
   }
 };
 
@@ -133,7 +133,7 @@ exports.checkOut = async (req, res) => {
     });
 
     if (!record) {
-      return res.status(400).json({ error: "ไม่พบข้อมูลการเข้างานวันนี้ กรุณา Check-in ก่อน" });
+      return res.status(400).json({ error: "Check-in record not found. Please check in first." });
     }
 
     const updatedRecord = await prisma.timeRecord.update({
@@ -142,7 +142,7 @@ exports.checkOut = async (req, res) => {
     });
 
     res.json({
-      message: "ลงเวลาออกงานสำเร็จ",
+      message: "Clocked out successfully.",
       result: {
         checkOutTime: formatThaiTime(now)
       },
@@ -150,7 +150,7 @@ exports.checkOut = async (req, res) => {
     });
   } catch (error) {
     console.error("CheckOut Error:", error);
-    res.status(500).json({ error: "เกิดข้อผิดพลาดในการลงเวลาออก" });
+    res.status(500).json({ error: "An error occurred when recording the departure time." });
   }
 };
 
@@ -166,7 +166,7 @@ exports.getMyHistory = async (req, res) => {
       dateDisplay: formatShortDate(item.workDate),
       checkInTimeDisplay: formatThaiTime(item.checkInTime),
       checkOutTimeDisplay: formatThaiTime(item.checkOutTime),
-      statusDisplay: item.isLate ? "สาย" : "ปกติ",
+      statusDisplay: item.isLate ? "Late" : "On time",
       note: item.note || "-"
     }));
 
@@ -207,7 +207,7 @@ exports.getAllAttendance = async (req, res) => {
        ...item,
        dateDisplay: formatShortDate(item.workDate),
        timeDisplay: formatThaiTime(item.checkInTime),
-       statusDisplay: item.isLate ? "สาย" : "ปกติ",
+       statusDisplay: item.isLate ? "Late" : "On time",
        note: item.note || "-"
     }));
 
@@ -215,7 +215,7 @@ exports.getAllAttendance = async (req, res) => {
 
   } catch (error) {
     console.error("GetAllAttendance Error:", error);
-    res.status(500).json({ error: "ดึงข้อมูลไม่สำเร็จ" });
+    res.status(500).json({ error: "Data retrieval failed." });
   }
 };
 
@@ -234,14 +234,14 @@ exports.getUserHistory = async (req, res) => {
       dateDisplay: formatShortDate(item.workDate),
       checkInTimeDisplay: formatThaiTime(item.checkInTime),
       checkOutTimeDisplay: formatThaiTime(item.checkOutTime),
-      statusDisplay: item.isLate ? "สาย" : "ปกติ",
+      statusDisplay: item.isLate ? "Late" : "On time",
       note: item.note || "-"
     }));
 
     res.json(formattedHistory);
   } catch (error) {
     console.error("GetUserHistory Error:", error);
-    res.status(500).json({ error: "ดึงข้อมูลไม่สำเร็จ" });
+    res.status(500).json({ error: "Data retrieval failed." });
   }
 };
 
@@ -321,7 +321,7 @@ exports.getTeamTodayAttendance = async (req, res) => {
     console.error("getTeamTodayAttendance Error:", error);
     return res.status(500).json({
       success: false,
-      error: "ดึงข้อมูลทีมวันนี้ไม่สำเร็จ",
+      error: "Team data retrieval failed today.",
     });
   }
 };
@@ -333,7 +333,7 @@ exports.hrCheckInEmployee = async (req, res) => {
   try {
     const employeeId = Number(req.params.employeeId);
     if (!employeeId) {
-      return res.status(400).json({ error: "employeeId ไม่ถูกต้อง" });
+      return res.status(400).json({ error: "employeeId incorrect" });
     }
 
     const { note } = req.body;
@@ -350,7 +350,7 @@ exports.hrCheckInEmployee = async (req, res) => {
     });
 
     if (existingRecord?.checkInTime) {
-      return res.status(400).json({ error: "พนักงานคนนี้ได้ลงเวลาเข้างานวันนี้ไปแล้ว" });
+      return res.status(400).json({ error: "This employee has already clocked in for today." });
     }
 
     // 2) คำนวณสาย/ไม่สาย (ใช้ logic เดิมของคุณ)
@@ -384,7 +384,7 @@ exports.hrCheckInEmployee = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: late ? "HR ลงเวลาเข้างานสำเร็จ (สาย)" : "HR ลงเวลาเข้างานสำเร็จ",
+      message: late ? "HR Clocking in successfully (Late)" : "HR Clocking in successfully.",
       result: {
         employeeId,
         date: formatShortDate(now),
@@ -395,7 +395,7 @@ exports.hrCheckInEmployee = async (req, res) => {
     });
   } catch (error) {
     console.error("hrCheckInEmployee Error:", error);
-    return res.status(500).json({ error: "HR ลงเวลาเข้างานไม่สำเร็จ" });
+    return res.status(500).json({ error: "HR Clocking in fail" });
   }
 };
 
@@ -406,7 +406,7 @@ exports.hrCheckOutEmployee = async (req, res) => {
   try {
     const employeeId = Number(req.params.employeeId);
     if (!employeeId) {
-      return res.status(400).json({ error: "employeeId ไม่ถูกต้อง" });
+      return res.status(400).json({ error: "employeeId incorrect" });
     }
 
     const now = new Date();
@@ -422,11 +422,11 @@ exports.hrCheckOutEmployee = async (req, res) => {
     });
 
     if (!record?.checkInTime) {
-      return res.status(400).json({ error: "ยังไม่พบการ Check-in วันนี้" });
+      return res.status(400).json({ error: "No check-ins found today." });
     }
 
     if (record.checkOutTime) {
-      return res.status(400).json({ error: "พนักงานคนนี้ได้ Check-out แล้ว" });
+      return res.status(400).json({ error: "This employee has already checked out." });
     }
 
     // 2) update checkout
@@ -436,12 +436,12 @@ exports.hrCheckOutEmployee = async (req, res) => {
     });
 
     return res.status(200).json({
-      message: "HR ลงเวลาออกงานสำเร็จ",
+      message: "HR Clocked out successfully.",
       result: { employeeId, checkOutTime: formatThaiTime(now) },
       data: updated,
     });
   } catch (error) {
     console.error("hrCheckOutEmployee Error:", error);
-    return res.status(500).json({ error: "HR ลงเวลาออกงานไม่สำเร็จ" });
+    return res.status(500).json({ error: "HR Clocking out failed." });
   }
 };

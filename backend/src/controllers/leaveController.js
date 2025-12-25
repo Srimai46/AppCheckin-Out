@@ -138,12 +138,12 @@ exports.createLeaveRequest = async (req, res) => {
 
     // ✅ 1. Validate วันที่
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return res.status(400).json({ error: "รูปแบบวันที่ไม่ถูกต้อง" });
+      return res.status(400).json({ error: "Incorrect date format." });
     }
     if (start > end) {
       return res
         .status(400)
-        .json({ error: "วันเริ่มต้องไม่มากกว่าวันสิ้นสุด" });
+        .json({ error: "The start date must not be longer than the end date." });
     }
 
     const attachmentUrl = req.file
@@ -154,7 +154,7 @@ exports.createLeaveRequest = async (req, res) => {
       where: { typeName: type },
     });
     if (!leaveType)
-      return res.status(400).json({ error: "ไม่พบประเภทการลานี้" });
+      return res.status(400).json({ error: "This type of leave was not found." });
 
     const totalDaysRequested = calculateTotalDays(
       start,
@@ -164,7 +164,7 @@ exports.createLeaveRequest = async (req, res) => {
     );
 
     if (totalDaysRequested <= 0) {
-      return res.status(400).json({ error: "จำนวนวันลาต้องมากกว่า 0" });
+      return res.status(400).json({ error: "The number of leave days must be greater than 0" });
     }
 
     // ✅ 1.5 RULE: ห้ามลาติดต่อกันเกิน maxConsecutiveDays ของประเภทลา
@@ -175,7 +175,7 @@ exports.createLeaveRequest = async (req, res) => {
     // ที่นี่เลือกแบบปลอดภัย: ถ้าไม่มีค่า ให้ข้ามกฎนี้ไป
     if (maxConsecutive > 0 && totalDaysRequested > maxConsecutive) {
       return res.status(400).json({
-        error: `ไม่สามารถลาประเภท ${leaveType.typeName} ติดต่อกันเกิน ${maxConsecutive} วันได้`,
+        error: `Cannot take leave of this type. ${leaveType.typeName} consecutively than ${maxConsecutive} Days`,
       });
     }
 
@@ -189,7 +189,7 @@ exports.createLeaveRequest = async (req, res) => {
           OR: [{ startDate: { lte: end }, endDate: { gte: start } }],
         },
       });
-      if (overlap) throw new Error("คุณมีรายการลาทับซ้อนในช่วงเวลานี้อยู่แล้ว");
+      if (overlap) throw new Error("You already have overlapping leave requests during this period.");
 
       // ตรวจสอบโควตา
       const quota = await tx.leaveQuota.findUnique({
@@ -202,7 +202,7 @@ exports.createLeaveRequest = async (req, res) => {
         },
       });
 
-      if (!quota) throw new Error("ไม่พบโควตาวันลาของคุณสำหรับปีนี้");
+      if (!quota) throw new Error("No vacation days were found for you this year.");
 
       const remaining =
         Number(quota.totalDays) +
@@ -210,7 +210,7 @@ exports.createLeaveRequest = async (req, res) => {
         Number(quota.usedDays);
 
       if (remaining < totalDaysRequested) {
-        throw new Error(`วันลาคงเหลือไม่พอ (เหลือ ${remaining} วัน)`);
+        throw new Error(`don't have enough vacation days left. (have ${remaining} days)`);
       }
 
       // --- สร้างใบลา ---
@@ -243,7 +243,7 @@ exports.createLeaveRequest = async (req, res) => {
 
       // --- 📝 บันทึกแจ้งเตือนลง Database ---
       if (admins.length > 0) {
-        const notificationMsg = `คำขอลาใหม่: ${fullName} ขอลา${type} ${totalDaysRequested} วัน`;
+        const notificationMsg = `New leave request: ${fullName} would like to resign.${type} ${totalDaysRequested} days`;
 
         await tx.notification.createMany({
           data: admins.map((admin) => ({
@@ -284,7 +284,7 @@ exports.createLeaveRequest = async (req, res) => {
       });
     }
 
-    res.status(201).json({ message: "ส่งคำขอลาสำเร็จ", data: result.newLeave });
+    res.status(201).json({ message: "Leave request successfully submitted.", data: result.newLeave });
   } catch (error) {
     console.error("Create Leave Request Error:", error);
     res.status(400).json({ error: error.message });
@@ -316,7 +316,7 @@ exports.getPendingRequests = async (req, res) => {
     });
     res.json(requests);
   } catch (error) {
-    res.status(500).json({ error: "ไม่สามารถดึงรายการได้" });
+    res.status(500).json({ error: "Unable to retrieve the item." });
   }
 };
 
@@ -340,7 +340,7 @@ exports.getAllLeaves = async (req, res) => {
       }))
     );
   } catch (error) {
-    res.status(500).json({ error: "ดึงข้อมูลผิดพลาด" });
+    res.status(500).json({ error: "Data retrieval error." });
   }
 };
 
@@ -351,7 +351,7 @@ exports.updateLeaveStatus = async (req, res) => {
     const hrId = req.user.id;
     const leaveId = parseInt(id);
 
-    if (!leaveId) return res.status(400).json({ error: "ID ไม่ถูกต้อง" });
+    if (!leaveId) return res.status(400).json({ error: "ID incorrect" });
 
     const result = await prisma.$transaction(async (tx) => {
       const request = await tx.leaveRequest.findUnique({
@@ -360,7 +360,7 @@ exports.updateLeaveStatus = async (req, res) => {
       });
 
       if (!request || request.status !== "Pending") {
-        throw new Error("ใบลาไม่อยู่ในสถานะที่ดำเนินการได้");
+        throw new Error("The leave request is not in a status that can be processed.");
       }
 
       const updatedRequest = await tx.leaveRequest.update({
@@ -386,11 +386,11 @@ exports.updateLeaveStatus = async (req, res) => {
         });
       }
 
-      let notifyMsg = `คำขอลาของคุณได้รับการ ${
-        status === "Approved" ? "อนุมัติ" : "ปฏิเสธ"
+      let notifyMsg = `Your leave request has been  ${
+        status === "Approved" ? "approved" : "refused"
       }`;
       if (status === "Approved" && isSpecial) {
-        notifyMsg = `คำขอลาของคุณได้รับการอนุมัติเป็นกรณีพิเศษ (ไม่หักวันลา)`;
+        notifyMsg = `Your leave request has been approved as a special case. (No deduction from leave days.)`;
       }
 
       const newNotification = await tx.notification.create({
@@ -426,8 +426,8 @@ exports.updateLeaveStatus = async (req, res) => {
     }
 
     res.json({
-      message: `ดำเนินการ ${status}${
-        isSpecial ? " (กรณีพิเศษ)" : ""
+      message: `carry out ${status}${
+        isSpecial ? " (Special case)" : ""
       } เรียบร้อยแล้ว`,
       data: result.updatedRequest,
       unreadCount: result.unreadCount,
@@ -462,9 +462,9 @@ exports.updateEmployeeQuota = async (req, res) => {
       },
     });
 
-    res.json({ message: "จัดการโควตาสำเร็จ", data: result });
+    res.json({ message: "Quota management successful.", data: result });
   } catch (error) {
-    res.status(500).json({ error: "ล้มเหลว" });
+    res.status(500).json({ error: "fail" });
   }
 };
 
@@ -495,7 +495,7 @@ exports.processCarryOver = async (req, res) => {
 
       if (config?.isClosed) {
         throw new Error(
-          `ปี ${lastYear} ถูกปิดยอดไปแล้ว ไม่สามารถประมวลผลซ้ำได้`
+          `year ${lastYear} The transaction has been closed and cannot be processed again.`
         );
       }
 
@@ -558,7 +558,7 @@ exports.processCarryOver = async (req, res) => {
     });
 
     res.json({
-      message: `ประมวลผลปี ${targetYear} สำเร็จ (ทบยอด + แจกโควตาใหม่เรียบร้อย)`,
+      message: `Processing for the year ${targetYear} is complete (accumulation and new quota allocation completed).`,
       employeesProcessed: result,
     });
   } catch (error) {
@@ -602,9 +602,9 @@ exports.grantSpecialLeave = async (req, res) => {
       });
     });
 
-    res.json({ message: "มอบสิทธิ์วันลาพิเศษสำเร็จ" });
+    res.json({ message: "Special leave request successfully granted." });
   } catch (error) {
-    res.status(500).json({ error: "ล้มเหลว" });
+    res.status(500).json({ error: "fail" });
   }
 };
 
@@ -621,7 +621,7 @@ exports.updateCompanyQuotasByType = async (req, res) => {
     const typeNames = Object.keys(normalized);
 
     const targetYear = year ? parseInt(year, 10) : new Date().getFullYear();
-    if (!Number.isFinite(targetYear)) throw new Error("year ไม่ถูกต้อง");
+    if (!Number.isFinite(targetYear)) throw new Error("year incorrect");
 
     const leaveTypes = await getLeaveTypesByNames(typeNames);
 
@@ -699,14 +699,14 @@ exports.updateCompanyQuotasByType = async (req, res) => {
     });
 
     res.json({
-      message: "อัปเดตโควต้าวันลา (ทั้งบริษัท) สำเร็จ",
+      message: "Leave quota update (for the entire company) completed.",
       year: targetYear,
       appliedTypes: typeNames,
       ...result,
     });
   } catch (error) {
     console.error("updateCompanyQuotasByType error:", error);
-    res.status(400).json({ error: error.message || "อัปเดตไม่สำเร็จ" });
+    res.status(400).json({ error: error.message || "Update failed." });
   }
 };
 
@@ -717,20 +717,20 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
     const { quotas, year } = req.body;
 
     if (!Number.isFinite(employeeId) || employeeId <= 0) {
-      throw new Error("employeeId ไม่ถูกต้อง");
+      throw new Error("employeeId incorrect");
     }
 
     const normalized = normalizeQuotas(quotas);
     const typeNames = Object.keys(normalized);
 
     const targetYear = year ? parseInt(year, 10) : new Date().getFullYear();
-    if (!Number.isFinite(targetYear)) throw new Error("year ไม่ถูกต้อง");
+    if (!Number.isFinite(targetYear)) throw new Error("year incorrect");
 
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
       select: { id: true },
     });
-    if (!employee) throw new Error("ไม่พบพนักงาน");
+    if (!employee) throw new Error("No employee found.");
 
     const leaveTypes = await getLeaveTypesByNames(typeNames);
 
@@ -797,7 +797,7 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
     });
 
     res.json({
-      message: "อัปเดตโควต้าวันลา (รายคน) สำเร็จ",
+      message: "Leave quota (per person) updated successfully.",
       employeeId,
       year: targetYear,
       appliedTypes: typeNames,
@@ -805,7 +805,7 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
     });
   } catch (error) {
     console.error("updateEmployeeQuotasByType error:", error);
-    res.status(400).json({ error: error.message || "อัปเดตไม่สำเร็จ" });
+    res.status(400).json({ error: error.message || "update fail" });
   }
 };
 
@@ -834,7 +834,7 @@ exports.reopenYear = async (req, res) => {
       },
     });
 
-    res.json({ message: `เปิดงวดปี ${year} ใหม่เรียบร้อยแล้ว` });
+    res.json({ message: `The new year ${year} has officially begun.` });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
