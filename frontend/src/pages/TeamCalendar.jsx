@@ -152,7 +152,7 @@ export default function TeamCalendar() {
         [];
 
       setTeamAttendance(list);
-      setTeamPage(1); // ✅ reset pagination when refresh
+      setTeamPage(1);
     } catch (e) {
       console.error("Error fetching team attendance:", e);
       setTeamAttendance([]);
@@ -166,8 +166,7 @@ export default function TeamCalendar() {
   }, []);
 
   // =========================================================
-  // ✅ [NEW] กรองเฉพาะพนักงานที่ยังทำงานอยู่ (isActive = true/1)
-  // วางตรงนี้: "หลัง fetchTeamAttendance/useEffect" ก่อนส่วน Pagination
+  // ✅ กรองเฉพาะพนักงานที่ยังทำงานอยู่ (isActive = true/1)
   // =========================================================
   const activeTeamAttendance = useMemo(() => {
     return (teamAttendance || []).filter((r) => r?.isActive === true || r?.isActive === 1);

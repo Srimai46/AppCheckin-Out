@@ -21,7 +21,7 @@ const YearEndProcessing = () => {
   const [loading, setLoading] = useState(false);
   const [targetYear, setTargetYear] = useState(new Date().getFullYear() + 1);
 
-  // เพิ่ม State สำหรับกำหนดโควตาที่จะแจกพร้อมการทบยอด
+  // Leave quota setup
   const [quotas, setQuotas] = useState({
     ANNUAL: 6,
     SICK: 30,
@@ -37,7 +37,7 @@ const YearEndProcessing = () => {
       setConfigs(data);
     } catch (error) {
       console.error("Fetch error:", error);
-      alertError("โหลดข้อมูลไม่สำเร็จ", "ไม่สามารถดึงข้อมูลการตั้งค่าระบบได้");
+      alertError("Failed to Load Data", "Unable to retrieve system configuration.");
     }
   };
 
@@ -59,41 +59,39 @@ const YearEndProcessing = () => {
 
   const buildProcessConfirmHtml = () => {
     const items = [
-      `ระบบจะทบยอดวันลา <b>Annual</b> จากปี <b>${escapeHtml(
+      `The system will carry over <b>Annual Leave</b> from <b>${escapeHtml(
         lastYear
-      )}</b> (สูงสุด 12 วัน)`,
-      `แจกโควตาใหม่ปี <b>${escapeHtml(targetYear)}</b>:
-        พักร้อน <b>${escapeHtml(quotas.ANNUAL)}</b> วัน,
-        ลาป่วย <b>${escapeHtml(quotas.SICK)}</b> วัน,
-        ลากิจ <b>${escapeHtml(quotas.PERSONAL)}</b> วัน,
-        ฉุกเฉิน <b>${escapeHtml(quotas.EMERGENCY)}</b> วัน`,
-      `ข้อมูลปี <b>${escapeHtml(lastYear)}</b> จะถูก "<b>ล็อค</b>" ทันที`,
+      )}</b> (up to 12 days).`,
+      `New quotas for <b>${escapeHtml(targetYear)}</b> will be assigned:
+        Annual <b>${escapeHtml(quotas.ANNUAL)}</b> days,
+        Sick <b>${escapeHtml(quotas.SICK)}</b> days,
+        Personal <b>${escapeHtml(quotas.PERSONAL)}</b> days,
+        Emergency <b>${escapeHtml(quotas.EMERGENCY)}</b> days.`,
+      `Data for <b>${escapeHtml(lastYear)}</b> will be "<b>locked</b>" immediately.`,
     ];
 
     return `
       <div style="text-align:left; line-height:1.7;">
         <div style="font-weight:900; margin-bottom:8px;">
-          สรุปการปิดงวดและแจกโควตาประจำปี
+          Year-End Processing Summary
         </div>
         <ul style="margin:0; padding-left:18px;">
           ${items.map((t) => `<li>${t}</li>`).join("")}
         </ul>
         <div style="margin-top:10px; font-size:12px; opacity:.8;">
-          โปรดตรวจสอบจำนวนวันลาให้ถูกต้องก่อนกดยืนยัน
+          Please review the quota values carefully before confirming.
         </div>
       </div>
     `.trim();
   };
 
   const handleProcess = async () => {
-    // กันกดรัว
     if (loading) return;
 
-    // SweetAlert confirm
     const confirmed = await alertConfirm(
-      "ยืนยันการประมวลผลประจำปี",
+      "Confirm Year-End Processing",
       buildProcessConfirmHtml(),
-      "ยืนยันดำเนินการ"
+      "Confirm & Process"
     );
     if (!confirmed) return;
 
@@ -105,8 +103,8 @@ const YearEndProcessing = () => {
       });
 
       await alertSuccess(
-        "ดำเนินการสำเร็จ",
-        res?.message || "ประมวลผลและแจกโควตาสำเร็จ!"
+        "Processed Successfully",
+        res?.message || "Year-end processing and quota assignment completed successfully."
       );
       await fetchConfigs();
     } catch (error) {
@@ -114,9 +112,9 @@ const YearEndProcessing = () => {
         error?.response?.data?.error ||
         error?.response?.data?.message ||
         error?.message ||
-        "เกิดข้อผิดพลาดในการประมวลผล";
+        "An error occurred during processing.";
 
-      alertError("ดำเนินการไม่สำเร็จ", errorMsg);
+      alertError("Processing Failed", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -124,22 +122,22 @@ const YearEndProcessing = () => {
 
   const handleReopen = async (year) => {
     const confirmed = await alertConfirm(
-      "ยืนยันการปลดล็อคปี",
+      "Confirm Unlock",
       `
         <div style="text-align:left; line-height:1.7;">
-          ต้องการปลดล็อคปี <b>${escapeHtml(year)}</b> ใช่หรือไม่?
+          Do you want to unlock <b>${escapeHtml(year)}</b>?
           <div style="margin-top:8px; font-size:12px; opacity:.8;">
-            เมื่อปลดล็อคแล้ว ปีนี้จะกลับมาเป็นสถานะ Open และสามารถแก้ไขข้อมูลได้
+            Once unlocked, this year will be set to <b>Open</b> and can be edited again.
           </div>
         </div>
       `.trim(),
-      "ยืนยันปลดล็อค"
+      "Unlock Year"
     );
     if (!confirmed) return;
 
     try {
       await reopenYear(year);
-      await alertSuccess("ปลดล็อคสำเร็จ", `ปลดล็อคปี ${year} เรียบร้อยแล้ว`);
+      await alertSuccess("Unlocked", `Year ${year} has been unlocked successfully.`);
       fetchConfigs();
     } catch (error) {
       const msg =
@@ -148,7 +146,7 @@ const YearEndProcessing = () => {
         error?.message ||
         "Unknown error";
 
-      alertError("ปลดล็อคไม่สำเร็จ", msg);
+      alertError("Unlock Failed", msg);
     }
   };
 
@@ -157,12 +155,14 @@ const YearEndProcessing = () => {
       <div className="max-w-5xl mx-auto">
         <header className="mb-8">
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <Calendar className="text-indigo-600" /> ระบบปิดงวดและแจกโควตาประจำปี
+            <Calendar className="text-indigo-600" /> Year-End Processing & Quota Assignment
           </h1>
-          <p className="text-gray-500">ทบวันลาสะสมและเริ่มโควตาใหม่ในปุ่มเดียว</p>
+          <p className="text-gray-500">
+            Carry over leave balances and assign new yearly quotas in one step.
+          </p>
         </header>
 
-        {/* ส่วนประมวลผลและตั้งค่าโควตา */}
+        {/* Processing & Quota Settings */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600">
@@ -170,10 +170,10 @@ const YearEndProcessing = () => {
             </div>
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-gray-800 mb-1">
-                ตั้งค่าโควตาสำหรับปี {targetYear}
+                Configure Quotas for {targetYear}
               </h2>
               <p className="text-sm text-gray-500 mb-6">
-                ระบุจำนวนวันลาพื้นฐานที่จะแจกให้พนักงานทุกคนพร้อมกับการทบยอด
+                Set the base leave quotas to be assigned to all employees along with carry-over.
               </p>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -195,16 +195,16 @@ const YearEndProcessing = () => {
               <div className="flex items-center gap-4 pt-4 border-t border-gray-50">
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-400 font-bold mb-1">
-                    เลือกปีเป้าหมาย
+                    Target Year
                   </span>
                   <select
                     className="border border-gray-300 rounded-lg px-4 py-2 bg-white text-sm font-bold outline-none"
                     value={targetYear}
                     onChange={(e) => setTargetYear(Number(e.target.value))}
                   >
-                    <option value={2025}>ปี 2025</option>
-                    <option value={2026}>ปี 2026</option>
-                    <option value={2027}>ปี 2027</option>
+                    <option value={2025}>Year 2025</option>
+                    <option value={2026}>Year 2026</option>
+                    <option value={2027}>Year 2027</option>
                   </select>
                 </div>
 
@@ -218,30 +218,32 @@ const YearEndProcessing = () => {
                   ) : (
                     <Save size={18} />
                   )}
-                  {loading ? "กำลังประมวลผล..." : "ยืนยันปิดงวดและแจกโควตา"}
+                  {loading ? "Processing..." : "Confirm & Process"}
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ตารางประวัติ */}
+        {/* History Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
             <h3 className="font-semibold text-gray-700 text-sm uppercase tracking-wider">
-              ประวัติการดำเนินการ
+              Processing History
             </h3>
           </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-gray-50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
                 <tr>
-                  <th className="px-6 py-4">ปี (Year)</th>
-                  <th className="px-6 py-4">สถานะการล็อค</th>
-                  <th className="px-6 py-4 text-center">ดำเนินการเมื่อ</th>
-                  <th className="px-6 py-4 text-right">จัดการ</th>
+                  <th className="px-6 py-4">Year</th>
+                  <th className="px-6 py-4">Lock Status</th>
+                  <th className="px-6 py-4 text-center">Processed At</th>
+                  <th className="px-6 py-4 text-right">Action</th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-gray-100">
                 {configs.length > 0 ? (
                   configs.map((config) => (
@@ -252,6 +254,7 @@ const YearEndProcessing = () => {
                       <td className="px-6 py-4 font-bold text-gray-700">
                         {config.year}
                       </td>
+
                       <td className="px-6 py-4">
                         {config.isClosed ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-600 text-[10px] font-black uppercase">
@@ -263,18 +266,20 @@ const YearEndProcessing = () => {
                           </span>
                         )}
                       </td>
+
                       <td className="px-6 py-4 text-center text-gray-500 text-xs font-medium">
                         {config.closedAt
-                          ? new Date(config.closedAt).toLocaleString("th-TH")
+                          ? new Date(config.closedAt).toLocaleString("en-US")
                           : "-"}
                       </td>
+
                       <td className="px-6 py-4 text-right">
                         {config.isClosed && (
                           <button
                             onClick={() => handleReopen(config.year)}
                             className="text-orange-600 hover:bg-orange-50 px-3 py-1 rounded-lg transition-all text-[11px] font-black uppercase tracking-tighter border border-orange-100"
                           >
-                            ปลดล็อคปีนี้
+                            Unlock This Year
                           </button>
                         )}
                       </td>
@@ -286,7 +291,7 @@ const YearEndProcessing = () => {
                       colSpan="4"
                       className="px-6 py-10 text-center text-gray-400 italic text-sm"
                     >
-                      ยังไม่มีประวัติการดำเนินการ
+                      No processing history available.
                     </td>
                   </tr>
                 )}
@@ -295,6 +300,7 @@ const YearEndProcessing = () => {
           </div>
         </div>
 
+        {/* ❗ DO NOT CHANGE THIS WARNING BLOCK (as requested) */}
         <div className="mt-6 flex items-center gap-3 text-amber-700 bg-amber-50 p-4 rounded-2xl border border-amber-100">
           <AlertTriangle size={20} className="shrink-0" />
           <div className="text-xs font-bold leading-relaxed uppercase tracking-tight">

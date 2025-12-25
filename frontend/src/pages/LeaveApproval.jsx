@@ -24,8 +24,8 @@ export default function LeaveApproval() {
       const data = await getPendingLeaves();
       setRequests(Array.isArray(data) ? data : []);
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || "ไม่สามารถดึงข้อมูลได้";
-      alertError("โหลดข้อมูลไม่สำเร็จ", msg);
+      const msg = err?.response?.data?.message || err?.message || "An unexpected error occurred.";
+      alertError("Failed to Load Data", msg);
     } finally {
       setLoading(false);
     }
@@ -38,11 +38,11 @@ export default function LeaveApproval() {
   // ฟังก์ชันกดปุ่ม
   const handleAction = async (id, status, req) => {
     const isApprove = status === "Approved";
-    const actionText = isApprove ? "อนุมัติ" : "ปฏิเสธ";
+    const actionText = isApprove ? "Approved" : "Rejected";
 
     const employeeName = req?.employee
       ? `${req.employee.firstName} ${req.employee.lastName}`
-      : "พนักงาน";
+      : "Employee";
     const typeName = req?.leaveType?.typeName || "Leave";
     const period =
       req?.startDate && req?.endDate
@@ -74,36 +74,36 @@ export default function LeaveApproval() {
     const attachmentRow = req?.attachmentUrl
       ? `
         <div style="display:grid; grid-template-columns:110px 1fr; gap:8px 12px; margin-top:10px; font-size:14px">
-          <div style="color:#94a3b8; font-weight:800">ไฟล์แนบ</div>
-          <div style="color:#0f172a; font-weight:900">มีไฟล์แนบ</div>
+          <div style="color:#94a3b8; font-weight:800"> Attachment </div>
+          <div style="color:#0f172a; font-weight:900"> File attached </div>
         </div>
       `
       : "";
 
     const confirmed = await alertConfirm(
-      `ยืนยันการ${actionText}`,
+      `Confirm ${actionText}`,
       `
       <div style="text-align:left; line-height:1.65">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px">
-          <div style="color:#64748b; font-weight:700">โปรดตรวจสอบรายละเอียดก่อนทำรายการ</div>
+          <div style="color:#64748b; font-weight:700">Please review the details before proceeding.</div>
           ${badge}
         </div>
 
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:14px">
           <div style="display:grid; grid-template-columns:110px 1fr; gap:8px 12px; font-size:14px">
-            <div style="color:#94a3b8; font-weight:800">พนักงาน</div>
+            <div style="color:#94a3b8; font-weight:800">Employee</div>
             <div style="color:#0f172a; font-weight:900">${employeeName}</div>
 
-            <div style="color:#94a3b8; font-weight:800">ประเภท</div>
+            <div style="color:#94a3b8; font-weight:800">Type</div>
             <div style="color:#0f172a; font-weight:800">${typeName}</div>
 
-            <div style="color:#94a3b8; font-weight:800">ช่วงวันที่</div>
+            <div style="color:#94a3b8; font-weight:800">Leave Date</div>
             <div style="color:#0f172a; font-weight:800">${period}</div>
 
-            <div style="color:#94a3b8; font-weight:800">จำนวน</div>
-            <div style="color:#0f172a; font-weight:800">${req?.totalDaysRequested ?? "-"} วัน</div>
+            <div style="color:#94a3b8; font-weight:800">Days</div>
+            <div style="color:#0f172a; font-weight:800">${req?.totalDaysRequested ?? "-"} Days</div>
 
-            <div style="color:#94a3b8; font-weight:800">เหตุผล</div>
+            <div style="color:#94a3b8; font-weight:800">Reason</div>
             <div style="color:#334155; font-weight:700">${
               req?.reason ? req.reason : "<span style='color:#cbd5e1'>-</span>"
             }</div>
@@ -113,45 +113,45 @@ export default function LeaveApproval() {
         </div>
 
         <div style="margin-top:10px; color:#64748b; font-size:12px">
-          กด “ยืนยัน${actionText}” เพื่อบันทึกการทำรายการ
+          Click “Confirm ${actionText}” to complete this action.
         </div>
       </div>
       `,
-      `ยืนยัน${actionText}`
+      `Confirm${actionText}`
     );
     if (!confirmed) return;
 
     try {
       await updateLeaveStatus(id, status);
-      await alertSuccess("บันทึกสำเร็จ", `ทำรายการ${actionText}เรียบร้อยแล้ว`);
+      await alertSuccess("Update Successful", `The ${actionText} action has been completed successfully.`);
       fetchRequests();
     } catch (err) {
       const msg =
         err?.response?.data?.error ||
         err?.response?.data?.message ||
         err?.message ||
-        "เกิดข้อผิดพลาด";
-      alertError("ทำรายการไม่สำเร็จ", msg);
+        "An unexpected error occurred.";
+      alertError("Update Failed", msg);
     }
   };
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <h1 className="text-2xl font-bold mb-6 flex items-center gap-2 text-gray-800">
-        <Clock className="text-orange-500" /> รายการรออนุมัติ (Pending Approvals)
+        <Clock className="text-orange-500" /> Pending Approvals (รายการรออนุมัติ)
       </h1>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-gray-100 border-b">
             <tr>
-              <th className="p-4 font-semibold text-gray-600">พนักงาน</th>
-              <th className="p-4 font-semibold text-gray-600">ประเภท</th>
-              <th className="p-4 font-semibold text-gray-600">วันที่ลา</th>
-              <th className="p-4 font-semibold text-gray-600">จำนวน</th>
-              <th className="p-4 font-semibold text-gray-600">เหตุผล</th>
-              <th className="p-4 font-semibold text-gray-600 text-center">ไฟล์</th>
-              <th className="p-4 font-semibold text-gray-600 text-center">จัดการ</th>
+              <th className="p-4 font-semibold text-gray-600">Employee</th>
+              <th className="p-4 font-semibold text-gray-600">Type</th>
+              <th className="p-4 font-semibold text-gray-600">Leave Date</th>
+              <th className="p-4 font-semibold text-gray-600">Days</th>
+              <th className="p-4 font-semibold text-gray-600">Note</th>
+              <th className="p-4 font-semibold text-gray-600 text-center">File</th>
+              <th className="p-4 font-semibold text-gray-600 text-center">Manage</th>
             </tr>
           </thead>
 
@@ -159,13 +159,13 @@ export default function LeaveApproval() {
             {loading ? (
               <tr>
                 <td colSpan="7" className="p-6 text-center">
-                  กำลังโหลด...
+                  Loading...
                 </td>
               </tr>
             ) : requests.length === 0 ? (
               <tr>
                 <td colSpan="7" className="p-6 text-center text-gray-400">
-                  ไม่มีรายการรออนุมัติ
+                  No pending requests.
                 </td>
               </tr>
             ) : (
@@ -189,7 +189,7 @@ export default function LeaveApproval() {
                     {new Date(req.endDate).toLocaleDateString("th-TH")}
                   </td>
 
-                  <td className="p-4 font-bold">{req.totalDaysRequested} วัน</td>
+                  <td className="p-4 font-bold">{req.totalDaysRequested} Days</td>
 
                   <td className="p-4 text-gray-500 text-sm max-w-xs truncate">
                     {req.reason || "-"}
@@ -220,7 +220,7 @@ export default function LeaveApproval() {
                         className="bg-green-100 text-green-600 hover:bg-green-200 px-3 py-1 rounded-lg flex items-center gap-1 text-sm font-bold transition"
                         type="button"
                       >
-                        <CheckCircle size={16} /> อนุมัติ
+                        <CheckCircle size={16} /> Approve
                       </button>
 
                       <button
@@ -228,7 +228,7 @@ export default function LeaveApproval() {
                         className="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-1 rounded-lg flex items-center gap-1 text-sm font-bold transition"
                         type="button"
                       >
-                        <XCircle size={16} /> ปฏิเสธ
+                        <XCircle size={16} /> Reject
                       </button>
                     </div>
                   </td>

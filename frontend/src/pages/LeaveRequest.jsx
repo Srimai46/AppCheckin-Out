@@ -15,24 +15,24 @@ export default function LeaveRequest() {
   const [attachment, setAttachment] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // ✅ id ต้องตรงกับ typeName ใน Database (Sick, Personal, Annual, Emergency, Other)
+  // ✅ id must match typeName in DB (Sick, Personal, Annual, Emergency, Other)
   const leaveTypes = useMemo(
     () => [
-      { id: "Sick", label: "ลาป่วย (Sick Leave)" },
-      { id: "Personal", label: "ลากิจ (Personal Leave)" },
-      { id: "Annual", label: "ลาพักร้อน (Annual Leave)" },
-      { id: "Emergency", label: "ลาฉุกเฉิน (Emergency Leave)" },
-      { id: "Other", label: "อื่นๆ (Other)" },
+      { id: "Sick", label: "Sick Leave" },
+      { id: "Personal", label: "Personal Leave" },
+      { id: "Annual", label: "Annual Leave" },
+      { id: "Emergency", label: "Emergency Leave" },
+      { id: "Other", label: "Other" },
     ],
     []
   );
 
   const durationLabel =
     duration === "Full"
-      ? "เต็มวัน"
+      ? "Full Day (เต็มวัน)"
       : duration === "HalfMorning"
-      ? "ครึ่งวันเช้า"
-      : "ครึ่งวันบ่าย";
+      ? "Half Day (Morning)"
+      : "Half Day (Afternoon)";
 
   const prettyFileSize = (bytes) => {
     if (!bytes && bytes !== 0) return "";
@@ -45,6 +45,7 @@ export default function LeaveRequest() {
     }
     return `${size.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
   };
+
   const escapeHtml = (v = "") =>
     String(v)
       .replaceAll("&", "&amp;")
@@ -68,16 +69,25 @@ export default function LeaveRequest() {
     e.preventDefault();
 
     if (!selectedType) {
-      return alertError("ข้อมูลไม่ครบ", "กรุณาเลือกประเภทการลา");
+      return alertError(
+        "Missing Information",
+        "Please select a leave type."
+      );
     }
     if (!startDate || !endDate) {
-      return alertError("ข้อมูลไม่ครบ", "กรุณาระบุวันที่เริ่มต้นและสิ้นสุด");
+      return alertError(
+        "Missing Information",
+        "Please specify both start and end dates."
+      );
     }
 
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (start > end) {
-      return alertError("วันที่ไม่ถูกต้อง", "วันที่สิ้นสุดต้องมาทีหลังวันที่เริ่มต้น");
+      return alertError(
+        "Invalid Date",
+        "End date must be after the start date."
+      );
     }
 
     const typeLabel =
@@ -85,34 +95,36 @@ export default function LeaveRequest() {
 
     const fileLine = attachment
       ? `${attachment.name} (${prettyFileSize(attachment.size)})`
-      : "- (ไม่มี)";
+      : "- (None)";
 
-    // ✅ ทำสรุปให้เป็น bullet แบบอ่านง่าย
-    // ส่งเป็น string HTML (ถ้า wrapper รองรับ html จะสวยเลย / ถ้าไม่รองรับก็ยังแสดงได้ ไม่พัง)
     const confirmHtml = `
       <div style="text-align:left; line-height:1.6;">
-        <div style="font-weight:800; margin-bottom:8px;">สรุปรายการคำขอลา</div>
+        <div style="font-weight:800; margin-bottom:8px;">
+          Leave Request Summary
+        </div>
         <ul style="margin:0; padding-left:18px;">
-          <li><b>ประเภท</b>: ${escapeHtml(typeLabel)}</li>
-          <li><b>ช่วงเวลา</b>: ${escapeHtml(startDate)} - ${escapeHtml(endDate)}</li>
-          <li><b>ระยะเวลา</b>: ${escapeHtml(durationLabel)}</li>
-          <li><b>ไฟล์แนบ</b>: ${escapeHtml(fileLine)}</li>
+          <li><b>Type</b>: ${escapeHtml(typeLabel)}</li>
+          <li><b>Period</b>: ${escapeHtml(startDate)} - ${escapeHtml(
+      endDate
+    )}</li>
+          <li><b>Duration</b>: ${escapeHtml(durationLabel)}</li>
+          <li><b>Attachment</b>: ${escapeHtml(fileLine)}</li>
           ${
             reason?.trim()
-              ? `<li><b>เหตุผล</b>: ${escapeHtml(reason.trim())}</li>`
+              ? `<li><b>Reason</b>: ${escapeHtml(reason.trim())}</li>`
               : ""
           }
         </ul>
         <div style="margin-top:10px; font-size:12px; opacity:.75;">
-          โปรดตรวจสอบให้ถูกต้องก่อนกดยืนยัน
+          Please review the details before confirming.
         </div>
       </div>
     `.trim();
 
     const confirmed = await alertConfirm(
-      "ยืนยันการส่งคำขอลา",
+      "Confirm Leave Request",
       confirmHtml,
-      "ยืนยันส่งคำขอ"
+      "Submit Request"
     );
     if (!confirmed) return;
 
@@ -127,13 +139,15 @@ export default function LeaveRequest() {
       formData.append("endDuration", duration);
 
       if (attachment) {
-        // ชื่อ field ต้องตรงกับ backend
         formData.append("attachment", attachment);
       }
 
       const res = await createLeaveRequest(formData);
 
-      await alertSuccess("ส่งคำขอสำเร็จ", res?.message || "ส่งใบลาเรียบร้อยแล้ว");
+      await alertSuccess(
+        "Request Submitted",
+        res?.message || "Your leave request has been submitted."
+      );
       navigate("/dashboard");
     } catch (error) {
       console.error(error);
@@ -142,9 +156,9 @@ export default function LeaveRequest() {
         error?.response?.data?.error ||
         error?.response?.data?.message ||
         error?.message ||
-        "เกิดข้อผิดพลาดที่ระบบ";
+        "A system error occurred.";
 
-      alertError("ส่งคำขอไม่สำเร็จ", msg);
+      alertError("Submission Failed", msg);
     } finally {
       setIsLoading(false);
     }
@@ -161,7 +175,7 @@ export default function LeaveRequest() {
             Leave Request (ยื่นคำขอลา)
           </h1>
           <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-2 ml-14">
-            ระบบจัดการวันลาพนักงาน
+            Employee Leave Management System
           </p>
         </div>
 
@@ -170,7 +184,8 @@ export default function LeaveRequest() {
             {/* Left Column: Leave Type Selection */}
             <div className="space-y-4">
               <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-2">
-                1. เลือกประเภทการลา <span className="text-red-500">*</span>
+                1. Select Leave Type (เลือกประเภทการลา){" "}
+                <span className="text-red-500">*</span>
               </label>
               <div className="grid grid-cols-1 gap-3">
                 {leaveTypes.map((type) => (
@@ -209,12 +224,12 @@ export default function LeaveRequest() {
               {/* Date Selection */}
               <div className="space-y-4">
                 <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-2">
-                  2. เลือกวันที่และระยะเวลา
+                  2. Select Dates & Duration
                 </label>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-gray-400 ml-1">
-                      เริ่ม
+                      Start
                     </span>
                     <input
                       type="date"
@@ -226,7 +241,7 @@ export default function LeaveRequest() {
                   </div>
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-gray-400 ml-1">
-                      สิ้นสุด
+                      End
                     </span>
                     <input
                       type="date"
@@ -242,9 +257,9 @@ export default function LeaveRequest() {
                 {/* Duration Picker */}
                 <div className="flex bg-gray-100 p-1.5 rounded-2xl gap-1">
                   {[
-                    { id: "Full", label: "เต็มวัน" },
-                    { id: "HalfMorning", label: "ครึ่งเช้า" },
-                    { id: "HalfAfternoon", label: "ครึ่งบ่าย" },
+                    { id: "Full", label: "Full Day" },
+                    { id: "HalfMorning", label: "Half (Morning)" },
+                    { id: "HalfAfternoon", label: "Half (Afternoon)" },
                   ].map((opt) => (
                     <button
                       key={opt.id}
@@ -265,11 +280,11 @@ export default function LeaveRequest() {
               {/* Reason Input */}
               <div className="space-y-4">
                 <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-2">
-                  3. เหตุผลการลา
+                  3. Reason
                 </label>
                 <textarea
                   rows="4"
-                  placeholder="โปรดระบุรายละเอียดความจำเป็น..."
+                  placeholder="Please provide details..."
                   className="w-full p-5 bg-gray-50 border-none rounded-[2rem] font-bold text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all resize-none"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
@@ -279,7 +294,7 @@ export default function LeaveRequest() {
               {/* Attachment (Optional) */}
               <div className="space-y-3">
                 <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-2">
-                  4. แนบไฟล์ประกอบ (ไม่บังคับ)
+                  4. Attachment (Optional)
                 </label>
 
                 <div className="bg-gray-50 rounded-[2rem] p-4 border border-gray-100">
@@ -287,7 +302,7 @@ export default function LeaveRequest() {
                     <label className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm cursor-pointer hover:border-blue-200 transition-all">
                       <Paperclip size={16} className="text-slate-500" />
                       <span className="text-xs font-black uppercase tracking-widest text-slate-700">
-                        เลือกไฟล์
+                        Choose File
                       </span>
                       <input
                         id="leave-attachment"
@@ -303,14 +318,14 @@ export default function LeaveRequest() {
                         type="button"
                         onClick={clearFile}
                         className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-red-600 hover:bg-red-50 transition-all"
-                        title="ลบไฟล์แนบ"
+                        title="Remove attachment"
                       >
                         <X size={16} />
-                        ลบไฟล์
+                        Remove
                       </button>
                     ) : (
                       <span className="text-xs font-bold text-gray-400">
-                        ยังไม่ได้เลือกไฟล์
+                        No file selected
                       </span>
                     )}
                   </div>
@@ -328,7 +343,7 @@ export default function LeaveRequest() {
                 </div>
 
                 <p className="text-[10px] font-bold text-gray-400 ml-2">
-                  แนบหลักฐานได้ เช่น ใบรับรองแพทย์ / เอกสารอื่นๆ (ไม่แนบก็ส่งได้)
+                  You may attach supporting documents (e.g., medical certificate).  
                 </p>
               </div>
             </div>
@@ -341,7 +356,7 @@ export default function LeaveRequest() {
               onClick={() => navigate("/dashboard")}
               className="px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-slate-600 transition-colors"
             >
-              ยกเลิก (Cancel)
+              Cancel
             </button>
 
             <button
@@ -351,7 +366,9 @@ export default function LeaveRequest() {
                 isLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-600"
               }`}
             >
-              {isLoading ? "กำลังส่งข้อมูล..." : "ส่งคำขอลา"}
+              {isLoading
+                ? "Submitting request..."
+                : "Submit Leave Request"}
             </button>
           </div>
         </form>

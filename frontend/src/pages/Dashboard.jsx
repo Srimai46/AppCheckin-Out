@@ -50,7 +50,7 @@ export default function Dashboard() {
         leaves: mappedLeaves
       });
     } catch (err) {
-      alertError("โหลดข้อมูลไม่สำเร็จ", "กรุณาลองใหม่อีกครั้ง");
+      alertError("Unable to Retrieve Data", "An error occurred while loading the information. Please try again later.");
     }
   }, []);
 
@@ -64,14 +64,18 @@ export default function Dashboard() {
 
   const handleAction = async (action) => {
     const isCheckIn = action === "in";
-    const confirmed = await alertConfirm("ยืนยันรายการ", `ต้องการ ${isCheckIn ? "เข้างาน" : "ออกงาน"} ใช่ไหม?`);
+    const confirmed = await alertConfirm("Attendance Confirmation", `Are you sure you want to ${isCheckIn ? "check in" : "check out"} at this time?`);
+
     if (!confirmed) return;
     try {
       const res = isCheckIn ? await checkIn() : await checkOut();
-      await alertSuccess("สำเร็จ", res?.message);
+      await alertSuccess("Success", res?.message || "The operation was completed successfully.");
       fetchData();
     } catch (err) {
-      alertError("แจ้งเตือน", err?.response?.data?.message || "ผิดพลาด");
+      alertError(
+        "Operation Failed",
+        err?.response?.data?.message || "An unexpected error occurred. Please try again."
+      );
     }
   };
 
@@ -81,7 +85,7 @@ export default function Dashboard() {
     <div className="max-w-6xl mx-auto p-6 space-y-8 animate-in fade-in duration-500">
       <div className="text-center">
         <h1 className="text-3xl font-black text-slate-800">Dashboard</h1>
-        <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-1">ยินดีต้อนรับ, {user?.firstName} {user?.lastName}</p>
+        <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-1">Welcome, {user?.firstName} {user?.lastName}</p>
         <p className="text-xs text-blue-600 font-black mt-2">{time.toLocaleString("th-TH")}</p>
       </div>
 

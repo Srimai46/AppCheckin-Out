@@ -69,7 +69,7 @@ export default function Layout() {
           <NavLink to="/dashboard" className={navStyle}>
             <LayoutDashboard size={18} className="shrink-0" />
             <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-              แดชบอร์ด
+              Dashboard
             </span>
           </NavLink>
 
@@ -83,21 +83,21 @@ export default function Layout() {
               <NavLink to="/admin/leaves" className={navStyle}>
                 <FileCheck size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  อนุมัติคำขอ
+                  Approve Leave Requests
                 </span>
               </NavLink>
 
               <NavLink to="/employees" className={navStyle}>
                 <Users size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  รายชื่อพนักงาน
+                  Employee Directory
                 </span>
               </NavLink>
 
               <NavLink to="/calendar" className={navStyle}>
                 <CalendarDays size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  ปฏิทินทีม
+                  Team Calendar
                 </span>
               </NavLink>
 
@@ -105,7 +105,7 @@ export default function Layout() {
               <NavLink to="/year-end-processing" className={navStyle}>
                 <Settings2 size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  จัดการโควตาประจำปี
+                  Year-End Processing
                 </span>
               </NavLink>
             </>

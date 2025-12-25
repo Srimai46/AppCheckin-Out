@@ -21,24 +21,23 @@ export default function Login() {
 
     try {
       await login(email, password);
-      console.log("✅ Login สำเร็จ! กำลังย้ายหน้า...");
-      navigate('/dashboard', { replace: true });
+      console.log("✅ Login successful. Redirecting...");
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       console.error("❌ Login Error:", error);
-      
-      let msg = "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ";
-      
+
+      let msg = "An unexpected error occurred.";
+
       if (error.code === "ERR_NETWORK") {
-        msg = "ไม่สามารถเชื่อมต่อ Server ได้ (กรุณาเช็คว่า Server Backend เปิดอยู่หรือไม่)";
+        msg = "Unable to connect to the server. Please ensure that the backend service is running.";
       } else if (error.response?.data?.error) {
-        // ดึง Error Message จาก Backend ที่เราเขียนไว้ (เช่น "อีเมลหรือรหัสผ่านไม่ถูกต้อง")
-        msg = error.response.data.error; 
+        // Error message returned from backend (e.g., "Invalid email or password")
+        msg = error.response.data.error;
       } else if (error.message) {
         msg = error.message;
       }
 
-      setErrorMsg(msg); // แสดง error ที่หน้าจอแทน alert
-      // alert('Login Failed: ' + msg); // เอา alert ออกเพื่อให้ดูทันสมัยขึ้น
+      setErrorMsg(msg); // Display error on the screen instead of using alert
     } finally {
       setIsLoading(false);
     }
@@ -116,10 +115,10 @@ export default function Login() {
           >
             {isLoading ? (
                 <>
-                    <Loader2 className="animate-spin h-5 w-5" /> กำลังตรวจสอบ...
+                    <Loader2 className="animate-spin h-5 w-5" /> Authenticating...
                 </>
             ) : (
-                'เข้าสู่ระบบ (Login)'
+                'Login'
             )}
           </button>
         </form>

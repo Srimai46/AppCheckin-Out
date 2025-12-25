@@ -1,13 +1,13 @@
 import Swal from "sweetalert2";
 
-export const alertConfirm = async (title, html, confirmText = "ยืนยัน") => {
+export const alertConfirm = async (title, html, confirmText = "Confirm") => {
   const res = await Swal.fire({
     icon: "question",
     title,
     html,
     showCancelButton: true,
     confirmButtonText: confirmText,
-    cancelButtonText: "ยกเลิก",
+    cancelButtonText: "Cancel",
     reverseButtons: true,
     focusCancel: true,
     buttonsStyling: false,

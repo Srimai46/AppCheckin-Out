@@ -70,7 +70,7 @@ export default function EmployeeDetail() {
       setData(res.data);
     } catch (err) {
       console.error("Fetch error:", err);
-      alertError("ล้มเหลว", "ไม่สามารถโหลดข้อมูลพนักงานได้");
+      alertError("Request Failed", "The employee information could not be retrieved at this time. Please try again later.");
     } finally {
       setLoading(false);
     }
@@ -84,11 +84,11 @@ export default function EmployeeDetail() {
   const handleSaveAll = async (e) => {
     e.preventDefault();
     if (newPassword && newPassword !== confirmPassword)
-      return alertError("ผิดพลาด", "รหัสผ่านไม่ตรงกัน");
+      return alertError("Error", "The passwords do not match.");
 
     const confirmed = await alertConfirm(
-      "ยืนยันการบันทึก",
-      "คุณต้องการแก้ไขข้อมูลพนักงานใช่หรือไม่?"
+      "Confirm Update",
+      "Are you sure you want to update the employee information?"
     );
     if (!confirmed) return;
 
@@ -97,11 +97,11 @@ export default function EmployeeDetail() {
       await api.put(`/employees/${id}`, formData);
       if (newPassword)
         await api.post(`/employees/${id}/reset-password`, { newPassword });
-      await alertSuccess("สำเร็จ", "อัปเดตข้อมูลเรียบร้อยแล้ว");
+      await alertSuccess("Success", "Information has been updated successfully.");
       setShowModal(false);
       fetchData();
     } catch (err) {
-      alertError("ล้มเหลว", err.response?.data?.error || "เกิดข้อผิดพลาด");
+      alertError("Request Failed", err.response?.data?.error || "An error occurred");
     } finally {
       setUpdating(false);
     }
@@ -110,8 +110,8 @@ export default function EmployeeDetail() {
   const handleUpdateStatus = async () => {
     const isCurrentlyActive = data.info.isActive;
     const confirmed = await alertConfirm(
-      "ยืนยันเปลี่ยนสถานะ",
-      `เปลี่ยนเป็น ${isCurrentlyActive ? "พ้นสภาพ" : "พนักงานปกติ"} ใช่หรือไม่?`
+      "Confirm Status Change",
+      `Change to ${isCurrentlyActive ? "Resigned" : "Active"} employee?`
     );
     if (!confirmed) return;
 
@@ -120,11 +120,11 @@ export default function EmployeeDetail() {
       await api.patch(`/employees/${id}/status`, {
         isActive: !isCurrentlyActive,
       });
-      alertSuccess("สำเร็จ", "เปลี่ยนสถานะเรียบร้อย");
+      alertSuccess("Success", "Status changed successfully.");
       setShowModal(false);
       fetchData();
     } catch (err) {
-      alertError("ล้มเหลว", "ไม่สามารถเปลี่ยนสถานะได้");
+      alertError("Request Failed", "Failed to change status.");
     } finally {
       setUpdating(false);
     }
@@ -133,19 +133,19 @@ export default function EmployeeDetail() {
   // --- Logic สำหรับปรับโควตา ---
   const handleApplyQuota = async () => {
     const confirmed = await alertConfirm(
-      "ยืนยันปรับโควตา",
-      "ต้องการอัปเดตโควตาวันลาของพนักงานรายนี้ใช่หรือไม่?"
+      "Confirm Quota Update",
+      "Do you want to update the leave quotas for this employee?"
     );
     if (!confirmed) return;
 
     try {
       setQuotaLoading(true);
       await api.put(`/leaves/policy/quotas/${id}`, { quotas: quotaDraft });
-      alertSuccess("สำเร็จ", "อัปเดตโควตาเรียบร้อย");
+      alertSuccess("Success", "Quota updated successfully.");
       setShowQuotaModal(false);
       fetchData();
     } catch (err) {
-      alertError("ล้มเหลว", "ไม่สามารถอัปเดตโควตาได้");
+      alertError("Failed", "Failed to update quota.");
     } finally {
       setQuotaLoading(false);
     }
@@ -280,7 +280,7 @@ export default function EmployeeDetail() {
             {/* Header */}
             <div className="flex items-center">
               <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-                จัดการข้อมูลพนักงาน
+                Employee Information
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -295,7 +295,7 @@ export default function EmployeeDetail() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    ชื่อ
+                    Name
                   </label>
                   <input
                     required
@@ -308,7 +308,7 @@ export default function EmployeeDetail() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    นามสกุล
+                    Surname
                   </label>
                   <input
                     required
@@ -468,7 +468,7 @@ export default function EmployeeDetail() {
               {/* Password Fields */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
-                  <KeyRound size={12} /> รหัสผ่านใหม่{" "}
+                  <KeyRound size={12} /> New Password{" "}
                   <span className="text-[10px] font-black text-gray-300 normal-case">
                     (เว้นว่าง = ไม่เปลี่ยน)
                   </span>
@@ -484,7 +484,7 @@ export default function EmployeeDetail() {
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  ยืนยันรหัสผ่าน
+                  Confirm Password
                 </label>
                 <input
                   type="password"
@@ -511,7 +511,7 @@ export default function EmployeeDetail() {
                   ) : (
                     <UserPlus size={18} />
                   )}
-                  {data.info.isActive ? "ปรับพ้นสภาพ" : "ปรับเป็นปัจจุบัน"}
+                  {data.info.isActive ? "Terminate" : "Reinstate"}
                 </button>
 
                 <button
@@ -519,7 +519,7 @@ export default function EmployeeDetail() {
                   disabled={updating}
                   className="py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:bg-gray-400 disabled:shadow-none"
                 >
-                  {updating ? "กำลังบันทึก..." : "บันทึกแก้ไข"}
+                  {updating ? "กำลังบันทึก..." : "Save Changes"}
                 </button>
               </div>
             </form>
