@@ -65,16 +65,16 @@ app.use((err, req, res, next) => {
 
     // กรณีไฟล์ใหญ่เกินที่ Multer กำหนด (5MB)
     if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'ไฟล์มีขนาดใหญ่เกินไป (จำกัด 5MB)' });
+        return res.status(400).json({ error: 'The file is too large (limited to 5MB).' });
     }
 
     // กรณีโฟลเดอร์หายหรือไฟล์เข้าถึงไม่ได้
     if (err.code === 'ENOENT') {
-        return res.status(500).json({ error: 'ไม่สามารถบันทึกไฟล์ได้ (โฟลเดอร์ปลายทางไม่มีอยู่จริง)' });
+        return res.status(500).json({ error: 'The file could not be saved (the destination folder does not exist).' });
     }
 
     res.status(500).json({ 
-        error: 'เกิดข้อผิดพลาดภายในระบบ!', 
+        error: 'An error occurred within the system.!', 
         message: err.message 
     });
 });

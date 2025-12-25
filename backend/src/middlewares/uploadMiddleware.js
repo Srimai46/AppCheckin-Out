@@ -15,7 +15,7 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   const ok = ["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(file.mimetype);
-  if (!ok) return cb(new Error("รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WEBP) และ PDF"));
+  if (!ok) return cb(new Error("Only image files are supported. (JPG, PNG, WEBP) and PDF"));
   cb(null, true);
 };
 
