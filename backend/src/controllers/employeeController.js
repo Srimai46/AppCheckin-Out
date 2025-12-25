@@ -88,7 +88,6 @@ exports.getEmployeeById = async (req, res) => {
         status: record.isLate ? "Late" : "On time",
         note: record.note || "-",
       })),
-      // ✅ แก้ไขส่วนนี้: เพิ่ม attachmentUrl ลงในก้อนข้อมูล leaves
       leaves: employee.leaveRequestsAsEmployee.map((leave) => ({
         id: leave.id,
         type: leave.leaveType.typeName,
@@ -97,7 +96,7 @@ exports.getEmployeeById = async (req, res) => {
         days: Number(leave.totalDaysRequested),
         status: leave.status,
         reason: leave.reason,
-        attachmentUrl: leave.attachmentUrl, // 👈 เพิ่มบรรทัดนี้เพื่อส่งข้อมูลไฟล์แนบ
+        attachmentUrl: leave.attachmentUrl,
       })),
     });
   } catch (error) {
@@ -120,7 +119,7 @@ exports.updateEmployeeStatus = async (req, res) => {
 
     await prisma.employee.update({
       where: { id: parseInt(id) },
-      data: { isActive: !!isActive }, // มั่นใจว่าเป็น boolean
+      data: { isActive: !!isActive },
     });
 
     res.json({ message: "Upadted status" });

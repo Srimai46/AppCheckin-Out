@@ -298,7 +298,7 @@ exports.getTeamTodayAttendance = async (req, res) => {
         fullName: `${emp.firstName} ${emp.lastName}`.trim(),
         role: emp.role,
 
-        isActive: emp.isActive, // ✅ สำคัญ: frontend จะได้ filter ได้ถูก
+        isActive: emp.isActive,
 
         checkInTime: r?.checkInTime || null,
         checkOutTime: r?.checkOutTime || null,
