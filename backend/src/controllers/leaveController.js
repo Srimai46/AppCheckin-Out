@@ -86,8 +86,8 @@ const capAnnual = ({ typeName, totalDays, carryOverDays }) => {
 // 1. ดึงโควตาของตัวเอง
 exports.getMyQuotas = async (req, res) => {
   try {
-    let year = req.query.year 
-      ? parseInt(req.query.year, 10) 
+    let year = req.query.year
+      ? parseInt(req.query.year, 10)
       : new Date().getFullYear();
 
     // ✅ Normalization: ถ้าส่ง พ.ศ. มา (เช่น 2568) ให้แปลงเป็น ค.ศ. (2025) อัตโนมัติ
@@ -96,9 +96,9 @@ exports.getMyQuotas = async (req, res) => {
     }
 
     const quotas = await prisma.leaveQuota.findMany({
-      where: { 
-        employeeId: req.user.id, 
-        year: year 
+      where: {
+        employeeId: req.user.id,
+        year: year,
       },
       include: { leaveType: true },
     });
@@ -118,7 +118,7 @@ exports.getMyQuotas = async (req, res) => {
         total: totalAvailable,
         used: used,
         remaining: totalAvailable - used,
-        year: q.year
+        year: q.year,
       };
     });
 
@@ -155,6 +155,17 @@ exports.createLeaveRequest = async (req, res) => {
     const end = new Date(endDate);
     const year = start.getFullYear();
 
+    const config = await prisma.systemConfig.findUnique({
+      where: { year: year },
+    });
+
+    // ตรวจสอบสถานะการปิดงวด
+    if (config?.isClosed) {
+      return res.status(403).json({
+        error: `Sorry, the leave request system for ${year} is currently locked due to year-end processing.`,
+      });
+    }
+
     // ✅ 1. Validate วันที่
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({ error: "Incorrect date format." });
@@ -162,7 +173,9 @@ exports.createLeaveRequest = async (req, res) => {
     if (start > end) {
       return res
         .status(400)
-        .json({ error: "The start date must not be longer than the end date." });
+        .json({
+          error: "The start date must not be longer than the end date.",
+        });
     }
 
     const attachmentUrl = req.file
@@ -173,7 +186,9 @@ exports.createLeaveRequest = async (req, res) => {
       where: { typeName: type },
     });
     if (!leaveType)
-      return res.status(400).json({ error: "This type of leave was not found." });
+      return res
+        .status(400)
+        .json({ error: "This type of leave was not found." });
 
     const totalDaysRequested = calculateTotalDays(
       start,
@@ -183,7 +198,9 @@ exports.createLeaveRequest = async (req, res) => {
     );
 
     if (totalDaysRequested <= 0) {
-      return res.status(400).json({ error: "The number of leave days must be greater than 0" });
+      return res
+        .status(400)
+        .json({ error: "The number of leave days must be greater than 0" });
     }
 
     // ✅ 1.5 RULE: ห้ามลาติดต่อกันเกิน maxConsecutiveDays ของประเภทลา
@@ -208,7 +225,10 @@ exports.createLeaveRequest = async (req, res) => {
           OR: [{ startDate: { lte: end }, endDate: { gte: start } }],
         },
       });
-      if (overlap) throw new Error("You already have overlapping leave requests during this period.");
+      if (overlap)
+        throw new Error(
+          "You already have overlapping leave requests during this period."
+        );
 
       // ตรวจสอบโควตา
       const quota = await tx.leaveQuota.findUnique({
@@ -221,7 +241,8 @@ exports.createLeaveRequest = async (req, res) => {
         },
       });
 
-      if (!quota) throw new Error("No vacation days were found for you this year.");
+      if (!quota)
+        throw new Error("No vacation days were found for you this year.");
 
       const remaining =
         Number(quota.totalDays) +
@@ -229,7 +250,9 @@ exports.createLeaveRequest = async (req, res) => {
         Number(quota.usedDays);
 
       if (remaining < totalDaysRequested) {
-        throw new Error(`don't have enough vacation days left. (have ${remaining} days)`);
+        throw new Error(
+          `don't have enough vacation days left. (have ${remaining} days)`
+        );
       }
 
       // --- สร้างใบลา ---
@@ -303,7 +326,12 @@ exports.createLeaveRequest = async (req, res) => {
       });
     }
 
-    res.status(201).json({ message: "Leave request successfully submitted.", data: result.newLeave });
+    res
+      .status(201)
+      .json({
+        message: "Leave request successfully submitted.",
+        data: result.newLeave,
+      });
   } catch (error) {
     console.error("Create Leave Request Error:", error);
     res.status(400).json({ error: error.message });
@@ -379,7 +407,9 @@ exports.updateLeaveStatus = async (req, res) => {
       });
 
       if (!request || request.status !== "Pending") {
-        throw new Error("The leave request is not in a status that can be processed.");
+        throw new Error(
+          "The leave request is not in a status that can be processed."
+        );
       }
 
       const updatedRequest = await tx.leaveRequest.update({
@@ -490,13 +520,17 @@ exports.updateEmployeeQuota = async (req, res) => {
 // 5. ✅ ประมวลผลทบวันลาที่เหลือจากปีก่อนหน้า (Annual only, cap 12)
 exports.processCarryOver = async (req, res) => {
   try {
-    const targetYear = req.body?.targetYear ? parseInt(req.body.targetYear, 10) : null;
+    const targetYear = req.body?.targetYear
+      ? parseInt(req.body.targetYear, 10)
+      : null;
     const quotas = req.body?.quotas || {};
     const lastYear = targetYear ? targetYear - 1 : null;
     const ANNUAL_CARRY_CAP = 12;
 
     if (!targetYear || isNaN(targetYear) || targetYear < 2000) {
-      return res.status(400).json({ error: "Invalid targetYear or not provided." });
+      return res
+        .status(400)
+        .json({ error: "Invalid targetYear or not provided." });
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -522,7 +556,7 @@ exports.processCarryOver = async (req, res) => {
         const typeName = String(quota.leaveType?.typeName || "").toUpperCase();
 
         // --- คำนวณวันทบ (เฉพาะ ANNUAL) ---
-       let carryAmount = 0;
+        let carryAmount = 0;
         if (typeName === "ANNUAL") {
           const remaining =
             Number(quota.totalDays) +
@@ -532,7 +566,7 @@ exports.processCarryOver = async (req, res) => {
         }
 
         const newBaseQuota = Number(quotas[typeName] || 0);
- 
+
         // --- Upsert เข้าปีใหม่ ---
         await tx.leaveQuota.upsert({
           where: {
@@ -565,7 +599,7 @@ exports.processCarryOver = async (req, res) => {
             isRead: false,
           });
         }
-        
+
         processedCount++;
       }
 
@@ -587,7 +621,7 @@ exports.processCarryOver = async (req, res) => {
     // ✅ ส่ง Signal ผ่าน Socket.io เพื่อให้หน้าจอพนักงาน Refresh ข้อมูล
     const io = req.app.get("io");
     if (io) {
-      io.emit("notification_refresh"); 
+      io.emit("notification_refresh");
     }
 
     res.json({
