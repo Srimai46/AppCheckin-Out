@@ -52,7 +52,12 @@ function PaginationBar({ page, totalPages, onPrev, onNext }) {
 }
 
 export default function EmployeeList() {
+  const [statusOpen, setStatusOpen] = useState(false);
+
   const navigate = useNavigate();
+
+  const [roleFilter, setRoleFilter] = useState("all"); // all | Worker | HR
+  const [statusFilter, setStatusFilter] = useState("all"); // all | active | inactive
 
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +75,8 @@ export default function EmployeeList() {
   // create employee form
   const [isLoading, setIsLoading] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
+  const [roleOpenFilter, setRoleOpenFilter] = useState(false);
+
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -89,7 +96,11 @@ export default function EmployeeList() {
         : res?.data?.employees || res?.data?.data || [];
       setEmployees(list);
     } catch (err) {
-      alertError("Failed to Load Data", err?.response?.data?.message || "An error occurred while retrieving the information.");
+      alertError(
+        "Failed to Load Data",
+        err?.response?.data?.message ||
+          "An error occurred while retrieving the information."
+      );
     } finally {
       setLoading(false);
     }
@@ -112,10 +123,22 @@ export default function EmployeeList() {
 
   const filteredEmployees = useMemo(() => {
     const keyword = search.toLowerCase().trim();
+
     return employees.filter((emp) => {
-      const isEmpActive = emp.isActive === true || emp.isActive === 1;
-      const matchStatus = activeTab === "active" ? isEmpActive : !isEmpActive;
-      if (!matchStatus) return false;
+      const isActive = emp.isActive === true || emp.isActive === 1;
+
+      // tab active / inactive
+      if (activeTab === "active" && !isActive) return false;
+      if (activeTab === "inactive" && isActive) return false;
+
+      // status filter
+      if (statusFilter === "active" && !isActive) return false;
+      if (statusFilter === "inactive" && isActive) return false;
+
+      // role filter
+      if (roleFilter !== "all" && emp.role !== roleFilter) return false;
+
+      // search
       if (!keyword) return true;
 
       return (
@@ -125,14 +148,20 @@ export default function EmployeeList() {
         String(emp.id).includes(keyword)
       );
     });
-  }, [employees, activeTab, search]);
+  }, [employees, activeTab, roleFilter, statusFilter, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
-  const pageItems = filteredEmployees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredEmployees.length / PAGE_SIZE)
+  );
+  const pageItems = filteredEmployees.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, search]);
+  }, [activeTab, roleFilter, statusFilter, search]);
 
   const resetCreateForm = () => {
     setFormData({
@@ -188,7 +217,12 @@ export default function EmployeeList() {
       setShowModal(false);
       fetchEmployees();
     } catch (err) {
-      alertError("Failed", err?.response?.data?.error || err?.response?.data?.message || "An unexpected error occurred. Please try again.");
+      alertError(
+        "Failed",
+        err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          "An unexpected error occurred. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -226,7 +260,9 @@ export default function EmployeeList() {
           <button
             onClick={() => setActiveTab("active")}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-              activeTab === "active" ? "bg-white text-blue-600 shadow-md" : "text-gray-400"
+              activeTab === "active"
+                ? "bg-white text-blue-600 shadow-md"
+                : "text-gray-400"
             }`}
           >
             <Users size={18} /> Active ({counts.active})
@@ -235,21 +271,172 @@ export default function EmployeeList() {
           <button
             onClick={() => setActiveTab("inactive")}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-              activeTab === "inactive" ? "bg-white text-rose-600 shadow-md" : "text-gray-400"
+              activeTab === "inactive"
+                ? "bg-white text-rose-600 shadow-md"
+                : "text-gray-400"
             }`}
           >
             <UserMinus size={18} /> Resigned ({counts.inactive})
           </button>
         </div>
 
-        <input
-          type="text"
-          placeholder="Search employee..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="sm:ml-auto w-full sm:w-80 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100"
-        />
+        {/* Filters */}
+        <div className="flex gap-2 sm:ml-auto w-full sm:w-auto">
+          {/* Role Filter */}
+
+{/* Role Filter (Custom Dropdown) */}
+<div className="relative w-40">
+  <button
+    type="button"
+    onClick={() => setRoleOpenFilter((v) => !v)}
+    className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5
+      text-xs font-black uppercase tracking-widest text-slate-700
+      flex items-center justify-between transition-all
+      hover:bg-gray-50
+      ${roleOpenFilter ? "ring-2 ring-blue-100" : ""}
+    `}
+  >
+    <span>
+      {roleFilter === "all"
+        ? "All Roles"
+        : roleFilter === "HR"
+        ? "HR"
+        : "Worker"}
+    </span>
+
+    <ChevronDown
+      size={14}
+      className={`transition-transform ${
+        roleOpenFilter ? "rotate-180" : ""
+      }`}
+    />
+  </button>
+
+  {roleOpenFilter && (
+    <>
+      {/* click outside */}
+      <button
+        type="button"
+        className="fixed inset-0 z-10 cursor-default"
+        onClick={() => setRoleOpenFilter(false)}
+        aria-label="Close role dropdown"
+      />
+
+      <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
+        {[
+          { value: "all", label: "All Roles" },
+          { value: "Worker", label: "Worker" },
+          { value: "HR", label: "HR" },
+        ].map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => {
+              setRoleFilter(opt.value);
+              setRoleOpenFilter(false);
+            }}
+            className={`w-full px-6 py-3 text-left text-sm font-black transition-all
+              hover:bg-blue-50
+              ${
+                roleFilter === opt.value
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-slate-700"
+              }
+            `}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
+    </>
+  )}
+</div>
+
+
+          {/* Status Filter */}
+          {/* Status Filter (Custom Dropdown) */}
+          <div className="relative w-40">
+            <button
+              type="button"
+              onClick={() => setStatusOpen((v) => !v)}
+              className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5
+      text-xs font-black uppercase tracking-widest text-slate-700
+      flex items-center justify-between transition-all
+      hover:bg-gray-50
+      ${statusOpen ? "ring-2 ring-blue-100" : ""}
+    `}
+            >
+              <span>
+                {statusFilter === "all"
+                  ? "All Status"
+                  : statusFilter === "active"
+                  ? "Active"
+                  : "Resigned"}
+              </span>
+
+              <ChevronDown
+                size={14}
+                className={`transition-transform ${
+                  statusOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {statusOpen && (
+              <>
+                {/* click outside */}
+                <button
+                  type="button"
+                  className="fixed inset-0 z-10 cursor-default"
+                  onClick={() => setStatusOpen(false)}
+                  aria-label="Close status dropdown"
+                />
+
+                <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
+                  {[
+                    { value: "all", label: "All Status" },
+                    { value: "active", label: "Active" },
+                    { value: "inactive", label: "Resigned" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setStatusFilter(opt.value);
+                        setStatusOpen(false);
+                      }}
+                      className={`w-full px-6 py-3 text-left text-sm font-black transition-all
+              hover:bg-blue-50
+              ${
+                statusFilter === opt.value
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-slate-700"
+              }
+            `}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          
+          {/* Search */}
+<input
+  type="text"
+  value={search}
+  onChange={(e) => setSearch(e.target.value)}
+  placeholder="Search name, email, ID..."
+  className="w-full sm:w-64 bg-white border border-gray-200 rounded-xl
+    px-4 py-2.5 text-xs font-bold text-slate-700
+    placeholder:text-gray-400
+    focus:outline-none focus:ring-2 focus:ring-blue-100"
+/>
+
+        </div>
+      </div>
+      
 
       {/* Table */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
@@ -280,11 +467,15 @@ export default function EmployeeList() {
                     onClick={() => navigate(`/employees/${emp.id}`)}
                     className="hover:bg-blue-50/30 cursor-pointer transition-all group"
                   >
-                    <td className="p-6 text-gray-400 font-bold text-sm">#{emp.id}</td>
+                    <td className="p-6 text-gray-400 font-bold text-sm">
+                      #{emp.id}
+                    </td>
                     <td className="p-6 font-black text-slate-800">
                       {emp.firstName} {emp.lastName}
                     </td>
-                    <td className="p-6 text-gray-500 text-sm font-medium italic">{emp.email}</td>
+                    <td className="p-6 text-gray-500 text-sm font-medium italic">
+                      {emp.email}
+                    </td>
                     <td className="p-6 text-center">
                       <span
                         className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
@@ -319,7 +510,10 @@ export default function EmployeeList() {
               })
             ) : (
               <tr>
-                <td colSpan="5" className="p-20 text-center text-gray-300 font-black text-xs uppercase">
+                <td
+                  colSpan="5"
+                  className="p-20 text-center text-gray-300 font-black text-xs uppercase"
+                >
                   No employees found
                 </td>
               </tr>
@@ -338,7 +532,10 @@ export default function EmployeeList() {
       </div>
 
       {/* Leave Policy Modal */}
-      <LeavePolicyModal isOpen={showPolicyModal} onClose={() => setShowPolicyModal(false)} />
+      <LeavePolicyModal
+        isOpen={showPolicyModal}
+        onClose={() => setShowPolicyModal(false)}
+      />
 
       {/* ✅ Add Employee Modal (ตามแบบภาพ + ใช้ create จริง) */}
       {showModal && (
@@ -373,7 +570,9 @@ export default function EmployeeList() {
                   <input
                     required
                     value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, firstName: e.target.value })
+                    }
                     disabled={isLoading}
                     className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold border-none outline-none focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
                   />
@@ -386,7 +585,9 @@ export default function EmployeeList() {
                   <input
                     required
                     value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, lastName: e.target.value })
+                    }
                     disabled={isLoading}
                     className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold border-none outline-none focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
                   />
@@ -403,7 +604,9 @@ export default function EmployeeList() {
                   type="email"
                   placeholder="Please enter email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                   disabled={isLoading}
                   className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-blue-100 placeholder:text-gray-300 disabled:opacity-60"
                 />
@@ -447,14 +650,18 @@ export default function EmployeeList() {
                         <div className="text-left">
                           <div className="text-slate-800">{formData.role}</div>
                           <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                            {formData.role === "HR" ? "Full Access" : "Standard Access"}
+                            {formData.role === "HR"
+                              ? "Full Access"
+                              : "Standard Access"}
                           </div>
                         </div>
                       </div>
 
                       <ChevronDown
                         size={18}
-                        className={`text-gray-400 transition-transform ${roleOpen ? "rotate-180" : ""}`}
+                        className={`text-gray-400 transition-transform ${
+                          roleOpen ? "rotate-180" : ""
+                        }`}
                       />
                     </div>
                   </button>
@@ -483,7 +690,9 @@ export default function EmployeeList() {
                             <Briefcase size={16} />
                           </span>
                           <div className="flex-1">
-                            <div className="font-black text-slate-800">Worker</div>
+                            <div className="font-black text-slate-800">
+                              Worker
+                            </div>
                             <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
                               Standard Access
                             </div>
@@ -541,7 +750,9 @@ export default function EmployeeList() {
                   required
                   type="date"
                   value={formData.joiningDate}
-                  onChange={(e) => setFormData({ ...formData, joiningDate: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, joiningDate: e.target.value })
+                  }
                   disabled={isLoading}
                   className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
                 />
@@ -557,7 +768,9 @@ export default function EmployeeList() {
                   type="password"
                   placeholder="Minimum 6 characters"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
                   disabled={isLoading}
                   className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-100 placeholder:font-medium placeholder:text-gray-300 disabled:opacity-60"
                 />
