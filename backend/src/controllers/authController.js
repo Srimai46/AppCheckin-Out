@@ -5,8 +5,8 @@ const prisma = require('../config/prisma');
 
 // 1. กำหนด Schema สำหรับตรวจสอบข้อมูลขาเข้าด้วย Zod
 const loginSchema = z.object({
-  email: z.string().email({ message: "รูปแบบอีเมลไม่ถูกต้อง" }),
-  password: z.string().min(6, { message: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }),
+  email: z.string().email({ message: "Email is not correct." }),
+  password: z.string().min(6, { message: "Password required 6 characters." }),
 });
 
 // 2. ฟังก์ชัน Login
@@ -22,12 +22,12 @@ exports.login = async (req, res) => {
 
     // ถ้าไม่มี User หรือ Password ไม่ตรงกัน
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+      return res.status(401).json({ error: 'Email or password are not correct.' });
     }
 
     // ถ้า User ลาออกไปแล้ว (is_active = false) ห้ามล็อกอิน
     if (!user.isActive) {
-      return res.status(403).json({ error: 'บัญชีนี้ถูกระงับการใช้งาน' });
+      return res.status(403).json({ error: 'This account has been suspended.' });
     }
 
     // สร้าง Token
@@ -60,12 +60,12 @@ exports.login = async (req, res) => {
     
     // 1. ถ้าเป็น Error จากการ Validate ข้อมูล (Zod)
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors[0]?.message || "ข้อมูลไม่ถูกต้อง" });
+      return res.status(400).json({ error: error.errors[0]?.message || "The information is not correct" });
     }
     
     // 2. ถ้าเป็น Error อื่นๆ ให้แสดง message ธรรมดา
     console.error("Login Error:", error);
-    res.status(500).json({ error: error.message || 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });
+    res.status(500).json({ error: error.message || 'There is something wrong with the server' });
   }
 };
 
@@ -91,7 +91,7 @@ exports.getMe = async (req, res) => {
     });
 
     if (!user) {
-       return res.status(404).json({ error: 'ไม่พบข้อมูลผู้ใช้' });
+       return res.status(404).json({ error: 'There is no user' });
     }
 
     res.json(user);
@@ -119,6 +119,6 @@ exports.getAllEmployees = async (req, res) => {
     res.json(employees);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'ดึงข้อมูลพนักงานไม่สำเร็จ' });
+    res.status(500).json({ error: 'Employee data retrieval failed.' });
   }
 };
