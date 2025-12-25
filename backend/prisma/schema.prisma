@@ -53,7 +53,6 @@ model Employee {
   leaveRequestsAsHr       LeaveRequest[] @relation("HrApprovals")
   notifications           Notification[]
   specialLeaveGrants      SpecialLeaveGrant[]
-
   @@map("employees")
 }
 
@@ -67,21 +66,11 @@ model LeaveType {
   leaveRequests LeaveRequest[]
   specialLeaveGrants SpecialLeaveGrant[]
   @@map("leave_types")
+
+
 }
 
-model SpecialLeaveGrant {
-  id           Int      @id @default(autoincrement())
-  employeeId   Int      @map("employee_id")
-  leaveTypeId  Int      @map("leave_type_id")
-  amount       Decimal  @db.Decimal(5, 2) // จำนวนวันที่ได้รับ
-  reason       String   @db.VarChar(255)  // เหตุผลที่ได้รับ (เช่น "ลาเพื่อพิธีสมรส")
-  expiryDate   DateTime @map("expiry_date") @db.Date
-  createdAt    DateTime @default(now()) @map("created_at")
 
-  employee     Employee  @relation(fields: [employeeId], references: [id])
-  leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id])
-  @@map("special_leave_grants")
-}
 
 model LeaveQuota {
   id           Int      @id @default(autoincrement()) @map("quota_id")
@@ -115,41 +104,58 @@ model TimeRecord {
 }
 
 model LeaveRequest {
-  id                 Int      @id @default(autoincrement()) @map("request_id")
-  employeeId         Int      @map("employee_id")
-  leaveTypeId        Int      @map("leave_type_id")
-  startDate          DateTime @map("start_date") @db.Date
-  endDate            DateTime @map("end_date") @db.Date
-  totalDaysRequested Decimal  @map("total_days_requested") @db.Decimal(4, 2)
+  id                 Int           @id @default(autoincrement()) @map("request_id")
+  employeeId         Int           @map("employee_id")
+  leaveTypeId        Int           @map("leave_type_id")
+  startDate          DateTime      @map("start_date") @db.Date
+  endDate            DateTime      @map("end_date") @db.Date
+  totalDaysRequested Decimal       @map("total_days_requested") @db.Decimal(4, 2)
 
-  // ใช้ Enum ที่สร้างด้านบน
-  startDuration LeaveDuration @map("start_duration")
-  endDuration   LeaveDuration @map("end_duration")
+  startDuration      LeaveDuration @map("start_duration")
+  endDuration        LeaveDuration @map("end_duration")
 
-  reason      String?       @db.Text
+  reason             String?       @db.Text
   attachmentUrl      String?       @map("attachment_url") @db.VarChar(255)
-  status      RequestStatus @map("status")
-  requestedAt    DateTime  @default(now()) @map("requested_at")
+  status             RequestStatus @map("status")
+  requestedAt        DateTime      @default(now()) @map("requested_at")
 
-  approvedByHrId Int?      @map("approved_by_hr_id")
-  approvalDate   DateTime? @map("approval_date")
+  approvedByHrId     Int?          @map("approved_by_hr_id")
+  approvalDate       DateTime?     @map("approval_date")
+
+  // ✅ 1. เพิ่มฟิลด์ Foreign Key เพื่อเก็บ ID ของการมอบสิทธิ์พิเศษ
+  specialGrantId     Int?          @map("special_grant_id")
+
   // Relations
-  // 1. ความสัมพันธ์กับคนขอลา (ตั้งชื่อว่า "EmployeeRequests")
-  employee       Employee  @relation("EmployeeRequests", fields: [employeeId], references: [id])
+  employee      Employee      @relation("EmployeeRequests", fields: [employeeId], references: [id])
+  leaveType     LeaveType     @relation(fields: [leaveTypeId], references: [id])
+  approvedByHr  Employee?     @relation("HrApprovals", fields: [approvedByHrId], references: [id])
 
-  // 2. ความสัมพันธ์กับประเภทการลา
-  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
-
-  // 3. ความสัมพันธ์กับ HR ผู้อนุมัติ (ตั้งชื่อว่า "HrApprovals")
-  approvedByHr Employee? @relation("HrApprovals", fields: [approvedByHrId], references: [id])
+  // ✅ 2. เพิ่มความสัมพันธ์ไปยัง SpecialLeaveGrant
+  specialGrant  SpecialLeaveGrant? @relation(fields: [specialGrantId], references: [id])
 
   isSpecialApproved  Boolean       @default(false) @map("is_special_approved")
+  notifications      Notification[]
 
-  notifications Notification[]
-
-  @@index([employeeId, startDate]) // เพิ่ม Index สำหรับตรวจสอบ Overlap และดึงประวัติการลา
-  @@index([status])                // สำหรับ HR ดึงเฉพาะรายการที่ Pending
+  @@index([employeeId, startDate])
+  @@index([status])
   @@map("leave_requests")
+}
+
+model SpecialLeaveGrant {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int      @map("employee_id")
+  leaveTypeId Int      @map("leave_type_id")
+  amount      Decimal  @db.Decimal(5, 2) // จำนวนวันที่ HR มอบให้เพิ่ม
+  reason      String   @db.VarChar(255)  // เหตุผลที่ได้รับ
+  expiryDate  DateTime @map("expiry_date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  employee      Employee       @relation(fields: [employeeId], references: [id])
+  leaveType     LeaveType      @relation(fields: [leaveTypeId], references: [id])
+  leaveRequests LeaveRequest[] // เชื่อมกลับไปหาใบลาที่ใช้สิทธิ์นี้
+
+  @@map("special_leave_grants")
 }
 
 model Notification {

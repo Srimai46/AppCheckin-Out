@@ -1,4 +1,3 @@
-// src/api/leaveService.js
 import api from './axios';
 
 // 1. ดึงรายการรออนุมัติ (สำหรับหน้า LeaveApproval ของ HR)
@@ -7,60 +6,69 @@ export const getPendingLeaves = async () => {
   return data;
 };
 
-// 2. อัปเดตสถานะ (Approve / Reject)
-export const updateLeaveStatus = async (id, status, isSpecial = false) => {
-  // ✅ เพิ่ม isSpecial เพื่อให้รองรับ Logic "อนุมัติกรณีพิเศษ (ไม่หักวันลา)" ที่เราเขียนไว้ใน Backend
-  const { data } = await api.patch('/leaves/status', { id, status, isSpecial });
-  return data;
-};
-
-// 3. สร้างคำขอใบลาใหม่ (สำหรับหน้า LeaveRequest)
-export const createLeaveRequest = async (formData) => {
-  // ✅ สำคัญมาก: เมื่อส่งไฟล์ (FormData) 
-  // Axios จะจัดการ Boundary ของ Multipart ให้อัตโนมัติ 
-  // แต่ต้องมั่นใจว่าสิ่งที่ส่งเข้ามาในฟังก์ชันนี้คือ new FormData() จากหน้า LeaveRequest.jsx
-  const { data } = await api.post('/leaves', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+// 2. อัปเดตสถานะ (Approve / Reject) 
+// ปรับปรุง: รองรับการส่ง ID เป็น Array หรือ Single ID เพื่อให้ใช้กับระบบติ๊กเลือกได้
+export const updateLeaveStatus = async (idOrIds, status) => {
+  const { data } = await api.patch('/leaves/status', { 
+    id: idOrIds, // สามารถรับเป็น [1, 2, 3] หรือ 1 ก็ได้
+    status 
   });
   return data;
 };
 
-// 4. ดึงโควตาวันลาคงเหลือของพนักงานเอง
-export const getMyQuotas = async (year) => {
-  const res = await api.get(`/leaves/my-quota?year=${year}`);
-  return res.data; // ต้อง return ข้อมูลข้างใน
+// 3. อนุมัติกรณีพิเศษ (เพิ่มวันลาใหม่ + อนุมัติใบลา)
+// ใช้สำหรับปุ่ม "Bulk Special" ในหน้า LeaveApproval
+export const grantSpecialLeave = async (payload) => {
+  /**
+   * payload: { 
+   * employeeId, leaveTypeId, amount, reason, year, 
+   * leaveRequestId // ✅ ส่ง ID ใบลาเพื่อให้ Backend อนุมัติทันที
+   * }
+   */
+  const { data } = await api.post('/leaves/grant-special', payload);
+  return data;
 };
 
-// 5. ดึงประวัติการลาของตัวเอง
+// 4. สร้างคำขอใบลาใหม่ (Multipart Form Data)
+export const createLeaveRequest = async (formData) => {
+  const { data } = await api.post('/leaves', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+};
+
+// 5. ดึงโควตาวันลาคงเหลือ (รองรับการกรองตามปี)
+export const getMyQuotas = async (year) => {
+  const res = await api.get(`/leaves/my-quota?year=${year}`);
+  return res.data;
+};
+
+// 6. ดึงประวัติการลาของตนเอง
 export const getMyLeaves = async () => {
   const { data } = await api.get('/leaves/my-history');
   return data;
 };
 
-// 6. ดึงรายการลาทั้งหมด (สำหรับ Admin/HR ดูภาพรวม)
-export const getAllLeaves = async () => {
-  const { data } = await api.get('/leaves');
-  return data;
-};
-
-// ประมวลผลทบวันลา Annual ไปปีถัดไป (เพิ่มตัวนี้เข้าไปครับ)
+// 7. ระบบจัดการสิ้นปี (Year-End Processing)
 export const processCarryOver = async (payload) => {
-  // payload หน้าตาจะเป็น { targetYear: 2026, quotas: { ANNUAL: 6, ... } }
   const { data } = await api.post('/leaves/process-carry-over', payload);
   return data;
 };
 
-// ดึงประวัติการปิดงวด
+// 8. ดึงประวัติและสถานะการปิดงวดปี (System Configuration)
 export const getSystemConfigs = async () => {
   const { data } = await api.get('/leaves/system-configs');
   return data;
 };
 
-// ยกเลิกการปิดงวด
+// 9. ปลดล็อคปี (Reopen Year)
 export const reopenYear = async (year) => {
   const { data } = await api.post('/leaves/reopen-year', { year });
   return data;
 };
 
+// 10. ดึงรายการลาทั้งหมด (Admin Overview)
+export const getAllLeaves = async () => {
+  const { data } = await api.get('/leaves');
+  return data;
+};

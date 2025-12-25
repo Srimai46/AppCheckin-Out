@@ -167,11 +167,9 @@ exports.createLeaveRequest = async (req, res) => {
       return res.status(400).json({ error: "Incorrect date format." });
     }
     if (start > end) {
-      return res
-        .status(400)
-        .json({
-          error: "The start date must not be longer than the end date.",
-        });
+      return res.status(400).json({
+        error: "The start date must not be longer than the end date.",
+      });
     }
 
     const attachmentUrl = req.file
@@ -322,12 +320,10 @@ exports.createLeaveRequest = async (req, res) => {
       });
     }
 
-    res
-      .status(201)
-      .json({
-        message: "Leave request successfully submitted.",
-        data: result.newLeave,
-      });
+    res.status(201).json({
+      message: "Leave request successfully submitted.",
+      data: result.newLeave,
+    });
   } catch (error) {
     console.error("Create Leave Request Error:", error);
     res.status(400).json({ error: error.message });
@@ -516,24 +512,33 @@ exports.updateEmployeeQuota = async (req, res) => {
 // 5. ✅ ประมวลผลทบวันลาที่เหลือจากปีก่อนหน้า (Annual only, cap 12)
 exports.processCarryOver = async (req, res) => {
   try {
-    const targetYear = req.body?.targetYear ? parseInt(req.body.targetYear, 10) : null;
+    const targetYear = req.body?.targetYear
+      ? parseInt(req.body.targetYear, 10)
+      : null;
     const quotas = req.body?.quotas || {}; // รับค่าโควตาตั้งต้นจากหน้าบ้าน
     const lastYear = targetYear ? targetYear - 1 : null;
     const ANNUAL_TOTAL_CAP = 12;
 
     if (!targetYear || isNaN(targetYear) || targetYear < 2000) {
-      return res.status(400).json({ error: "Invalid targetYear or not provided." });
+      return res
+        .status(400)
+        .json({ error: "Invalid targetYear or not provided." });
     }
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. ตรวจสอบสถานะการปิดงวดปีที่แล้ว (ถ้ามี)
-      const config = await tx.systemConfig.findUnique({ where: { year: lastYear } });
-      if (config?.isClosed) throw new Error(`Year ${lastYear} is already closed.`);
+      const config = await tx.systemConfig.findUnique({
+        where: { year: lastYear },
+      });
+      if (config?.isClosed)
+        throw new Error(`Year ${lastYear} is already closed.`);
 
       // 2. ดึงรายชื่อพนักงาน "ทุกคน" ที่ยังทำงานอยู่ (Active)
       // วิธีนี้จะช่วยให้พนักงานใหม่ที่พึ่งเข้าปีนี้ได้รับโควตาด้วย แม้ไม่มีข้อมูลปีที่แล้ว
-      const allEmployees = await tx.employee.findMany({ where: { isActive: true } });
-      
+      const allEmployees = await tx.employee.findMany({
+        where: { isActive: true },
+      });
+
       // 3. ดึง Leave Types ทั้งหมดเพื่อแมปข้อมูล
       const leaveTypes = await tx.leaveType.findMany();
 
@@ -552,17 +557,23 @@ exports.processCarryOver = async (req, res) => {
               employeeId_leaveTypeId_year: {
                 employeeId: emp.id,
                 leaveTypeId: type.id,
-                year: lastYear
-              }
-            }
+                year: lastYear,
+              },
+            },
           });
 
           // 5. คำนวณวันทบ (เฉพาะ ANNUAL และต้องมีข้อมูลปีเก่า)
           if (typeName === "ANNUAL" && oldQuota) {
-            const remaining = Number(oldQuota.totalDays) + Number(oldQuota.carryOverDays) - Number(oldQuota.usedDays);
+            const remaining =
+              Number(oldQuota.totalDays) +
+              Number(oldQuota.carryOverDays) -
+              Number(oldQuota.usedDays);
             const actualRemaining = Math.max(remaining, 0);
             // คุมเพดานไม่ให้รวมแล้วเกิน 12 วัน
-            carryAmount = Math.min(actualRemaining, Math.max(ANNUAL_TOTAL_CAP - newBaseQuota, 0));
+            carryAmount = Math.min(
+              actualRemaining,
+              Math.max(ANNUAL_TOTAL_CAP - newBaseQuota, 0)
+            );
           }
 
           // 6. Upsert เข้าปีใหม่
@@ -597,7 +608,8 @@ exports.processCarryOver = async (req, res) => {
       }
 
       // บันทึก Notifications และปิดงวดปีเก่า
-      if (notifications.length > 0) await tx.notification.createMany({ data: notifications });
+      if (notifications.length > 0)
+        await tx.notification.createMany({ data: notifications });
       await tx.systemConfig.upsert({
         where: { year: lastYear },
         update: { isClosed: true, closedAt: new Date() },
@@ -611,7 +623,10 @@ exports.processCarryOver = async (req, res) => {
     const io = req.app.get("io");
     if (io) io.emit("notification_refresh");
 
-    res.json({ message: `Processing for ${targetYear} successful.`, employeesProcessed: result });
+    res.json({
+      message: `Processing for ${targetYear} successful.`,
+      employeesProcessed: result,
+    });
   } catch (error) {
     console.error("processCarryOver error:", error);
     res.status(500).json({ error: error.message });
@@ -621,41 +636,85 @@ exports.processCarryOver = async (req, res) => {
 // 6. มอบสิทธิ์วันลาพิเศษให้พนักงาน
 exports.grantSpecialLeave = async (req, res) => {
   try {
-    const { employeeId, leaveTypeId, amount, reason, year } = req.body;
+    const { employeeId, amount, reason, year, leaveRequestId } = req.body;
+
+    const specialType = await prisma.leaveType.findFirst({
+      where: { typeName: "Special" },
+    });
+
+    if (!specialType) {
+      return res
+        .status(400)
+        .json({ error: "System Error: 'Special' leave type not found." });
+    }
 
     await prisma.$transaction(async (tx) => {
-      await tx.specialLeaveGrant.create({
+      // 1. สร้าง Grant Record
+      const grant = await tx.specialLeaveGrant.create({
         data: {
           employeeId: parseInt(employeeId),
-          leaveTypeId: parseInt(leaveTypeId),
+          leaveTypeId: specialType.id,
           amount: parseFloat(amount),
-          reason: reason,
+          reason: reason || "Special Approval",
           expiryDate: new Date(`${year}-12-31`),
         },
       });
 
+      // 2. จัดการ Quota หมวด Special
       await tx.leaveQuota.upsert({
         where: {
           employeeId_leaveTypeId_year: {
             employeeId: parseInt(employeeId),
-            leaveTypeId: parseInt(leaveTypeId),
+            leaveTypeId: specialType.id,
             year: parseInt(year),
           },
         },
-        update: { totalDays: { increment: parseFloat(amount) } },
+        update: {
+          totalDays: { increment: parseFloat(amount) },
+          usedDays: { increment: parseFloat(amount) },
+        },
         create: {
           employeeId: parseInt(employeeId),
-          leaveTypeId: parseInt(leaveTypeId),
+          leaveTypeId: specialType.id,
           year: parseInt(year),
           totalDays: parseFloat(amount),
-          usedDays: 0,
+          usedDays: parseFloat(amount),
         },
       });
+
+      // 3. ✅ อัปเดตใบลา (แก้ไขจุดที่เกิด Error)
+      if (leaveRequestId) {
+        await tx.leaveRequest.update({
+          where: { id: parseInt(leaveRequestId) },
+          data: {
+            status: "Approved",
+            isSpecialApproved: true,
+
+            leaveType: {
+              connect: { id: specialType.id },
+            },
+
+            specialGrant: {
+              connect: { id: grant.id },
+            },
+            
+            approvedByHr: {
+              connect: { id: req.user.id },
+            },
+
+            approvalDate: new Date(),
+          },
+        });
+      }
     });
 
-    res.json({ message: "Special leave request successfully granted." });
+    const io = req.app.get("io");
+    if (io) io.emit("notification_refresh");
+
+    res.json({ message: "Special Case processed successfully." });
   } catch (error) {
-    res.status(500).json({ error: "fail" });
+    console.error("grantSpecialLeave Error:", error);
+    res.status(500).json({ error: error.message });
   }
 };
 
