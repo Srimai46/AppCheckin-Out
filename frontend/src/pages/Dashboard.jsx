@@ -15,6 +15,9 @@ export default function Dashboard() {
   const [time, setTime] = useState(new Date());
   const [data, setData] = useState({ att: [], quotas: [], leaves: [] });
   const [activeTab, setActiveTab] = useState("attendance");
+  const years = [2025, 2026];
+const [yearOpen, setYearOpen] = useState(false);
+
   
   // ✅ กำหนด State ปีเป็น ค.ศ. ตามมาตรฐาน DB
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -100,31 +103,64 @@ export default function Dashboard() {
 
       {/* ✅ ส่วนเลือกปีแบบ Dropdown (ดีไซน์ใหม่) */}
       <div className="flex justify-center mb-6">
-  <div className="relative inline-block text-left w-56">
-    {/* ส่วนหัวข้อ (Label) */}
-    <div className="mb-1.5 ml-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-      Select Year
-    </div>
-    
-    <div className="relative group">
-      <select
-        value={selectedYear}
-        onChange={(e) => setSelectedYear(Number(e.target.value))}
-        className="appearance-none w-full bg-white border border-gray-100 py-3.5 px-6 pr-12 rounded-[1.8rem] shadow-sm text-sm font-black text-slate-700 cursor-pointer focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all hover:shadow-md hover:border-gray-200"
-      >
-        {[2025, 2026].map((y) => (
-          <option key={y} value={y}>
-            Year {y} (AD)
-          </option>
-        ))}
-      </select>
-      
-      {/* Custom Arrow Icon - ส่วนนี้เป็นลูกศรสำหรับ Dropdown ซึ่งควรเก็บไว้เพื่อให้ผู้ใช้ทราบว่าเป็นเมนูเลือกครับ */}
-      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-5 text-gray-400 group-hover:text-blue-500 transition-colors">
-        <ChevronDown size={18} />
-      </div>
-    </div>
+  <div className="relative inline-block w-56 text-left">
+  {/* Label */}
+  <div className="mb-1.5 ml-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+    Select Year
   </div>
+
+  {/* Button */}
+  <button
+    type="button"
+    onClick={() => setYearOpen((v) => !v)}
+    className={`w-full rounded-[1.8rem] px-6 py-3.5 font-black text-sm transition-all
+      bg-white border border-gray-100 shadow-sm
+      hover:border-gray-200 hover:shadow-md
+      focus:outline-none focus:ring-4 focus:ring-blue-500/10
+      ${yearOpen ? "ring-2 ring-blue-100" : ""}
+    `}
+  >
+    <div className="flex items-center justify-between">
+      <div className="text-slate-700">
+        Year {selectedYear} (AD)
+      </div>
+
+      <ChevronDown
+        size={18}
+        className={`text-gray-400 transition-transform ${
+          yearOpen ? "rotate-180" : ""
+        }`}
+      />
+    </div>
+  </button>
+
+  {/* Dropdown */}
+  {yearOpen && (
+    <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
+      {years.map((y) => (
+        <button
+          key={y}
+          type="button"
+          onClick={() => {
+            setSelectedYear(y);
+            setYearOpen(false);
+          }}
+          className={`w-full px-6 py-3 text-left text-sm font-black transition-all
+            hover:bg-blue-50
+            ${
+              selectedYear === y
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-700"
+            }
+          `}
+        >
+          Year {y} (AD)
+        </button>
+      ))}
+    </div>
+  )}
+</div>
+
 </div>
 
       <QuotaCards quotas={data.quotas} />

@@ -27,6 +27,9 @@ export default function EmployeeDetail() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("attendance");
+  const years = [2025, 2026];
+const [yearOpen, setYearOpen] = useState(false);
+
 
   // ✅ 1. เพิ่ม State สำหรับเลือกปี (ใช้ปี ค.ศ. ตามมาตรฐานหน้า Dashboard)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -193,20 +196,59 @@ export default function EmployeeDetail() {
           </div>
 
           {/* Year Dropdown ดีไซน์เดียวกับหน้า Dashboard */}
-          <div className="relative inline-block text-left w-44">
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="appearance-none w-full bg-white border border-gray-100 py-2.5 px-4 pr-10 rounded-xl shadow-sm text-xs font-black text-slate-700 cursor-pointer focus:outline-none hover:shadow-md transition-all hover:border-gray-200"
-            >
-              {[2025, 2026].map((y) => (
-                <option key={y} value={y}>Year {y} (AD)</option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-              <ChevronDown size={14} />
-            </div>
-          </div>
+          <div className="relative inline-block w-44 text-left">
+  {/* Button */}
+  <button
+    type="button"
+    onClick={() => setYearOpen((v) => !v)}
+    className={`w-full rounded-xl px-4 py-2.5 text-xs font-black transition-all
+      bg-white border border-gray-100 shadow-sm
+      hover:border-gray-200 hover:shadow-md
+      focus:outline-none
+      ${yearOpen ? "ring-2 ring-blue-100" : ""}
+    `}
+  >
+    <div className="flex items-center justify-between">
+      <span className="text-slate-700">
+        Year {selectedYear} (AD)
+      </span>
+
+      <ChevronDown
+        size={14}
+        className={`text-gray-400 transition-transform ${
+          yearOpen ? "rotate-180" : ""
+        }`}
+      />
+    </div>
+  </button>
+
+  {/* Dropdown */}
+  {yearOpen && (
+    <div className="absolute z-20 mt-1.5 w-full rounded-xl bg-white shadow-lg border border-gray-100 overflow-hidden">
+      {years.map((y) => (
+        <button
+          key={y}
+          type="button"
+          onClick={() => {
+            setSelectedYear(y);
+            setYearOpen(false);
+          }}
+          className={`w-full px-4 py-2.5 text-left text-xs font-black transition-all
+            hover:bg-blue-50
+            ${
+              selectedYear === y
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-700"
+            }
+          `}
+        >
+          Year {y} (AD)
+        </button>
+      ))}
+    </div>
+  )}
+</div>
+
         </div>
         
         {/* แสดง Card วันลาที่จะขึ้น Badge Carry Over อัตโนมัติถ้ามีข้อมูล */}
