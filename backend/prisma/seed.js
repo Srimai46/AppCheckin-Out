@@ -5,20 +5,44 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Start seeding (2025 Architecture Optimized)...');
 
-  // 1. ล้างข้อมูลเก่าตามลำดับความสัมพันธ์ (ป้องกัน Foreign Key Error)
-  // ต้องลบตารางที่มีความสัมพันธ์ลูก (Child) ก่อนตารางหลัก (Parent)
+  // 1. ล้างข้อมูลเก่าตามลำดับความสัมพันธ์
+  // เพิ่มการลบ workConfiguration เข้าไปในกลุ่มนี้ด้วย
   await prisma.notification.deleteMany();
-  await prisma.leaveRequest.deleteMany(); // ต้องลบก่อน SpecialLeaveGrant เพราะมีความสัมพันธ์เชื่อมกัน
+  await prisma.leaveRequest.deleteMany();
   await prisma.timeRecord.deleteMany();
   await prisma.specialLeaveGrant.deleteMany();
   await prisma.leaveQuota.deleteMany();
   await prisma.leaveType.deleteMany();
+  await prisma.workConfiguration.deleteMany(); // ล้างเกณฑ์เวลาเก่า
   await prisma.employee.deleteMany();
   await prisma.systemConfig.deleteMany();
   console.log('🧹 Database cleaned.');
 
-  // 2. สร้าง Leave Types
-  // เพิ่ม 'Special' เพื่อรองรับระบบอนุมัติพิเศษแบบไม่หักโควตาปกติ
+  // 2. สร้าง Work Configurations (เกณฑ์เวลาทำงานตาม Role)
+  // ** ส่วนที่เพิ่มใหม่ **
+  const configs = [
+    {
+      role: 'Worker',
+      startHour: 8,
+      startMin: 0,
+      endHour: 17,
+      endMin: 0,
+    },
+    {
+      role: 'HR',
+      startHour: 9,
+      startMin: 0,
+      endHour: 18,
+      endMin: 0,
+    }
+  ];
+
+  for (const conf of configs) {
+    await prisma.workConfiguration.create({ data: conf });
+  }
+  console.log('⏰ Work Configurations (Time Rules) established.');
+
+  // 3. สร้าง Leave Types
   const leaveTypesData = [
     { typeName: 'Sick', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 30 },
     { typeName: 'Personal', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 3 },
@@ -34,7 +58,7 @@ async function main() {
   }
   console.log('📝 Leave Types initialized.');
 
-  // 3. สร้าง Employees
+  // 4. สร้าง Employees
   const passwordHash = await bcrypt.hash('123456', 10);
   
   const hrUser = await prisma.employee.create({
@@ -71,13 +95,12 @@ async function main() {
   });
   console.log('👤 Employee data established.');
 
-  // 4. แจก Quotas ประจำปี 2025
+  // 5. แจก Quotas ประจำปี 2025
   const currentYear = 2025;
   const employees = [hrUser, worker1, worker2];
 
   for (const emp of employees) {
     for (const typeName in leaveTypes) {
-      // 'Special' จะเริ่มที่ 0 วันเสมอ เพราะจะได้ยอดจากการมอบสิทธิ์พิเศษเท่านั้น
       let totalDays =
         typeName === "Sick" ? 30 :
         typeName === "Personal" ? 6 :
@@ -100,7 +123,7 @@ async function main() {
   }
   console.log(`📊 Quotas for ${currentYear} distributed.`);
 
-  // 5. ปิดงวดปี 2024 เพื่อรองรับระบบ Carry Over
+  // 6. ปิดงวดปี 2024
   await prisma.systemConfig.create({
     data: {
       year: 2024,

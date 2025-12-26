@@ -7,7 +7,6 @@ const {
   getAllLeaves,
   getPendingRequests,
   updateLeaveStatus,
-  updateEmployeeQuota,
   processCarryOver,
   grantSpecialLeave,
   createLeaveRequest,
@@ -39,7 +38,6 @@ router.post(
 router.get("/", protect, authorize("HR", "Admin"), getAllLeaves);
 router.get("/pending", protect, authorize("HR", "Admin"), getPendingRequests);
 router.patch("/status", protect, authorize("HR", "Admin"), updateLeaveStatus);
-router.patch("/quota/:employeeId", protect, authorize("HR", "Admin"), updateEmployeeQuota);
 router.post("/process-carry-over", protect, authorize("HR", "Admin"), processCarryOver);
 router.post("/grant-special", protect, authorize("HR", "Admin"), grantSpecialLeave);
 router.put("/policy/quotas", protect, authorize("HR", "Admin"), updateCompanyQuotasByType ); // ✅ ปรับทั้งบริษัท (แยกประเภท)
