@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   format,
   startOfMonth,
@@ -28,13 +28,14 @@ import {
   hrCheckInEmployee,
   hrCheckOutEmployee,
 } from "../api/attendanceService";
+import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
 const SHIFT_START = "09:00";
 
 export default function TeamCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // ===== Leaves (เดิม) =====
+  // ===== Leaves =====
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,6 +51,21 @@ export default function TeamCalendar() {
   // ===== ✅ Pagination (Team Attendance) =====
   const PAGE_SIZE = 10;
   const [teamPage, setTeamPage] = useState(1);
+
+  // ===== ✅ Filter Types (Leaves) =====
+  const [selectedTypes, setSelectedTypes] = useState([]); // [] = show all
+
+  const matchLeaveType = (leaveType, filter) => {
+    const t = String(leaveType || "").toLowerCase();
+    if (filter === "sick") return t.includes("sick") || t.includes("ป่วย");
+    if (filter === "personal")
+      return t.includes("personal") || t.includes("กิจ") || t.includes("ธุระ");
+    if (filter === "annual")
+      return t.includes("annual") || t.includes("vacation") || t.includes("พักร้อน");
+    if (filter === "emergency") return t.includes("emergency") || t.includes("ฉุกเฉิน");
+    if (filter === "special") return t.includes("special") || t.includes("พิเศษ");
+    return false;
+  };
 
   // ===================== Fetch Leaves =====================
   useEffect(() => {
@@ -78,6 +94,29 @@ export default function TeamCalendar() {
     };
 
     fetchLeaves();
+  }, []);
+
+  // ===================== ✅ Filter Employee List =====================
+  const [roleFilter, setRoleFilter] = useState("ALL"); // ALL | HR | WORKER
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const roleBtnRef = useRef(null);
+  const roleMenuRef = useRef(null);
+
+  const [roleOpen, setRoleOpen] = useState(false);
+
+  useEffect(() => {
+    const onDown = (e) => {
+      const btn = roleBtnRef.current;
+      const menu = roleMenuRef.current;
+      if (!btn || !menu) return;
+
+      if (btn.contains(e.target) || menu.contains(e.target)) return;
+      setRoleOpen(false);
+    };
+
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
   }, []);
 
   // ===================== ✅ Attendance helpers =====================
@@ -172,27 +211,57 @@ export default function TeamCalendar() {
     return (teamAttendance || []).filter((r) => r?.isActive === true || r?.isActive === 1);
   }, [teamAttendance]);
 
-  // ===================== ✅ Pagination computed (ใช้ activeTeamAttendance) =====================
+  // ✅ FILTERED list (role + search)
+  const filteredTeamAttendance = useMemo(() => {
+    const term = String(searchTerm || "").trim().toLowerCase();
+
+    return (activeTeamAttendance || []).filter((row) => {
+      const roleRaw = String(row?.role || row?.position || "").toUpperCase();
+      if (roleFilter !== "ALL") {
+        const want = roleFilter === "WORKER" ? "WORKER" : "HR";
+        if (roleRaw !== want) return false;
+      }
+
+      if (!term) return true;
+
+      const id = String(row?.employeeId ?? row?.id ?? "").toLowerCase();
+      const email = String(row?.email ?? "").toLowerCase();
+      const name = String(
+        row?.fullName ||
+          row?.name ||
+          `${row?.firstName || ""} ${row?.lastName || ""}`.trim()
+      ).toLowerCase();
+
+      return name.includes(term) || email.includes(term) || id.includes(term);
+    });
+  }, [activeTeamAttendance, roleFilter, searchTerm]);
+
+  // ===================== ✅ Pagination computed (ใช้ filteredTeamAttendance) =====================
   const totalTeamPages = useMemo(() => {
-    return Math.max(1, Math.ceil(activeTeamAttendance.length / PAGE_SIZE));
-  }, [activeTeamAttendance.length]);
+    return Math.max(1, Math.ceil(filteredTeamAttendance.length / PAGE_SIZE));
+  }, [filteredTeamAttendance.length]);
 
   const pagedTeamAttendance = useMemo(() => {
     const start = (teamPage - 1) * PAGE_SIZE;
-    return activeTeamAttendance.slice(start, start + PAGE_SIZE);
-  }, [activeTeamAttendance, teamPage]);
+    return filteredTeamAttendance.slice(start, start + PAGE_SIZE);
+  }, [filteredTeamAttendance, teamPage]);
 
   useEffect(() => {
     setTeamPage((p) => Math.min(Math.max(1, p), totalTeamPages));
   }, [totalTeamPages]);
 
+  // ✅ รีเซ็ตหน้าเมื่อเปลี่ยน filter/search
+  useEffect(() => {
+    setTeamPage(1);
+  }, [roleFilter, searchTerm]);
+
   // ===================== UI Helpers (Leaves) =====================
   const handleDayClick = (day) => {
     const dayLeaves = leaves.filter((leaf) => {
-  if (!isSameDay(leaf.date, day)) return false;
-  if (selectedTypes.length === 0) return true; // ยังไม่เลือก = แสดงทั้งหมด
-  return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
-});
+      if (!isSameDay(leaf.date, day)) return false;
+      if (selectedTypes.length === 0) return true;
+      return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
+    });
 
     setSelectedDate(day);
     setModalLeaves(dayLeaves);
@@ -205,12 +274,21 @@ export default function TeamCalendar() {
   const leaveTheme = (type) => {
     const t = String(type || "").toLowerCase();
 
-    if (t.includes("sick") || t.includes("ป่วย")) {
+    if (t.includes("special") || t.includes("พิเศษ")) {
       return {
         dot: "bg-rose-400",
         border: "border-rose-200",
         bg: "bg-rose-50/60",
         text: "text-rose-700",
+      };
+    }
+
+    if (t.includes("sick") || t.includes("ป่วย")) {
+      return {
+        dot: "bg-violet-400",
+        border: "border-violet-200",
+        bg: "bg-violet-50/60",
+        text: "text-violet-700",
       };
     }
 
@@ -232,7 +310,6 @@ export default function TeamCalendar() {
       };
     }
 
-    // default (อื่นๆ)
     return {
       dot: "bg-amber-400",
       border: "border-amber-200",
@@ -257,10 +334,15 @@ export default function TeamCalendar() {
     return "";
   };
 
-  const todayCount = useMemo(
-    () => leaves.filter((l) => isSameDay(l.date, new Date())).length,
-    [leaves]
-  );
+  // ✅ today count respects filters
+  const todayCount = useMemo(() => {
+    const today = new Date();
+    return leaves.filter((l) => {
+      if (!isSameDay(l.date, today)) return false;
+      if (selectedTypes.length === 0) return true;
+      return selectedTypes.some((f) => matchLeaveType(l.type, f));
+    }).length;
+  }, [leaves, selectedTypes]);
 
   const goPrev = () => setCurrentDate((d) => subMonths(d, 1));
   const goNext = () => setCurrentDate((d) => addMonths(d, 1));
@@ -290,42 +372,56 @@ export default function TeamCalendar() {
     return { total, checkedIn, late, checkedOut };
   }, [activeTeamAttendance]);
 
-  // ===================== ✅ HR Actions =====================
-  const handleHRCheckIn = async (employeeId) => {
+  // ===================== ✅ HR Actions + SweetAlert =====================
+  const handleHRCheckIn = async (employeeId, employeeName = "") => {
+    const busy = actionLoading[employeeId];
+    if (busy) return;
+
+    const ok = await alertConfirm(
+      "Confirm Check-in",
+      employeeName
+        ? `Do you want to check in for ${employeeName}?`
+        : "Do you want to check in for this employee?"
+    );
+    if (!ok) return;
+
     try {
       setActionLoading((p) => ({ ...p, [employeeId]: "in" }));
       await hrCheckInEmployee(employeeId);
+      await alertSuccess("Attendance Recorded", "Check-in saved successfully.");
       await fetchTeamAttendance();
     } catch (e) {
       console.error("HR check-in failed:", e);
+      alertError("Operation Failed", e?.response?.data?.message || "Unable to check in employee.");
     } finally {
       setActionLoading((p) => ({ ...p, [employeeId]: null }));
     }
   };
 
-  const handleHRCheckOut = async (employeeId) => {
+  const handleHRCheckOut = async (employeeId, employeeName = "") => {
+    const busy = actionLoading[employeeId];
+    if (busy) return;
+
+    const ok = await alertConfirm(
+      "Confirm Check-out",
+      employeeName
+        ? `Do you want to check out for ${employeeName}?`
+        : "Do you want to check out for this employee?"
+    );
+    if (!ok) return;
+
     try {
       setActionLoading((p) => ({ ...p, [employeeId]: "out" }));
       await hrCheckOutEmployee(employeeId);
+      await alertSuccess("Attendance Recorded", "Check-out saved successfully.");
       await fetchTeamAttendance();
     } catch (e) {
       console.error("HR check-out failed:", e);
+      alertError("Operation Failed", e?.response?.data?.message || "Unable to check out employee.");
     } finally {
       setActionLoading((p) => ({ ...p, [employeeId]: null }));
     }
   };
-
-  const [selectedTypes, setSelectedTypes] = useState([]); // [] = show all
-const matchLeaveType = (leaveType, filter) => {
-  const t = String(leaveType || "").toLowerCase();
-  if (filter === "sick") return t.includes("sick") || t.includes("ป่วย");
-  if (filter === "personal") return t.includes("personal") || t.includes("กิจ") || t.includes("ธุระ");
-  if (filter === "annual") return t.includes("annual") || t.includes("vacation") || t.includes("พักร้อน");
-  if (filter === "emergency") return t.includes("emergency") || t.includes("ฉุกเฉิน");
-  return false;
-};
-
-
 
   return (
     <div className="p-4 sm:p-6">
@@ -355,44 +451,44 @@ const matchLeaveType = (leaveType, filter) => {
               </button>
 
               <div className="flex flex-wrap items-center gap-2">
-  {[
-    { key: "sick", color: "bg-rose-400", label: "Sick" },
-    { key: "personal", color: "bg-sky-400", label: "Personal" },
-    { key: "annual", color: "bg-emerald-400", label: "Annual" },
-    { key: "emergency", color: "bg-yellow-400", label: "Emergency" },
-  ].map((item) => {
-    const active = selectedTypes.includes(item.key);
+                {[
+                  { key: "sick", color: "bg-violet-400", label: "Sick" },
+                  { key: "personal", color: "bg-sky-400", label: "Personal" },
+                  { key: "annual", color: "bg-emerald-400", label: "Annual" },
+                  { key: "emergency", color: "bg-yellow-400", label: "Emergency" },
+                  { key: "special", color: "bg-rose-400", label: "Special" },
+                ].map((item) => {
+                  const active = selectedTypes.includes(item.key);
 
-    return (
-      <button
-        key={item.key}
-        type="button"
-        onClick={() =>
-          setSelectedTypes((prev) =>
-            prev.includes(item.key)
-              ? prev.filter((t) => t !== item.key)
-              : [...prev, item.key]
-          )
-        }
-        className={`flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-black transition-all
-          ${
-            active
-              ? "bg-white border-blue-400 ring-2 ring-blue-200 scale-[1.03]"
-              : "bg-gray-50 border-gray-100 opacity-60 hover:opacity-100"
-          }
-        `}
-      >
-        <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
-        <span className="text-slate-700">{item.label}</span>
-      </button>
-    );
-  })}
-</div>
-
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() =>
+                        setSelectedTypes((prev) =>
+                          prev.includes(item.key)
+                            ? prev.filter((t) => t !== item.key)
+                            : [...prev, item.key]
+                        )
+                      }
+                      className={`flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-black transition-all
+                        ${
+                          active
+                            ? "bg-white border-blue-400 ring-2 ring-blue-200 scale-[1.03]"
+                            : "bg-gray-50 border-gray-100 opacity-60 hover:opacity-100"
+                        }
+                      `}
+                    >
+                      <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
+                      <span className="text-slate-700">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2">
-              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-2xl p-2">
+              <div className="flex items-center gap-1">
                 <button
                   onClick={goPrev}
                   className="w-10 h-10 rounded-xl bg-white border border-gray-200 text-slate-800 font-black hover:bg-gray-50 transition active:scale-[0.98]"
@@ -400,12 +496,14 @@ const matchLeaveType = (leaveType, filter) => {
                 >
                   {"<"}
                 </button>
+
                 <button
                   onClick={goToday}
                   className="h-10 px-5 rounded-xl bg-white border border-gray-200 text-slate-800 font-black hover:bg-gray-50 transition active:scale-[0.98]"
                 >
                   Today
                 </button>
+
                 <button
                   onClick={goNext}
                   className="w-10 h-10 rounded-xl bg-white border border-gray-200 text-slate-800 font-black hover:bg-gray-50 transition active:scale-[0.98]"
@@ -420,8 +518,7 @@ const matchLeaveType = (leaveType, filter) => {
 
         {/* ===== Calendar Grid ===== */}
         <div className="p-4 sm:p-6">
-          <div className="bg-white rounded-[2rem] border border-blue-200 ring-2  overflow-hidden">
-
+          <div className="bg-white rounded-[2rem] border border-blue-200 ring-2 overflow-hidden">
             <div className="grid grid-cols-7 border-b border-gray-100 bg-white">
               {weekHeaders.map((d) => (
                 <div key={d} className="py-2 text-center text-[11px] font-black text-slate-700">
@@ -432,11 +529,11 @@ const matchLeaveType = (leaveType, filter) => {
 
             <div className="grid grid-cols-7 bg-white">
               {calendarDays.map((day) => {
-               const dayLeaves = leaves.filter((leaf) => {
-  if (!isSameDay(leaf.date, day)) return false;
-  if (selectedTypes.length === 0) return true; // ยังไม่เลือก = แสดงทั้งหมด
-  return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
-});
+                const dayLeaves = leaves.filter((leaf) => {
+                  if (!isSameDay(leaf.date, day)) return false;
+                  if (selectedTypes.length === 0) return true;
+                  return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
+                });
 
                 const inMonth = isSameMonth(day, currentDate);
                 const dow = day.getDay();
@@ -502,15 +599,15 @@ const matchLeaveType = (leaveType, filter) => {
             </div>
           </div>
 
-        {/* ===================== ✅ TEAM CHECK-IN/OUT PANEL ===================== */}
-          <div className="overflow-hidden mt-28 ">
+          {/* ===================== ✅ TEAM CHECK-IN/OUT PANEL ===================== */}
+          <div className="overflow-hidden mt-28">
             <div className="p-6 border-b border-gray-50 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-2xl bg-blue-600 border border-gray-100 flex items-center justify-center">
                   <Users className="text-slate-50" size={20} />
                 </div>
                 <div>
-                  <div className="text-4xl font-black uppercase tracking-widest text-slate-800 " >
+                  <div className="text-4xl font-black uppercase tracking-widest text-slate-800">
                     Team Check-in / Check-out (Today)
                   </div>
                   <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
@@ -540,6 +637,91 @@ const matchLeaveType = (leaveType, filter) => {
               />
             </div>
 
+            {/* ✅ Filters Row */}
+            <div className="px-6 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                {/* Role Dropdown (Custom) */}
+                <div className="relative w-full sm:w-[220px]">
+                  <button
+                    ref={roleBtnRef}
+                    type="button"
+                    onClick={() => setRoleOpen((v) => !v)}
+                    className="w-full h-11 px-5 rounded-2xl bg-white
+                              border border-gray-200 shadow-sm
+                              text-slate-800 font-black text-[12px] uppercase tracking-widest
+                              flex items-center justify-between
+                              outline-none ring-0
+                              focus:ring-2 focus:ring-blue-200"
+                  >
+                    <span>
+                      {roleFilter === "ALL"
+                        ? "ALL ROLES"
+                        : roleFilter === "WORKER"
+                        ? "WORKER"
+                        : "HR"}
+                    </span>
+
+                    <span
+                      className={`ml-3 text-slate-500 transition-transform ${
+                        roleOpen ? "rotate-180" : ""
+                      }`}
+                    >
+                      ▾
+                    </span>
+                  </button>
+
+                  {roleOpen && (
+                    <div
+                      ref={roleMenuRef}
+                      className="absolute z-50 mt-2 w-full overflow-hidden
+                                rounded-2xl bg-white border border-gray-100
+                                shadow-xl shadow-slate-200/70"
+                    >
+                      {[
+                        { value: "ALL", label: "All Roles" },
+                        { value: "WORKER", label: "Worker" },
+                        { value: "HR", label: "HR" },
+                      ].map((opt) => {
+                        const active = roleFilter === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setRoleFilter(opt.value);
+                              setRoleOpen(false);
+                            }}
+                            className={`w-full text-left px-5 py-3 font-black
+                                        transition-colors
+                                        ${
+                                          active
+                                            ? "bg-blue-50 text-blue-700"
+                                            : "bg-white text-slate-700 hover:bg-gray-50"
+                                        }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Search */}
+                <div className="w-full sm:flex-1">
+                  <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search name, email, ID..."
+                    className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200 shadow-sm
+                              text-slate-800 font-black text-[12px]
+                              placeholder:text-gray-400 placeholder:font-black
+                              outline-none focus:ring-2 focus:ring-blue-200"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Table */}
             <div className="overflow-x-auto border-t border-gray-50">
               <table className="w-full text-left">
@@ -565,6 +747,12 @@ const matchLeaveType = (leaveType, filter) => {
                     <tr>
                       <td colSpan="6" className="px-6 py-10 text-center text-gray-400 italic">
                         No active employee attendance data
+                      </td>
+                    </tr>
+                  ) : filteredTeamAttendance.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="px-6 py-10 text-center text-gray-400 italic">
+                        No matching employees
                       </td>
                     </tr>
                   ) : (
@@ -623,7 +811,7 @@ const matchLeaveType = (leaveType, filter) => {
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-end gap-2">
                               <button
-                                onClick={() => handleHRCheckIn(employeeId)}
+                                onClick={() => handleHRCheckIn(employeeId, name)}
                                 disabled={state !== "NOT_IN" || !!busy}
                                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest border transition-all active:scale-95
                                   ${
@@ -637,7 +825,7 @@ const matchLeaveType = (leaveType, filter) => {
                               </button>
 
                               <button
-                                onClick={() => handleHRCheckOut(employeeId)}
+                                onClick={() => handleHRCheckOut(employeeId, name)}
                                 disabled={state !== "IN" || !!busy}
                                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest border transition-all active:scale-95
                                   ${
@@ -658,14 +846,14 @@ const matchLeaveType = (leaveType, filter) => {
                 </tbody>
               </table>
 
-              {/* ✅ Pagination Bar (ใช้ activeTeamAttendance) */}
-              {!attLoading && activeTeamAttendance.length > 0 && (
+              {/* ✅ Pagination Bar (ใช้ filteredTeamAttendance) */}
+              {!attLoading && filteredTeamAttendance.length > 0 && (
                 <div className="px-6 py-4 border-t border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                     Showing{" "}
-                    {Math.min((teamPage - 1) * PAGE_SIZE + 1, activeTeamAttendance.length)}-
-                    {Math.min(teamPage * PAGE_SIZE, activeTeamAttendance.length)} of{" "}
-                    {activeTeamAttendance.length}
+                    {Math.min((teamPage - 1) * PAGE_SIZE + 1, filteredTeamAttendance.length)}-
+                    {Math.min(teamPage * PAGE_SIZE, filteredTeamAttendance.length)} of{" "}
+                    {filteredTeamAttendance.length}
                   </div>
 
                   <div className="flex items-center justify-end gap-2">
@@ -738,7 +926,6 @@ const matchLeaveType = (leaveType, filter) => {
             </div>
           </div>
         </div>
-        {/* ===================== END PANEL ===================== */}
       </div>
 
       {/* Modal */}
@@ -776,6 +963,11 @@ const matchLeaveType = (leaveType, filter) => {
                       <div className="text-[10px] text-gray-400 uppercase font-black tracking-tighter mt-0.5">
                         {leaf.type} Leave
                       </div>
+                      {leaf.reason && (
+                        <div className="text-[10px] text-slate-600 font-bold normal-case mt-1">
+                          Note: {leaf.reason}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-col items-end gap-1">
@@ -809,15 +1001,6 @@ const matchLeaveType = (leaveType, filter) => {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function LegendDot({ color, label }) {
-  return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-gray-50 border border-gray-100">
-      <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
-      <span className="text-xs font-black text-slate-700">{label}</span>
     </div>
   );
 }

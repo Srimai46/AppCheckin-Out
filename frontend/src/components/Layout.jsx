@@ -8,7 +8,7 @@ import {
   Users,
   CalendarDays,
   Menu,
-  Settings2, // เพิ่มไอคอนสำหรับเมนูตั้งค่าปี
+  Settings2,
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 
