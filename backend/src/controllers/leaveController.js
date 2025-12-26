@@ -479,67 +479,35 @@ exports.updateLeaveStatus = async (req, res) => {
   }
 };
 
-// 4. ปรับปรุงโควตาวันลาของพนักงาน (เดิม)
-exports.updateEmployeeQuota = async (req, res) => {
-  try {
-    const { employeeId } = req.params;
-    const { leaveTypeId, year, totalDays } = req.body;
-
-    const result = await prisma.leaveQuota.upsert({
-      where: {
-        employeeId_leaveTypeId_year: {
-          employeeId: parseInt(employeeId),
-          leaveTypeId: parseInt(leaveTypeId),
-          year: parseInt(year),
-        },
-      },
-      update: { totalDays: parseFloat(totalDays) },
-      create: {
-        employeeId: parseInt(employeeId),
-        leaveTypeId: parseInt(leaveTypeId),
-        year: parseInt(year),
-        totalDays: parseFloat(totalDays),
-        usedDays: 0,
-      },
-    });
-
-    res.json({ message: "Quota management successful.", data: result });
-  } catch (error) {
-    res.status(500).json({ error: "fail" });
-  }
-};
-
-// 5. ✅ ประมวลผลทบวันลาที่เหลือจากปีก่อนหน้า (Annual only, cap 12)
+// 4. ✅ HR: ประมวลผลทบวันลาข้ามปี (Custom Logic)
 exports.processCarryOver = async (req, res) => {
   try {
-    const targetYear = req.body?.targetYear
-      ? parseInt(req.body.targetYear, 10)
-      : null;
-    const quotas = req.body?.quotas || {}; // รับค่าโควตาตั้งต้นจากหน้าบ้าน
-    const lastYear = targetYear ? targetYear - 1 : null;
-    const ANNUAL_TOTAL_CAP = 12;
+    const { 
+      targetYear, 
+      quotas = {}, 
+      carryConfigs = {} // เพิ่มการรับค่า config การทบวัน
+    } = req.body;
 
-    if (!targetYear || isNaN(targetYear) || targetYear < 2000) {
-      return res
-        .status(400)
-        .json({ error: "Invalid targetYear or not provided." });
+    /* ตัวอย่าง carryConfigs ที่ส่งมา:
+      {
+        "ANNUAL": { maxCarry: 5, totalCap: 15 }, 
+        "SICK": { maxCarry: 0, totalCap: 30 }
+      }
+    */
+
+    const lastYear = targetYear ? parseInt(targetYear, 10) - 1 : null;
+
+    if (!targetYear || isNaN(targetYear)) {
+      throw new Error("Invalid targetYear.");
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. ตรวจสอบสถานะการปิดงวดปีที่แล้ว (ถ้ามี)
-      const config = await tx.systemConfig.findUnique({
-        where: { year: lastYear },
-      });
-      if (config?.isClosed)
-        throw new Error(`Year ${lastYear} is already closed.`);
+      // 1. ตรวจสอบการปิดงวด
+      const config = await tx.systemConfig.findUnique({ where: { year: lastYear } });
+      if (config?.isClosed) throw new Error(`Year ${lastYear} is already closed.`);
 
-      // 2. ดึงรายชื่อพนักงาน "ทุกคน" ที่ยังทำงานอยู่ (Active)
-      // วิธีนี้จะช่วยให้พนักงานใหม่ที่พึ่งเข้าปีนี้ได้รับโควตาด้วย แม้ไม่มีข้อมูลปีที่แล้ว
-      const allEmployees = await tx.employee.findMany({
-        where: { isActive: true },
-      });
-
-      // 3. ดึง Leave Types ทั้งหมดเพื่อแมปข้อมูล
+      // 2. ดึงข้อมูลพื้นฐาน
+      const allEmployees = await tx.employee.findMany({ where: { isActive: true } });
       const leaveTypes = await tx.leaveType.findMany();
 
       let processedCount = 0;
@@ -548,10 +516,12 @@ exports.processCarryOver = async (req, res) => {
       for (const emp of allEmployees) {
         for (const type of leaveTypes) {
           const typeName = type.typeName.toUpperCase();
+          const setting = carryConfigs[typeName] || { maxCarry: 0, totalCap: 999 };
+          
           let carryAmount = 0;
           let newBaseQuota = Number(quotas[typeName] || 0);
 
-          // 4. หาข้อมูลโควตาปีเก่าของพนักงานคนนี้ (ถ้ามี)
+          // 3. ดึงข้อมูลปีเก่า
           const oldQuota = await tx.leaveQuota.findUnique({
             where: {
               employeeId_leaveTypeId_year: {
@@ -562,34 +532,34 @@ exports.processCarryOver = async (req, res) => {
             },
           });
 
-          // 5. คำนวณวันทบ (เฉพาะ ANNUAL และต้องมีข้อมูลปีเก่า)
-          if (typeName === "ANNUAL" && oldQuota) {
-            const remaining =
-              Number(oldQuota.totalDays) +
-              Number(oldQuota.carryOverDays) -
-              Number(oldQuota.usedDays);
+          // 4. Logic การทบวันแบบ Custom
+          if (oldQuota && setting.maxCarry > 0) {
+            const remaining = Number(oldQuota.totalDays) + Number(oldQuota.carryOverDays) - Number(oldQuota.usedDays);
             const actualRemaining = Math.max(remaining, 0);
-            // คุมเพดานไม่ให้รวมแล้วเกิน 12 วัน
-            carryAmount = Math.min(
-              actualRemaining,
-              Math.max(ANNUAL_TOTAL_CAP - newBaseQuota, 0)
-            );
+
+            // คำนวณวันทบโดยอิงจาก maxCarry ที่ HR กำหนด
+            carryAmount = Math.min(actualRemaining, setting.maxCarry);
+
+            // ตรวจสอบเพดานรวม (Base + Carry) ไม่ให้เกิน totalCap ที่ HR กำหนด
+            if (newBaseQuota + carryAmount > setting.totalCap) {
+              carryAmount = Math.max(setting.totalCap - newBaseQuota, 0);
+            }
           }
 
-          // 6. Upsert เข้าปีใหม่
+          // 5. Upsert ข้อมูล
           await tx.leaveQuota.upsert({
             where: {
               employeeId_leaveTypeId_year: {
                 employeeId: emp.id,
                 leaveTypeId: type.id,
-                year: targetYear,
+                year: parseInt(targetYear, 10),
               },
             },
             update: { totalDays: newBaseQuota, carryOverDays: carryAmount },
             create: {
               employeeId: emp.id,
               leaveTypeId: type.id,
-              year: targetYear,
+              year: parseInt(targetYear, 10),
               totalDays: newBaseQuota,
               carryOverDays: carryAmount,
               usedDays: 0,
@@ -597,19 +567,17 @@ exports.processCarryOver = async (req, res) => {
           });
         }
 
-        // แจ้งเตือนพนักงานแต่ละคน
         notifications.push({
           employeeId: emp.id,
           notificationType: "Approval",
-          message: `Your leave quotas for ${targetYear} have been processed. Carry-over included!`,
+          message: `Your leave quotas for ${targetYear} have been processed.`,
           isRead: false,
         });
         processedCount++;
       }
 
-      // บันทึก Notifications และปิดงวดปีเก่า
-      if (notifications.length > 0)
-        await tx.notification.createMany({ data: notifications });
+      // 6. บันทึกแจ้งเตือนและปิดปี
+      if (notifications.length > 0) await tx.notification.createMany({ data: notifications });
       await tx.systemConfig.upsert({
         where: { year: lastYear },
         update: { isClosed: true, closedAt: new Date() },
@@ -619,21 +587,16 @@ exports.processCarryOver = async (req, res) => {
       return processedCount;
     });
 
-    // ส่งสัญญาณ Real-time
     const io = req.app.get("io");
     if (io) io.emit("notification_refresh");
 
-    res.json({
-      message: `Processing for ${targetYear} successful.`,
-      employeesProcessed: result,
-    });
+    res.json({ message: "Success", employeesProcessed: result });
   } catch (error) {
-    console.error("processCarryOver error:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-// 6. มอบสิทธิ์วันลาพิเศษให้พนักงาน
+// 5. ✅ HR: อนุมัติกรณีพิเศษ (ไม่หักโควต้า)
 exports.grantSpecialLeave = async (req, res) => {
   try {
     const { employeeId, amount, reason, year, leaveRequestId } = req.body;
@@ -722,23 +685,19 @@ exports.grantSpecialLeave = async (req, res) => {
 // ✅ HR: Update quotas by TYPE (Company-wide + Single employee)
 // =========================================================
 
-// 7) ✅ HR: ปรับโควต้า "ทั้งบริษัท" แยกประเภท
+// 6. ✅ HR: ปรับโควต้า "ทั้งบริษัท" แยกประเภท (หลายประเภทพร้อมกัน)
 exports.updateCompanyQuotasByType = async (req, res) => {
   try {
-    const { quotas, year, onlyActive } = req.body;
+    const { quotas, year, onlyActive, configs = {} } = req.body; 
+    // configs เช่น { "ANNUAL": { totalCap: 15 } }
 
     const normalized = normalizeQuotas(quotas);
     const typeNames = Object.keys(normalized);
-
     const targetYear = year ? parseInt(year, 10) : new Date().getFullYear();
-    if (!Number.isFinite(targetYear)) throw new Error("year incorrect");
 
     const leaveTypes = await getLeaveTypesByNames(typeNames);
-
     const employees = await prisma.employee.findMany({
-      where: onlyActive
-        ? { OR: [{ isActive: true }, { isActive: 1 }] }
-        : undefined,
+      where: onlyActive ? { OR: [{ isActive: true }, { isActive: 1 }] } : undefined,
       select: { id: true },
     });
 
@@ -747,16 +706,11 @@ exports.updateCompanyQuotasByType = async (req, res) => {
 
       for (const emp of employees) {
         for (const lt of leaveTypes) {
-          const key = lt.typeName.toUpperCase();
-          let newTotal = normalized[key];
+          const typeName = lt.typeName.toUpperCase();
+          const setting = configs[typeName] || { totalCap: 999 };
+          let newBase = Number(normalized[typeName] || 0);
 
-          // ✅ Annual totalDays cap 12
-          ({ totalDays: newTotal } = capAnnual({
-            typeName: lt.typeName,
-            totalDays: newTotal,
-            carryOverDays: undefined,
-          }));
-
+          // 1. ดึงข้อมูลปัจจุบัน (ต้องดูทั้ง Used และ Carry)
           const existing = await tx.leaveQuota.findUnique({
             where: {
               employeeId_leaveTypeId_year: {
@@ -768,19 +722,20 @@ exports.updateCompanyQuotasByType = async (req, res) => {
             select: { usedDays: true, carryOverDays: true },
           });
 
-          const usedDays = existing ? Number(existing.usedDays || 0) : 0;
-          let carryOverDays = existing
-            ? Number(existing.carryOverDays || 0)
-            : 0;
+          const currentUsed = existing ? Number(existing.usedDays || 0) : 0;
+          const currentCarry = existing ? Number(existing.carryOverDays || 0) : 0;
 
-          // ✅ Annual carryOver cap 12 (กันไว้ด้วย)
-          ({ carryOverDays } = capAnnual({
-            typeName: lt.typeName,
-            totalDays: undefined,
-            carryOverDays,
-          }));
-
-          const safeTotal = Math.max(newTotal, usedDays);
+          // 2. Logic: โควต้าใหม่ + วันทบเดิม ต้องไม่เกินเพดานที่ HR กำหนด
+          // และต้องไม่น้อยกว่าวันที่ใช้ไปแล้ว
+          let safeBase = newBase;
+          if (safeBase + currentCarry > setting.totalCap) {
+             safeBase = Math.max(setting.totalCap - currentCarry, 0);
+          }
+          
+          // ป้องกันการปรับลดจนโควต้ารวม (Base + Carry) น้อยกว่าที่ใช้ไปจริง
+          if (safeBase + currentCarry < currentUsed) {
+             safeBase = Math.max(currentUsed - currentCarry, 0);
+          }
 
           await tx.leaveQuota.upsert({
             where: {
@@ -790,41 +745,33 @@ exports.updateCompanyQuotasByType = async (req, res) => {
                 year: targetYear,
               },
             },
-            update: { totalDays: safeTotal, carryOverDays },
+            update: { totalDays: safeBase }, // อัปเดตแค่ฐานโควต้า
             create: {
               employeeId: emp.id,
               leaveTypeId: lt.id,
               year: targetYear,
-              totalDays: safeTotal,
-              carryOverDays,
+              totalDays: safeBase,
+              carryOverDays: 0,
               usedDays: 0,
             },
           });
-
           updatedCount++;
         }
       }
-
       return { updatedCount, employeeCount: employees.length };
     });
 
-    res.json({
-      message: "Leave quota update (for the entire company) completed.",
-      year: targetYear,
-      appliedTypes: typeNames,
-      ...result,
-    });
+    res.json({ message: "Updated with Custom Configs", ...result });
   } catch (error) {
-    console.error("updateCompanyQuotasByType error:", error);
-    res.status(400).json({ error: error.message || "Update failed." });
+    res.status(400).json({ error: error.message });
   }
 };
 
-// 8) ✅ HR: ปรับโควต้า "พนักงานคนเดียว" แยกประเภท (หลายประเภทพร้อมกัน)
+// 7) ✅ HR: ปรับโควต้า "พนักงานคนเดียว" แยกประเภท (หลายประเภทพร้อมกัน)
 exports.updateEmployeeQuotasByType = async (req, res) => {
   try {
     const employeeId = parseInt(req.params.employeeId, 10);
-    const { quotas, year } = req.body;
+    const { quotas, year, configs = {} } = req.body; // รับ configs เพิ่ม (ถ้ามี)
 
     if (!Number.isFinite(employeeId) || employeeId <= 0) {
       throw new Error("employeeId incorrect");
@@ -832,9 +779,7 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
 
     const normalized = normalizeQuotas(quotas);
     const typeNames = Object.keys(normalized);
-
     const targetYear = year ? parseInt(year, 10) : new Date().getFullYear();
-    if (!Number.isFinite(targetYear)) throw new Error("year incorrect");
 
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
@@ -849,15 +794,12 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
 
       for (const lt of leaveTypes) {
         const key = lt.typeName.toUpperCase();
-        let newTotal = normalized[key];
+        let newBase = Number(normalized[key] || 0);
+        
+        // ดึง Config สำหรับประเภทลานี้ (ถ้าไม่มีให้ใช้ค่า default ที่สูงไว้ก่อน)
+        const setting = configs[key] || { totalCap: 999 };
 
-        // ✅ Annual totalDays cap 12
-        ({ totalDays: newTotal } = capAnnual({
-          typeName: lt.typeName,
-          totalDays: newTotal,
-          carryOverDays: undefined,
-        }));
-
+        // 1. ดึงข้อมูลปัจจุบัน (ต้องดูทั้ง Used และ Carry)
         const existing = await tx.leaveQuota.findUnique({
           where: {
             employeeId_leaveTypeId_year: {
@@ -869,18 +811,22 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
           select: { usedDays: true, carryOverDays: true },
         });
 
-        const usedDays = existing ? Number(existing.usedDays || 0) : 0;
-        let carryOverDays = existing ? Number(existing.carryOverDays || 0) : 0;
+        const currentUsed = existing ? Number(existing.usedDays || 0) : 0;
+        const currentCarry = existing ? Number(existing.carryOverDays || 0) : 0;
 
-        // ✅ Annual carryOver cap 12
-        ({ carryOverDays } = capAnnual({
-          typeName: lt.typeName,
-          totalDays: undefined,
-          carryOverDays,
-        }));
+        // 2. คำนวณ Safe Total แบบใหม่
+        // Step A: เช็คว่า Base ใหม่ + Carry เดิม เกิน Total Cap ไหม?
+        let safeBase = newBase;
+        if (safeBase + currentCarry > setting.totalCap) {
+          safeBase = Math.max(setting.totalCap - currentCarry, 0);
+        }
 
-        const safeTotal = Math.max(newTotal, usedDays);
+        // Step B: เช็คว่า Base ใหม่ + Carry เดิม ต้องไม่ต่ำกว่าวันที่ใช้ไปแล้ว
+        if (safeBase + currentCarry < currentUsed) {
+          safeBase = Math.max(currentUsed - currentCarry, 0);
+        }
 
+        // 3. Upsert ข้อมูล
         await tx.leaveQuota.upsert({
           where: {
             employeeId_leaveTypeId_year: {
@@ -889,13 +835,15 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
               year: targetYear,
             },
           },
-          update: { totalDays: safeTotal, carryOverDays },
+          update: { 
+            totalDays: safeBase 
+          },
           create: {
             employeeId,
             leaveTypeId: lt.id,
             year: targetYear,
-            totalDays: safeTotal,
-            carryOverDays,
+            totalDays: safeBase,
+            carryOverDays: currentCarry,
             usedDays: 0,
           },
         });
@@ -907,10 +855,9 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
     });
 
     res.json({
-      message: "Leave quota (per person) updated successfully.",
+      message: "Employee quota updated successfully. Cap applied & Carry-over preserved.",
       employeeId,
       year: targetYear,
-      appliedTypes: typeNames,
       ...result,
     });
   } catch (error) {

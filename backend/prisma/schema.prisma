@@ -184,3 +184,15 @@ model SystemConfig {
   closedAt     DateTime?
   processedBy  Int?
 }
+
+model WorkConfiguration {
+id              Int      @id @default(autoincrement())
+  role            Role     @unique
+  startHour       Int      
+  startMin        Int      
+  endHour         Int      
+  endMin          Int      
+  updatedAt       DateTime @updatedAt
+  
+  @@map("work_configurations") 
+}
