@@ -19,30 +19,40 @@ const {
 const { protect, authorize } = require("../middlewares/authMiddleware");
 const { uploadLeaveAttachment } = require("../middlewares/uploadMiddleware");
 
+// ✅ ดึงฟังก์ชันจัดการวันหยุดมาจากไฟล์ที่ถูกต้อง
+const { 
+  createHoliday, 
+  getHolidays, 
+  deleteHoliday, 
+  updateHoliday 
+} = require("../controllers/holidayController");
+
 // ---------------- Worker ----------------
 router.get("/my-quota", protect, getMyQuotas);
 router.get("/my-history", protect, getMyLeaves);
 
-/**
- * @route   POST /api/leaves
- * @desc    สร้างคำขอลาใหม่ (รองรับไฟล์แนบ)
- */
 router.post(
   "/",
   protect,
   uploadLeaveAttachment.single("attachment"),
-  createLeaveRequest // ✅ เรียก controller อย่างเดียว
+  createLeaveRequest 
 );
 
-// ---------------- HR / Admin ----------------
-router.get("/", protect, authorize("HR", "Admin"), getAllLeaves);
-router.get("/pending", protect, authorize("HR", "Admin"), getPendingRequests);
-router.patch("/status", protect, authorize("HR", "Admin"), updateLeaveStatus);
-router.post("/process-carry-over", protect, authorize("HR", "Admin"), processCarryOver);
-router.post("/grant-special", protect, authorize("HR", "Admin"), grantSpecialLeave);
-router.put("/policy/quotas", protect, authorize("HR", "Admin"), updateCompanyQuotasByType ); // ✅ ปรับทั้งบริษัท (แยกประเภท)
-router.put("/policy/quotas/:employeeId", protect, authorize("HR", "Admin"), updateEmployeeQuotasByType ); // ✅ ปรับรายคน (แยกประเภทหลายอัน)
-router.get("/system-configs", protect, authorize("HR", "Admin"), getSystemConfigs);
-router.post("/reopen-year", protect, authorize("HR", "Admin"), reopenYear);
+// ---------------- HR ----------------
+router.get("/", protect, authorize("HR"), getAllLeaves);
+router.get("/pending", protect, authorize("HR"), getPendingRequests);
+router.patch("/status", protect, authorize("HR"), updateLeaveStatus);
+router.post("/process-carry-over", protect, authorize("HR"), processCarryOver);
+router.post("/grant-special", protect, authorize("HR"), grantSpecialLeave);
+router.put("/policy/quotas", protect, authorize("HR"), updateCompanyQuotasByType); 
+router.put("/policy/quotas/:employeeId", protect, authorize("HR"), updateEmployeeQuotasByType); 
+router.get("/system-configs", protect, authorize("HR"), getSystemConfigs);
+router.post("/reopen-year", protect, authorize("HR"), reopenYear);
+
+// ---------------- Holiday Management ----------------
+router.get("/holidays", protect, getHolidays); 
+router.post("/holidays", protect, authorize("HR"), createHoliday); 
+router.delete("/holidays/:id", protect, authorize("HR"), deleteHoliday); 
+router.put("/holidays/:id", protect, authorize("HR"), updateHoliday); 
 
 module.exports = router;

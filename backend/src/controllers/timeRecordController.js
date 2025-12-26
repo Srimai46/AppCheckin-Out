@@ -3,10 +3,11 @@ const prisma = require("../config/prisma");
 // --- Helper Functions ---
 
 const getThaiStartOfDay = () => {
-  const thaiDateStr = new Date().toLocaleDateString("en-CA", {
-    timeZone: "Asia/Bangkok",
-  });
-  return new Date(`${thaiDateStr}T00:00:00+07:00`);
+  const now = new Date();
+  // ปรับให้เป็นเวลาไทย (UTC+7) และตั้งค่าเป็น 00:00:00
+  const start = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+  start.setUTCHours(0, 0, 0, 0);
+  return new Date(start.getTime() - (7 * 60 * 60 * 1000)); // กลับเป็น UTC สำหรับ Prisma
 };
 
 const formatShortDate = (date) => {
@@ -28,16 +29,38 @@ const formatThaiTime = (date) => {
   });
 };
 
+const checkIsHolidayOrWeekend = async (date) => {
+  const dayOfWeek = date.getDay(); // 0 = อาทิตย์, 6 = เสาร์
+  
+  // สร้างวันที่แบบ YYYY-MM-DDT00:00:00.000Z เพื่อให้ตรงกับ normalizeDate ที่ใช้ตอนบันทึก Holiday
+  const dateStr = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // ได้ "YYYY-MM-DD"
+  const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
+
+  const holiday = await prisma.holiday.findUnique({
+    where: { date: targetDate },
+  });
+
+  return {
+    isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+    isHoliday: !!holiday,
+    holidayName: holiday?.name || null
+  };
+};
+
 // --- Controllers ---
 
 exports.checkIn = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userRole = req.user.role; // ตรวจสอบว่ามี role ใน req.user
+    const userRole = req.user.role;
     const { note } = req.body;
     const now = new Date();
 
-    // 1. เช็คว่าวันนี้ลงเวลาไปแล้วหรือยัง
+    // 1. ตรวจสอบวันหยุด/เสาร์-อาทิตย์
+    const { isWeekend, isHoliday, holidayName } = await checkIsHolidayOrWeekend(now);
+    const isSpecialDay = isWeekend || isHoliday;
+
+    // 2. เช็คว่าวันนี้ลงเวลาไปแล้วหรือยัง
     const todayStart = getThaiStartOfDay();
     const existingRecord = await prisma.timeRecord.findFirst({
       where: {
@@ -47,186 +70,126 @@ exports.checkIn = async (req, res) => {
     });
 
     if (existingRecord) {
-      return res
-        .status(400)
-        .json({ error: "You have already checked in for today." });
+      return res.status(400).json({ error: "You have already checked in for today." });
     }
 
-    // 2. ดึงการตั้งค่าเวลาเริ่มงานตาม Role จาก Database
-    const config = await prisma.workConfiguration.findUnique({
-      where: { role: userRole },
-    });
-
-    // ถ้า HR ยังไม่ได้ตั้งค่า ให้ใช้ค่า Default (เช่น 09:00)
+    // 3. คำนวณเวลาสาย (เฉพาะวันทำงานปกติ)
+    const config = await prisma.workConfiguration.findUnique({ where: { role: userRole } });
     const startHour = config ? config.startHour : 9;
     const startMin = config ? config.startMin : 0;
 
-    // คำนวณเวลาเริ่มงานของวันนี้
     const workStartTime = new Date(todayStart);
     workStartTime.setHours(todayStart.getHours() + startHour);
     workStartTime.setMinutes(startMin);
 
-    // เช็คว่ามาสายหรือไม่
-    const isLate = now > workStartTime;
-    const statusText = isLate ? "Late" : "On Time";
+    // ✅ ถ้าเป็นวันหยุด/เสาร์อาทิตย์ จะไม่ถือว่าสายเด็ดขาด
+    const isLate = isSpecialDay ? false : now > workStartTime;
+    const statusText = isSpecialDay ? (isHoliday ? `Holiday (${holidayName})` : "Weekend Work") : (isLate ? "Late" : "On Time");
 
-    // 3. บันทึกข้อมูลลงฐานข้อมูล
+    // 4. บันทึกข้อมูล
     const record = await prisma.timeRecord.create({
       data: {
         employeeId: userId,
         workDate: now,
         checkInTime: now,
         isLate: isLate,
-        note: note || null,
+        note: isSpecialDay ? `[${statusText}] ${note || ""}` : (note || null),
       },
     });
 
-    // --- 4. แจ้งเตือน HR เฉพาะกรณีที่มาสาย ---
-    if (isLate) {
+    // 5. แจ้งเตือน HR เฉพาะวันทำงานปกติที่สาย
+    if (isLate && !isSpecialDay) {
       const hrUsers = await prisma.employee.findMany({ where: { role: "HR" } });
-      const thaiTimeStr = formatThaiTime(now);
-      const lateMessage = `Employee ${req.user.firstName} ${req.user.lastName} Is late (${thaiTimeStr})`;
+      const lateMessage = `Employee ${req.user.firstName} ${req.user.lastName} is late (${formatThaiTime(now)})`;
 
       if (hrUsers.length > 0) {
-        // บันทึกการแจ้งเตือนลง DB สำหรับ HR ทุกคน
-        const notifications = hrUsers.map((hr) => ({
-          employeeId: hr.id,
-          notificationType: "LateWarning",
-          message: lateMessage,
-          isRead: false,
-        }));
-        await prisma.notification.createMany({ data: notifications });
+        await prisma.notification.createMany({
+          data: hrUsers.map(hr => ({
+            employeeId: hr.id,
+            notificationType: "LateWarning",
+            message: lateMessage,
+          })),
+        });
 
-        // ส่ง Real-time Pop-up ผ่าน Socket.io
         const io = req.app.get("io");
         if (io) {
-          hrUsers.forEach((hr) => {
-            io.to(`user_${hr.id}`).emit("notification", {
-              type: "LateWarning",
-              message: lateMessage,
-              timestamp: now,
-            });
+          hrUsers.forEach(hr => {
+            io.to(`user_${hr.id}`).emit("notification", { type: "LateWarning", message: lateMessage, timestamp: now });
           });
         }
       }
     }
 
-    // 5. ส่ง Response กลับไปหา User
     res.status(201).json({
-      message: isLate ? "Check-in successful (Late)" : "Check-in successful",
-      result: {
-        date: formatShortDate(now),
-        time: formatThaiTime(now),
-        status: statusText,
-        isLate: isLate,
-        standardStartTime: `${String(startHour).padStart(2, "0")}:${String(
-          startMin
-        ).padStart(2, "0")}`,
-      },
+      message: `Check-in successful ${isSpecialDay ? "(Non-working day)" : ""}`,
+      result: { date: formatShortDate(now), time: formatThaiTime(now), status: statusText, isLate },
       data: record,
     });
   } catch (error) {
-    console.error("CheckIn Error:", error);
-    res.status(500).json({ message: "An error occurred during check-in." });
+    res.status(500).json({ message: "Error occurred during check-in." });
   }
 };
 
 exports.checkOut = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userRole = req.user.role; // ตรวจสอบว่ามี role ใน req.user
+    const userRole = req.user.role;
     const now = new Date();
     const todayStart = getThaiStartOfDay();
 
-    // 1. ค้นหาบันทึกการเข้างาน (TimeRecord) ของวันนี้
+    const { isWeekend, isHoliday } = await checkIsHolidayOrWeekend(now);
+    const isSpecialDay = isWeekend || isHoliday;
+
     const record = await prisma.timeRecord.findFirst({
-      where: {
-        employeeId: userId,
-        workDate: { gte: todayStart },
-      },
+      where: { employeeId: userId, workDate: { gte: todayStart } },
       orderBy: { id: "desc" },
     });
 
-    if (!record) {
-      return res
-        .status(400)
-        .json({ error: "Check-in record not found. Please check in first." });
-    }
+    if (!record) return res.status(400).json({ error: "Check-in record not found." });
 
-    // 2. ดึงการตั้งค่าเวลาเลิกงานตาม Role จาก Database
-    const config = await prisma.workConfiguration.findUnique({
-      where: { role: userRole },
-    });
-
-    // ถ้ายังไม่ได้ตั้งค่า ให้ใช้ค่า Default เป็น 18:00
+    // คำนวณเวลาเลิกงาน
+    const config = await prisma.workConfiguration.findUnique({ where: { role: userRole } });
     const endHour = config ? config.endHour : 18;
     const endMin = config ? config.endMin : 0;
 
-    // คำนวณเวลาเลิกงานมาตรฐานของวันนี้
     const workEndTime = new Date(todayStart);
     workEndTime.setHours(todayStart.getHours() + endHour);
     workEndTime.setMinutes(endMin);
 
-    // เช็คว่าเลิกงานก่อนเวลาที่กำหนดหรือไม่
-    const isEarlyLeave = now < workEndTime;
+    // ✅ ถ้าเป็นวันหยุด จะไม่ถือว่าเลิกก่อนเวลา (Early Leave)
+    const isEarlyLeave = isSpecialDay ? false : now < workEndTime;
 
-    // 3. อัปเดตข้อมูลการเลิกงาน
     const updatedRecord = await prisma.timeRecord.update({
       where: { id: record.id },
-      data: {
-        checkOutTime: now,
-        // หากใน Schema มีฟิลด์ isEarlyLeave สามารถเพิ่มการ update ได้ที่นี่
-      },
+      data: { checkOutTime: now },
     });
 
-    // --- 4. แจ้งเตือน HR เฉพาะกรณีที่เลิกงานก่อนกำหนด ---
-    if (isEarlyLeave) {
+    // แจ้งเตือน HR เฉพาะวันทำงานปกติที่กลับก่อน
+    if (isEarlyLeave && !isSpecialDay) {
       const hrUsers = await prisma.employee.findMany({ where: { role: "HR" } });
-      const thaiTimeStr = formatThaiTime(now);
-      const earlyLeaveMsg = `Employee ${req.user.firstName} ${req.user.lastName} is Early Leave (${thaiTimeStr})`;
+      const earlyMsg = `Employee ${req.user.firstName} ${req.user.lastName} left early (${formatThaiTime(now)})`;
 
       if (hrUsers.length > 0) {
-        // บันทึกแจ้งเตือนลง DB
         await prisma.notification.createMany({
-          data: hrUsers.map((hr) => ({
-            employeeId: hr.id,
-            notificationType: "EarlyLeaveWarning",
-            message: earlyLeaveMsg,
-            isRead: false,
-          })),
+          data: hrUsers.map(hr => ({ employeeId: hr.id, notificationType: "EarlyLeaveWarning", message: earlyMsg })),
         });
 
-        // ส่ง Real-time Pop-up ไปหา HR
         const io = req.app.get("io");
         if (io) {
-          hrUsers.forEach((hr) => {
-            io.to(`user_${hr.id}`).emit("notification", {
-              type: "EarlyLeaveWarning",
-              message: earlyLeaveMsg,
-              timestamp: now,
-            });
+          hrUsers.forEach(hr => {
+            io.to(`user_${hr.id}`).emit("notification", { type: "EarlyLeaveWarning", message: earlyMsg, timestamp: now });
           });
         }
       }
     }
 
-    // 5. ส่ง Response กลับ
     res.json({
-      message: isEarlyLeave
-        ? "Clock-out successful (Early Leave)"
-        : "Clock-out successful",
-      result: {
-        checkOutTime: formatThaiTime(now),
-        standardEndTime: `${String(endHour).padStart(2, "0")}:${String(
-          endMin
-        ).padStart(2, "0")}`,
-        isEarlyLeave: isEarlyLeave,
-      },
+      message: "Clock-out successful",
+      result: { checkOutTime: formatThaiTime(now), isEarlyLeave },
       data: updatedRecord,
     });
   } catch (error) {
-    console.error("CheckOut Error:", error);
-    res.status(500).json({ error: "An error occurred during check-out." });
+    res.status(500).json({ error: "Error occurred during check-out." });
   }
 };
 
