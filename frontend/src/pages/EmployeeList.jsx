@@ -281,19 +281,18 @@ export default function EmployeeList() {
 
         {/* Filters */}
         <div className="flex gap-2 sm:ml-auto w-full sm:w-auto">
-          {/* Role Filter */}
 
-          {/* Role Filter (Custom Dropdown) */}
+          {/* Role Filter */}
           <div className="relative w-40">
             <button
               type="button"
               onClick={() => setRoleOpenFilter((v) => !v)}
               className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5
-      text-xs font-black uppercase tracking-widest text-slate-700
-      flex items-center justify-between transition-all
-      hover:bg-gray-50
-      ${roleOpenFilter ? "ring-2 ring-blue-100" : ""}
-    `}
+              text-xs font-black uppercase tracking-widest text-slate-700
+              flex items-center justify-between transition-all
+              hover:bg-gray-50
+            ${roleOpenFilter ? "ring-2 ring-blue-100" : ""}
+          `}
             >
               <span>
                 {roleFilter === "all"
@@ -335,13 +334,13 @@ export default function EmployeeList() {
                         setRoleOpenFilter(false);
                       }}
                       className={`w-full px-6 py-3 text-left text-sm font-black transition-all
-              hover:bg-blue-50
-              ${
-                roleFilter === opt.value
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-slate-700"
-              }
-            `}
+                      hover:bg-blue-50
+                      ${
+                        roleFilter === opt.value
+                          ? "bg-blue-50 text-blue-700"
+                          : "text-slate-700"
+                      }
+                    `}
                     >
                       {opt.label}
                     </button>
@@ -357,9 +356,9 @@ export default function EmployeeList() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, email, ID..."
             className="w-full sm:w-64 bg-white border border-gray-200 rounded-xl
-    px-4 py-2.5 text-xs font-bold text-slate-700
-    placeholder:text-gray-400
-    focus:outline-none focus:ring-2 focus:ring-blue-100"
+            px-4 py-2.5 text-xs font-bold text-slate-700
+            placeholder:text-gray-400
+            focus:outline-none focus:ring-2 focus:ring-blue-100"
           />
         </div>
       </div>

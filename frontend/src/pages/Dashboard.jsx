@@ -21,7 +21,7 @@ export default function Dashboard() {
 
   /* -------------------- Year List Logic -------------------- */
   const currentYear = new Date().getFullYear();
-   const FUTURE_YEARS = 2; //ปรับให้แสดงปีในอานคกี่ปี
+   const FUTURE_YEARS = 2; //ปรับให้แสดงปีในอีกกี่ปี
 
   const years = useMemo(() => {
     const yearsFromHistory = data.att

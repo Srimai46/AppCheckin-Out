@@ -10,11 +10,10 @@ export default function QuotaCards({ quotas }) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       {quotas.map((q, idx) => {
         const isSpecial =
-  typeof q.type === "string" && q.type.toLowerCase() === "special";
-
+          typeof q.type === "string" && q.type.toLowerCase() === "special";
 
         const total = Number(q.total) || 0;
         const used = Number(q.used) || 0;
@@ -27,11 +26,21 @@ export default function QuotaCards({ quotas }) {
         return (
           <div
             key={idx}
-            className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-md transition-all"
+            className={[
+              "bg-white p-6 rounded-[2.5rem] shadow-sm border hover:shadow-md transition-all",
+              isSpecial
+                ? "border-rose-200 ring-1 ring-rose-100"
+                : "border-gray-100",
+            ].join(" ")}
           >
             {/* Header */}
             <div className="flex justify-between items-start mb-4">
-              <div className="text-[10px] font-black text-gray-300 uppercase tracking-widest">
+              <div
+                className={[
+                  "text-[10px] font-black uppercase tracking-widest",
+                  isSpecial ? "text-rose-300" : "text-gray-300",
+                ].join(" ")}
+              >
                 {q.type}
               </div>
 
@@ -46,15 +55,19 @@ export default function QuotaCards({ quotas }) {
             {isSpecial ? (
               <>
                 {/* ✅ SPECIAL → แสดงเฉพาะ USED */}
-                <div className="text-4xl font-black  tracking-tighter">
+                <div className="text-4xl font-black tracking-tighter text-slate-900">
                   {used}
-                  <span className= " ml-1 text-[10px] font-black text-gray-400  uppercase tracking-widest">
+                  <span className="ml-1 text-[10px] font-black text-rose-400 uppercase tracking-widest">
                     Used
                   </span>
                 </div>
 
-                <div className="text-[10px]  mt-1 font-black text-gray-400 uppercase tracking-widest">
+                <div className="text-[10px] mt-1 font-black text-rose-400 uppercase tracking-widest">
                   Special Leave Usage
+                </div>
+
+                <div className="mt-4 w-full bg-rose-50 h-1.5 rounded-full overflow-hidden border border-rose-100">
+                  <div className="h-full bg-rose-300 w-full" />
                 </div>
               </>
             ) : (

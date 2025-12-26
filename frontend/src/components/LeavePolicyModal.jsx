@@ -20,19 +20,19 @@ export default function LeavePolicyModal({ isOpen, onClose }) {
 
   const handleUpdate = async () => {
     const confirmed = await alertConfirm(
-      "ปรับนโยบายการลา (ทั้งบริษัท)",
-      "การเปลี่ยนแปลงนี้มีผลกับพนักงานทุกคนทันที",
-      "ยืนยันปรับนโยบาย"
+      "Update Leave Policy (Company-wide)",
+      "This change will take effect for all employees immediately.",
+      "Confirm Policy Update"
     );
     if (!confirmed) return;
 
     try {
       setLoading(true);
       await api.put("/leaves/policy/quotas", { quotas });
-      await alertSuccess("อัปเดตนโยบายสำเร็จ", "บันทึกโควต้ารายประเภทเรียบร้อยแล้ว");
+      await alertSuccess("Policy Updated Successfully", "Leave quotas by category have been saved successfully.");
       onClose();
     } catch (err) {
-      alertError("อัปเดตไม่สำเร็จ", err?.response?.data?.message || "เกิดข้อผิดพลาด");
+      alertError("Update Failed", err?.response?.data?.message || "An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
@@ -61,7 +61,7 @@ export default function LeavePolicyModal({ isOpen, onClose }) {
 
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Leave Policy</h2>
           <p className="mt-2 text-base font-bold text-slate-500">
-            ปรับวันลาสูงสุดแยกประเภท ( Sick / Personal / Annual / Emergency ) ให้พนักงานทุกคน
+            Update maximum leave days by category (Sick / Personal / Annual / Emergency) for all employees.
           </p>
         </div>
 
