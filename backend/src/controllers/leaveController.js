@@ -10,6 +10,48 @@ const ANNUAL_CARRY_CAP = 12; // ทบ Annual ข้ามปี ได้ไม
 const ANNUAL_TOTAL_CAP = 12; // Annual ต่อปี (totalDays) ไม่เกิน 12
 const MAX_DAYS_LIMIT = 365;
 
+const calculateActualLeaveDays = async (start, end, startDuration, endDuration) => {
+  // 1. ดึงวันหยุดทั้งหมดในช่วงเวลาที่ลามารอไว้
+  const holidays = await prisma.holiday.findMany({
+    where: {
+      date: { gte: start, lte: end },
+    },
+    select: { date: true },
+  });
+  const holidayDates = holidays.map((h) => h.date.toISOString().split("T")[0]);
+
+  let total = 0;
+  let current = new Date(start);
+  const finish = new Date(end);
+
+  while (current <= finish) {
+    const dayOfWeek = current.getDay(); // 0=อาทิตย์, 6=เสาร์
+    const dateStr = current.toISOString().split("T")[0];
+
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isHoliday = holidayDates.includes(dateStr);
+
+    // คำนวณเฉพาะวันทำงาน (ไม่ใช่วันหยุด และไม่ใช่เสาร์-อาทิตย์)
+    if (!isWeekend && !isHoliday) {
+      if (current.getTime() === start.getTime() && current.getTime() === finish.getTime()) {
+        // กรณีลาวันเดียว
+        total += (startDuration === "Full") ? 1 : 0.5;
+      } else if (current.getTime() === start.getTime()) {
+        // วันแรกของการลา
+        total += (startDuration === "Full") ? 1 : 0.5;
+      } else if (current.getTime() === finish.getTime()) {
+        // วันสุดท้ายของการลา
+        total += (endDuration === "Full") ? 1 : 0.5;
+      } else {
+        // วันระหว่างกลาง
+        total += 1;
+      }
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return total;
+};
+
 // =========================================================
 // ✅ Helper: normalize quotas input
 // =========================================================
@@ -64,14 +106,19 @@ const getLeaveTypesByNames = async (typeNames) => {
 };
 
 // helper: Annual cap apply for totalDays and carryOverDays
-const capAnnual = ({ typeName, totalDays, carryOverDays }) => {
+const capAnnual = ({ typeName, totalDays, carryOverDays, customMaxCarry }) => {
   const t = String(typeName || "").toUpperCase();
   let nextTotal = totalDays;
   let nextCarry = carryOverDays;
 
+  const limit = customMaxCarry ?? ANNUAL_CARRY_CAP;
+
   if (t === "ANNUAL") {
-    nextCarry = Math.min(Number(nextCarry) || 0, ANNUAL_CARRY_CAP);
+    if (nextCarry !== undefined) {
+      nextCarry = Math.max(0, Math.min(Number(nextCarry) || 0, limit));
+    }
   }
+
   return { totalDays: nextTotal, carryOverDays: nextCarry };
 };
 
@@ -82,14 +129,12 @@ const capAnnual = ({ typeName, totalDays, carryOverDays }) => {
 // 1. ดึงโควตาของตัวเอง
 exports.getMyQuotas = async (req, res) => {
   try {
+    // ใช้ปีปัจจุบันเป็นค่าเริ่มต้น
     let year = req.query.year
       ? parseInt(req.query.year, 10)
       : new Date().getFullYear();
 
-    // ✅ Normalization: ถ้าส่ง พ.ศ. มา (เช่น 2568) ให้แปลงเป็น ค.ศ. (2025) อัตโนมัติ
-    if (year > 2500) {
-      year -= 543;
-    }
+    if (year > 2500) year -= 543;
 
     const quotas = await prisma.leaveQuota.findMany({
       where: {
@@ -99,16 +144,15 @@ exports.getMyQuotas = async (req, res) => {
       include: { leaveType: true },
     });
 
-    // ✅ ตรวจสอบข้อมูลก่อนส่งกลับ
     const result = quotas.map((q) => {
-      // ใช้ parseFloat และกำหนด default เป็น 0 เพื่อป้องกัน NaN
       const base = parseFloat(q.totalDays) || 0;
       const carry = parseFloat(q.carryOverDays) || 0;
       const used = parseFloat(q.usedDays) || 0;
       const totalAvailable = base + carry;
 
       return {
-        type: q.leaveType ? q.leaveType.typeName : "Unknown",
+        id: q.id,
+        type: q.leaveType?.typeName || "Unknown",
         baseQuota: base,
         carryOver: carry,
         total: totalAvailable,
@@ -118,7 +162,6 @@ exports.getMyQuotas = async (req, res) => {
       };
     });
 
-    // ส่งกลับเป็น Array เสมอ (Empty Array [] หากหาไม่พบ)
     res.json(result);
   } catch (error) {
     console.error("getMyQuotas Error:", error);
@@ -132,34 +175,46 @@ exports.getMyLeaves = async (req, res) => {
     const leaves = await prisma.leaveRequest.findMany({
       where: { employeeId: req.user.id },
       orderBy: { requestedAt: "desc" },
-      include: { leaveType: true },
+      include: { 
+        leaveType: true,
+        // ✅ เพิ่มการดึงชื่อคนอนุมัติ (ถ้ามี)
+        approvedByHr: {
+          select: { firstName: true, lastName: true }
+        }
+      },
     });
-    res.json(leaves);
+
+    // ปรับโครงสร้างข้อมูลเล็กน้อยเพื่อให้หน้าบ้านใช้ง่ายขึ้น
+    const formattedLeaves = leaves.map(l => ({
+      ...l,
+      leaveTypeName: l.leaveType?.typeName,
+      approverName: l.approvedByHr ? `${l.approvedByHr.firstName} ${l.approvedByHr.lastName}` : "Pending",
+      // ตรวจสอบ Full Path ของรูปภาพ/ไฟล์แนบ
+      attachmentUrl: l.attachmentUrl ? `${process.env.BASE_URL || ''}${l.attachmentUrl}` : null
+    }));
+
+    res.json(formattedLeaves);
   } catch (error) {
-    res.status(500).json({ error: "ดึงข้อมูลประวัติผิดพลาด" });
+    console.error("getMyLeaves Error:", error);
+    res.status(500).json({ error: "Failed to fetch leave history" });
   }
 };
 
 // 3. ยื่นคำขอลาใหม่ (เพิ่ม validation แน่น)
 exports.createLeaveRequest = async (req, res) => {
   try {
-    const { type, startDate, endDate, reason, startDuration, endDuration } =
-      req.body;
+    const { type, startDate, endDate, reason, startDuration, endDuration } = req.body;
     const userId = req.user.id;
 
     const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0); // ล้างเวลา
     const end = new Date(endDate);
+    end.setHours(0, 0, 0, 0); // ล้างเวลา
     const year = start.getFullYear();
 
-    const config = await prisma.systemConfig.findUnique({
-      where: { year: year },
-    });
-
-    // ตรวจสอบสถานะการปิดงวด
+    const config = await prisma.systemConfig.findUnique({ where: { year } });
     if (config?.isClosed) {
-      return res.status(403).json({
-        error: `Sorry, the leave request system for ${year} is currently locked due to year-end processing.`,
-      });
+      return res.status(403).json({ error: `System for ${year} is locked for processing.` });
     }
 
     // ✅ 1. Validate วันที่
@@ -167,49 +222,28 @@ exports.createLeaveRequest = async (req, res) => {
       return res.status(400).json({ error: "Incorrect date format." });
     }
     if (start > end) {
-      return res.status(400).json({
-        error: "The start date must not be longer than the end date.",
-      });
+      return res.status(400).json({ error: "Start date cannot be after end date." });
     }
 
-    const attachmentUrl = req.file
-      ? `/uploads/leaves/${req.file.filename}`
-      : null;
+    const leaveType = await prisma.leaveType.findUnique({ where: { typeName: type } });
+    if (!leaveType) return res.status(400).json({ error: "Leave type not found." });
 
-    const leaveType = await prisma.leaveType.findUnique({
-      where: { typeName: type },
-    });
-    if (!leaveType)
-      return res
-        .status(400)
-        .json({ error: "This type of leave was not found." });
-
-    const totalDaysRequested = calculateTotalDays(
-      start,
-      end,
-      startDuration,
-      endDuration
-    );
+    // ✅ 2. คำนวณวันลาจริง (หักวันหยุด/เสาร์-อาทิตย์)
+    const totalDaysRequested = await calculateActualLeaveDays(start, end, startDuration, endDuration);
 
     if (totalDaysRequested <= 0) {
-      return res
-        .status(400)
-        .json({ error: "The number of leave days must be greater than 0" });
+      return res.status(400).json({ error: "Calculated leave days must be greater than 0 (Check if your request falls on weekends/holidays)." });
     }
 
-    // ✅ 1.5 RULE: ห้ามลาติดต่อกันเกิน maxConsecutiveDays ของประเภทลา
-    // เช่น Personal = 3 วัน, Emergency = 2 วัน
+    // ✅ 3. ตรวจสอบเงื่อนไขลาติดต่อกัน
     const maxConsecutive = Number(leaveType.maxConsecutiveDays ?? 0);
-
-    // ถ้าใน DB ตั้งไว้ 0 หรือ null ถือว่า "ไม่อนุญาต" / หรือจะตีความเป็น "ไม่จำกัด" ก็ได้
-    // ที่นี่เลือกแบบปลอดภัย: ถ้าไม่มีค่า ให้ข้ามกฎนี้ไป
     if (maxConsecutive > 0 && totalDaysRequested > maxConsecutive) {
-      return res.status(400).json({
-        error: `Cannot take leave of this type. ${leaveType.typeName} consecutively than ${maxConsecutive} Days`,
-      });
+      return res.status(400).json({ error: `You cannot take ${type} leave for more than ${maxConsecutive} consecutive days.` });
     }
 
-    // ✅ 2. Transaction การสร้างใบลาและการแจ้งเตือน
+    const attachmentUrl = req.file ? `/uploads/leaves/${req.file.filename}` : null;
+
+    // ✅ 4. Transaction
     const result = await prisma.$transaction(async (tx) => {
       // ตรวจสอบใบลาทับซ้อน
       const overlap = await tx.leaveRequest.findFirst({
@@ -219,37 +253,20 @@ exports.createLeaveRequest = async (req, res) => {
           OR: [{ startDate: { lte: end }, endDate: { gte: start } }],
         },
       });
-      if (overlap)
-        throw new Error(
-          "You already have overlapping leave requests during this period."
-        );
+      if (overlap) throw new Error("Overlapping leave request found.");
 
       // ตรวจสอบโควตา
       const quota = await tx.leaveQuota.findUnique({
-        where: {
-          employeeId_leaveTypeId_year: {
-            employeeId: userId,
-            leaveTypeId: leaveType.id,
-            year,
-          },
-        },
+        where: { employeeId_leaveTypeId_year: { employeeId: userId, leaveTypeId: leaveType.id, year } },
       });
 
-      if (!quota)
-        throw new Error("No vacation days were found for you this year.");
+      if (!quota) throw new Error("No quota found for this year.");
 
-      const remaining =
-        Number(quota.totalDays) +
-        Number(quota.carryOverDays || 0) -
-        Number(quota.usedDays);
-
+      const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
       if (remaining < totalDaysRequested) {
-        throw new Error(
-          `don't have enough vacation days left. (have ${remaining} days)`
-        );
+        throw new Error(`Insufficient balance. You have ${remaining} days left.`);
       }
 
-      // --- สร้างใบลา ---
       const newLeave = await tx.leaveRequest.create({
         data: {
           employeeId: userId,
@@ -266,21 +283,16 @@ exports.createLeaveRequest = async (req, res) => {
         include: { employee: true, leaveType: true },
       });
 
-      const fullName = `${newLeave.employee.firstName} ${newLeave.employee.lastName}`;
-
-      // --- 🔍 ค้นหา HR/Admin ---
+      // แจ้งเตือน HR
       const admins = await tx.employee.findMany({
-        where: {
-          role: { in: ["HR"] },
-          id: { not: userId },
-        },
+        where: { role: "HR", id: { not: userId } },
         select: { id: true },
       });
 
-      // --- 📝 บันทึกแจ้งเตือนลง Database ---
-      if (admins.length > 0) {
-        const notificationMsg = `New leave request: ${fullName} would like to resign.${type} ${totalDaysRequested} days`;
+      const fullName = `${newLeave.employee.firstName} ${newLeave.employee.lastName}`;
+      const notificationMsg = `${fullName} requested ${type} leave for ${totalDaysRequested} days.`;
 
+      if (admins.length > 0) {
         await tx.notification.createMany({
           data: admins.map((admin) => ({
             employeeId: admin.id,
@@ -290,42 +302,31 @@ exports.createLeaveRequest = async (req, res) => {
           })),
         });
 
-        // ดึงข้อมูล Unread Count ล่าสุดของทุกคนเพื่อส่งผ่าน Socket
         const adminUpdates = await Promise.all(
           admins.map(async (admin) => {
-            const count = await tx.notification.count({
-              where: { employeeId: admin.id, isRead: false },
-            });
+            const count = await tx.notification.count({ where: { employeeId: admin.id, isRead: false } });
             return { adminId: admin.id, unreadCount: count };
           })
         );
-
         return { newLeave, adminUpdates, message: notificationMsg };
       }
-
       return { newLeave, adminUpdates: [] };
     });
 
-    // ✅ 3. ส่ง Real-time Socket.io ไปหา HR/Admin ทุกคน
+    // ✅ 5. Socket.io
     const io = req.app.get("io");
     if (io && result.adminUpdates.length > 0) {
       result.adminUpdates.forEach((update) => {
         io.to(`user_${update.adminId}`).emit("new_notification", {
-          id: Date.now(),
           message: result.message,
           notificationType: "NewRequest",
-          createdAt: new Date(),
           unreadCount: update.unreadCount,
         });
       });
     }
 
-    res.status(201).json({
-      message: "Leave request successfully submitted.",
-      data: result.newLeave,
-    });
+    res.status(201).json({ message: "Request submitted.", data: result.newLeave });
   } catch (error) {
-    console.error("Create Leave Request Error:", error);
     res.status(400).json({ error: error.message });
   }
 };
@@ -337,6 +338,8 @@ exports.createLeaveRequest = async (req, res) => {
 // 1. ดึงคำขอลาที่ยังไม่อนุมัติ
 exports.getPendingRequests = async (req, res) => {
   try {
+    const currentYear = new Date().getFullYear();
+
     const requests = await prisma.leaveRequest.findMany({
       where: { status: "Pending" },
       include: {
@@ -347,39 +350,98 @@ exports.getPendingRequests = async (req, res) => {
             lastName: true,
             email: true,
             profileImageUrl: true,
+            // ✅ ดึงโควต้าของพนักงานคนนี้ในปีปัจจุบันมาด้วย
+            leaveQuotas: {
+              where: { year: currentYear },
+              select: {
+                leaveTypeId: true,
+                totalDays: true,
+                usedDays: true,
+                carryOverDays: true
+              }
+            }
           },
         },
         leaveType: true,
       },
       orderBy: { requestedAt: "asc" },
     });
-    res.json(requests);
+
+    // ✅ ปรับ Format ข้อมูลเล็กน้อยเพื่อให้หน้าบ้านแสดงผล "โควต้าคงเหลือ" ของประเภทที่ลาได้ทันที
+    const formattedRequests = requests.map(req => {
+      const quotaForThisType = req.employee.leaveQuotas.find(q => q.leaveTypeId === req.leaveTypeId);
+      
+      return {
+        ...req,
+        quotaInfo: quotaForThisType ? {
+          remaining: (parseFloat(quotaForThisType.totalDays) + parseFloat(quotaForThisType.carryOverDays || 0)) - parseFloat(quotaForThisType.usedDays),
+          total: parseFloat(quotaForThisType.totalDays) + parseFloat(quotaForThisType.carryOverDays || 0)
+        } : null
+      };
+    });
+
+    res.json(formattedRequests);
   } catch (error) {
-    res.status(500).json({ error: "Unable to retrieve the item." });
+    console.error("getPendingRequests Error:", error);
+    res.status(500).json({ error: "Failed to fetch pending requests." });
   }
 };
 
 // 2. ดึงคำขอลาทั้งหมด
 exports.getAllLeaves = async (req, res) => {
   try {
+    const { status, year, employeeName } = req.query;
+    
+    // สร้างเงื่อนไขการกรองข้อมูล
+    const where = {};
+    
+    if (status) {
+      where.status = status; // เช่น ?status=Approved
+    }
+    
+    if (year) {
+      const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
+      const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
+      where.startDate = { gte: startOfYear, lte: endOfYear };
+    }
+
+    if (employeeName) {
+      where.employee = {
+        OR: [
+          { firstName: { contains: employeeName } },
+          { lastName: { contains: employeeName } }
+        ]
+      };
+    }
+
     const leaves = await prisma.leaveRequest.findMany({
+      where,
       include: {
         employee: { select: { firstName: true, lastName: true, role: true } },
         leaveType: { select: { typeName: true } },
+        approvedByHr: { select: { firstName: true, lastName: true } } // ✅ เพิ่มคนอนุมัติ
       },
-      orderBy: { startDate: "desc" },
+      orderBy: { requestedAt: "desc" }, // เรียงตามลำดับการส่งใบลาล่าสุด
     });
 
-    res.json(
-      leaves.map((l) => ({
-        ...l,
-        name: `${l.employee.firstName} ${l.employee.lastName}`,
-        type: l.leaveType.typeName,
-        totalDays: Number(l.totalDaysRequested),
-      }))
-    );
+    const result = leaves.map((l) => ({
+      id: l.id,
+      name: `${l.employee.firstName} ${l.employee.lastName}`,
+      type: l.leaveType.typeName,
+      startDate: l.startDate,
+      endDate: l.endDate,
+      totalDays: Number(l.totalDaysRequested),
+      status: l.status,
+      reason: l.reason,
+      attachmentUrl: l.attachmentUrl,
+      requestedAt: l.requestedAt,
+      approverName: l.approvedByHr ? `${l.approvedByHr.firstName} ${l.approvedByHr.lastName}` : null
+    }));
+
+    res.json(result);
   } catch (error) {
-    res.status(500).json({ error: "Data retrieval error." });
+    console.error("getAllLeaves Error:", error);
+    res.status(500).json({ error: "Failed to retrieve overall leave data." });
   }
 };
 
@@ -388,22 +450,22 @@ exports.updateLeaveStatus = async (req, res) => {
   try {
     const { id, status, isSpecial } = req.body;
     const hrId = req.user.id;
-    const leaveId = parseInt(id);
+    const leaveId = parseInt(id, 10);
 
-    if (!leaveId) return res.status(400).json({ error: "ID incorrect" });
+    if (!leaveId) return res.status(400).json({ error: "Invalid leave ID" });
 
     const result = await prisma.$transaction(async (tx) => {
+      // 1. ดึงข้อมูลใบลามาตรวจสอบ
       const request = await tx.leaveRequest.findUnique({
         where: { id: leaveId },
         include: { leaveType: true },
       });
 
       if (!request || request.status !== "Pending") {
-        throw new Error(
-          "The leave request is not in a status that can be processed."
-        );
+        throw new Error("This request is no longer pending or does not exist.");
       }
 
+      // 2. อัปเดตสถานะใบลา
       const updatedRequest = await tx.leaveRequest.update({
         where: { id: leaveId },
         data: {
@@ -414,24 +476,45 @@ exports.updateLeaveStatus = async (req, res) => {
         },
       });
 
+      // 3. จัดการหักโควต้ากรณี Approved และไม่ใช่มูลเหตุพิเศษ
       if (status === "Approved" && !isSpecial) {
-        await tx.leaveQuota.update({
-          where: {
-            employeeId_leaveTypeId_year: {
-              employeeId: request.employeeId,
-              leaveTypeId: request.leaveTypeId,
-              year: request.startDate.getFullYear(),
+        const startYear = request.startDate.getFullYear();
+        const endYear = request.endDate.getFullYear();
+
+        // 💡 กรณีลาปีเดียวกัน (ปกติ) หรือ ลาคร่อมปี
+        if (startYear === endYear) {
+          // หักจากปีเดียวตามปกติ
+          await tx.leaveQuota.update({
+            where: {
+              employeeId_leaveTypeId_year: {
+                employeeId: request.employeeId,
+                leaveTypeId: request.leaveTypeId,
+                year: startYear,
+              },
             },
-          },
-          data: { usedDays: { increment: request.totalDaysRequested } },
-        });
+            data: { usedDays: { increment: request.totalDaysRequested } },
+          });
+        } else {
+          // 🚀 กรณีลาคร่อมปี: ต้องคำนวณแยกส่วน
+          // คุณอาจจะเลือกหักปีที่ "เริ่มลา" ทั้งหมด หรือจะใช้ Logic คำนวณวันแยกปี 
+          // ในที่นี้แนะนำให้หักปีที่เริ่มลา (StartYear) ตามนโยบายส่วนใหญ่
+          await tx.leaveQuota.update({
+            where: {
+              employeeId_leaveTypeId_year: {
+                employeeId: request.employeeId,
+                leaveTypeId: request.leaveTypeId,
+                year: startYear,
+              },
+            },
+            data: { usedDays: { increment: request.totalDaysRequested } },
+          });
+        }
       }
 
-      let notifyMsg = `Your leave request has been  ${
-        status === "Approved" ? "approved" : "refused"
-      }`;
+      // 4. สร้างการแจ้งเตือน
+      let notifyMsg = `Your ${request.leaveType.typeName} request has been ${status.toLowerCase()}.`;
       if (status === "Approved" && isSpecial) {
-        notifyMsg = `Your leave request has been approved as a special case. (No deduction from leave days.)`;
+        notifyMsg = `Your leave was approved as a special case (No days deducted).`;
       }
 
       const newNotification = await tx.notification.create({
@@ -450,31 +533,23 @@ exports.updateLeaveStatus = async (req, res) => {
       return { updatedRequest, newNotification, unreadCount };
     });
 
-    // Socket.io
+    // 5. Real-time Notification via Socket.io
     const io = req.app.get("io");
     if (io) {
-      io.to(`user_${result.updatedRequest.employeeId}`).emit(
-        "new_notification",
-        {
-          id: result.newNotification.id,
-          message: result.newNotification.message,
-          type: result.newNotification.notificationType,
-          relatedRequestId: result.newNotification.relatedRequestId,
-          createdAt: result.newNotification.createdAt,
-          unreadCount: result.unreadCount,
-        }
-      );
+      io.to(`user_${result.updatedRequest.employeeId}`).emit("new_notification", {
+        id: result.newNotification.id,
+        message: result.newNotification.message,
+        type: result.newNotification.notificationType,
+        unreadCount: result.unreadCount,
+      });
     }
 
     res.json({
-      message: `carry out ${status}${
-        isSpecial ? " (Special case)" : ""
-      } เรียบร้อยแล้ว`,
+      message: `Status updated to ${status}${isSpecial ? " (Special Case)" : ""}`,
       data: result.updatedRequest,
-      unreadCount: result.unreadCount,
     });
   } catch (error) {
-    console.error("Update Leave Status Error:", error);
+    console.error("UpdateLeaveStatus Error:", error);
     res.status(400).json({ error: error.message });
   }
 };

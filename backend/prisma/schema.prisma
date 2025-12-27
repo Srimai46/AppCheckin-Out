@@ -31,6 +31,7 @@ enum NotificationType {
   Approval
   Rejection
   LateWarning
+  EarlyLeaveWarning
 }
 
 model Employee {
@@ -195,4 +196,13 @@ id              Int      @id @default(autoincrement())
   updatedAt       DateTime @updatedAt
   
   @@map("work_configurations") 
+}
+
+model Holiday {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @unique // วันที่หยุด
+  name      String   // ชื่อวันหยุด เช่น "วันสงกรานต์"
+  isSubsidy Boolean  @default(false) // เป็นวันหยุดชดเชยหรือไม่
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
