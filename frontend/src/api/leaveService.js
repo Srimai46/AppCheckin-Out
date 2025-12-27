@@ -72,3 +72,4 @@ export const getAllLeaves = async () => {
   const { data } = await api.get('/leaves');
   return data;
 };
+
