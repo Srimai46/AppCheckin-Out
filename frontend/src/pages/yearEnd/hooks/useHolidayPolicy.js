@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, useState, useEffect, useCallback } from "react";
 import { alertConfirm, alertError, alertSuccess } from "../../../utils/sweetAlert";
 import { calcTotalDays, clamp, isValidTime, safeYMD, toYMD } from "../utils";
 import {
@@ -10,9 +10,13 @@ import {
 } from "../confirmHtml";
 
 const Ctx = createContext(null);
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8080/api").replace(/\/$/, "");
+const token = localStorage.getItem("token");
 
 export function HolidayPolicyProvider({ children }) {
-  // Working Days
+  // =========================================
+  // 1. Working Days (Mon-Fri)
+  // =========================================
   const [workingDays, setWorkingDays] = useState(["MON", "TUE", "WED", "THU", "FRI"]);
   const [policySaving, setPolicySaving] = useState(false);
 
@@ -36,6 +40,7 @@ export function HolidayPolicyProvider({ children }) {
 
     setPolicySaving(true);
     try {
+      // TODO: เปลี่ยนเป็น API จริงถ้ามี Endpoint (เช่น PUT /attendance/working-days)
       await new Promise((r) => setTimeout(r, 250));
       await alertSuccess("Saved", "Working Days saved.");
     } catch (e) {
@@ -46,12 +51,50 @@ export function HolidayPolicyProvider({ children }) {
     }
   };
 
-  // Work Time by Role
+  // =========================================
+  // 2. Work Time by Role (Connected to DB)
+  // =========================================
   const [workTimeByRole, setWorkTimeByRole] = useState({
     HR: { start: "09:00", end: "18:00" },
     WORKER: { start: "09:00", end: "18:00" },
   });
   const [workTimeSaving, setWorkTimeSaving] = useState(false);
+
+  // ✅ 2.1 ฟังก์ชันดึงข้อมูลจาก Database (GET)
+  const fetchWorkConfigs = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/attendance/work-config`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const result = await res.json();
+      
+      if (res.ok && result.data) {
+        const newConfigs = {};
+        result.data.forEach((item) => {
+          // แปลงชื่อ Role จาก DB (เช่น "Worker") ให้เป็น Key ของ Frontend ("WORKER")
+          const roleKey = item.role.toUpperCase(); 
+          
+          newConfigs[roleKey] = {
+            start: `${String(item.startHour).padStart(2, '0')}:${String(item.startMin).padStart(2, '0')}`,
+            end: `${String(item.endHour).padStart(2, '0')}:${String(item.endMin).padStart(2, '0')}`
+          };
+        });
+
+        // อัปเดต State เฉพาะถ้ามีข้อมูลกลับมา
+        if (Object.keys(newConfigs).length > 0) {
+          setWorkTimeByRole((prev) => ({ ...prev, ...newConfigs }));
+        }
+      }
+    } catch (e) {
+      console.error("Fetch Config Error:", e);
+    }
+  }, []);
+
+  // ✅ 2.2 โหลดข้อมูลเมื่อเปิดหน้าเว็บ
+  useEffect(() => {
+    fetchWorkConfigs();
+  }, [fetchWorkConfigs]);
 
   const updateWorkTime = (role, field, value) => {
     setWorkTimeByRole((prev) => ({
@@ -60,9 +103,11 @@ export function HolidayPolicyProvider({ children }) {
     }));
   };
 
+  // ✅ 2.3 ฟังก์ชันบันทึกข้อมูล (PUT)
   const saveWorkTimePolicy = async () => {
     if (workTimeSaving) return;
 
+    // Validation
     const roles = Object.keys(workTimeByRole || {});
     for (const r of roles) {
       const s = workTimeByRole?.[r]?.start;
@@ -83,17 +128,47 @@ export function HolidayPolicyProvider({ children }) {
 
     setWorkTimeSaving(true);
     try {
-      await new Promise((r) => setTimeout(r, 300));
-      await alertSuccess("Saved", "Work time per role saved.");
+      // สร้าง Request Array เพื่อยิง API ทีละ Role
+      const requests = Object.entries(workTimeByRole).map(([role, time]) => {
+        const [startHour, startMin] = time.start.split(":").map(Number);
+        const [endHour, endMin] = time.end.split(":").map(Number);
+
+        // แปลงชื่อ Role กลับเป็นรูปแบบที่ DB ต้องการ (เช่น "WORKER" -> "Worker")
+        let dbRole = role;
+        if (role === "WORKER") dbRole = "Worker";
+        if (role === "HR") dbRole = "HR"; // หรือ "Hr" แล้วแต่ DB ของคุณเก็บ
+
+        return fetch(`${API_BASE}/attendance/work-config`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ role: dbRole, startHour, startMin, endHour, endMin })
+        }).then(async (res) => {
+          const d = await res.json();
+          if (!res.ok) throw new Error(d.error || `Failed to update ${role}`);
+          return d;
+        });
+      });
+
+      await Promise.all(requests);
+      await alertSuccess("Saved", "Work time per role saved to database.");
+      
+      // โหลดข้อมูลล่าสุดเพื่อความชัวร์
+      fetchWorkConfigs();
+
     } catch (e) {
       console.error(e);
-      alertError("Save Failed", "Unable to save work time policy.");
+      alertError("Save Failed", e.message || "Unable to save work time policy.");
     } finally {
       setWorkTimeSaving(false);
     }
   };
 
-  // Max Consecutive Holidays
+  // =========================================
+  // 3. Max Consecutive Holidays
+  // =========================================
   const [maxConsecutiveHolidayDays, setMaxConsecutiveHolidayDays] = useState(3);
   const [maxConsecutiveSaving, setMaxConsecutiveSaving] = useState(false);
 
@@ -114,6 +189,7 @@ export function HolidayPolicyProvider({ children }) {
 
     setMaxConsecutiveSaving(true);
     try {
+      // TODO: เปลี่ยนเป็น API จริงถ้ามี
       await new Promise((r) => setTimeout(r, 300));
       await alertSuccess("Saved", `Max consecutive holiday days saved: ${Number(maxConsecutiveHolidayDays)} day(s).`);
     } catch (e) {
@@ -124,7 +200,9 @@ export function HolidayPolicyProvider({ children }) {
     }
   };
 
-  // Special Holidays (Add/Edit/Delete)
+  // =========================================
+  // 4. Special Holidays (Add/Edit/Delete)
+  // =========================================
   const [specialHolidays, setSpecialHolidays] = useState([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -183,6 +261,7 @@ export function HolidayPolicyProvider({ children }) {
     );
     if (!ok) return;
 
+    // TODO: ตรงนี้สามารถเปลี่ยนเป็น API POST/PUT /attendance/special-holidays ได้
     if (editId) {
       setSpecialHolidays((prev) =>
         (prev || []).map((x) => (x.id === editId ? { ...x, startDate: start, endDate: end, name } : x))
@@ -215,6 +294,7 @@ export function HolidayPolicyProvider({ children }) {
     );
     if (!ok) return;
 
+    // TODO: ตรงนี้สามารถเปลี่ยนเป็น API DELETE ได้
     setSpecialHolidays((prev) => (prev || []).filter((x) => x.id !== row.id));
     await alertSuccess("Deleted", "Holiday removed successfully.");
   };

@@ -11,18 +11,18 @@ export default function AuditLog() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token"); // ดึง token จาก storage
+  const token = localStorage.getItem("token");
 
-    // ✅ เปลี่ยน URL เป็น /api/audit/activities เพื่อเลี่ยง AdBlock บล็อก
-    fetch(`${API_BASE}/api/audit/activities`, {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    })
+  fetch(`${API_BASE}/activity-view/history`, { 
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  })
       .then((res) => {
         if (!res.ok) {
-          if (res.status === 401 || res.status === 403) throw new Error("สิทธิ์ไม่เพียงพอ หรือ Token หมดอายุ");
+          if (res.status === 401 || res.status === 403)
+            throw new Error("สิทธิ์ไม่เพียงพอ หรือ Token หมดอายุ");
           throw new Error("ไม่สามารถดึงข้อมูลได้");
         }
         return res.json();
@@ -54,15 +54,18 @@ export default function AuditLog() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <NotebookText className="text-orange-500" />
-          <h1 className="text-2xl font-black text-slate-800">System Activities (Audit Log)</h1>
+          <h1 className="text-2xl font-black text-slate-800">
+            System Activities (Audit Log)
+          </h1>
         </div>
-        {loading && <Loader2 className="animate-spin text-slate-400" size={20} />}
+        {loading && (
+          <Loader2 className="animate-spin text-slate-400" size={20} />
+        )}
       </div>
 
       {/* Log Box */}
       <div className="flex-1 rounded-[2rem] border border-slate-200 bg-gray-50 overflow-hidden flex flex-col">
         <div className="overflow-y-auto p-6 font-mono text-sm space-y-2">
-          
           {error && (
             <div className="flex items-center gap-2 text-rose-500 p-4 bg-rose-50 rounded-xl border border-rose-100 font-sans">
               <AlertCircle size={18} />
@@ -71,7 +74,9 @@ export default function AuditLog() {
           )}
 
           {!loading && logs.length === 0 && !error && (
-            <div className="text-gray-400 italic text-center py-10">No audit logs found.</div>
+            <div className="text-gray-400 italic text-center py-10">
+              No audit logs found.
+            </div>
           )}
 
           {logs.map((log) => {
@@ -81,9 +86,16 @@ export default function AuditLog() {
               : "SYSTEM";
 
             return (
-              <div key={log.id} className="group hover:bg-white p-1 rounded-md transition-colors border-b border-gray-100 flex gap-3">
+              <div
+                key={log.id}
+                className="group hover:bg-white p-1 rounded-md transition-colors border-b border-gray-100 flex gap-3"
+              >
                 <span className="text-slate-400 shrink-0">[{time}]</span>
-                <span className={`font-bold w-16 shrink-0 ${getActionColor(log.action)}`}>
+                <span
+                  className={`font-bold w-16 shrink-0 ${getActionColor(
+                    log.action
+                  )}`}
+                >
                   {log.action}
                 </span>
                 <span className="text-slate-700 font-bold shrink-0">

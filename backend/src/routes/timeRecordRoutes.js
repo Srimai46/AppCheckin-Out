@@ -10,8 +10,8 @@ const {
   getTeamTodayAttendance,
   hrCheckInEmployee,
   hrCheckOutEmployee,
-  // ✅ 1. เพิ่มการ Import ฟังก์ชันนี้มาจาก timeRecordController
   updateWorkConfig, 
+  getWorkConfigs,
 } = require("../controllers/timeRecordController");
 
 // ✅ 2. เหลือไว้เฉพาะ getAuditLogs (ถ้าคุณวางไว้ใน auditController)
@@ -36,5 +36,7 @@ router.post("/team/:employeeId/check-out", protect, authorize("HR"), hrCheckOutE
 // ✅ 3. ตั้ง Route ให้เรียกใช้ฟังก์ชันจากที่ Import มาด้านบน
 router.get("/activities", protect, authorize("HR"), getAuditLogs); 
 router.put("/work-config", protect, authorize("HR"), updateWorkConfig);
+
+router.get("/work-config", protect, authorize("HR"), getWorkConfigs);
 
 module.exports = router;

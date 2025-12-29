@@ -824,3 +824,16 @@ exports.updateWorkConfig = async (req, res) => {
     res.status(500).json({ error: "ไม่สามารถอัปเดตการตั้งค่าได้" });
   }
 };
+
+exports.getWorkConfigs = async (req, res) => {
+  try {
+    const configs = await prisma.workConfiguration.findMany();
+    res.json({
+      success: true,
+      data: configs
+    });
+  } catch (error) {
+    console.error("Get Config Error:", error);
+    res.status(500).json({ error: "ไม่สามารถดึงข้อมูลการตั้งค่าได้" });
+  }
+};
