@@ -7,9 +7,8 @@ const fs = require('fs');
 const app = express();
 
 // ==========================================
-// 1. สร้างโฟลเดอร์เก็บไฟล์ (ให้ตรงกับที่ใช้ใน Leave Controller)
+// 1. สร้างโฟลเดอร์เก็บไฟล์
 // ==========================================
-// แนะนำให้สร้าง root uploads และ sub-folder leaves
 const leavesPath = path.join(__dirname, '../uploads/leaves');
 if (!fs.existsSync(leavesPath)) {
     fs.mkdirSync(leavesPath, { recursive: true });
@@ -30,7 +29,6 @@ app.use(express.urlencoded({ extended: true }));
 // ==========================================
 // 3. Static Files 
 // ==========================================
-// ให้บริการไฟล์จากโฟลเดอร์ uploads ที่อยู่ขนานกับโฟลเดอร์ backend
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ==========================================
@@ -41,12 +39,14 @@ const timeRecordRoutes = require('./routes/timeRecordRoutes');
 const leaveRoutes = require('./routes/leaveRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const employeeRoutes = require('./routes/employeeRoute');
+const auditRoutes = require('./routes/auditRoutes'); 
 
 app.use('/api/auth', authRoutes);
 app.use('/api/attendance', timeRecordRoutes);
 app.use('/api/leaves', leaveRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/audit', auditRoutes); 
 
 // Cron Jobs
 const { startCarryOverJob } = require("./jobs/carryOverJob");
@@ -67,9 +67,14 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ error: 'The file is too large (limited to 5MB).' });
     }
 
-    // กรณี Multer ส่ง Error อื่นๆ
-    if (err instanceof require('multer').MulterError) {
-        return res.status(400).json({ error: `Upload Error: ${err.message}` });
+    // แก้ไขจุดที่อาจจะ Error ถ้าไม่ได้ลง multer ในโปรเจกต์
+    try {
+        const multer = require('multer');
+        if (err instanceof multer.MulterError) {
+            return res.status(400).json({ error: `Upload Error: ${err.message}` });
+        }
+    } catch (e) {
+        // Multer not installed, ignore check
     }
 
     res.status(500).json({ 
