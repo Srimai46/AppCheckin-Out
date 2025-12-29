@@ -55,7 +55,7 @@ i18n.use(initReactI18next).init({
           usedTotal: "Used {{used}} / Total {{total}}",
           carriedDetail: "({{base}} base + {{carry}} carried)",
         },
-        /* -------- Bell -------- */
+        /* -------- history -------- */
         history: {
           attendanceLog: "Attendance Log",
           leaveHistory: "Leave History",
@@ -131,7 +131,7 @@ i18n.use(initReactI18next).init({
           carriedDetail: "({{base}} สิทธิพื้นฐาน + {{carry}} ยกมา)",
         },
 
-        /* -------- Bell -------- */
+        /* -------- history -------- */
         history: {
           attendanceLog: "บันทึกเวลาเข้าออกงาน",
           leaveHistory: "ประวัติการลา",

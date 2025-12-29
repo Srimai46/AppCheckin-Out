@@ -24,6 +24,7 @@ export default function Dashboard() {
   /* -------------------- Year List Logic -------------------- */
   const currentYear = new Date().getFullYear();
   const FUTURE_YEARS = 2;
+  const formatYear = (year, lang) => (lang === "th" ? year + 543 : year);
 
   const years = useMemo(() => {
     const yearsFromHistory = data.att
@@ -34,11 +35,12 @@ export default function Dashboard() {
 
     const futureYears = Array.from(
       { length: FUTURE_YEARS },
-      (_, i) => maxYear + i + 1
+      (_, i) => maxYear + 1
     );
 
-    return [...new Set([...yearsFromHistory, currentYear, ...futureYears])]
-      .sort((a, b) => a - b);
+    return [
+      ...new Set([...yearsFromHistory, currentYear, ...futureYears]),
+    ].sort((a, b) => a - b);
   }, [data.att, currentYear]);
   /* --------------------------------------------------------- */
 
@@ -48,25 +50,28 @@ export default function Dashboard() {
     return `${BASE}${path.startsWith("/") ? path : `/${path}`}`;
   };
 
-  const fetchData = useCallback(async (year) => {
-    try {
-      const [h, q, l] = await Promise.all([
-        getMyHistory(),
-        getMyQuotas(year),
-        getMyLeaves(),
-      ]);
+  const fetchData = useCallback(
+    async (year) => {
+      try {
+        const [h, q, l] = await Promise.all([
+          getMyHistory(),
+          getMyQuotas(year),
+          getMyLeaves(),
+        ]);
 
-      setData({
-        att: Array.isArray(h) ? h : h?.data || [],
-        quotas: Array.isArray(q) ? q : q?.data || [],
-        leaves: Array.isArray(l) ? l : l?.data || [],
-      });
-    } catch (err) {
-      console.error(err);
-      alertError(t("common.error"), t("dashboard.loadFail"));
-      setData({ att: [], quotas: [], leaves: [] });
-    }
-  }, [t]);
+        setData({
+          att: Array.isArray(h) ? h : h?.data || [],
+          quotas: Array.isArray(q) ? q : q?.data || [],
+          leaves: Array.isArray(l) ? l : l?.data || [],
+        });
+      } catch (err) {
+        console.error(err);
+        alertError(t("common.error"), t("dashboard.loadFail"));
+        setData({ att: [], quotas: [], leaves: [] });
+      }
+    },
+    [t]
+  );
 
   useEffect(() => {
     if (user) fetchData(selectedYear);
@@ -82,9 +87,7 @@ export default function Dashboard() {
       t("dashboard.attendanceConfirmTitle"),
       t("dashboard.attendanceConfirmText", {
         action:
-          type === "in"
-            ? t("dashboard.checkIn")
-            : t("dashboard.checkOut"),
+          type === "in" ? t("dashboard.checkIn") : t("dashboard.checkOut"),
       })
     );
 
@@ -132,57 +135,59 @@ export default function Dashboard() {
 
       {/* Year Dropdown */}
       <div className="flex justify-center">
-        <div className="relative w-56">
-          <div className="mb-1 ml-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-            {t("dashboard.selectYear")}
-          </div>
+  <div className="relative w-56">
+    <div className="mb-1 ml-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+      {t("dashboard.selectYear")}
+    </div>
 
+    <button
+      type="button"
+      onClick={() => setYearOpen((v) => !v)}
+      className={`w-full rounded-[1.8rem] px-6 py-3.5 font-black text-sm
+        bg-white border border-gray-100 shadow-sm transition-all
+        ${yearOpen ? "ring-2 ring-blue-100" : ""}
+      `}
+    >
+      <div className="flex justify-between items-center">
+        <span>
+          {t("dashboard.year")}{" "}
+          {formatYear(selectedYear, i18n.language)}
+        </span>
+        <ChevronDown
+          size={18}
+          className={`transition-transform ${
+            yearOpen ? "rotate-180" : ""
+          }`}
+        />
+      </div>
+    </button>
+
+    {yearOpen && (
+      <div className="absolute z-20 mt-2 w-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+        {years.map((y) => (
           <button
-            type="button"
-            onClick={() => setYearOpen((v) => !v)}
-            className={`w-full rounded-[1.8rem] px-6 py-3.5 font-black text-sm
-              bg-white border border-gray-100 shadow-sm transition-all
-              ${yearOpen ? "ring-2 ring-blue-100" : ""}
+            key={y}
+            onClick={() => {
+              setSelectedYear(y); // ✅ ยังเก็บ ค.ศ.
+              setYearOpen(false);
+            }}
+            className={`w-full px-6 py-3 text-left text-sm font-black
+              hover:bg-blue-50 transition-all
+              ${
+                selectedYear === y
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-slate-700"
+              }
             `}
           >
-            <div className="flex justify-between items-center">
-              <span>
-                {t("dashboard.year")} {selectedYear}
-              </span>
-              <ChevronDown
-                size={18}
-                className={`transition-transform ${
-                  yearOpen ? "rotate-180" : ""
-                }`}
-              />
-            </div>
+            {t("dashboard.year")} {formatYear(y, i18n.language)}
           </button>
-
-          {yearOpen && (
-            <div className="absolute z-20 mt-2 w-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              {years.map((y) => (
-                <button
-                  key={y}
-                  onClick={() => {
-                    setSelectedYear(y);
-                    setYearOpen(false);
-                  }}
-                  className={`w-full px-6 py-3 text-left text-sm font-black
-                    hover:bg-blue-50 transition-all
-                    ${
-                      selectedYear === y
-                        ? "bg-blue-50 text-blue-700"
-                        : "text-slate-700"
-                    }
-                  `}
-                >
-                  {t("dashboard.year")} {y}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        ))}
       </div>
+    )}
+  </div>
+</div>
+
 
       <QuotaCards quotas={data.quotas} />
 
