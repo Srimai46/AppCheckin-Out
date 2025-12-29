@@ -32,7 +32,7 @@ async function main() {
   // 3. สร้างวันหยุดประจำปี 2025 (Holidays)
   // ✅ เพิ่มเพื่อให้ Logic การคำนวณวันลาข้ามวันหยุดทำงานได้
   const holidays2025 = [
-    { date: new Date('2025-01-01T00:00:00Z'), name: "New Year's Day" },
+    { date: new Date('2026-01-01T00:00:00Z'), name: "New Year's Day" },
     { date: new Date('2025-04-13T00:00:00Z'), name: "Songkran Festival" },
     { date: new Date('2025-04-14T00:00:00Z'), name: "Songkran Festival" },
     { date: new Date('2025-04-15T00:00:00Z'), name: "Songkran Festival" },

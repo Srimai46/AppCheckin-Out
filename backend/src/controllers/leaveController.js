@@ -254,8 +254,16 @@ exports.createLeaveRequest = async (req, res) => {
       return res.status(400).json({ error: "Leave type not found." });
 
     // 3. ดึงวันหยุดและจัดการเรื่อง Timezone ให้เป็น Local Date (YYYY-MM-DD)
+    const queryEnd = new Date(end);
+    queryEnd.setHours(23, 59, 59, 999);
+
     const holidays = await prisma.holiday.findMany({
-      where: { date: { gte: start, lte: end } },
+      where: {
+        date: {
+          gte: start,
+          lte: queryEnd, // ✅ ใช้ queryEnd แทน end เดิม
+        },
+      },
       select: { date: true },
     });
 
@@ -600,9 +608,10 @@ exports.getAllLeaves = async (req, res) => {
     }
 
     const holidays = await prisma.holiday.findMany({ select: { date: true } });
-    const holidayDates = holidays.map(
-      (h) => h.date.toISOString().split("T")[0]
-    );
+    const holidayDates = holidays.map((h) => {
+      const d = new Date(h.date);
+      return d.toLocaleDateString("en-CA"); // จะได้รูปแบบ "YYYY-MM-DD" เสมอ
+    });
 
     const leaves = await prisma.leaveRequest.findMany({
       where,
