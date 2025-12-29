@@ -11,9 +11,13 @@ import {
   Settings2,
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
+import { useTranslation } from "react-i18next";
+
 
 export default function Layout() {
+  
   const { user, logout } = useAuth();
+  
 
   const navStyle = ({ isActive }) =>
     `flex items-center justify-center group-hover:justify-start gap-3
@@ -23,6 +27,8 @@ export default function Layout() {
          ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
          : "text-blue-100 hover:bg-white/10 hover:text-white"
      }`;
+
+     const { t } = useTranslation();
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
@@ -63,13 +69,13 @@ export default function Layout() {
         {/* Menu Items */}
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto overflow-x-hidden custom-scrollbar">
           <div className="hidden group-hover:block px-4 py-3 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">
-            Main Menu
+            {t("layout.mainMenu")}
           </div>
 
           <NavLink to="/dashboard" className={navStyle}>
             <LayoutDashboard size={18} className="shrink-0" />
             <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-              Dashboard
+              {t("dashboard.title")}
             </span>
           </NavLink>
 
@@ -77,27 +83,27 @@ export default function Layout() {
           {user?.role === "HR" && (
             <>
               <div className="hidden group-hover:block mt-8 mb-2 px-4 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">
-                HR Management
+                {t("layout.hrManagement")}
               </div>
 
               <NavLink to="/admin/leaves" className={navStyle}>
                 <FileCheck size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  Approve Leave Requests
+                  {t("layout.approveLeave")}
                 </span>
               </NavLink>
 
               <NavLink to="/employees" className={navStyle}>
                 <Users size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  Employee Directory
+                  {t("layout.employees")}
                 </span>
               </NavLink>
 
               <NavLink to="/calendar" className={navStyle}>
                 <CalendarDays size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  Team Calendar
+                  {t("layout.calendar")}
                 </span>
               </NavLink>
 
@@ -105,7 +111,7 @@ export default function Layout() {
               <NavLink to="/year-end-processing" className={navStyle}>
                 <Settings2 size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  Year-End Processing
+                  {t("layout.yearEnd")} 
                 </span>
               </NavLink>
             </>
@@ -132,7 +138,7 @@ export default function Layout() {
           >
             <LogOut size={18} className="shrink-0" />
             <span className="hidden group-hover:inline whitespace-nowrap">
-              ออกจากระบบ
+              {t("layout.logout")}
             </span>
           </button>
         </div>
