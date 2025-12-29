@@ -10,20 +10,21 @@ const {
   getTeamTodayAttendance,
   hrCheckInEmployee,
   hrCheckOutEmployee,
+  // ✅ 1. เพิ่มการ Import ฟังก์ชันนี้มาจาก timeRecordController
+  updateWorkConfig, 
 } = require("../controllers/timeRecordController");
 
-// ✅ Import เพิ่มจาก Controller ที่จัดการเรื่อง Audit และ Config
+// ✅ 2. เหลือไว้เฉพาะ getAuditLogs (ถ้าคุณวางไว้ใน auditController)
 const { getAuditLogs } = require("../controllers/auditController");
-const { updateWorkConfig } = require("../controllers/configController"); 
 
 const { protect, authorize } = require("../middlewares/authMiddleware");
 
-// --- User Routes (ทุกคนใช้ได้) ---
+// --- User Routes ---
 router.post("/check-in", protect, checkIn);
 router.post("/check-out", protect, checkOut);
 router.get("/history", protect, getMyHistory);
 
-// --- HR Routes (เฉพาะ HR) ---
+// --- HR Routes ---
 router.get("/all-history", protect, authorize("HR"), getAllAttendance);
 router.get("/history/user/:id", protect, authorize("HR"), getUserHistory);
 
@@ -32,7 +33,7 @@ router.get("/team/today", protect, authorize("HR"), getTeamTodayAttendance);
 router.post("/team/:employeeId/check-in", protect, authorize("HR"), hrCheckInEmployee);
 router.post("/team/:employeeId/check-out", protect, authorize("HR"), hrCheckOutEmployee);
 
-// ใช้ /activities เพื่อเลี่ยง AdBlocker บล็อกคำว่า 'audit'
+// ✅ 3. ตั้ง Route ให้เรียกใช้ฟังก์ชันจากที่ Import มาด้านบน
 router.get("/activities", protect, authorize("HR"), getAuditLogs); 
 router.put("/work-config", protect, authorize("HR"), updateWorkConfig);
 
