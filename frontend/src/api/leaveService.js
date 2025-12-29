@@ -8,13 +8,20 @@ export const getPendingLeaves = async () => {
 
 // 2. อัปเดตสถานะ (Approve / Reject) 
 // ปรับปรุง: รองรับการส่ง ID เป็น Array หรือ Single ID เพื่อให้ใช้กับระบบติ๊กเลือกได้
-export const updateLeaveStatus = async (idOrIds, status) => {
-  const { data } = await api.patch('/leaves/status', { 
-    id: idOrIds, // สามารถรับเป็น [1, 2, 3] หรือ 1 ก็ได้
-    status 
-  });
+export const updateLeaveStatus = async (idOrIds, status, rejectionReason = null) => {
+  const payload = {
+    id: idOrIds,
+    status,
+  };
+
+  if (status === "Rejected") {
+    payload.rejectionReason = rejectionReason;
+  }
+
+  const { data } = await api.patch("/leaves/status", payload);
   return data;
 };
+
 
 // 3. อนุมัติกรณีพิเศษ (เพิ่มวันลาใหม่ + อนุมัติใบลา)
 // ใช้สำหรับปุ่ม "Bulk Special" ในหน้า LeaveApproval

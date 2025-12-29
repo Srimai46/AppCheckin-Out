@@ -50,3 +50,29 @@ export const alertError = async (title, text = "") => {
     },
   });
 };
+
+// ===== Reject Reason Popup =====
+export const alertRejectReason = async () => {
+  const { value, isConfirmed } = await Swal.fire({
+    title: "Reject Leave Request",
+    input: "textarea",
+    inputLabel: "Reason for rejection",
+    inputPlaceholder: "Please enter rejection reason...",
+    inputAttributes: {
+      rows: 4,
+      style: "resize:none",
+    },
+    showCancelButton: true,
+    confirmButtonText: "Reject",
+    cancelButtonText: "Cancel",
+    confirmButtonColor: "#ef4444",
+    inputValidator: (value) => {
+      if (!value || !value.trim()) {
+        return "Rejection reason is required";
+      }
+    },
+  });
+
+  if (!isConfirmed) return null;
+  return value.trim();
+};

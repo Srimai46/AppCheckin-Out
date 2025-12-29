@@ -207,10 +207,8 @@ exports.getMyLeaves = async (req, res) => {
         endDate: l.endDate,
         totalDaysRequested: Number(l.totalDaysRequested),
         status: l.status,
-        reason: l.reason, // เหตุผลตอนขอลา
-        // ✅ เพิ่มฟิลด์เหตุผลการปฏิเสธ (จาก HR)
+        reason: l.reason,
         rejectionReason: l.rejectionReason, 
-        // ✅ เพิ่มฟิลด์เหตุผลการยกเลิก (จากพนักงาน)
         cancelReason: l.cancelReason, 
         requestedAt: l.requestedAt,
         approvalDate: l.approvalDate,
@@ -685,8 +683,7 @@ exports.getAllLeaves = async (req, res) => {
         endDate: l.endDate,
         totalDays: Number(l.totalDaysRequested),
         status: l.status,
-        reason: l.reason, // เหตุผลตอนขอลา
-        // ✅ ส่งออกเหตุผลทั้งฝั่ง HR และ ฝั่งพนักงาน
+        reason: l.reason,
         rejectionReason: l.rejectionReason, 
         cancelReason: l.cancelReason, 
         attachmentUrl: l.attachmentUrl,
@@ -713,6 +710,9 @@ exports.updateLeaveStatus = async (req, res) => {
   try {
     // 1. รับค่า (รวมเหตุผลการปฏิเสธ)
     const { id, status, isSpecial, rejectionReason } = req.body;
+    if (status === "Rejected" && !String(rejectionReason || "").trim()) {
+      throw new Error("Rejection reason is required.");
+    }
     const hrId = req.user.id;
     const leaveId = parseInt(id, 10);
     const now = new Date();

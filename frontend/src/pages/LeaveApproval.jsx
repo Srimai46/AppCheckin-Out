@@ -15,7 +15,7 @@ import {
   Image as ImageIcon,
   MessageCircle,
 } from "lucide-react";
-import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
+import { alertConfirm, alertSuccess, alertError, alertRejectReason } from "../utils/sweetAlert";
 import { openAttachment } from "../utils/attachmentPreview";
 
 export default function LeaveApproval() {
@@ -61,6 +61,7 @@ export default function LeaveApproval() {
     const targets = singleReq
       ? [singleReq]
       : requests.filter((r) => selectedIds.includes(r.id));
+
     if (targets.length === 0)
       return alertError("Selection Empty", "Please select requests first.");
 
@@ -70,6 +71,13 @@ export default function LeaveApproval() {
         : mode === "Approved"
         ? "Normal Approve"
         : "Reject";
+
+    let rejectionReason = null;
+    if (mode === "Rejected") {
+      rejectionReason = await alertRejectReason();
+      if (!rejectionReason) return;
+    }
+
     const confirmed = await alertConfirm(
       `Confirm ${actionText}`,
       `Process <b>${targets.length}</b> request(s) as <b>${actionText}</b>?`
@@ -88,13 +96,21 @@ export default function LeaveApproval() {
             leaveRequestId: req.id,
           });
         } else {
-          await updateLeaveStatus(req.id, mode);
+          await updateLeaveStatus(
+            req.id,
+            mode,
+            mode === "Rejected" ? rejectionReason : null
+          );
         }
       }
+
       await alertSuccess("Success", `Processed ${targets.length} request(s).`);
       fetchRequests();
     } catch (err) {
-      alertError("Action Failed", err?.response?.data?.error || err.message);
+      alertError(
+        "Action Failed",
+        err?.response?.data?.error || err?.response?.data?.message || err.message
+      );
     } finally {
       setLoading(false);
     }
