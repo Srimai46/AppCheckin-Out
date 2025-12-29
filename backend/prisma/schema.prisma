@@ -131,6 +131,11 @@ model TimeRecord {
   isLate       Boolean   @default(false) @map("is_late")
   note         String?   @db.Text 
 
+  checkInLat   Decimal?  @map("check_in_lat") @db.Decimal(10, 8)
+  checkInLng   Decimal?  @map("check_in_lng") @db.Decimal(11, 8)
+  checkOutLat  Decimal?  @map("check_out_lat") @db.Decimal(10, 8)
+  checkOutLng  Decimal?  @map("check_out_lng") @db.Decimal(11, 8)
+
   employee Employee @relation(fields: [employeeId], references: [id])
 
   @@index([employeeId, workDate]) // เพิ่ม Index สำหรับการดึงประวัติการเข้างานรายคนตามช่วงเวลา

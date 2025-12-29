@@ -53,7 +53,7 @@ exports.checkIn = async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
-    const { note } = req.body;
+    const { note, location } = req.body; 
     const now = new Date();
 
     // 1. ตรวจสอบวันหยุด/เสาร์-อาทิตย์
@@ -73,7 +73,7 @@ exports.checkIn = async (req, res) => {
       return res.status(400).json({ error: "You have already checked in for today." });
     }
 
-    // 3. คำนวณเวลาสาย (เฉพาะวันทำงานปกติ)
+    // 3. คำนวณเวลาสาย
     const config = await prisma.workConfiguration.findUnique({ where: { role: userRole } });
     const startHour = config ? config.startHour : 9;
     const startMin = config ? config.startMin : 0;
@@ -87,34 +87,38 @@ exports.checkIn = async (req, res) => {
       ? (isHoliday ? `Holiday (${holidayName})` : "Weekend Work") 
       : (isLate ? "Late" : "On Time");
 
-    // 🚀 4. ใช้ Transaction เพื่อบันทึกข้อมูลและ Log
+    // 🚀 4. ใช้ Transaction บันทึกข้อมูล
     const result = await prisma.$transaction(async (tx) => {
-      // บันทึก Time Record
+      // บันทึกลง TimeRecord ตาม Schema ใหม่
       const record = await tx.timeRecord.create({
         data: {
           employeeId: userId,
           workDate: now,
           checkInTime: now,
           isLate: isLate,
+          // เก็บเฉพาะ Note หรือสถานะวันพิเศษ
           note: isSpecialDay ? `[${statusText}] ${note || ""}` : (note || null),
+          // ✅ บันทึกลงฟิลด์พิกัดโดยตรง
+          checkInLat: location?.lat ? parseFloat(location.lat) : null,
+          checkInLng: location?.lng ? parseFloat(location.lng) : null,
         },
       });
 
-      // ✅ บันทึก Audit Log เพื่อเก็บ IP และพฤติกรรม
+      // ✅ บันทึก Audit Log เพื่อเป็นหลักฐานมัดตัว
       await auditLog(tx, {
         action: "CREATE",
         modelName: "TimeRecord",
         recordId: record.id,
         userId: userId,
-        details: `Employee checked in: ${statusText} at ${formatThaiTime(now)}`,
-        newValue: record,
+        details: `Employee checked in: ${statusText} ${location ? `at GPS(${location.lat}, ${location.lng})` : 'without GPS'}`,
+        newValue: record, // record ชุดนี้จะมี lat/lng ติดไปด้วย
         req: req
       });
 
       return record;
     });
 
-    // 5. แจ้งเตือน HR เฉพาะวันทำงานปกติที่สาย (อยู่นอก Transaction ได้เพื่อไม่ให้บล็อก DB)
+    // 5. แจ้งเตือน HR (กรณีสาย)
     if (isLate && !isSpecialDay) {
       const hrUsers = await prisma.employee.findMany({ where: { role: "HR" } });
       const lateMessage = `Employee ${req.user.firstName} ${req.user.lastName} is late (${formatThaiTime(now)})`;
@@ -131,7 +135,12 @@ exports.checkIn = async (req, res) => {
         const io = req.app.get("io");
         if (io) {
           hrUsers.forEach(hr => {
-            io.to(`user_${hr.id}`).emit("notification", { type: "LateWarning", message: lateMessage, timestamp: now });
+            io.to(`user_${hr.id}`).emit("notification", { 
+                type: "LateWarning", 
+                message: lateMessage, 
+                timestamp: now,
+                location: location 
+            });
           });
         }
       }
@@ -139,7 +148,13 @@ exports.checkIn = async (req, res) => {
 
     res.status(201).json({
       message: `Check-in successful ${isSpecialDay ? "(Non-working day)" : ""}`,
-      result: { date: formatShortDate(now), time: formatThaiTime(now), status: statusText, isLate },
+      result: { 
+        date: formatShortDate(now), 
+        time: formatThaiTime(now), 
+        status: statusText, 
+        isLate, 
+        location 
+      },
       data: result,
     });
 
@@ -153,14 +168,16 @@ exports.checkOut = async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
+    // ✅ 1. รับพิกัด location จาก req.body
+    const { location } = req.body; 
     const now = new Date();
     const todayStart = getThaiStartOfDay();
 
-    // 1. ตรวจสอบสถานะวัน
+    // ตรวจสอบสถานะวัน
     const { isWeekend, isHoliday } = await checkIsHolidayOrWeekend(now);
     const isSpecialDay = isWeekend || isHoliday;
 
-    // 2. ค้นหา Record ของวันนี้
+    // ค้นหา Record ของวันนี้
     const record = await prisma.timeRecord.findFirst({
       where: { employeeId: userId, workDate: { gte: todayStart } },
       orderBy: { id: "desc" },
@@ -169,7 +186,7 @@ exports.checkOut = async (req, res) => {
     if (!record) return res.status(400).json({ error: "Check-in record not found." });
     if (record.checkOutTime) return res.status(400).json({ error: "You have already checked out." });
 
-    // 3. คำนวณเวลาเลิกงานตาม Config
+    // คำนวณเวลาเลิกงานตาม Config
     const config = await prisma.workConfiguration.findUnique({ where: { role: userRole } });
     const endHour = config ? config.endHour : 18;
     const endMin = config ? config.endMin : 0;
@@ -178,33 +195,45 @@ exports.checkOut = async (req, res) => {
     workEndTime.setHours(todayStart.getHours() + endHour);
     workEndTime.setMinutes(endMin);
 
-    // ✅ ถ้าเป็นวันหยุด จะไม่ถือว่าเลิกก่อนเวลา (Early Leave)
     const isEarlyLeave = isSpecialDay ? false : now < workEndTime;
 
-    // 🚀 4. ใช้ Transaction เพื่อบันทึกข้อมูลและ Log
+    // 🚀 2. ใช้ Transaction บันทึกข้อมูลพิกัดลงฟิลด์ใหม่
     const result = await prisma.$transaction(async (tx) => {
-      // อัปเดต Record เดิม
+      // อัปเดต Record เดิมด้วยพิกัดขาออก
       const updated = await tx.timeRecord.update({
         where: { id: record.id },
-        data: { checkOutTime: now },
+        data: { 
+          checkOutTime: now,
+          // ✅ บันทึกลงฟิลด์ Decimal โดยตรง
+          checkOutLat: location?.lat ? parseFloat(location.lat) : null,
+          checkOutLng: location?.lng ? parseFloat(location.lng) : null,
+        },
       });
 
-      // ✅ บันทึก Audit Log (Action: UPDATE)
+      // ✅ 3. บันทึก Audit Log (เก็บบันทึกพิกัดทั้งเก่าและใหม่)
       await auditLog(tx, {
         action: "UPDATE",
         modelName: "TimeRecord",
         recordId: updated.id,
         userId: userId,
-        details: `Employee checked out: ${isEarlyLeave ? "Early Leave" : "On Time"} at ${formatThaiTime(now)}`,
-        oldValue: { checkOutTime: record.checkOutTime },
-        newValue: { checkOutTime: updated.checkOutTime },
+        details: `Employee checked out: ${isEarlyLeave ? "Early Leave" : "On Time"} ${location ? `at GPS(${location.lat}, ${location.lng})` : 'without GPS'}`,
+        oldValue: { 
+          checkOutTime: record.checkOutTime,
+          checkOutLat: record.checkOutLat,
+          checkOutLng: record.checkOutLng 
+        },
+        newValue: { 
+          checkOutTime: updated.checkOutTime,
+          checkOutLat: updated.checkOutLat,
+          checkOutLng: updated.checkOutLng 
+        },
         req: req
       });
 
       return updated;
     });
 
-    // 5. แจ้งเตือน HR (ทำนอก Transaction เพื่อ Performance)
+    // 4. แจ้งเตือน HR (กรณีกลับก่อนเวลา)
     if (isEarlyLeave && !isSpecialDay) {
       const hrUsers = await prisma.employee.findMany({ where: { role: "HR" } });
       const earlyMsg = `Employee ${req.user.firstName} ${req.user.lastName} left early (${formatThaiTime(now)})`;
@@ -217,7 +246,12 @@ exports.checkOut = async (req, res) => {
         const io = req.app.get("io");
         if (io) {
           hrUsers.forEach(hr => {
-            io.to(`user_${hr.id}`).emit("notification", { type: "EarlyLeaveWarning", message: earlyMsg, timestamp: now });
+            io.to(`user_${hr.id}`).emit("notification", { 
+              type: "EarlyLeaveWarning", 
+              message: earlyMsg, 
+              timestamp: now,
+              location: location 
+            });
           });
         }
       }
@@ -225,7 +259,11 @@ exports.checkOut = async (req, res) => {
 
     res.json({
       message: "Clock-out successful",
-      result: { checkOutTime: formatThaiTime(now), isEarlyLeave },
+      result: { 
+        checkOutTime: formatThaiTime(now), 
+        isEarlyLeave,
+        location 
+      },
       data: result,
     });
 
