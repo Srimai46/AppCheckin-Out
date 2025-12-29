@@ -36,6 +36,38 @@ enum NotificationType {
   EarlyLeaveWarning
 }
 
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  WITHDRAW
+  SYSTEM_LOCK
+  LOGIN
+}
+
+model AuditLog {
+  id             Int          @id @default(autoincrement()) @map("log_id")
+  action         AuditAction  
+  modelName      String       @map("model_name") @db.VarChar(100)
+  recordId       Int          @map("record_id")
+  
+  performedById  Int          @map("performed_by_id")
+  performedBy    Employee     @relation("AuditLogsPerformedBy", fields: [performedById], references: [id])
+  
+  details        String?      @db.Text
+  oldValue       Json?        @map("old_value")
+  newValue       Json?        @map("new_value")
+  ipAddress      String?      @map("ip_address") @db.VarChar(45)
+  userAgent      String?      @map("user_agent") @db.Text
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamp(0)
+
+  @@index([modelName, recordId])
+  @@index([performedById])
+  @@map("audit_logs")
+}
+
 model Employee {
   id              Int       @id @default(autoincrement()) @map("employee_id")
   firstName       String    @map("first_name") @db.VarChar(100)
@@ -56,6 +88,7 @@ model Employee {
   leaveRequestsAsHr       LeaveRequest[] @relation("HrApprovals")
   notifications           Notification[]
   specialLeaveGrants      SpecialLeaveGrant[]
+  auditLogsPerformedBy    AuditLog[]      @relation("AuditLogsPerformedBy")
   @@map("employees")
 }
 

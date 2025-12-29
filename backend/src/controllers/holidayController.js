@@ -1,5 +1,6 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const { auditLog } = require("../utils/logger");
 
 const normalizeDate = (dateInput) => {
   const d = new Date(dateInput);
@@ -11,42 +12,62 @@ const normalizeDate = (dateInput) => {
 exports.createHoliday = async (req, res) => {
   try {
     const { holidays } = req.body;
+    const hrId = req.user.id;
+    // ตรวจสอบว่าเป็น Array หรือไม่ ถ้าเป็น Object เดียวให้เปลี่ยนเป็น Array
     const holidayList = Array.isArray(holidays) ? holidays : [req.body];
 
-    const results = [];
-    for (const item of holidayList) {
-      const { date, name, isSubsidy } = item;
+    const result = await prisma.$transaction(async (tx) => {
+      const addedHolidays = [];
 
-      // ✅ Validation: ตรวจสอบค่าว่าง
-      if (!date || !name) {
-        continue; // หรือจะ throw error ก็ได้ถ้าต้องการให้หยุดทั้งหมด
-      }
+      for (const item of holidayList) {
+        const { date, name, isSubsidy } = item;
 
-      const targetDate = normalizeDate(date);
+        // ✅ Validation เบื้องต้น
+        if (!date || !name) continue;
 
-      // ตรวจสอบวันที่ซ้ำ
-      const existing = await prisma.holiday.findUnique({
-        where: { date: targetDate }
-      });
+        const targetDate = normalizeDate(date);
 
-      if (!existing) {
-        const newHoliday = await prisma.holiday.create({
-          data: {
-            date: targetDate,
-            name: name.trim(),
-            isSubsidy: isSubsidy || false
-          }
+        // ตรวจสอบวันที่ซ้ำภายใน Transaction
+        const existing = await tx.holiday.findUnique({
+          where: { date: targetDate }
         });
-        results.push(newHoliday);
+
+        if (!existing) {
+          const newHoliday = await tx.holiday.create({
+            data: {
+              date: targetDate,
+              name: name.trim(),
+              isSubsidy: isSubsidy || false
+            }
+          });
+          addedHolidays.push(newHoliday);
+        }
       }
-    }
+
+      // ✅ บันทึก Audit Log เมื่อมีการเพิ่มวันหยุดสำเร็จอย่างน้อย 1 รายการ
+      if (addedHolidays.length > 0) {
+        await auditLog(tx, {
+          action: "CREATE",
+          modelName: "Holiday",
+          recordId: 0, // ใช้ 0 หรือ ID ตัวแรกสำหรับการเพิ่มแบบกลุ่ม
+          userId: hrId,
+          details: `HR added ${addedHolidays.length} new holidays.`,
+          newValue: addedHolidays, // เก็บรายการวันหยุดทั้งหมดที่เพิ่มใน Log
+          req: req
+        });
+      }
+
+      return addedHolidays;
+    });
 
     res.json({ 
       message: `Processed ${holidayList.length} items.`, 
-      addedCount: results.length,
-      data: results 
+      addedCount: result.length,
+      data: result 
     });
+    
   } catch (error) {
+    console.error("createHoliday Error:", error);
     res.status(400).json({ error: error.message });
   }
 };
@@ -56,35 +77,63 @@ exports.updateHoliday = async (req, res) => {
   try {
     const { id } = req.params;
     const { date, name, isSubsidy } = req.body;
+    const hrId = req.user.id;
+    const holidayId = parseInt(id, 10);
 
-    // ✅ Validation: ตรวจสอบข้อมูลเบื้องต้น
+    // ✅ 1. Validation เบื้องต้น
     if (!date && !name && isSubsidy === undefined) {
       throw new Error("No data provided for update.");
     }
 
-    const dataToUpdate = {};
-    if (name) dataToUpdate.name = name.trim();
-    if (isSubsidy !== undefined) dataToUpdate.isSubsidy = isSubsidy;
-    if (date) {
-      const targetDate = normalizeDate(date);
-      // ตรวจสอบว่าวันที่ใหม่ไปซ้ำกับ ID อื่นหรือไม่
-      const conflict = await prisma.holiday.findFirst({
-        where: { 
-          date: targetDate,
-          NOT: { id: parseInt(id, 10) }
-        }
+    const result = await prisma.$transaction(async (tx) => {
+      // ✅ 2. ดึงข้อมูลเดิมเก็บไว้เป็น oldValue
+      const oldHoliday = await tx.holiday.findUnique({
+        where: { id: holidayId }
       });
-      if (conflict) throw new Error("New date already exists in another holiday record.");
-      dataToUpdate.date = targetDate;
-    }
 
-    const updated = await prisma.holiday.update({
-      where: { id: parseInt(id, 10) },
-      data: dataToUpdate
+      if (!oldHoliday) throw new Error("Holiday not found.");
+
+      const dataToUpdate = {};
+      if (name) dataToUpdate.name = name.trim();
+      if (isSubsidy !== undefined) dataToUpdate.isSubsidy = isSubsidy;
+      
+      if (date) {
+        const targetDate = normalizeDate(date);
+        // ตรวจสอบวันที่ซ้ำ (ยกเว้น ID ตัวเอง)
+        const conflict = await tx.holiday.findFirst({
+          where: { 
+            date: targetDate,
+            NOT: { id: holidayId }
+          }
+        });
+        if (conflict) throw new Error("New date already exists in another holiday record.");
+        dataToUpdate.date = targetDate;
+      }
+
+      // ✅ 3. อัปเดตข้อมูล
+      const updated = await tx.holiday.update({
+        where: { id: holidayId },
+        data: dataToUpdate
+      });
+
+      // ✅ 4. บันทึก Audit Log
+      await auditLog(tx, {
+        action: "UPDATE",
+        modelName: "Holiday",
+        recordId: holidayId,
+        userId: hrId,
+        details: `Updated holiday: ${oldHoliday.name} -> ${updated.name}`,
+        oldValue: oldHoliday, // ข้อมูลก่อนเปลี่ยน
+        newValue: updated,    // ข้อมูลหลังเปลี่ยน
+        req: req
+      });
+
+      return updated;
     });
 
-    res.json({ message: "Holiday updated successfully", data: updated });
+    res.json({ message: "Holiday updated successfully", data: result });
   } catch (error) {
+    console.error("updateHoliday Error:", error);
     res.status(400).json({ error: error.message });
   }
 };
@@ -112,9 +161,50 @@ exports.getHolidays = async (req, res) => {
 exports.deleteHoliday = async (req, res) => {
   try {
     const { id } = req.params;
-    await prisma.holiday.delete({ where: { id: parseInt(id, 10) } });
-    res.json({ message: "Holiday deleted successfully" });
+    const hrId = req.user.id;
+    const holidayId = parseInt(id, 10);
+
+    if (!holidayId) return res.status(400).json({ error: "Invalid holiday ID" });
+
+    const result = await prisma.$transaction(async (tx) => {
+      // ✅ 1. ต้องดึงข้อมูลไว้ก่อนที่จะลบ เพื่อเก็บลง Audit Log
+      const oldHoliday = await tx.holiday.findUnique({
+        where: { id: holidayId }
+      });
+
+      if (!oldHoliday) {
+        throw new Error("Holiday not found.");
+      }
+
+      // ✅ 2. ทำการลบข้อมูล
+      await tx.holiday.delete({
+        where: { id: holidayId }
+      });
+
+      // ✅ 3. บันทึก Audit Log (Action: DELETE)
+      await auditLog(tx, {
+        action: "DELETE",
+        modelName: "Holiday",
+        recordId: holidayId,
+        userId: hrId,
+        details: `HR deleted holiday: ${oldHoliday.name} (${oldHoliday.date.toISOString().split('T')[0]})`,
+        oldValue: oldHoliday, // เก็บก้อนข้อมูลที่ลบไว้ทั้งหมด
+        newValue: null,       // ข้อมูลใหม่ไม่มีเพราะถูกลบไปแล้ว
+        req: req
+      });
+
+      return oldHoliday;
+    });
+
+    res.json({ 
+      message: "Holiday deleted successfully", 
+      data: result 
+    });
+
   } catch (error) {
-    res.status(400).json({ error: "Failed to delete: Holiday not found" });
+    console.error("deleteHoliday Error:", error);
+    res.status(400).json({ 
+      error: error.message || "Failed to delete: Holiday not found" 
+    });
   }
 };
