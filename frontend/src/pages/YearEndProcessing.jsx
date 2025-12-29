@@ -1,11 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { format as fmt, differenceInCalendarDays, parseISO } from "date-fns";
 
-import {
-  getSystemConfigs,
-  processCarryOver,
-  reopenYear,
-} from "../api/leaveService";
+import { getSystemConfigs, processCarryOver, reopenYear } from "../api/leaveService";
 
 import {
   Calendar,
@@ -24,15 +20,12 @@ import {
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
 const pad2 = (n) => String(n).padStart(2, "0");
-const toYMD = (d) =>
-  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-
+const toYMD = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const safeYMD = (v) => String(v || "").trim().slice(0, 10);
 
 const ymdToDDMMYYYY = (ymd) => {
   const s = safeYMD(ymd);
   if (!s || s.length !== 10) return "-";
-  // y-m-d
   const [y, m, d] = s.split("-");
   if (!y || !m || !d) return "-";
   return `${d}-${m}-${y}`;
@@ -53,6 +46,10 @@ const YearEndProcessing = () => {
     EMERGENCY: 5,
   });
 
+  const handleQuotaChange = (type, value) => {
+    setQuotas((prev) => ({ ...prev, [type]: Number(value) }));
+  };
+
   const lastYear = useMemo(() => Number(targetYear) - 1, [targetYear]);
 
   const fetchConfigs = async () => {
@@ -69,8 +66,44 @@ const YearEndProcessing = () => {
     fetchConfigs();
   }, []);
 
-  const handleQuotaChange = (type, value) => {
-    setQuotas((prev) => ({ ...prev, [type]: Number(value) }));
+  // ===================== ✅ NEW: Carry Over limit per type (FE-only) =====================
+  const [carryOverLimits, setCarryOverLimits] = useState({
+    ANNUAL: 12,
+    SICK: 0,
+    PERSONAL: 0,
+    EMERGENCY: 0,
+  });
+
+  const handleCarryOverChange = (type, value) => {
+    setCarryOverLimits((prev) => ({
+      ...prev,
+      [type]: clamp(Number(value || 0), 0, 365),
+    }));
+  };
+
+  const [carrySaving, setCarrySaving] = useState(false);
+
+  const saveCarryOverLimits = async () => {
+    if (carrySaving) return;
+
+    for (const k of Object.keys(carryOverLimits)) {
+      const v = Number(carryOverLimits[k]);
+      if (Number.isNaN(v) || v < 0 || v > 365) {
+        alertError("Invalid Carry Over", `${k} must be between 0 and 365.`);
+        return;
+      }
+    }
+
+    setCarrySaving(true);
+    try {
+      await new Promise((r) => setTimeout(r, 250));
+      await alertSuccess("Saved", "Carry Over limits saved (Front-end only).");
+    } catch (e) {
+      console.error(e);
+      alertError("Save Failed", "Unable to save carry over limits.");
+    } finally {
+      setCarrySaving(false);
+    }
   };
 
   const escapeHtml = (v = "") =>
@@ -81,106 +114,38 @@ const YearEndProcessing = () => {
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
 
-  const buildProcessConfirmHtml = () => {
-    const items = [
-      `The system will carry over <b>Annual Leave</b> from <b>${escapeHtml(lastYear)}</b> (up to 12 days).`,
-      `New quotas for <b>${escapeHtml(targetYear)}</b> will be assigned:
-        Annual <b>${escapeHtml(quotas.ANNUAL)}</b> days,
-        Sick <b>${escapeHtml(quotas.SICK)}</b> days,
-        Personal <b>${escapeHtml(quotas.PERSONAL)}</b> days,
-        Emergency <b>${escapeHtml(quotas.EMERGENCY)}</b> days.`,
-      `Data for <b>${escapeHtml(lastYear)}</b> will be "<b>locked</b>" immediately.`,
-    ];
-
-    return `
-      <div style="text-align:left; line-height:1.7;">
-        <div style="font-weight:900; margin-bottom:8px;">Year-End Processing Summary</div>
-        <ul style="margin:0; padding-left:18px;">
-          ${items.map((t) => `<li>${t}</li>`).join("")}
-        </ul>
-        <div style="margin-top:10px; font-size:12px; opacity:.8;">
-          Please review the quota values carefully before confirming.
-        </div>
-      </div>
-    `.trim();
-  };
-
-  const handleProcess = async () => {
-    if (loading) return;
-
-    const confirmed = await alertConfirm(
-      "Confirm Year-End Processing",
-      buildProcessConfirmHtml(),
-      "Confirm & Process"
-    );
-    if (!confirmed) return;
-
-    setLoading(true);
-    try {
-      const res = await processCarryOver({
-        targetYear: Number(targetYear),
-        quotas: quotas,
-      });
-
-      await alertSuccess(
-        "Processed Successfully",
-        res?.message || "Year-end processing and quota assignment completed successfully."
-      );
-      await fetchConfigs();
-    } catch (error) {
-      const errorMsg =
-        error?.response?.data?.error ||
-        error?.response?.data?.message ||
-        error?.message ||
-        "An error occurred during processing.";
-
-      alertError("Processing Failed", errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleReopen = async (year) => {
-    const confirmed = await alertConfirm(
-      "Confirm Unlock",
-      `
-        <div style="text-align:left; line-height:1.7;">
-          Do you want to unlock <b>${escapeHtml(year)}</b>?
-          <div style="margin-top:8px; font-size:12px; opacity:.8;">
-            Once unlocked, this year will be set to <b>Open</b> and can be edited again.
-          </div>
-        </div>
-      `.trim(),
-      "Unlock Year"
-    );
-    if (!confirmed) return;
-
-    try {
-      await reopenYear(year);
-      await alertSuccess("Unlocked", `Year ${year} has been unlocked successfully.`);
-      fetchConfigs();
-    } catch (error) {
-      const msg =
-        error?.response?.data?.error ||
-        error?.response?.data?.message ||
-        error?.message ||
-        "Unknown error";
-
-      alertError("Unlock Failed", msg);
-    }
-  };
-
-  const [targetYearOpen, setTargetYearOpen] = useState(false);
-  const currentYear = new Date().getFullYear();
-  const FUTURE_YEARS = 3;
-  const years = Array.from({ length: FUTURE_YEARS }, (_, i) => currentYear + i);
-
   // ===================== ✅ NEW: HOLIDAY POLICY & SPECIAL HOLIDAYS (FE ONLY) =====================
   const [workingDays, setWorkingDays] = useState(["MON", "TUE", "WED", "THU", "FRI"]);
   const [policySaving, setPolicySaving] = useState(false);
 
+  // ✅ HR sets max "consecutive" holidays allowed
+  const [maxConsecutiveHolidayDays, setMaxConsecutiveHolidayDays] = useState(6);
+  const [maxConsecutiveSaving, setMaxConsecutiveSaving] = useState(false);
+
+  const saveMaxConsecutivePolicy = async () => {
+    if (maxConsecutiveSaving) return;
+
+    if (Number(maxConsecutiveHolidayDays) < 1 || Number(maxConsecutiveHolidayDays) > 365) {
+      alertError("Invalid Limit", "Max consecutive holidays must be between 1 and 365 days.");
+      return;
+    }
+
+    setMaxConsecutiveSaving(true);
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      await alertSuccess(
+        "Saved",
+        `Max consecutive holiday days saved: ${Number(maxConsecutiveHolidayDays)} day(s). (Front-end only)`
+      );
+    } catch (e) {
+      console.error(e);
+      alertError("Save Failed", "Unable to save max consecutive holidays.");
+    } finally {
+      setMaxConsecutiveSaving(false);
+    }
+  };
+
   // Special Holidays list in FE (simulate DB)
-  // item: { id, startDate:"YYYY-MM-DD", endDate:"YYYY-MM-DD", name }
   const [specialHolidays, setSpecialHolidays] = useState([]);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -200,7 +165,6 @@ const YearEndProcessing = () => {
   const openAddForm = () => {
     setFormOpen(true);
     resetHolidayForm();
-    // default start/end = today
     const t = toYMD(new Date());
     setHolidayStart(t);
     setHolidayEnd(t);
@@ -229,7 +193,6 @@ const YearEndProcessing = () => {
   const saveWorkingDaysPolicy = async () => {
     if (policySaving) return;
 
-    // FE-only validation
     if (!Array.isArray(workingDays) || workingDays.length === 0) {
       alertError("Invalid Working Days", "Please select at least 1 working day.");
       return;
@@ -237,7 +200,6 @@ const YearEndProcessing = () => {
 
     setPolicySaving(true);
     try {
-      // ✅ FE ONLY (mock save)
       await new Promise((r) => setTimeout(r, 250));
       await alertSuccess("Saved", "Working Days saved (Front-end only).");
     } catch (e) {
@@ -248,7 +210,7 @@ const YearEndProcessing = () => {
     }
   };
 
-  const upsertSpecialHolidayFE = async () => {
+  const upsertSpecialHoliday = async () => {
     const name = String(holidayName || "").trim();
     const start = safeYMD(holidayStart);
     const end = safeYMD(holidayEnd);
@@ -270,7 +232,6 @@ const YearEndProcessing = () => {
       return;
     }
 
-    // simulate insert/update to DB (FE state)
     try {
       const total = calcTotalDays(start, end);
       if (total <= 0) {
@@ -278,8 +239,16 @@ const YearEndProcessing = () => {
         return;
       }
 
-      // ✅ here is where you would call API in future (but not now)
-      // await createSpecialHoliday({ startDate: start, endDate: end, name })
+      // ✅ rule: max consecutive days
+      if (total > Number(maxConsecutiveHolidayDays || 0)) {
+        alertError(
+          "Exceeded Limit",
+          `Holiday duration is ${total} day(s). Max consecutive allowed is ${Number(
+            maxConsecutiveHolidayDays
+          )} day(s).`
+        );
+        return;
+      }
 
       if (editId) {
         setSpecialHolidays((prev) =>
@@ -327,10 +296,109 @@ const YearEndProcessing = () => {
     await alertSuccess("Deleted", "Holiday removed successfully (Front-end only).");
   };
 
+  const buildProcessConfirmHtml = () => {
+    const co = carryOverLimits || {};
+    const items = [
+      `The system will process year-end for <b>${escapeHtml(targetYear)}</b> and lock <b>${escapeHtml(
+        lastYear
+      )}</b>.`,
+      `New quotas for <b>${escapeHtml(targetYear)}</b>:
+        Annual <b>${escapeHtml(quotas.ANNUAL)}</b>,
+        Sick <b>${escapeHtml(quotas.SICK)}</b>,
+        Personal <b>${escapeHtml(quotas.PERSONAL)}</b>,
+        Emergency <b>${escapeHtml(quotas.EMERGENCY)}</b>.`,
+      `Carry Over limits (per type):
+        Annual <b>${escapeHtml(co.ANNUAL)}</b>,
+        Sick <b>${escapeHtml(co.SICK)}</b>,
+        Personal <b>${escapeHtml(co.PERSONAL)}</b>,
+        Emergency <b>${escapeHtml(co.EMERGENCY)}</b>.`,
+      `Max consecutive holiday days allowed: <b>${escapeHtml(maxConsecutiveHolidayDays)}</b> day(s).`,
+    ];
+
+    return `
+      <div style="text-align:left; line-height:1.7;">
+        <div style="font-weight:900; margin-bottom:8px;">Year-End Processing Summary</div>
+        <ul style="margin:0; padding-left:18px;">
+          ${items.map((t) => `<li>${t}</li>`).join("")}
+        </ul>
+        <div style="margin-top:10px; font-size:12px; opacity:.8;">
+          Please review the values carefully before confirming.
+        </div>
+      </div>
+    `.trim();
+  };
+
+  const handleProcess = async () => {
+    if (loading) return;
+
+    const confirmed = await alertConfirm(
+      "Confirm Year-End Processing",
+      buildProcessConfirmHtml(),
+      "Confirm & Process"
+    );
+    if (!confirmed) return;
+
+    setLoading(true);
+    try {
+      const res = await processCarryOver({
+        targetYear: Number(targetYear),
+        quotas: quotas,
+        carryOverLimits: carryOverLimits, // ✅ added (backend may ignore if not implemented yet)
+      });
+
+      await alertSuccess(
+        "Processed Successfully",
+        res?.message || "Year-end processing and quota assignment completed successfully."
+      );
+      await fetchConfigs();
+    } catch (error) {
+      const errorMsg =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "An error occurred during processing.";
+
+      alertError("Processing Failed", errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReopen = async (year) => {
+    const confirmed = await alertConfirm(
+      "Confirm Unlock",
+      `
+        <div style="text-align:left; line-height:1.7;">
+          Do you want to unlock <b>${escapeHtml(year)}</b>?
+          <div style="margin-top:8px; font-size:12px; opacity:.8;">
+            Once unlocked, this year will be set to <b>Open</b> and can be edited again.
+          </div>
+        </div>
+      `.trim(),
+      "Unlock Year"
+    );
+    if (!confirmed) return;
+
+    try {
+      await reopenYear(year);
+      await alertSuccess("Unlocked", `Year ${year} has been unlocked successfully.`);
+      fetchConfigs();
+    } catch (error) {
+      const msg =
+        error?.response?.data?.error || error?.response?.data?.message || error?.message || "Unknown error";
+
+      alertError("Unlock Failed", msg);
+    }
+  };
+
+  const [targetYearOpen, setTargetYearOpen] = useState(false);
+  const currentYear = new Date().getFullYear();
+  const FUTURE_YEARS = 3;
+  const years = Array.from({ length: FUTURE_YEARS }, (_, i) => currentYear + i);
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="max-w-5xl mx-auto">
-
         {/* ===================== ✅ NEW PANEL: HOLIDAY POLICY & SPECIAL HOLIDAYS ===================== */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 mb-8">
           <header className="mb-6 flex items-start justify-between gap-4">
@@ -343,18 +411,6 @@ const YearEndProcessing = () => {
                 Configure working days and manage special holidays (Front-end only for now).
               </p>
             </div>
-
-            <button
-              type="button"
-              onClick={openAddForm}
-              className="h-11 px-5 rounded-3xl bg-white border border-gray-200
-                text-slate-800 font-black text-[11px] uppercase tracking-widest
-                hover:bg-gray-50 transition-all active:scale-95 inline-flex items-center gap-2"
-              title="Add Holiday"
-            >
-              <Plus size={16} />
-              Add Holiday
-            </button>
           </header>
 
           {/* ===== Working Days (top) + Save ===== */}
@@ -440,6 +496,50 @@ const YearEndProcessing = () => {
                 >
                   {policySaving ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
                   {policySaving ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ✅ Max Consecutive Holiday Days + Save */}
+          <div className="mt-5 rounded-2xl border border-gray-100 bg-gray-50/50 p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
+                  Max Consecutive Holidays
+                </div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                  Maximum consecutive holiday days allowed per request
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={maxConsecutiveHolidayDays}
+                  onChange={(e) =>
+                    setMaxConsecutiveHolidayDays(clamp(Number(e.target.value || 1), 1, 365))
+                  }
+                  className="w-24 h-11 px-4 rounded-2xl bg-white border border-gray-200
+                    text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                />
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  day(s)
+                </span>
+
+                <button
+                  type="button"
+                  onClick={saveMaxConsecutivePolicy}
+                  disabled={maxConsecutiveSaving}
+                  className="h-11 px-5 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
+                    uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
+                    shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none
+                    inline-flex items-center gap-2"
+                >
+                  {maxConsecutiveSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                  {maxConsecutiveSaving ? "Saving..." : "Save"}
                 </button>
               </div>
             </div>
@@ -541,7 +641,7 @@ const YearEndProcessing = () => {
 
                     <button
                       type="button"
-                      onClick={upsertSpecialHolidayFE}
+                      onClick={upsertSpecialHoliday}
                       className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
                         uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
                         shadow-lg shadow-indigo-100 inline-flex items-center gap-2"
@@ -654,6 +754,52 @@ const YearEndProcessing = () => {
             </p>
           </header>
 
+          {/* ✅ Custom Holidays Carry Over limit per type */}
+          <div className="rounded-3xl border border-gray-100 bg-gray-50/50 p-5 mb-6">
+            <div className="flex items-start justify-between gap-3 flex-col sm:flex-row">
+              <div>
+                <div className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
+                  Custom Holidays Carry Over
+                </div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                  Maximum carry over days to next year (per employee) — separated by type
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={saveCarryOverLimits}
+                disabled={carrySaving}
+                className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
+                  uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
+                  shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none
+                  inline-flex items-center gap-2"
+              >
+                {carrySaving ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
+                {carrySaving ? "Saving..." : "Save Carry Over"}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
+              {Object.keys(carryOverLimits).map((type) => (
+                <div key={type}>
+                  <label className="block text-xs font-black text-gray-400 uppercase mb-1">
+                    {type}
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={365}
+                    value={carryOverLimits[type]}
+                    onChange={(e) => handleCarryOverChange(type, e.target.value)}
+                    className="w-full border border-gray-200 rounded-3xl px-3 py-2 text-sm font-bold
+                      focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Processing & Quota Settings */}
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 mb-8">
             <div className="flex items-start gap-4">
@@ -685,66 +831,55 @@ const YearEndProcessing = () => {
                 </div>
 
                 <div className="flex items-center gap-4 pt-4 border-t border-gray-50">
-                  <div className="flex items-center gap-4 pt-4 border-t border-gray-50">
-                    <div className="flex flex-col relative w-44">
-                      <span className="text-xs text-gray-400 font-bold mb-1">
-                        Target Year
-                      </span>
+                  <div className="flex flex-col relative w-44">
+                    <span className="text-xs text-gray-400 font-bold mb-1">Target Year</span>
 
-                      <button
-                        type="button"
-                        onClick={() => setTargetYearOpen((v) => !v)}
-                        className={`w-full bg-white border border-gray-300 rounded-3xl
-                          px-4 py-2 text-sm font-black text-slate-700
-                          flex items-center justify-between transition-all
-                          hover:bg-gray-50
-                          ${targetYearOpen ? "ring-2 ring-blue-100" : ""}`}
+                    <button
+                      type="button"
+                      onClick={() => setTargetYearOpen((v) => !v)}
+                      className={`w-full bg-white border border-gray-300 rounded-3xl
+                        px-4 py-2 text-sm font-black text-slate-700
+                        flex items-center justify-between transition-all
+                        hover:bg-gray-50
+                        ${targetYearOpen ? "ring-2 ring-blue-100" : ""}`}
+                    >
+                      <span>Year {targetYear}</span>
+                      <svg
+                        className={`w-4 h-4 transition-transform ${targetYearOpen ? "rotate-180" : ""}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        <span>Year {targetYear}</span>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
 
-                        <svg
-                          className={`w-4 h-4 transition-transform ${targetYearOpen ? "rotate-180" : ""}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={3}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </button>
-
-                      {targetYearOpen && (
-                        <>
-                          <button
-                            type="button"
-                            className="fixed inset-0 z-10 cursor-default"
-                            onClick={() => setTargetYearOpen(false)}
-                            aria-label="Close target year dropdown"
-                          />
-
-                          <div className="absolute z-20 mt-2 w-full rounded-3xl bg-white shadow-xl border border-gray-100 overflow-hidden">
-                            {years.map((y) => (
-                              <button
-                                key={y}
-                                type="button"
-                                onClick={() => {
-                                  setTargetYear(y);
-                                  setTargetYearOpen(false);
-                                }}
-                                className={`w-full px-6 py-3 text-left text-sm font-black transition-all hover:bg-blue-50
-                                  ${targetYear === y ? "bg-blue-50 text-blue-700" : "text-slate-700"}`}
-                              >
-                                Year {y}
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    {targetYearOpen && (
+                      <>
+                        <button
+                          type="button"
+                          className="fixed inset-0 z-10 cursor-default"
+                          onClick={() => setTargetYearOpen(false)}
+                          aria-label="Close target year dropdown"
+                        />
+                        <div className="absolute z-20 mt-2 w-full rounded-3xl bg-white shadow-xl border border-gray-100 overflow-hidden">
+                          {years.map((y) => (
+                            <button
+                              key={y}
+                              type="button"
+                              onClick={() => {
+                                setTargetYear(y);
+                                setTargetYearOpen(false);
+                              }}
+                              className={`w-full px-6 py-3 text-left text-sm font-black transition-all hover:bg-blue-50
+                                ${targetYear === y ? "bg-blue-50 text-blue-700" : "text-slate-700"}`}
+                            >
+                              Year {y}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <button
@@ -783,9 +918,7 @@ const YearEndProcessing = () => {
                   {configs.length > 0 ? (
                     configs.map((config) => (
                       <tr key={config.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-6 py-4 font-bold text-gray-700">
-                          {config.year}
-                        </td>
+                        <td className="px-6 py-4 font-bold text-gray-700">{config.year}</td>
 
                         <td className="px-6 py-4">
                           {config.isClosed ? (
@@ -800,9 +933,7 @@ const YearEndProcessing = () => {
                         </td>
 
                         <td className="px-6 py-4 text-center text-gray-500 text-xs font-medium">
-                          {config.closedAt
-                            ? new Date(config.closedAt).toLocaleString("en-US")
-                            : "-"}
+                          {config.closedAt ? new Date(config.closedAt).toLocaleString("en-US") : "-"}
                         </td>
 
                         <td className="px-6 py-4 text-right">
