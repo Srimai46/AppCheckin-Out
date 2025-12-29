@@ -166,7 +166,7 @@ const YearEndProcessing = () => {
   };
 
   // ✅ HR sets max "consecutive" holidays allowed
-  const [maxConsecutiveHolidayDays, setMaxConsecutiveHolidayDays] = useState(6);
+  const [maxConsecutiveHolidayDays, setMaxConsecutiveHolidayDays] = useState(3);
   const [maxConsecutiveSaving, setMaxConsecutiveSaving] = useState(false);
 
   const saveMaxConsecutivePolicy = async () => {
