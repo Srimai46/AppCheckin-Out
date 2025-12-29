@@ -13,8 +13,6 @@ async function main() {
   await prisma.timeRecord.deleteMany();
   await prisma.specialLeaveGrant.deleteMany();
   await prisma.leaveQuota.deleteMany();
-  
-  // ลบตารางตั้งค่า
   await prisma.holiday.deleteMany();
   await prisma.leaveType.deleteMany();
   await prisma.workConfiguration.deleteMany();

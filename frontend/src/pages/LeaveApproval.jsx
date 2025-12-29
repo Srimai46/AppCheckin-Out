@@ -182,161 +182,161 @@ export default function LeaveApproval() {
             </thead>
 
             <tbody className="divide-y divide-slate-50">
-  {loading ? (
-    <tr>
-      <td
-        colSpan="7" /* ปรับเป็น 7 ตามจำนวนหัวตาราง */
-        className="p-20 text-center font-black italic text-blue-500 animate-pulse"
-      >
-        SYNCHRONIZING DATA...
-      </td>
-    </tr>
-  ) : requests.length === 0 ? (
-    <tr>
-      <td
-        colSpan="7" /* ปรับเป็น 7 ตามจำนวนหัวตาราง */
-        className="p-20 text-center text-slate-300 font-black uppercase text-sm"
-      >
-        No Pending Tasks
-      </td>
-    </tr>
-  ) : (
-    requests.map((req) => (
-      <tr
-        key={req.id}
-        className={`transition-all duration-300 ${
-          selectedIds.includes(req.id)
-            ? "bg-blue-50/50"
-            : "hover:bg-slate-50/50"
-        }`}
-      >
-        {/* 1. Checkbox */}
-        <td className="p-5 text-center">
-          <button
-            onClick={() => toggleSelect(req.id)}
-            className={`transition-all ${
-              selectedIds.includes(req.id)
-                ? "text-blue-600 scale-110"
-                : "text-slate-200 hover:text-slate-400"
-            }`}
-          >
-            {selectedIds.includes(req.id) ? (
-              <CheckSquare size={20} />
-            ) : (
-              <Square size={20} />
-            )}
-          </button>
-        </td>
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan="7" /* ปรับเป็น 7 ตามจำนวนหัวตาราง */
+                    className="p-20 text-center font-black italic text-blue-500 animate-pulse"
+                  >
+                    SYNCHRONIZING DATA...
+                  </td>
+                </tr>
+              ) : requests.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan="7" /* ปรับเป็น 7 ตามจำนวนหัวตาราง */
+                    className="p-20 text-center text-slate-300 font-black uppercase text-sm"
+                  >
+                    No Pending Tasks
+                  </td>
+                </tr>
+              ) : (
+                requests.map((req) => (
+                  <tr
+                    key={req.id}
+                    className={`transition-all duration-300 ${
+                      selectedIds.includes(req.id)
+                        ? "bg-blue-50/50"
+                        : "hover:bg-slate-50/50"
+                    }`}
+                  >
+                    {/* 1. Checkbox */}
+                    <td className="p-5 text-center">
+                      <button
+                        onClick={() => toggleSelect(req.id)}
+                        className={`transition-all ${
+                          selectedIds.includes(req.id)
+                            ? "text-blue-600 scale-110"
+                            : "text-slate-200 hover:text-slate-400"
+                        }`}
+                      >
+                        {selectedIds.includes(req.id) ? (
+                          <CheckSquare size={20} />
+                        ) : (
+                          <Square size={20} />
+                        )}
+                      </button>
+                    </td>
 
-        {/* 2. Employee */}
-        <td className="p-5 min-w-[180px]">
-          <div className="font-black text-slate-700 leading-none tracking-tight">
-            {req.employee?.firstName} {req.employee?.lastName}
-          </div>
-          <div className="text-[9px] font-black text-slate-300 uppercase mt-1">
-            Ref: #{req.id}
-          </div>
-        </td>
+                    {/* 2. Employee */}
+                    <td className="p-5 min-w-[180px]">
+                      <div className="font-black text-slate-700 leading-none tracking-tight">
+                        {req.employee?.firstName} {req.employee?.lastName}
+                      </div>
+                      <div className="text-[9px] font-black text-slate-300 uppercase mt-1">
+                        Ref: #{req.id}
+                      </div>
+                    </td>
 
-        {/* 3. Type (แยกออกมาอยู่ช่องของตัวเอง) */}
-        <td className="p-5">
-          <span className="inline-block bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap">
-            {req.leaveType?.typeName}
-          </span>
-        </td>
+                    {/* 3. Type (แยกออกมาอยู่ช่องของตัวเอง) */}
+                    <td className="p-5">
+                      <span className="inline-block bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap">
+                        {req.leaveType?.typeName}
+                      </span>
+                    </td>
 
-        {/* 4. Note / Reason (แยกออกมาอยู่ช่องของตัวเอง) */}
-        <td className="p-5 min-w-[200px]">
-          <div className="flex flex-col gap-1">
-            {req.reason && (
-              <div
-                className="flex items-start gap-1 text-slate-500 text-[11px] leading-tight"
-                title={`Reason: ${req.reason}`}
-              >
-                <MessageCircle size={12} className="mt-0.5 shrink-0 text-slate-400" />
-                <span className="truncate max-w-[180px]">{req.reason}</span>
-              </div>
-            )}
-            {req.note && (
-              <div
-                className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight"
-                title={`Note: ${req.note}`}
-              >
-                <Info size={12} className="mt-0.5 shrink-0 text-amber-500" />
-                <span className="truncate max-w-[180px]">{req.note}</span>
-              </div>
-            )}
-            {!req.reason && !req.note && (
-              <span className="text-slate-300 text-[10px] italic">-</span>
-            )}
-          </div>
-        </td>
+                    {/* 4. Note / Reason (แยกออกมาอยู่ช่องของตัวเอง) */}
+                    <td className="p-5 min-w-[200px]">
+                      <div className="flex flex-col gap-1">
+                        {req.reason && (
+                          <div
+                            className="flex items-start gap-1 text-slate-500 text-[11px] leading-tight"
+                            title={`Reason: ${req.reason}`}
+                          >
+                            <MessageCircle size={12} className="mt-0.5 shrink-0 text-slate-400" />
+                            <span className="truncate max-w-[180px]">{req.reason}</span>
+                          </div>
+                        )}
+                        {req.note && (
+                          <div
+                            className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight"
+                            title={`Note: ${req.note}`}
+                          >
+                            <Info size={12} className="mt-0.5 shrink-0 text-amber-500" />
+                            <span className="truncate max-w-[180px]">{req.note}</span>
+                          </div>
+                        )}
+                        {!req.reason && !req.note && (
+                          <span className="text-slate-300 text-[10px] italic">-</span>
+                        )}
+                      </div>
+                    </td>
 
-        {/* 5. Duration */}
-        <td className="p-5">
-          <div className="text-[11px] font-bold text-slate-500 italic whitespace-nowrap">
-            {new Date(req.startDate).toLocaleDateString("th-TH")} -{" "}
-            {new Date(req.endDate).toLocaleDateString("th-TH")}
-          </div>
-          <div className="font-black text-slate-800 text-sm mt-0.5">
-            {req.totalDaysRequested} Days
-          </div>
-        </td>
+                    {/* 5. Duration */}
+                    <td className="p-5">
+                      <div className="text-[11px] font-bold text-slate-500 italic whitespace-nowrap">
+                        {new Date(req.startDate).toLocaleDateString("th-TH")} -{" "}
+                        {new Date(req.endDate).toLocaleDateString("th-TH")}
+                      </div>
+                      <div className="font-black text-slate-800 text-sm mt-0.5">
+                        {req.totalDaysRequested} Days
+                      </div>
+                    </td>
 
-        {/* 6. Evidence */}
-        <td className="p-5 text-center">
-          {req.attachmentUrl ? (
-            <button
-              onClick={() =>
-                openAttachment(buildFileUrl(req.attachmentUrl))
-              }
-              className="p-2 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-100 transition-all group"
-              title="View Attachment"
-            >
-              <ImageIcon
-                size={18}
-                className="group-hover:scale-110 transition-transform"
-              />
-            </button>
-          ) : (
-            <span className="text-[9px] font-black text-slate-200 uppercase tracking-widest italic">
-              No File
-            </span>
-          )}
-        </td>
+                    {/* 6. Evidence */}
+                    <td className="p-5 text-center">
+                      {req.attachmentUrl ? (
+                        <button
+                          onClick={() =>
+                            openAttachment(buildFileUrl(req.attachmentUrl))
+                          }
+                          className="p-2 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-100 transition-all group"
+                          title="View Attachment"
+                        >
+                          <ImageIcon
+                            size={18}
+                            className="group-hover:scale-110 transition-transform"
+                          />
+                        </button>
+                      ) : (
+                        <span className="text-[9px] font-black text-slate-200 uppercase tracking-widest italic">
+                          No File
+                        </span>
+                      )}
+                    </td>
 
-        {/* 7. Action */}
-        <td className="p-5 text-center">
-          <div className="flex justify-center gap-2">
-            <button
-              onClick={() => handleAction("Approved", req)}
-              className="flex items-center gap-2 px-3 py-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100"
-              title="Approve"
-            >
-              <span className="text-sm font-medium">Approved</span>
-            </button>
+                    {/* 7. Action */}
+                    <td className="p-5 text-center">
+                      <div className="flex justify-center gap-2">
+                        <button
+                          onClick={() => handleAction("Approved", req)}
+                          className="flex items-center gap-2 px-3 py-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100"
+                          title="Approve"
+                        >
+                          <span className="text-sm font-medium">Approved</span>
+                        </button>
 
-            <button
-              onClick={() => handleAction("Special", req)}
-              className="flex items-center gap-2 px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all border border-purple-100"
-              title="Special Approval"
-            >
-              <span className="text-sm font-medium">Special</span>
-            </button>
+                        <button
+                          onClick={() => handleAction("Special", req)}
+                          className="flex items-center gap-2 px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all border border-purple-100"
+                          title="Special Approval"
+                        >
+                          <span className="text-sm font-medium">Special</span>
+                        </button>
 
-            <button
-              onClick={() => handleAction("Rejected", req)}
-              className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-slate-100"
-              title="Reject"
-            >
-              <span className="text-sm font-medium">Rejected</span>
-            </button>
-          </div>
-        </td>
-      </tr>
-    ))
-  )}
-</tbody>
+                        <button
+                          onClick={() => handleAction("Rejected", req)}
+                          className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-slate-100"
+                          title="Reject"
+                        >
+                          <span className="text-sm font-medium">Rejected</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
           </table>
         </div>
       </div>

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+// frontend/src/pages/TeamCalendar.jsx
+import React, { useState, useMemo } from "react";
 import {
   format,
   startOfMonth,
@@ -11,6 +12,8 @@ import {
   addMonths,
   subMonths,
   isToday,
+  addDays,
+  subDays,
 } from "date-fns";
 import {
   X,
@@ -21,320 +24,92 @@ import {
   Users,
   LogIn,
   LogOut,
+  Image as ImageIcon,
+  MessageCircle,
+  Info,
+  Star,
 } from "lucide-react";
-import { getAllLeaves } from "../api/leaveService";
-import {
-  getTodayTeamAttendance,
-  hrCheckInEmployee,
-  hrCheckOutEmployee,
-} from "../api/attendanceService";
-import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
-const SHIFT_START = "09:00";
+import { updateLeaveStatus, grantSpecialLeave } from "../api/leaveService";
+import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
+import { openAttachment } from "../utils/attachmentPreview";
+
+// ===== teamCalendar modules =====
+import { WEEK_HEADERS, LEAVE_TYPE_FILTERS, SHIFT_START, PAGE_SIZE } from "./teamCalendar/constants";
+import {
+  matchLeaveType,
+  normalizeTime,
+  getAttendanceState,
+  isLate,
+  badgeByAttendance,
+  labelByAttendance,
+  leaveTheme,
+  typeBadgeTheme,
+  buildRowName,
+  buildDurationText,
+  weekendBgByDow,
+} from "./teamCalendar/utils";
+
+import useLeaves from "./teamCalendar/hooks/useLeaves";
+import useTeamAttendanceToday from "./teamCalendar/hooks/useTeamAttendanceToday";
+import useModalAttendance from "./teamCalendar/hooks/useModalAttendance";
+
+import SummaryCard from "./teamCalendar/components/SummaryCard";
+import Pill from "./teamCalendar/components/Pill";
+import TabButton from "./teamCalendar/components/TabButton";
+import RoleDropdown from "./teamCalendar/components/RoleDropdown";
 
 export default function TeamCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // ===== Leaves =====
-  const [leaves, setLeaves] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // ===== Leaves (hook) =====
+  const { leaves, loading, refetchLeaves } = useLeaves();
 
-  const [showModal, setShowModal] = useState(false);
-  const [modalLeaves, setModalLeaves] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-
-  // ===== ✅ Team Attendance =====
-  const [teamAttendance, setTeamAttendance] = useState([]);
-  const [attLoading, setAttLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState({}); // { [employeeId]: "in" | "out" | null }
-
-  // ===== ✅ Pagination (Team Attendance) =====
-  const PAGE_SIZE = 10;
-  const [teamPage, setTeamPage] = useState(1);
-
-  // ===== ✅ Filter Types (Leaves) =====
+  // ===== Leave Type Filters =====
   const [selectedTypes, setSelectedTypes] = useState([]); // [] = show all
 
-  const matchLeaveType = (leaveType, filter) => {
-    const t = String(leaveType || "").toLowerCase();
-    if (filter === "sick") return t.includes("sick") || t.includes("ป่วย");
-    if (filter === "personal")
-      return t.includes("personal") || t.includes("กิจ") || t.includes("ธุระ");
-    if (filter === "annual")
-      return t.includes("annual") || t.includes("vacation") || t.includes("พักร้อน");
-    if (filter === "emergency") return t.includes("emergency") || t.includes("ฉุกเฉิน");
-    if (filter === "special") return t.includes("special") || t.includes("พิเศษ");
-    return false;
-  };
+  // ===== ✅ BIG MODAL (Daily Details) =====
+  const [showModal, setShowModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [modalTab, setModalTab] = useState("PENDING"); // PENDING | APPROVED | REJECTED
 
-  // ===================== Fetch Leaves =====================
-  useEffect(() => {
-    const fetchLeaves = async () => {
-      try {
-        const data = await getAllLeaves();
-        const list = Array.isArray(data) ? data : [];
+  // ===== ✅ Modal Filters =====
+  const [modalRoleFilter, setModalRoleFilter] = useState("ALL"); // ALL | HR | WORKER
+  const [modalSearch, setModalSearch] = useState("");
+  const [modalRoleOpen, setModalRoleOpen] = useState(false);
 
-        const formatted = list.map((item) => ({
-          id: item.id,
-          name: item.name,
-          type: item.type,
-          status: item.status,
-          date: new Date(item.startDate),
-          startDate: item.startDate,
-          endDate: item.endDate,
-          reason: item.reason,
-        }));
-
-        setLeaves(formatted);
-      } catch (e) {
-        console.error("Error fetching leaves:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLeaves();
-  }, []);
-
-  // ===================== ✅ Filter Employee List =====================
-  const [roleFilter, setRoleFilter] = useState("ALL"); // ALL | HR | WORKER
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const roleBtnRef = useRef(null);
-  const roleMenuRef = useRef(null);
+  // ===== ✅ Today Attendance (hook) =====
+  const att = useTeamAttendanceToday();
+  const {
+    attLoading,
+    actionLoading,
+    roleFilter,
+    setRoleFilter,
+    searchTerm,
+    setSearchTerm,
+    teamPage,
+    setTeamPage,
+    totalTeamPages,
+    filteredTeamAttendance,
+    pagedTeamAttendance,
+    activeTeamAttendance,
+    attendanceSummary,
+    handleHRCheckIn,
+    handleHRCheckOut,
+  } = att;
 
   const [roleOpen, setRoleOpen] = useState(false);
 
-  useEffect(() => {
-    const onDown = (e) => {
-      const btn = roleBtnRef.current;
-      const menu = roleMenuRef.current;
-      if (!btn || !menu) return;
+  // ===== ✅ Modal Attendance (hook) =====
+  const { modalAttendance, modalAttLoading, fetchModalAttendance } = useModalAttendance();
 
-      if (btn.contains(e.target) || menu.contains(e.target)) return;
-      setRoleOpen(false);
-    };
-
-    window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
-  }, []);
-
-  // ===================== ✅ Attendance helpers =====================
-  const normalizeTime = (t) => {
-    if (!t) return null;
-    try {
-      const d = new Date(t);
-      if (!isNaN(d.getTime())) return format(d, "HH:mm");
-    } catch (_) {}
-    if (typeof t === "string" && t.includes(":")) return t.slice(0, 5);
-    return null;
-  };
-
-  const getAttendanceState = ({ checkInTime, checkOutTime }) => {
-    const hasIn = !!checkInTime;
-    const hasOut = !!checkOutTime;
-    if (!hasIn) return "NOT_IN";
-    if (hasIn && !hasOut) return "IN";
-    return "OUT";
-  };
-
-  const toMinutes = (hhmm) => {
-    if (!hhmm) return null;
-    const [h, m] = String(hhmm).slice(0, 5).split(":").map(Number);
-    if (Number.isNaN(h) || Number.isNaN(m)) return null;
-    return h * 60 + m;
-  };
-
-  const nowMinutes = () => {
-    const d = new Date();
-    return d.getHours() * 60 + d.getMinutes();
-  };
-
-  // ✅ late rule:
-  // - NOT_IN = late (ถ้าเวลาปัจจุบัน > SHIFT_START)
-  // - IN/OUT = late (ถ้า check-in time > SHIFT_START)
-  const isLate = (state, inTime) => {
-    const startM = toMinutes(SHIFT_START);
-    if (startM == null) return false;
-
-    if (state === "NOT_IN") return nowMinutes() > startM;
-
-    const inM = toMinutes(inTime);
-    if (inM == null) return false;
-    return inM > startM;
-  };
-
-  const badgeByAttendance = (state) => {
-    if (state === "NOT_IN") return "bg-gray-50 text-gray-500 border-gray-100";
-    if (state === "IN") return "bg-emerald-50 text-emerald-600 border-emerald-100";
-    return "bg-slate-50 text-slate-600 border-slate-100";
-  };
-
-  const labelByAttendance = (state) => {
-    if (state === "NOT_IN") return "NOT CHECKED IN";
-    if (state === "IN") return "CHECKED IN";
-    return "CHECKED OUT";
-  };
-
-  // ===================== ✅ Fetch Team Attendance =====================
-  const fetchTeamAttendance = async () => {
-    try {
-      setAttLoading(true);
-
-      const res = await getTodayTeamAttendance();
-      const list =
-        (Array.isArray(res) && res) ||
-        (Array.isArray(res?.data) && res.data) ||
-        (Array.isArray(res?.data?.data) && res.data.data) ||
-        (Array.isArray(res?.employees) && res.employees) ||
-        (Array.isArray(res?.data?.employees) && res.data.employees) ||
-        [];
-
-      setTeamAttendance(list);
-      setTeamPage(1);
-    } catch (e) {
-      console.error("Error fetching team attendance:", e);
-      setTeamAttendance([]);
-    } finally {
-      setAttLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTeamAttendance();
-  }, []);
-
-  // =========================================================
-  // ✅ กรองเฉพาะพนักงานที่ยังทำงานอยู่ (isActive = true/1)
-  // =========================================================
-  const activeTeamAttendance = useMemo(() => {
-    return (teamAttendance || []).filter((r) => r?.isActive === true || r?.isActive === 1);
-  }, [teamAttendance]);
-
-  // ✅ FILTERED list (role + search)
-  const filteredTeamAttendance = useMemo(() => {
-    const term = String(searchTerm || "").trim().toLowerCase();
-
-    return (activeTeamAttendance || []).filter((row) => {
-      const roleRaw = String(row?.role || row?.position || "").toUpperCase();
-      if (roleFilter !== "ALL") {
-        const want = roleFilter === "WORKER" ? "WORKER" : "HR";
-        if (roleRaw !== want) return false;
-      }
-
-      if (!term) return true;
-
-      const id = String(row?.employeeId ?? row?.id ?? "").toLowerCase();
-      const email = String(row?.email ?? "").toLowerCase();
-      const name = String(
-        row?.fullName ||
-          row?.name ||
-          `${row?.firstName || ""} ${row?.lastName || ""}`.trim()
-      ).toLowerCase();
-
-      return name.includes(term) || email.includes(term) || id.includes(term);
-    });
-  }, [activeTeamAttendance, roleFilter, searchTerm]);
-
-  // ===================== ✅ Pagination computed (ใช้ filteredTeamAttendance) =====================
-  const totalTeamPages = useMemo(() => {
-    return Math.max(1, Math.ceil(filteredTeamAttendance.length / PAGE_SIZE));
-  }, [filteredTeamAttendance.length]);
-
-  const pagedTeamAttendance = useMemo(() => {
-    const start = (teamPage - 1) * PAGE_SIZE;
-    return filteredTeamAttendance.slice(start, start + PAGE_SIZE);
-  }, [filteredTeamAttendance, teamPage]);
-
-  useEffect(() => {
-    setTeamPage((p) => Math.min(Math.max(1, p), totalTeamPages));
-  }, [totalTeamPages]);
-
-  // ✅ รีเซ็ตหน้าเมื่อเปลี่ยน filter/search
-  useEffect(() => {
-    setTeamPage(1);
-  }, [roleFilter, searchTerm]);
-
-  // ===================== UI Helpers (Leaves) =====================
-  const handleDayClick = (day) => {
-    const dayLeaves = leaves.filter((leaf) => {
-      if (!isSameDay(leaf.date, day)) return false;
-      if (selectedTypes.length === 0) return true;
-      return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
-    });
-
-    setSelectedDate(day);
-    setModalLeaves(dayLeaves);
-    setShowModal(true);
-  };
-
-  const handleShowTodayLeaves = () => handleDayClick(new Date());
-
-  // ✅ สีตามประเภทการลา (กรอบ/พื้น/ตัวอักษร/จุด)
-  const leaveTheme = (type) => {
-    const t = String(type || "").toLowerCase();
-
-    if (t.includes("special") || t.includes("พิเศษ")) {
-      return {
-        dot: "bg-rose-400",
-        border: "border-rose-200",
-        bg: "bg-rose-50/60",
-        text: "text-rose-700",
-      };
-    }
-
-    if (t.includes("sick") || t.includes("ป่วย")) {
-      return {
-        dot: "bg-violet-400",
-        border: "border-violet-200",
-        bg: "bg-violet-50/60",
-        text: "text-violet-700",
-      };
-    }
-
-    if (t.includes("personal") || t.includes("กิจ") || t.includes("ธุระ")) {
-      return {
-        dot: "bg-sky-400",
-        border: "border-sky-200",
-        bg: "bg-sky-50/60",
-        text: "text-sky-700",
-      };
-    }
-
-    if (t.includes("annual") || t.includes("vacation") || t.includes("พักร้อน")) {
-      return {
-        dot: "bg-emerald-400",
-        border: "border-emerald-200",
-        bg: "bg-emerald-50/60",
-        text: "text-emerald-700",
-      };
-    }
-
-    return {
-      dot: "bg-amber-400",
-      border: "border-amber-200",
-      bg: "bg-amber-50/60",
-      text: "text-amber-700",
-    };
-  };
-
+  // ===================== Calendar days =====================
   const calendarDays = eachDayOfInterval({
-    start: startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }),
-    end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }),
+    start: startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 }),
+    end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 }),
   });
 
-  const weekHeaders = useMemo(
-    () => ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    []
-  );
-
-  const weekendBgByDow = (dow) => {
-    if (dow === 6) return "bg-violet-50/70";
-    if (dow === 0) return "bg-rose-50/70";
-    return "";
-  };
-
-  // ✅ today count respects filters
+  // ===================== Today’s Overview count =====================
   const todayCount = useMemo(() => {
     const today = new Date();
     return leaves.filter((l) => {
@@ -348,81 +123,211 @@ export default function TeamCalendar() {
   const goNext = () => setCurrentDate((d) => addMonths(d, 1));
   const goToday = () => setCurrentDate(new Date());
 
-  // ===================== ✅ Attendance Summary (ใช้ activeTeamAttendance) =====================
-  const attendanceSummary = useMemo(() => {
-    const total = activeTeamAttendance.length;
+  // ===================== Modal: leaves for selected day =====================
+  const leavesOfSelectedDay = useMemo(() => {
+    const dayKey = format(selectedDate, "yyyy-MM-dd");
+    return leaves.filter((leaf) => {
+      if (leaf.dateKey !== dayKey) return false;
+      if (selectedTypes.length === 0) return true;
+      return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
+    });
+  }, [leaves, selectedDate, selectedTypes]);
+
+  const pendingLeavesOfDay = useMemo(
+    () => leavesOfSelectedDay.filter((l) => String(l.status || "").toLowerCase() === "pending"),
+    [leavesOfSelectedDay]
+  );
+  const approvedLeavesOfDay = useMemo(
+    () => leavesOfSelectedDay.filter((l) => String(l.status || "").toLowerCase() === "approved"),
+    [leavesOfSelectedDay]
+  );
+  const rejectedLeavesOfDay = useMemo(
+    () => leavesOfSelectedDay.filter((l) => String(l.status || "").toLowerCase() === "rejected"),
+    [leavesOfSelectedDay]
+  );
+
+  const modalRows = useMemo(() => {
+    if (modalTab === "APPROVED") return approvedLeavesOfDay;
+    if (modalTab === "REJECTED") return rejectedLeavesOfDay;
+    return pendingLeavesOfDay;
+  }, [modalTab, pendingLeavesOfDay, approvedLeavesOfDay, rejectedLeavesOfDay]);
+
+  const filteredModalRows = useMemo(() => {
+    const term = String(modalSearch || "").trim().toLowerCase();
+
+    return (modalRows || []).filter((leaf) => {
+      const roleRaw = String(
+        leaf?.employee?.role || leaf?.employee?.position || leaf?.role || leaf?.position || ""
+      ).toUpperCase();
+
+      if (modalRoleFilter !== "ALL") {
+        const want = modalRoleFilter === "WORKER" ? "WORKER" : "HR";
+        if (roleRaw !== want) return false;
+      }
+
+      if (!term) return true;
+
+      const name = String(
+        leaf?.name ||
+          leaf?.employee?.fullName ||
+          `${leaf?.employee?.firstName || ""} ${leaf?.employee?.lastName || ""}`.trim() ||
+          ""
+      ).toLowerCase();
+
+      const email = String(leaf?.employee?.email || leaf?.email || "").toLowerCase();
+      const id = String(leaf?.employeeId ?? leaf?.employee?.id ?? leaf?.id ?? "").toLowerCase();
+
+      return name.includes(term) || email.includes(term) || id.includes(term);
+    });
+  }, [modalRows, modalRoleFilter, modalSearch]);
+
+  // ===================== Modal open / shift day =====================
+  const resetModalFilters = () => {
+    setModalTab("PENDING");
+    setModalRoleFilter("ALL");
+    setModalSearch("");
+    setModalRoleOpen(false);
+  };
+
+  const handleDayClick = async (day) => {
+    setSelectedDate(day);
+    resetModalFilters();
+    setShowModal(true);
+    await fetchModalAttendance(day);
+  };
+
+  const handleShowTodayLeaves = () => handleDayClick(new Date());
+
+  const shiftModalDay = async (diff) => {
+    const next = diff > 0 ? addDays(selectedDate, diff) : subDays(selectedDate, Math.abs(diff));
+    setSelectedDate(next);
+    resetModalFilters();
+    await fetchModalAttendance(next);
+  };
+
+  const goModalToday = async () => {
+    const t = new Date();
+    setSelectedDate(t);
+    resetModalFilters();
+    await fetchModalAttendance(t);
+  };
+
+  // ===================== Modal Summary =====================
+  const modalActiveEmployees = useMemo(() => {
+    return (modalAttendance || []).filter((r) => r?.isActive === true || r?.isActive === 1);
+  }, [modalAttendance]);
+
+  const modalOnLeaveEmployeeIds = useMemo(() => {
+    const set = new Set();
+    approvedLeavesOfDay.forEach((l) => {
+      const id = l.employeeId ?? l.employee?.id ?? null;
+      if (id != null) set.add(String(id));
+    });
+    return set;
+  }, [approvedLeavesOfDay]);
+
+  const modalSummary = useMemo(() => {
+    const isForToday = isSameDay(selectedDate, new Date());
 
     let checkedIn = 0;
     let late = 0;
-    let checkedOut = 0;
+    let absent = 0;
 
-    activeTeamAttendance.forEach((r) => {
+    const rows = modalActiveEmployees || [];
+    rows.forEach((r) => {
       const inRaw = r.checkInTimeDisplay || r.checkInTime || r.checkIn || null;
       const outRaw = r.checkOutTimeDisplay || r.checkOutTime || r.checkOut || null;
 
       const inTime = normalizeTime(inRaw);
       const state = getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw });
 
-      if (state === "IN") checkedIn += 1;
-      if (state === "OUT") checkedOut += 1;
+      if (state === "IN" || state === "OUT") checkedIn += 1;
+      if (state === "NOT_IN") absent += 1;
 
-      if (isLate(state, inTime)) late += 1;
+      if (isLate(state, inTime, isForToday)) late += 1;
     });
 
-    return { total, checkedIn, late, checkedOut };
-  }, [activeTeamAttendance]);
+    const onLeave = modalOnLeaveEmployeeIds.size;
 
-  // ===================== ✅ HR Actions + SweetAlert =====================
-  const handleHRCheckIn = async (employeeId, employeeName = "") => {
-    const busy = actionLoading[employeeId];
-    if (busy) return;
+    // adjust absent if someone is NOT_IN but on approved leave
+    if (rows.length > 0 && onLeave > 0) {
+      let leaveAndAbsent = 0;
+      rows.forEach((r) => {
+        const id = String(r.employeeId ?? r.id ?? "");
+        if (!id) return;
+
+        const inRaw = r.checkInTimeDisplay || r.checkInTime || r.checkIn || null;
+        const outRaw = r.checkOutTimeDisplay || r.checkOutTime || r.checkOut || null;
+        const state = getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw });
+
+        if (state === "NOT_IN" && modalOnLeaveEmployeeIds.has(id)) leaveAndAbsent += 1;
+      });
+      absent = Math.max(0, absent - leaveAndAbsent);
+    }
+
+    return { checkedIn, late, absent, onLeave };
+  }, [modalActiveEmployees, modalOnLeaveEmployeeIds, selectedDate]);
+
+  // ===================== Modal Leave Actions =====================
+  const handleLeaveActionInModal = async (mode, leaf) => {
+    if (!leaf?.id) return;
+
+    const actionText =
+      mode === "Special"
+        ? "Special Approval (Non-deductible)"
+        : mode === "Approved"
+        ? "Normal Approve"
+        : "Reject";
 
     const ok = await alertConfirm(
-      "Confirm Check-in",
-      employeeName
-        ? `Do you want to check in for ${employeeName}?`
-        : "Do you want to check in for this employee?"
+      `Confirm ${actionText}`,
+      `Process request of <b>${buildRowName(leaf)}</b> as <b>${actionText}</b>?`
     );
     if (!ok) return;
 
     try {
-      setActionLoading((p) => ({ ...p, [employeeId]: "in" }));
-      await hrCheckInEmployee(employeeId);
-      await alertSuccess("Attendance Recorded", "Check-in saved successfully.");
-      await fetchTeamAttendance();
-    } catch (e) {
-      console.error("HR check-in failed:", e);
-      alertError("Operation Failed", e?.response?.data?.message || "Unable to check in employee.");
-    } finally {
-      setActionLoading((p) => ({ ...p, [employeeId]: null }));
+      if (mode === "Special") {
+        await grantSpecialLeave({
+          employeeId: leaf.employeeId ?? leaf.employee?.id,
+          amount: leaf.totalDaysRequested ?? 1,
+          reason: `Special Case Approval for: ${leaf.reason || leaf.note || "No reason"}`,
+          year: new Date(leaf.startDate).getFullYear(),
+          leaveRequestId: leaf.id,
+        });
+      } else {
+        await updateLeaveStatus(leaf.id, mode);
+      }
+
+      await alertSuccess("Success", `Processed 1 request.`);
+      await refetchLeaves();
+    } catch (err) {
+      alertError("Action Failed", err?.response?.data?.error || err?.response?.data?.message || err.message);
     }
   };
 
-  const handleHRCheckOut = async (employeeId, employeeName = "") => {
-    const busy = actionLoading[employeeId];
-    if (busy) return;
+  // ===================== Calendar day badges =====================
+  const calendarDayBadges = (day) => {
+    const dayKey = format(day, "yyyy-MM-dd");
+    const dayLeaves = leaves.filter((leaf) => {
+      if (leaf.dateKey !== dayKey) return false;
+      if (selectedTypes.length === 0) return true;
+      return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
+    });
 
-    const ok = await alertConfirm(
-      "Confirm Check-out",
-      employeeName
-        ? `Do you want to check out for ${employeeName}?`
-        : "Do you want to check out for this employee?"
-    );
-    if (!ok) return;
+    const typeCounts = dayLeaves.reduce((acc, leaf) => {
+      const t = String(leaf.type || "UNKNOWN").toUpperCase();
+      acc[t] = (acc[t] || 0) + 1;
+      return acc;
+    }, {});
 
-    try {
-      setActionLoading((p) => ({ ...p, [employeeId]: "out" }));
-      await hrCheckOutEmployee(employeeId);
-      await alertSuccess("Attendance Recorded", "Check-out saved successfully.");
-      await fetchTeamAttendance();
-    } catch (e) {
-      console.error("HR check-out failed:", e);
-      alertError("Operation Failed", e?.response?.data?.message || "Unable to check out employee.");
-    } finally {
-      setActionLoading((p) => ({ ...p, [employeeId]: null }));
-    }
+    const typeBadges = Object.entries(typeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    return { typeCounts, typeBadges };
   };
 
+  // ===================== UI =====================
   return (
     <div className="p-4 sm:p-6">
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
@@ -451,13 +356,7 @@ export default function TeamCalendar() {
               </button>
 
               <div className="flex flex-wrap items-center gap-2">
-                {[
-                  { key: "sick", color: "bg-violet-400", label: "Sick" },
-                  { key: "personal", color: "bg-sky-400", label: "Personal" },
-                  { key: "annual", color: "bg-emerald-400", label: "Annual" },
-                  { key: "emergency", color: "bg-yellow-400", label: "Emergency" },
-                  { key: "special", color: "bg-rose-400", label: "Special" },
-                ].map((item) => {
+                {LEAVE_TYPE_FILTERS.map((item) => {
                   const active = selectedTypes.includes(item.key);
 
                   return (
@@ -520,7 +419,7 @@ export default function TeamCalendar() {
         <div className="p-4 sm:p-6">
           <div className="bg-white rounded-[2rem] border border-blue-200 ring-2 overflow-hidden">
             <div className="grid grid-cols-7 border-b border-gray-100 bg-white">
-              {weekHeaders.map((d) => (
+              {WEEK_HEADERS.map((d) => (
                 <div key={d} className="py-2 text-center text-[11px] font-black text-slate-700">
                   {d}
                 </div>
@@ -529,11 +428,7 @@ export default function TeamCalendar() {
 
             <div className="grid grid-cols-7 bg-white">
               {calendarDays.map((day) => {
-                const dayLeaves = leaves.filter((leaf) => {
-                  if (!isSameDay(leaf.date, day)) return false;
-                  if (selectedTypes.length === 0) return true;
-                  return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
-                });
+                const { typeCounts, typeBadges } = calendarDayBadges(day);
 
                 const inMonth = isSameMonth(day, currentDate);
                 const dow = day.getDay();
@@ -567,28 +462,29 @@ export default function TeamCalendar() {
                       <div className="mt-2 text-[10px] text-gray-300 font-bold">loading...</div>
                     ) : (
                       <div className="mt-2 space-y-1">
-                        {dayLeaves.slice(0, 3).map((leaf) => {
-                          const theme = leaveTheme(leaf.type);
-
+                        {typeBadges.map(([type, count]) => {
+                          const theme = leaveTheme(type);
                           return (
                             <div
-                              key={leaf.id}
+                              key={type}
                               className={[
-                                "text-[10px] px-2 py-1 rounded-lg border flex items-center gap-2 truncate font-bold",
+                                "text-[10px] px-2 py-1 rounded-lg border flex items-center gap-2 truncate font-black uppercase tracking-widest",
                                 theme.border,
                                 theme.bg,
                                 theme.text,
                               ].join(" ")}
-                              title={`${leaf.name} • ${leaf.type} • ${leaf.status}`}
+                              title={`${type} • ${count}`}
                             >
                               <span className={`w-1.5 h-1.5 rounded-full ${theme.dot}`} />
-                              <span className="truncate">{leaf.name}</span>
+                              <span className="truncate">
+                                {type} • {count}
+                              </span>
                             </div>
                           );
                         })}
-                        {dayLeaves.length > 3 && (
-                          <div className="text-[10px] text-indigo-600 font-black pl-1">
-                            +{dayLeaves.length - 3} more
+                        {Object.keys(typeCounts).length > 3 && (
+                          <div className="text-[10px] text-indigo-600 font-black pl-1 uppercase tracking-widest">
+                            +{Object.keys(typeCounts).length - 3} types
                           </div>
                         )}
                       </div>
@@ -599,7 +495,7 @@ export default function TeamCalendar() {
             </div>
           </div>
 
-          {/* ===================== ✅ TEAM CHECK-IN/OUT PANEL ===================== */}
+          {/* ===================== ✅ TEAM CHECK-IN/OUT PANEL (Today) ===================== */}
           <div className="overflow-hidden mt-28">
             <div className="p-6 border-b border-gray-50 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -618,7 +514,6 @@ export default function TeamCalendar() {
               </div>
             </div>
 
-            {/* Summary Cards */}
             <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
               <SummaryCard
                 title="Checked In"
@@ -637,92 +532,29 @@ export default function TeamCalendar() {
               />
             </div>
 
-            {/* ✅ Filters Row */}
             <div className="px-6 pb-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                {/* Role Dropdown (Custom) */}
-                <div className="relative w-full sm:w-[220px]">
-                  <button
-                    ref={roleBtnRef}
-                    type="button"
-                    onClick={() => setRoleOpen((v) => !v)}
-                    className="w-full h-11 px-5 rounded-2xl bg-white
-                              border border-gray-200 shadow-sm
-                              text-slate-800 font-black text-[12px] uppercase tracking-widest
-                              flex items-center justify-between
-                              outline-none ring-0
-                              focus:ring-2 focus:ring-blue-200"
-                  >
-                    <span>
-                      {roleFilter === "ALL"
-                        ? "ALL ROLES"
-                        : roleFilter === "WORKER"
-                        ? "WORKER"
-                        : "HR"}
-                    </span>
+                <RoleDropdown
+                  value={roleFilter}
+                  onChange={setRoleFilter}
+                  open={roleOpen}
+                  setOpen={setRoleOpen}
+                  widthClass="w-full sm:w-[220px]"
+                  size="md"
+                  labels={{ ALL: "ALL ROLES", WORKER: "WORKER", HR: "HR" }}
+                />
 
-                    <span
-                      className={`ml-3 text-slate-500 transition-transform ${
-                        roleOpen ? "rotate-180" : ""
-                      }`}
-                    >
-                      ▾
-                    </span>
-                  </button>
-
-                  {roleOpen && (
-                    <div
-                      ref={roleMenuRef}
-                      className="absolute z-50 mt-2 w-full overflow-hidden
-                                rounded-2xl bg-white border border-gray-100
-                                shadow-xl shadow-slate-200/70"
-                    >
-                      {[
-                        { value: "ALL", label: "All Roles" },
-                        { value: "WORKER", label: "Worker" },
-                        { value: "HR", label: "HR" },
-                      ].map((opt) => {
-                        const active = roleFilter === opt.value;
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => {
-                              setRoleFilter(opt.value);
-                              setRoleOpen(false);
-                            }}
-                            className={`w-full text-left px-5 py-3 font-black
-                                        transition-colors
-                                        ${
-                                          active
-                                            ? "bg-blue-50 text-blue-700"
-                                            : "bg-white text-slate-700 hover:bg-gray-50"
-                                        }`}
-                          >
-                            {opt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Search */}
                 <div className="w-full sm:flex-1">
                   <input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search name, email, ID..."
-                    className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200 shadow-sm
-                              text-slate-800 font-black text-[12px]
-                              placeholder:text-gray-400 placeholder:font-black
-                              outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200 shadow-sm text-slate-800 font-black text-[12px] placeholder:text-gray-400 placeholder:font-black outline-none focus:ring-2 focus:ring-blue-200"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Table */}
             <div className="overflow-x-auto border-t border-gray-50">
               <table className="w-full text-left">
                 <thead className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50">
@@ -768,8 +600,7 @@ export default function TeamCalendar() {
                       const role = row.role || row.position || "-";
 
                       const inRaw = row.checkInTimeDisplay || row.checkInTime || row.checkIn || null;
-                      const outRaw =
-                        row.checkOutTimeDisplay || row.checkOutTime || row.checkOut || null;
+                      const outRaw = row.checkOutTimeDisplay || row.checkOutTime || row.checkOut || null;
 
                       const inTime = normalizeTime(inRaw);
                       const outTime = normalizeTime(outRaw);
@@ -777,7 +608,7 @@ export default function TeamCalendar() {
                       const state = getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw });
                       const busy = actionLoading[employeeId];
 
-                      const lateFlag = isLate(state, inTime);
+                      const lateFlag = isLate(state, inTime, true);
                       const statusText = lateFlag ? "LATE" : labelByAttendance(state);
                       const statusClass = lateFlag
                         ? "bg-rose-50 text-rose-600 border-rose-100"
@@ -789,7 +620,6 @@ export default function TeamCalendar() {
                           className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
                         >
                           <td className="px-6 py-4 text-slate-800">{name}</td>
-
                           <td className="px-6 py-4 text-gray-500">{role}</td>
 
                           <td className="px-6 py-4">
@@ -846,7 +676,6 @@ export default function TeamCalendar() {
                 </tbody>
               </table>
 
-              {/* ✅ Pagination Bar (ใช้ filteredTeamAttendance) */}
               {!attLoading && filteredTeamAttendance.length > 0 && (
                 <div className="px-6 py-4 border-t border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -928,95 +757,317 @@ export default function TeamCalendar() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* ===================== ✅ BIG MODAL (Daily Details) ===================== */}
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
           <div
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
             onClick={() => setShowModal(false)}
           />
-          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden relative animate-in zoom-in duration-300">
-            <div className="p-8 pb-4 flex justify-between items-center">
-              <div>
-                <h3 className="font-black text-gray-900 text-2xl tracking-tight">Daily Details</h3>
-                <p className="text-blue-600 text-sm font-black uppercase tracking-widest mt-1">
-                  {format(selectedDate, "dd MMMM yyyy")}
-                </p>
+
+          <div className="relative w-full max-w-[1200px] max-h-[92vh] bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100">
+            {/* Top Bar */}
+            <div className="px-6 sm:px-8 pt-6 pb-4 border-b border-slate-100">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-4xl sm:text-5xl font-black text-slate-900 leading-none">
+                    Daily Details
+                  </div>
+                  <div className="mt-2 text-[12px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                    {format(selectedDate, "dd MMMM yyyy")}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 hover:bg-rose-50 hover:text-rose-600 transition flex items-center justify-center"
+                  title="Close"
+                >
+                  <X size={22} />
+                </button>
               </div>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 bg-gray-100 hover:bg-rose-50 hover:text-rose-500 rounded-full transition"
-              >
-                <X size={20} />
-              </button>
+
+              {/* Summary + Day Nav */}
+              <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Pill color="bg-emerald-100 text-emerald-700" label="Checked In" value={modalSummary.checkedIn} />
+                  <Pill color="bg-rose-100 text-rose-700" label="Late" value={modalSummary.late} />
+                  <Pill color="bg-slate-100 text-slate-700" label="Absent" value={modalSummary.absent} />
+                  <Pill color="bg-sky-100 text-sky-700" label="On Leave" value={modalSummary.onLeave} />
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => shiftModalDay(-1)}
+                    className="w-11 h-11 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 transition font-black"
+                  >
+                    {"<"}
+                  </button>
+
+                  <button
+                    onClick={goModalToday}
+                    className="h-11 px-5 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 transition font-black"
+                  >
+                    Today
+                  </button>
+
+                  <button
+                    onClick={() => shiftModalDay(1)}
+                    className="w-11 h-11 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 transition font-black"
+                  >
+                    {">"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabs + Filters */}
+              <div className="mt-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <TabButton
+                    active={modalTab === "PENDING"}
+                    onClick={() => {
+                      setModalTab("PENDING");
+                      setModalRoleOpen(false);
+                    }}
+                    label="Pending Approvals"
+                    icon={<Clock size={14} />}
+                  />
+                  <TabButton
+                    active={modalTab === "APPROVED"}
+                    onClick={() => {
+                      setModalTab("APPROVED");
+                      setModalRoleOpen(false);
+                    }}
+                    label="Approved"
+                    icon={<CheckCircle2 size={14} />}
+                  />
+                  <TabButton
+                    active={modalTab === "REJECTED"}
+                    onClick={() => {
+                      setModalTab("REJECTED");
+                      setModalRoleOpen(false);
+                    }}
+                    label="Rejected"
+                    icon={<XCircle size={14} />}
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full lg:w-auto">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full lg:w-auto">
+                    <RoleDropdown
+                      value={modalRoleFilter}
+                      onChange={setModalRoleFilter}
+                      open={modalRoleOpen}
+                      setOpen={setModalRoleOpen}
+                      widthClass="w-full sm:w-[180px]"
+                      size="sm"
+                      labels={{ ALL: "All Roles", WORKER: "Worker", HR: "HR" }}
+                    />
+
+                    <input
+                      value={modalSearch}
+                      onChange={(e) => setModalSearch(e.target.value)}
+                      placeholder="Search name, email, ID..."
+                      className="w-full sm:w-[320px] h-11 px-4 rounded-2xl bg-white border border-slate-200
+                                text-slate-800 font-black text-[11px]
+                                placeholder:text-slate-300 placeholder:font-black
+                                outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="p-8 pt-4 space-y-3 max-h-[50vh] overflow-y-auto">
-              {modalLeaves.length > 0 ? (
-                modalLeaves.map((leaf) => (
-                  <div
-                    key={leaf.id}
-                    className="flex justify-between items-center p-4 rounded-2xl border border-gray-50 bg-gray-50/30 shadow-sm hover:shadow-md transition-all"
-                  >
-                    <div>
-                      <div className="font-black text-gray-800 text-base">{leaf.name}</div>
-                      <div className="text-[10px] text-gray-400 uppercase font-black tracking-tighter mt-0.5">
-                        {leaf.type} Leave
-                      </div>
-                      {leaf.reason && (
-                        <div className="text-[10px] text-slate-600 font-bold normal-case mt-1">
-                          Note: {leaf.reason}
-                        </div>
-                      )}
-                    </div>
+            {/* Table Area */}
+            <div className="p-4 sm:p-6 overflow-auto max-h-[calc(92vh-240px)]">
+              <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50/80 border-b border-slate-100">
+                      <tr>
+                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
+                          Employee
+                        </th>
+                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
+                          Type
+                        </th>
+                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
+                          Note/Reason
+                        </th>
+                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
+                          Duration
+                        </th>
+                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest text-center">
+                          Evidence
+                        </th>
+                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest text-center">
+                          {modalTab === "APPROVED"
+                            ? "Approved By"
+                            : modalTab === "REJECTED"
+                            ? "Rejected By"
+                            : "Action"}
+                        </th>
+                      </tr>
+                    </thead>
 
-                    <div className="flex flex-col items-end gap-1">
-                      {leaf.status === "Approved" && (
-                        <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
-                          <CheckCircle2 size={10} /> APPROVED
-                        </span>
+                    <tbody className="divide-y divide-slate-50">
+                      {loading || modalAttLoading ? (
+                        <tr>
+                          <td colSpan="6" className="p-16 text-center font-black italic text-blue-500 animate-pulse">
+                            SYNCHRONIZING DATA...
+                          </td>
+                        </tr>
+                      ) : filteredModalRows.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="p-16 text-center text-slate-300 font-black uppercase text-sm">
+                            No Data
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredModalRows.map((leaf) => {
+                          const name = buildRowName(leaf);
+                          const type = String(leaf.type || "-");
+                          const dur = buildDurationText(leaf);
+
+                          const showHrName =
+                            modalTab === "APPROVED"
+                              ? leaf.approvedBy?.fullName ||
+                                leaf.approvedBy?.name ||
+                                (typeof leaf.approvedBy === "string" ? leaf.approvedBy : null)
+                              : modalTab === "REJECTED"
+                              ? leaf.rejectedBy?.fullName ||
+                                leaf.rejectedBy?.name ||
+                                (typeof leaf.rejectedBy === "string" ? leaf.rejectedBy : null)
+                              : null;
+
+                          return (
+                            <tr key={leaf.id} className="hover:bg-slate-50/50 transition-all duration-200">
+                              {/* Employee */}
+                              <td className="p-5 min-w-[200px]">
+                                <div className="font-black text-slate-700 leading-none tracking-tight">
+                                  {name}
+                                </div>
+                                <div className="text-[9px] font-black text-slate-300 uppercase mt-1">
+                                  Ref: #{leaf.id}
+                                </div>
+                              </td>
+
+                              {/* Type */}
+                              <td className="p-5">
+                                <span
+                                  className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${typeBadgeTheme(
+                                    type
+                                  )}`}
+                                >
+                                  {type}
+                                </span>
+                              </td>
+
+                              {/* Note/Reason */}
+                              <td className="p-5 min-w-[260px]">
+                                <div className="flex flex-col gap-1">
+                                  {leaf.reason && (
+                                    <div
+                                      className="flex items-start gap-1 text-slate-500 text-[11px] leading-tight"
+                                      title={`Reason: ${leaf.reason}`}
+                                    >
+                                      <MessageCircle size={12} className="mt-0.5 shrink-0 text-slate-400" />
+                                      <span className="truncate max-w-[240px]">{leaf.reason}</span>
+                                    </div>
+                                  )}
+                                  {leaf.note && (
+                                    <div
+                                      className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight"
+                                      title={`Note: ${leaf.note}`}
+                                    >
+                                      <Info size={12} className="mt-0.5 shrink-0 text-amber-500" />
+                                      <span className="truncate max-w-[240px]">{leaf.note}</span>
+                                    </div>
+                                  )}
+                                  {!leaf.reason && !leaf.note && (
+                                    <span className="text-slate-300 text-[10px] italic">-</span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Duration */}
+                              <td className="p-5 min-w-[220px]">
+                                <div className="text-[11px] font-bold text-slate-500 italic whitespace-nowrap">
+                                  {dur.range}
+                                </div>
+                                <div className="font-black text-slate-800 text-sm mt-0.5">
+                                  {dur.days || "-"}
+                                </div>
+                              </td>
+
+                              {/* Evidence */}
+                              <td className="p-5 text-center">
+                                {leaf.attachmentUrl ? (
+                                  <button
+                                    onClick={() => openAttachment(leaf.attachmentUrl)}
+                                    className="p-2 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-100 transition-all group"
+                                    title="View Attachment"
+                                  >
+                                    <ImageIcon size={18} className="group-hover:scale-110 transition-transform" />
+                                  </button>
+                                ) : (
+                                  <span className="text-[9px] font-black text-slate-200 uppercase tracking-widest italic">
+                                    No File
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Action */}
+                              <td className="p-5 text-center min-w-[220px]">
+                                {modalTab === "PENDING" ? (
+                                  <div className="flex justify-center gap-2">
+                                    <button
+                                      onClick={() => handleLeaveActionInModal("Approved", leaf)}
+                                      className="flex items-center gap-2 px-3 py-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100"
+                                      title="Approve"
+                                    >
+                                      <span className="text-sm font-medium">Approved</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => handleLeaveActionInModal("Special", leaf)}
+                                      className="flex items-center gap-2 px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all border border-purple-100"
+                                      title="Special Approval"
+                                    >
+                                      <Star size={16} />
+                                      <span className="text-sm font-medium">Special</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => handleLeaveActionInModal("Rejected", leaf)}
+                                      className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-slate-100"
+                                      title="Reject"
+                                    >
+                                      <span className="text-sm font-medium">Rejected</span>
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="inline-flex items-center justify-center px-4 py-2 rounded-2xl bg-slate-50 border border-slate-100 text-[11px] font-black text-slate-700">
+                                    {showHrName || "-"}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
-                      {leaf.status === "Rejected" && (
-                        <span className="flex items-center gap-1 text-[9px] font-black text-rose-600 bg-rose-50 px-2 py-1 rounded-lg border border-rose-100">
-                          <XCircle size={10} /> REJECTED
-                        </span>
-                      )}
-                      {leaf.status === "Pending" && (
-                        <span className="flex items-center gap-1 text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
-                          <Clock size={10} /> PENDING
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-10 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
-                  <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-                    <CalendarIcon className="text-gray-300" size={32} />
-                  </div>
-                  <p className="font-bold text-gray-400">No leave requests for this date</p>
+                    </tbody>
+                  </table>
                 </div>
-              )}
+              </div>
+
+              <div className="pt-4 text-[10px] text-slate-300 font-black uppercase tracking-widest">
+                * Approved/Rejected tab will show HR name if backend provides approvedBy/rejectedBy.
+              </div>
             </div>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function SummaryCard({ title, value, icon }) {
-  return (
-    <div className="bg-white p-5 rounded-[1.75rem] shadow-sm border border-gray-100 flex items-center justify-between">
-      <div>
-        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-          {title}
-        </div>
-        <div className="text-2xl font-black text-slate-800 tracking-tighter mt-1">{value}</div>
-      </div>
-      <div className="w-11 h-11 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center">
-        {icon}
-      </div>
     </div>
   );
 }
