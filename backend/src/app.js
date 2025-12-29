@@ -2,32 +2,25 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
-const fs = require('fs'); // สำหรับจัดการไฟล์/โฟลเดอร์
-
-// Import Routes
-const authRoutes = require('./routes/authRoutes');
-const timeRecordRoutes = require('./routes/timeRecordRoutes');
-const leaveRoutes = require('./routes/leaveRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-const employeeRoutes = require('./routes/employeeRoute');
-const { startCarryOverJob } = require("./jobs/carryOverJob");
+const fs = require('fs');
 
 const app = express();
 
 // ==========================================
-// 1. สร้างโฟลเดอร์เก็บไฟล์อัตโนมัติ (ป้องกัน ENOENT Error)
+// 1. สร้างโฟลเดอร์เก็บไฟล์ (ให้ตรงกับที่ใช้ใน Leave Controller)
 // ==========================================
-const uploadPath = path.join(__dirname, '../uploads/attachments');
-if (!fs.existsSync(uploadPath)) {
-    fs.mkdirSync(uploadPath, { recursive: true });
-    console.log('📁 System: Created directory uploads/attachments');
+// แนะนำให้สร้าง root uploads และ sub-folder leaves
+const leavesPath = path.join(__dirname, '../uploads/leaves');
+if (!fs.existsSync(leavesPath)) {
+    fs.mkdirSync(leavesPath, { recursive: true });
+    console.log('📁 System: Created directory uploads/leaves');
 }
 
 // ==========================================
 // 2. Middlewares
 // ==========================================
 app.use(cors({
-    origin: "*", // ใน Production แนะนำให้ระบุ IP เฉพาะ
+    origin: "*", 
     credentials: true
 }));
 app.use(morgan('dev'));
@@ -35,20 +28,28 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ==========================================
-// 3. Static Files (เพื่อให้กด Link ดู PDF/รูปภาพได้)
+// 3. Static Files 
 // ==========================================
-// เมื่อเข้า URL: http://IP:8080/uploads/... จะดึงไฟล์จากโฟลเดอร์ uploads นอก backend
+// ให้บริการไฟล์จากโฟลเดอร์ uploads ที่อยู่ขนานกับโฟลเดอร์ backend
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ==========================================
 // 4. Routes Setup
 // ==========================================
+const authRoutes = require('./routes/authRoutes');
+const timeRecordRoutes = require('./routes/timeRecordRoutes');
+const leaveRoutes = require('./routes/leaveRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const employeeRoutes = require('./routes/employeeRoute');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/attendance', timeRecordRoutes);
 app.use('/api/leaves', leaveRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/employees', employeeRoutes);
 
+// Cron Jobs
+const { startCarryOverJob } = require("./jobs/carryOverJob");
 startCarryOverJob();
 
 // Health Check
@@ -57,20 +58,18 @@ app.get('/', (req, res) => {
 });
 
 // ==========================================
-// 5. Global Error Handler (ดักจับ Multer และ Error อื่นๆ)
+// 5. Global Error Handler
 // ==========================================
 app.use((err, req, res, next) => {
-    // แสดง Error เต็มๆ ใน Terminal ของ Backend
     console.error('❌ Server Error:', err.stack);
 
-    // กรณีไฟล์ใหญ่เกินที่ Multer กำหนด (5MB)
     if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ error: 'The file is too large (limited to 5MB).' });
     }
 
-    // กรณีโฟลเดอร์หายหรือไฟล์เข้าถึงไม่ได้
-    if (err.code === 'ENOENT') {
-        return res.status(500).json({ error: 'The file could not be saved (the destination folder does not exist).' });
+    // กรณี Multer ส่ง Error อื่นๆ
+    if (err instanceof require('multer').MulterError) {
+        return res.status(400).json({ error: `Upload Error: ${err.message}` });
     }
 
     res.status(500).json({ 
