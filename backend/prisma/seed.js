@@ -6,43 +6,44 @@ async function main() {
   console.log('🌱 Start seeding (2025 Architecture Optimized)...');
 
   // 1. ล้างข้อมูลเก่าตามลำดับความสัมพันธ์
-  // เพิ่มการลบ workConfiguration เข้าไปในกลุ่มนี้ด้วย
   await prisma.notification.deleteMany();
   await prisma.leaveRequest.deleteMany();
   await prisma.timeRecord.deleteMany();
   await prisma.specialLeaveGrant.deleteMany();
   await prisma.leaveQuota.deleteMany();
+  await prisma.holiday.deleteMany(); // ✅ เพิ่มการล้างวันหยุด
   await prisma.leaveType.deleteMany();
-  await prisma.workConfiguration.deleteMany(); // ล้างเกณฑ์เวลาเก่า
+  await prisma.workConfiguration.deleteMany();
   await prisma.employee.deleteMany();
   await prisma.systemConfig.deleteMany();
   console.log('🧹 Database cleaned.');
 
   // 2. สร้าง Work Configurations (เกณฑ์เวลาทำงานตาม Role)
-  // ** ส่วนที่เพิ่มใหม่ **
   const configs = [
-    {
-      role: 'Worker',
-      startHour: 8,
-      startMin: 0,
-      endHour: 17,
-      endMin: 0,
-    },
-    {
-      role: 'HR',
-      startHour: 9,
-      startMin: 0,
-      endHour: 18,
-      endMin: 0,
-    }
+    { role: 'Worker', startHour: 8, startMin: 0, endHour: 17, endMin: 0 },
+    { role: 'HR', startHour: 9, startMin: 0, endHour: 18, endMin: 0 }
   ];
 
   for (const conf of configs) {
     await prisma.workConfiguration.create({ data: conf });
   }
-  console.log('⏰ Work Configurations (Time Rules) established.');
+  console.log('⏰ Work Configurations established.');
 
-  // 3. สร้าง Leave Types
+  // 3. สร้างวันหยุดประจำปี 2025 (Holidays)
+  // ✅ เพิ่มเพื่อให้ Logic การคำนวณวันลาข้ามวันหยุดทำงานได้
+  const holidays2025 = [
+    { date: new Date('2025-01-01T00:00:00Z'), name: "New Year's Day" },
+    { date: new Date('2025-04-13T00:00:00Z'), name: "Songkran Festival" },
+    { date: new Date('2025-04-14T00:00:00Z'), name: "Songkran Festival" },
+    { date: new Date('2025-04-15T00:00:00Z'), name: "Songkran Festival" },
+    { date: new Date('2025-05-01T00:00:00Z'), name: "National Labour Day" },
+    { date: new Date('2025-12-05T00:00:00Z'), name: "King Bhumibol Birthday" },
+  ];
+
+  await prisma.holiday.createMany({ data: holidays2025 });
+  console.log('🏖️ Holidays for 2025 initialized.');
+
+  // 4. สร้าง Leave Types
   const leaveTypesData = [
     { typeName: 'Sick', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 30 },
     { typeName: 'Personal', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 3 },
@@ -58,7 +59,7 @@ async function main() {
   }
   console.log('📝 Leave Types initialized.');
 
-  // 4. สร้าง Employees
+  // 5. สร้าง Employees
   const passwordHash = await bcrypt.hash('123456', 10);
   
   const hrUser = await prisma.employee.create({
@@ -95,7 +96,7 @@ async function main() {
   });
   console.log('👤 Employee data established.');
 
-  // 5. แจก Quotas ประจำปี 2025
+  // 6. แจก Quotas ประจำปี 2025
   const currentYear = 2025;
   const employees = [hrUser, worker1, worker2];
 
@@ -123,7 +124,8 @@ async function main() {
   }
   console.log(`📊 Quotas for ${currentYear} distributed.`);
 
-  // 6. ปิดงวดปี 2024
+  // 7. ตั้งค่าระบบ (System Config)
+  // ✅ ปิดงวดปี 2024
   await prisma.systemConfig.create({
     data: {
       year: 2024,
@@ -132,7 +134,15 @@ async function main() {
       processedBy: hrUser.id
     }
   });
-  console.log('⚙️ System Config 2024 locked.');
+
+  // ✅ เปิดงวดปี 2025 (สำคัญมาก: ถ้าไม่สร้าง พนักงานจะลางานไม่ได้เพราะติดเช็ค isClosed)
+  await prisma.systemConfig.create({
+    data: {
+      year: 2025,
+      isClosed: false,
+    }
+  });
+  console.log('⚙️ System Config 2024 (Locked) and 2025 (Open) established.');
 
   console.log('✅ SEEDING COMPLETED SUCCESSFULLY!');
 }

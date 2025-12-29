@@ -24,6 +24,8 @@ enum RequestStatus {
   Pending
   Approved
   Rejected
+  Cancelled        
+  Withdraw_Pending 
 }
 
 enum NotificationType {
@@ -70,8 +72,6 @@ model LeaveType {
 
 
 }
-
-
 
 model LeaveQuota {
   id           Int      @id @default(autoincrement()) @map("quota_id")
