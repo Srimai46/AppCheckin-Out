@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Menu,
   Settings2,
+  NotebookText
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 import { useTranslation } from "react-i18next";
@@ -112,6 +113,13 @@ export default function Layout() {
                 <Settings2 size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
                   {t("layout.yearEnd")} 
+                </span>
+              </NavLink>
+
+              <NavLink to="/audit-log" className={navStyle}>
+                <NotebookText size={18} className="shrink-0" />
+                <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
+                  {t("AuditLog")} 
                 </span>
               </NavLink>
             </>

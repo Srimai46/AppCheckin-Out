@@ -33,8 +33,8 @@ i18n.use(initReactI18next).init({
           hrManagement: "HR Management",
           approveLeave: "Approve Leave Requests",
           employees: "Employee Directory",
-          calendar: "Team Calendar",
-          yearEnd: "Year-End Processing",
+          calendar: "Calendar",
+          yearEnd: "Setting",
           logout: "Logout",
         },
 
@@ -108,8 +108,8 @@ i18n.use(initReactI18next).init({
           hrManagement: "จัดการฝ่ายบุคคล",
           approveLeave: "อนุมัติการลา",
           employees: "รายชื่อพนักงาน",
-          calendar: "ปฏิทินทีม",
-          yearEnd: "ประมวลผลปลายปี",
+          calendar: "ปฏิทิน",
+          yearEnd: "ตั้งค่า",
           logout: "ออกจากระบบ",
         },
 

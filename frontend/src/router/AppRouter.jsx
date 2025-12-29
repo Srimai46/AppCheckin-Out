@@ -9,6 +9,7 @@ import EmployeeList from "../pages/EmployeeList";
 import EmployeeDetail from "../pages/EmployeeDetail";
 import LeaveApproval from "../pages/LeaveApproval";
 import YearEndProcessing from "../pages/YearEndProcessing";
+import AuditLog from "../pages/AuditLog"
 
 // 🔒 ตัวป้องกัน Route (ProtectedRoute)
 const ProtectedRoute = ({ children }) => {
@@ -50,9 +51,8 @@ export default function AppRouter() {
         <Route path="employees/:id" element={<EmployeeDetail />} />
         {/* จัดกลุ่มเมนู Admin */}
         <Route path="admin/leaves" element={<LeaveApproval />} />
-        <Route
-          path="year-end-processing"
-          element={<YearEndProcessing />}
+        <Route path="year-end-processing" element={<YearEndProcessing />} />
+        <Route path="audit-log" element={<AuditLog />}
         />{" "}
         {/* ปรับให้ตรงกับ Layout */}
       </Route>
