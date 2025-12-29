@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { checkIn, checkOut, getMyHistory } from "../api/attendanceService";
 import { getMyQuotas, getMyLeaves } from "../api/leaveService";
-import { LogIn, LogOut, Calendar, ChevronDown } from "lucide-react";
+import { LogIn, LogOut, Calendar, ChevronDown, Loader2 } from "lucide-react"; // เพิ่ม Loader2
 import { useAuth } from "../context/AuthContext";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 import { useTranslation } from "react-i18next";
@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [time, setTime] = useState(new Date());
   const [data, setData] = useState({ att: [], quotas: [], leaves: [] });
   const [activeTab, setActiveTab] = useState("attendance");
+  const [isProcessing, setIsProcessing] = useState(false); // ✅ เพิ่มสถานะโหลดขณะส่งข้อมูล
 
   const [yearOpen, setYearOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -42,6 +43,7 @@ export default function Dashboard() {
       ...new Set([...yearsFromHistory, currentYear, ...futureYears]),
     ].sort((a, b) => a - b);
   }, [data.att, currentYear]);
+
   /* --------------------------------------------------------- */
 
   const buildFileUrl = (path) => {
@@ -82,26 +84,62 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
+  // ✅ ฟังก์ชันดึงพิกัด GPS แบบ Promise
+  const getCoordinates = () => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        return reject(new Error("Geolocation not supported"));
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => reject(err),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    });
+  };
+
   const handleAction = async (type) => {
     const confirmed = await alertConfirm(
       t("dashboard.attendanceConfirmTitle"),
       t("dashboard.attendanceConfirmText", {
-        action:
-          type === "in" ? t("dashboard.checkIn") : t("dashboard.checkOut"),
+        action: type === "in" ? t("dashboard.checkIn") : t("dashboard.checkOut"),
       })
     );
 
     if (!confirmed) return;
 
+    setIsProcessing(true); // เริ่มกระบวนการ
+
     try {
-      const res = type === "in" ? await checkIn() : await checkOut();
+      // 1. ดึงพิกัด GPS
+      let location = null;
+      try {
+        location = await getCoordinates();
+      } catch (geoErr) {
+        console.warn("GPS Access Denied/Failed:", geoErr.message);
+        // หากนโยบายบริษัทบังคับใช้ GPS ให้เปิดคอมเมนต์บรรทัดล่างนี้:
+        // throw new Error("Please enable GPS to proceed.");
+      }
+
+      // 2. ส่งข้อมูลไปยัง Backend
+      const res = type === "in" 
+        ? await checkIn({ location }) 
+        : await checkOut({ location });
+
       await alertSuccess(t("common.success"), res?.message || "");
       fetchData(selectedYear);
     } catch (err) {
-      alertError(
-        t("common.error"),
-        err?.response?.data?.message || t("common.error")
-      );
+      console.error(err);
+      // ✅ แก้ไขการดึง Message: ตรวจเช็คทั้ง message และ error จาก Backend
+      const errorMsg = 
+        err?.response?.data?.message || 
+        err?.response?.data?.error || 
+        err?.message || 
+        t("common.error");
+
+      alertError(t("common.error"), errorMsg);
+    } finally {
+      setIsProcessing(false); // สิ้นสุดกระบวนการ
     }
   };
 
@@ -135,75 +173,75 @@ export default function Dashboard() {
 
       {/* Year Dropdown */}
       <div className="flex justify-center">
-  <div className="relative w-56">
-    <div className="mb-1 ml-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-      {t("dashboard.selectYear")}
-    </div>
+        <div className="relative w-56">
+          <div className="mb-1 ml-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            {t("dashboard.selectYear")}
+          </div>
 
-    <button
-      type="button"
-      onClick={() => setYearOpen((v) => !v)}
-      className={`w-full rounded-[1.8rem] px-6 py-3.5 font-black text-sm
-        bg-white border border-gray-100 shadow-sm transition-all
-        ${yearOpen ? "ring-2 ring-blue-100" : ""}
-      `}
-    >
-      <div className="flex justify-between items-center">
-        <span>
-          {t("dashboard.year")}{" "}
-          {formatYear(selectedYear, i18n.language)}
-        </span>
-        <ChevronDown
-          size={18}
-          className={`transition-transform ${
-            yearOpen ? "rotate-180" : ""
-          }`}
-        />
-      </div>
-    </button>
-
-    {yearOpen && (
-      <div className="absolute z-20 mt-2 w-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        {years.map((y) => (
           <button
-            key={y}
-            onClick={() => {
-              setSelectedYear(y); // ✅ ยังเก็บ ค.ศ.
-              setYearOpen(false);
-            }}
-            className={`w-full px-6 py-3 text-left text-sm font-black
-              hover:bg-blue-50 transition-all
-              ${
-                selectedYear === y
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-slate-700"
-              }
+            type="button"
+            onClick={() => setYearOpen((v) => !v)}
+            className={`w-full rounded-[1.8rem] px-6 py-3.5 font-black text-sm
+              bg-white border border-gray-100 shadow-sm transition-all
+              ${yearOpen ? "ring-2 ring-blue-100" : ""}
             `}
           >
-            {t("dashboard.year")} {formatYear(y, i18n.language)}
+            <div className="flex justify-between items-center">
+              <span>
+                {t("dashboard.year")}{" "}
+                {formatYear(selectedYear, i18n.language)}
+              </span>
+              <ChevronDown
+                size={18}
+                className={`transition-transform ${yearOpen ? "rotate-180" : ""}`}
+              />
+            </div>
           </button>
-        ))}
-      </div>
-    )}
-  </div>
-</div>
 
+          {yearOpen && (
+            <div className="absolute z-20 mt-2 w-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              {years.map((y) => (
+                <button
+                  key={y}
+                  onClick={() => {
+                    setSelectedYear(y);
+                    setYearOpen(false);
+                  }}
+                  className={`w-full px-6 py-3 text-left text-sm font-black
+                    hover:bg-blue-50 transition-all
+                    ${selectedYear === y ? "bg-blue-50 text-blue-700" : "text-slate-700"}
+                  `}
+                >
+                  {t("dashboard.year")} {formatYear(y, i18n.language)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       <QuotaCards quotas={data.quotas} />
 
+      {/* Action Buttons */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
         <button
+          disabled={isProcessing}
           onClick={() => handleAction("in")}
-          className="flex items-center justify-center gap-3 bg-emerald-500 text-white py-4 rounded-3xl font-black shadow-lg hover:bg-emerald-600 transition-all hover:-translate-y-1"
+          className={`flex items-center justify-center gap-3 text-white py-4 rounded-3xl font-black shadow-lg transition-all hover:-translate-y-1 
+            ${isProcessing ? "bg-gray-400 cursor-not-allowed" : "bg-emerald-500 hover:bg-emerald-600"}`}
         >
-          <LogIn size={20} /> {t("dashboard.checkIn")}
+          {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <LogIn size={20} />}
+          {t("dashboard.checkIn")}
         </button>
 
         <button
+          disabled={isProcessing}
           onClick={() => handleAction("out")}
-          className="flex items-center justify-center gap-3 bg-rose-500 text-white py-4 rounded-3xl font-black shadow-lg hover:bg-rose-600 transition-all hover:-translate-y-1"
+          className={`flex items-center justify-center gap-3 text-white py-4 rounded-3xl font-black shadow-lg transition-all hover:-translate-y-1 
+            ${isProcessing ? "bg-gray-400 cursor-not-allowed" : "bg-rose-500 hover:bg-rose-600"}`}
         >
-          <LogOut size={20} /> {t("dashboard.checkOut")}
+          {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <LogOut size={20} />}
+          {t("dashboard.checkOut")}
         </button>
 
         <button
