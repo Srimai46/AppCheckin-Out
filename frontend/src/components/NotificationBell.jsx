@@ -3,6 +3,7 @@ import axios from "axios";
 import { Bell, CheckCheck, Clock } from "lucide-react";
 import { io } from "socket.io-client";
 import { jwtDecode } from "jwt-decode";
+import { useTranslation } from "react-i18next";
 
 const SERVER_HOSTNAME = window.location.hostname;
 const API_URL = `http://${SERVER_HOSTNAME}:8080/api/notifications`;
@@ -57,6 +58,7 @@ export default function NotificationBell() {
   });
 
   setSocket(newSocket);
+  
   return () => newSocket.close();
 }, []);
 
@@ -77,7 +79,7 @@ export default function NotificationBell() {
       console.error(err);
     }
   };
-
+  const { i18n } = useTranslation(); //ปุ่มแปลภาษา  
   const handleMarkAllRead = async () => {
     try {
       await axios.patch(`${API_URL}/read-all`, {}, getAuthHeader());
@@ -87,9 +89,11 @@ export default function NotificationBell() {
       console.error(err);
     }
   };
-
   return (
     <div className="relative">
+      <button onClick={() => i18n.changeLanguage("th")}>TH</button>
+<button onClick={() => i18n.changeLanguage("en")}>EN</button>
+
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-500 hover:text-blue-600 transition-all active:scale-95"

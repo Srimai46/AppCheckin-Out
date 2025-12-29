@@ -5,12 +5,14 @@ import { getMyQuotas, getMyLeaves } from "../api/leaveService";
 import { LogIn, LogOut, Calendar, ChevronDown } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
+import { useTranslation } from "react-i18next";
 
 import { QuotaCards, HistoryTable } from "../components/shared";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { t, i18n } = useTranslation();
 
   const [time, setTime] = useState(new Date());
   const [data, setData] = useState({ att: [], quotas: [], leaves: [] });
@@ -21,7 +23,7 @@ export default function Dashboard() {
 
   /* -------------------- Year List Logic -------------------- */
   const currentYear = new Date().getFullYear();
-   const FUTURE_YEARS = 2; //ปรับให้แสดงปีในอีกกี่ปี
+  const FUTURE_YEARS = 2;
 
   const years = useMemo(() => {
     const yearsFromHistory = data.att
@@ -54,21 +56,17 @@ export default function Dashboard() {
         getMyLeaves(),
       ]);
 
-      const historyArray = Array.isArray(h) ? h : h?.data || [];
-      const quotaArray = Array.isArray(q) ? q : q?.data || [];
-      const leavesArray = Array.isArray(l) ? l : l?.data || [];
-
       setData({
-        att: historyArray,
-        quotas: quotaArray,
-        leaves: leavesArray,
+        att: Array.isArray(h) ? h : h?.data || [],
+        quotas: Array.isArray(q) ? q : q?.data || [],
+        leaves: Array.isArray(l) ? l : l?.data || [],
       });
     } catch (err) {
       console.error(err);
-      alertError("Unable to Retrieve Data", "Failed to load dashboard data.");
+      alertError(t("common.error"), t("dashboard.loadFail"));
       setData({ att: [], quotas: [], leaves: [] });
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (user) fetchData(selectedYear);
@@ -81,24 +79,33 @@ export default function Dashboard() {
 
   const handleAction = async (type) => {
     const confirmed = await alertConfirm(
-      "Attendance Confirmation",
-      `Are you sure you want to check ${type === "in" ? "in" : "out"}?`
+      t("dashboard.attendanceConfirmTitle"),
+      t("dashboard.attendanceConfirmText", {
+        action:
+          type === "in"
+            ? t("dashboard.checkIn")
+            : t("dashboard.checkOut"),
+      })
     );
+
     if (!confirmed) return;
 
     try {
       const res = type === "in" ? await checkIn() : await checkOut();
-      await alertSuccess("Success", res?.message || "Success");
+      await alertSuccess(t("common.success"), res?.message || "");
       fetchData(selectedYear);
     } catch (err) {
-      alertError("Operation Failed", err?.response?.data?.message || "Error");
+      alertError(
+        t("common.error"),
+        err?.response?.data?.message || t("common.error")
+      );
     }
   };
 
   if (authLoading) {
     return (
       <div className="h-screen flex items-center justify-center text-blue-600 font-black">
-        LOADING...
+        {t("common.loading")}
       </div>
     );
   }
@@ -107,12 +114,19 @@ export default function Dashboard() {
     <div className="max-w-6xl mx-auto p-6 space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-black text-slate-800">Dashboard</h1>
+        <h1 className="text-3xl font-black text-slate-800">
+          {t("dashboard.title")}
+        </h1>
+
         <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest">
-          Welcome, {user?.firstName} {user?.lastName}
+          {t("dashboard.welcome", {
+            firstName: user?.firstName,
+            lastName: user?.lastName,
+          })}
         </p>
+
         <p className="text-xs text-blue-600 font-black mt-2">
-          {time.toLocaleString("th-TH")}
+          {time.toLocaleString(i18n.language === "th" ? "th-TH" : "en-US")}
         </p>
       </div>
 
@@ -120,7 +134,7 @@ export default function Dashboard() {
       <div className="flex justify-center">
         <div className="relative w-56">
           <div className="mb-1 ml-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-            Select Year
+            {t("dashboard.selectYear")}
           </div>
 
           <button
@@ -132,7 +146,9 @@ export default function Dashboard() {
             `}
           >
             <div className="flex justify-between items-center">
-              <span>Year {selectedYear} </span>
+              <span>
+                {t("dashboard.year")} {selectedYear}
+              </span>
               <ChevronDown
                 size={18}
                 className={`transition-transform ${
@@ -160,7 +176,7 @@ export default function Dashboard() {
                     }
                   `}
                 >
-                  Year {y}
+                  {t("dashboard.year")} {y}
                 </button>
               ))}
             </div>
@@ -171,9 +187,26 @@ export default function Dashboard() {
       <QuotaCards quotas={data.quotas} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-        <button onClick={() => handleAction("in")} className="flex items-center justify-center gap-3 bg-emerald-500 text-white py-4 rounded-3xl font-black shadow-lg hover:bg-emerald-600 transition-all hover:-translate-y-1"><LogIn size={20}/> CHECK IN</button>
-        <button onClick={() => handleAction("out")} className="flex items-center justify-center gap-3 bg-rose-500 text-white py-4 rounded-3xl font-black shadow-lg hover:bg-rose-600 transition-all hover:-translate-y-1"><LogOut size={20}/> CHECK OUT</button>
-        <button onClick={() => navigate("/leave-request")} className="flex items-center justify-center gap-3 bg-amber-300 text-slate-900 py-4 rounded-3xl font-black shadow-lg hover:bg-amber-400 transition-all hover:-translate-y-1"><Calendar size={20}/> LEAVE</button>
+        <button
+          onClick={() => handleAction("in")}
+          className="flex items-center justify-center gap-3 bg-emerald-500 text-white py-4 rounded-3xl font-black shadow-lg hover:bg-emerald-600 transition-all hover:-translate-y-1"
+        >
+          <LogIn size={20} /> {t("dashboard.checkIn")}
+        </button>
+
+        <button
+          onClick={() => handleAction("out")}
+          className="flex items-center justify-center gap-3 bg-rose-500 text-white py-4 rounded-3xl font-black shadow-lg hover:bg-rose-600 transition-all hover:-translate-y-1"
+        >
+          <LogOut size={20} /> {t("dashboard.checkOut")}
+        </button>
+
+        <button
+          onClick={() => navigate("/leave-request")}
+          className="flex items-center justify-center gap-3 bg-amber-300 text-slate-900 py-4 rounded-3xl font-black shadow-lg hover:bg-amber-400 transition-all hover:-translate-y-1"
+        >
+          <Calendar size={20} /> {t("dashboard.leave")}
+        </button>
       </div>
 
       <HistoryTable

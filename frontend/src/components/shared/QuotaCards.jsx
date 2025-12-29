@@ -1,9 +1,13 @@
+import { useTranslation } from "react-i18next";
+
 export default function QuotaCards({ quotas }) {
+  const { t } = useTranslation();
+
   if (!quotas || !Array.isArray(quotas) || quotas.length === 0) {
     return (
       <div className="w-full p-10 bg-gray-50 rounded-[2.5rem] border-2 border-dashed border-gray-100 flex flex-col items-center justify-center">
         <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
-          No leave quota data found for this period
+          {t("quota.noData")}
         </span>
       </div>
     );
@@ -46,7 +50,7 @@ export default function QuotaCards({ quotas }) {
 
               {!isSpecial && carryOver > 0 && (
                 <span className="text-[9px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-100">
-                  +{carryOver} CARRY OVER
+                  +{carryOver} {t("quota.carryOver")}
                 </span>
               )}
             </div>
@@ -54,16 +58,16 @@ export default function QuotaCards({ quotas }) {
             {/* ===== CONTENT ===== */}
             {isSpecial ? (
               <>
-                {/* ✅ SPECIAL → แสดงเฉพาะ USED */}
+                {/* SPECIAL */}
                 <div className="text-4xl font-black tracking-tighter text-slate-900">
                   {used}
                   <span className="ml-1 text-[10px] font-black text-rose-400 uppercase tracking-widest">
-                    Used
+                    {t("quota.used")}
                   </span>
                 </div>
 
                 <div className="text-[10px] mt-1 font-black text-rose-400 uppercase tracking-widest">
-                  Special Leave Usage
+                  {t("quota.specialUsage")}
                 </div>
 
                 <div className="mt-4 w-full bg-rose-50 h-1.5 rounded-full overflow-hidden border border-rose-100">
@@ -72,19 +76,22 @@ export default function QuotaCards({ quotas }) {
               </>
             ) : (
               <>
-                {/* Leave ปกติ */}
+                {/* Normal Leave */}
                 <div className="text-3xl font-black text-slate-800 tracking-tighter">
                   {remaining}
                   <span className="text-xs font-normal text-gray-400 uppercase ml-1">
-                    Days
+                    {t("quota.days")}
                   </span>
                 </div>
 
                 <div className="text-[10px] text-gray-400 mt-1 font-black uppercase tracking-tighter">
-                  Used {used} / Total {total}
+                  {t("quota.usedTotal", { used, total })}
                   {carryOver > 0 && (
                     <span className="lowercase text-blue-400 ml-1 font-bold">
-                      ({baseQuota} base + {carryOver} carried)
+                      {t("quota.carriedDetail", {
+                        base: baseQuota,
+                        carry: carryOver,
+                      })}
                     </span>
                   )}
                 </div>
