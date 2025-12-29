@@ -3,10 +3,9 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Start seeding (2025 Architecture Optimized)...');
+  console.log('🌱 Start seeding (Target Year: 2026)...');
 
-  // 1. ล้างข้อมูลเก่าตามลำดับความสัมพันธ์ (จาก "ตารางลูก" ไปหา "ตารางแม่")
-  // 🚀 สำคัญ: ต้องลบ AuditLog ก่อนเพราะมีการอ้างอิง performed_by_id ไปที่ Employee
+  // 1. ล้างข้อมูลเก่า (ยึดตามลำดับ Referential Integrity)
   await prisma.auditLog.deleteMany(); 
   await prisma.notification.deleteMany();
   await prisma.leaveRequest.deleteMany();
@@ -16,139 +15,138 @@ async function main() {
   await prisma.holiday.deleteMany();
   await prisma.leaveType.deleteMany();
   await prisma.workConfiguration.deleteMany();
-  
-  // ลบพนักงาน (ตารางแม่)
   await prisma.employee.deleteMany();
-  
-  // ลบการตั้งค่าระบบ
   await prisma.systemConfig.deleteMany();
   
   console.log('🧹 Database cleaned.');
 
-  // 2. สร้าง Work Configurations (เกณฑ์เวลาทำงานตาม Role)
+  // 2. Work Configurations (24-hour format)
   const configs = [
     { role: 'Worker', startHour: 8, startMin: 0, endHour: 17, endMin: 0 },
     { role: 'HR', startHour: 9, startMin: 0, endHour: 18, endMin: 0 }
   ];
-
   for (const conf of configs) {
     await prisma.workConfiguration.create({ data: conf });
   }
-  console.log('⏰ Work Configurations established.');
 
-  // 3. สร้างวันหยุดประจำปี 2025 (Holidays)
-  const holidays2025 = [
+  // 3. Holidays 2026 (5 วัน)
+  const holidays = [
     { date: new Date('2026-01-01T00:00:00Z'), name: "New Year's Day" },
-    { date: new Date('2025-04-13T00:00:00Z'), name: "Songkran Festival" },
-    { date: new Date('2025-04-14T00:00:00Z'), name: "Songkran Festival" },
-    { date: new Date('2025-04-15T00:00:00Z'), name: "Songkran Festival" },
-    { date: new Date('2025-05-01T00:00:00Z'), name: "National Labour Day" },
-    { date: new Date('2025-12-05T00:00:00Z'), name: "King Bhumibol Birthday" },
+    { date: new Date('2026-04-13T00:00:00Z'), name: "Songkran Festival" },
+    { date: new Date('2026-05-01T00:00:00Z'), name: "Labour Day" },
+    { date: new Date('2026-07-28T00:00:00Z'), name: "King's Birthday" },
+    { date: new Date('2026-12-05T00:00:00Z'), name: "Father's Day" },
   ];
+  await prisma.holiday.createMany({ data: holidays });
 
-  await prisma.holiday.createMany({ data: holidays2025 });
-  console.log('🏖️ Holidays for 2025 initialized.');
-
-  // 4. สร้าง Leave Types
+  // 4. Leave Types (5 ประเภท)
   const leaveTypesData = [
     { typeName: 'Sick', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 30 },
-    { typeName: 'Personal', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 3 },
-    { typeName: 'Annual', isPaid: true, maxCarryOver: 12.0, maxConsecutiveDays: 10 },
-    { typeName: 'Emergency', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 2 },
-    { typeName: 'Special', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 99 },
+    { typeName: 'Personal', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 6 },
+    { typeName: 'Annual', isPaid: true, maxCarryOver: 12.0, maxConsecutiveDays: 14 },
+    { typeName: 'Maternity', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 98 },
+    { typeName: 'Ordination', isPaid: false, maxCarryOver: 0, maxConsecutiveDays: 30 },
   ];
-
-  const leaveTypes = {};
+  const leaveTypes = [];
   for (const type of leaveTypesData) {
     const created = await prisma.leaveType.create({ data: type });
-    leaveTypes[type.typeName] = created;
+    leaveTypes.push(created);
   }
-  console.log('📝 Leave Types initialized.');
 
-  // 5. สร้าง Employees
+  // 5. Employees (5 คน)
   const passwordHash = await bcrypt.hash('123456', 10);
-  
-  const hrUser = await prisma.employee.create({
-    data: {
-      firstName: 'Somsri',
-      lastName: 'Manager (HR)',
-      email: 'hr@company.com',
-      passwordHash,
-      role: 'HR',
-      joiningDate: new Date('2020-01-01'),
-    },
-  });
+  const employeeData = [
+    { firstName: 'Somsri', lastName: 'HR Manager', email: 'hr@company.com', role: 'HR', joiningDate: new Date('2020-01-01') },
+    { firstName: 'Somchai', lastName: 'Senior Worker', email: 'worker1@company.com', role: 'Worker', joiningDate: new Date('2023-01-15') },
+    { firstName: 'Suda', lastName: 'Junior Worker', email: 'worker2@company.com', role: 'Worker', joiningDate: new Date('2025-05-20') },
+    { firstName: 'Vichai', lastName: 'Technician', email: 'worker3@company.com', role: 'Worker', joiningDate: new Date('2026-01-10') },
+    { firstName: 'Mana', lastName: 'Security', email: 'worker4@company.com', role: 'Worker', joiningDate: new Date('2026-02-01') },
+  ];
+  const createdEmployees = [];
+  for (const emp of employeeData) {
+    const created = await prisma.employee.create({ data: { ...emp, passwordHash } });
+    createdEmployees.push(created);
+  }
 
-  const worker1 = await prisma.employee.create({
-    data: {
-      firstName: 'Somchai',
-      lastName: 'OldWorker',
-      email: 'somchai@company.com',
-      passwordHash,
-      role: 'Worker',
-      joiningDate: new Date('2023-05-15'),
-    },
-  });
-
-  const worker2 = await prisma.employee.create({
-    data: {
-      firstName: 'Suda',
-      lastName: 'NewStaff',
-      email: 'suda@company.com',
-      passwordHash,
-      role: 'Worker',
-      joiningDate: new Date('2025-02-01'),
-    },
-  });
-  console.log('👤 Employee data established.');
-
-  // 6. แจก Quotas ประจำปี 2025
-  const currentYear = 2025;
-  const employees = [hrUser, worker1, worker2];
-
-  for (const emp of employees) {
-    for (const typeName in leaveTypes) {
-      let totalDays =
-        typeName === "Sick" ? 30 :
-        typeName === "Personal" ? 6 :
-        typeName === "Annual" ? 6 :
-        typeName === "Emergency" ? 5 : 0; 
-
-      let carryOver = (typeName === "Annual" && emp.id === worker1.id) ? 4.5 : 0;
-
+  // 6. Leave Quotas 2026
+  const targetYear = 2026;
+  for (const emp of createdEmployees) {
+    for (const lt of leaveTypes) {
       await prisma.leaveQuota.create({
         data: {
           employeeId: emp.id,
-          leaveTypeId: leaveTypes[typeName].id,
-          year: currentYear,
-          totalDays,
-          carryOverDays: carryOver,
+          leaveTypeId: lt.id,
+          year: targetYear,
+          totalDays: lt.typeName === 'Sick' ? 30 : 6,
+          carryOverDays: (lt.typeName === 'Annual' && emp.role === 'HR') ? 5 : 0,
           usedDays: 0,
-        },
+        }
       });
     }
   }
-  console.log(`📊 Quotas for ${currentYear} distributed.`);
 
-  // 7. ตั้งค่าระบบ (System Config)
-  await prisma.systemConfig.create({
-    data: {
-      year: 2024,
-      isClosed: true,
-      closedAt: new Date('2024-12-31T23:59:59Z'),
-      processedBy: hrUser.id
+  // 7. Time Records (ตัวอย่าง 5 วันที่มีสถานะต่างกัน)
+  const worker1 = createdEmployees[1];
+  const timeRecords = [
+    { employeeId: worker1.id, workDate: new Date('2026-01-02'), checkInTime: new Date('2026-01-02T08:00:00Z'), checkOutTime: new Date('2026-01-02T17:00:00Z'), isLate: false },
+    { employeeId: worker1.id, workDate: new Date('2026-01-03'), checkInTime: new Date('2026-01-03T08:45:00Z'), checkOutTime: new Date('2026-01-03T17:00:00Z'), isLate: true, note: "Traffic jam" },
+    { employeeId: worker1.id, workDate: new Date('2026-01-04'), checkInTime: new Date('2026-01-04T07:55:00Z'), checkOutTime: new Date('2026-01-04T17:05:00Z'), isLate: false },
+    { employeeId: worker1.id, workDate: new Date('2026-01-05'), checkInTime: new Date('2026-01-05T08:10:00Z'), checkOutTime: new Date('2026-01-05T17:00:00Z'), isLate: true },
+    { employeeId: worker1.id, workDate: new Date('2026-01-06'), checkInTime: new Date('2026-01-06T08:00:00Z'), checkOutTime: null, isLate: false, note: "Forgot to check out" },
+  ];
+  await prisma.timeRecord.createMany({ data: timeRecords });
+
+  // 8. Leave Requests (ตัวอย่างการลา 5 รูปแบบ)
+  const hr = createdEmployees[0];
+  const leaveRequests = [
+    { 
+      employeeId: createdEmployees[1].id, leaveTypeId: leaveTypes[0].id, // Sick
+      startDate: new Date('2026-01-10'), endDate: new Date('2026-01-10'), totalDaysRequested: 1,
+      startDuration: 'Full', endDuration: 'Full', status: 'Approved', reason: 'High fever',
+      approvedByHrId: hr.id, approvalDate: new Date()
+    },
+    { 
+      employeeId: createdEmployees[2].id, leaveTypeId: leaveTypes[2].id, // Annual
+      startDate: new Date('2026-02-14'), endDate: new Date('2026-02-15'), totalDaysRequested: 2,
+      startDuration: 'Full', endDuration: 'Full', status: 'Pending', reason: 'Family trip'
+    },
+    { 
+      employeeId: createdEmployees[3].id, leaveTypeId: leaveTypes[1].id, // Personal
+      startDate: new Date('2026-01-20'), endDate: new Date('2026-01-20'), totalDaysRequested: 0.5,
+      startDuration: 'HalfMorning', endDuration: 'HalfMorning', status: 'Rejected', rejectionReason: 'Too many workers off'
+    },
+    { 
+      employeeId: createdEmployees[4].id, leaveTypeId: leaveTypes[0].id, // Sick
+      startDate: new Date('2026-03-01'), endDate: new Date('2026-03-01'), totalDaysRequested: 1,
+      startDuration: 'Full', endDuration: 'Full', status: 'Cancelled', cancelReason: 'Recovered faster'
+    },
+    { 
+      employeeId: createdEmployees[1].id, leaveTypeId: leaveTypes[2].id, // Annual
+      startDate: new Date('2026-04-10'), endDate: new Date('2026-04-12'), totalDaysRequested: 3,
+      startDuration: 'Full', endDuration: 'Full', status: 'Approved', approvedByHrId: hr.id, approvalDate: new Date()
     }
+  ];
+
+  for (const req of leaveRequests) {
+    await prisma.leaveRequest.create({ data: req });
+  }
+
+  // 9. Audit Logs (5 รายการ)
+  const auditLogs = [
+    { action: 'LOGIN', modelName: 'Employee', recordId: hr.id, performedById: hr.id, details: 'HR Manager logged in', ipAddress: '192.168.1.1' },
+    { action: 'APPROVE', modelName: 'LeaveRequest', recordId: 1, performedById: hr.id, details: 'Approved Sick leave for Somchai' },
+    { action: 'CREATE', modelName: 'TimeRecord', recordId: 1, performedById: createdEmployees[1].id, details: 'Manual check-in' },
+    { action: 'REJECT', modelName: 'LeaveRequest', recordId: 3, performedById: hr.id, details: 'Rejected Personal leave for Vichai' },
+    { action: 'UPDATE', modelName: 'WorkConfiguration', recordId: 1, performedById: hr.id, details: 'Updated Worker start time' },
+  ];
+  await prisma.auditLog.createMany({ data: auditLogs });
+
+  // 10. System Config 2026
+  await prisma.systemConfig.create({
+    data: { year: 2026, isClosed: false }
   });
 
-  await prisma.systemConfig.create({
-    data: {
-      year: 2025,
-      isClosed: false,
-    }
-  });
-  console.log('⚙️ System Config 2024 (Locked) and 2025 (Open) established.');
-
-  console.log('✅ SEEDING COMPLETED SUCCESSFULLY!');
+  console.log('✅ SEEDING COMPLETED FOR 2026: Data is rich and ready!');
 }
 
 main()
