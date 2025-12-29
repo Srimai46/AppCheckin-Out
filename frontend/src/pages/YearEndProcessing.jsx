@@ -41,10 +41,10 @@ const YearEndProcessing = () => {
   const [targetYear, setTargetYear] = useState(new Date().getFullYear() + 1);
 
   const [quotas, setQuotas] = useState({
-    ANNUAL: 6,
-    SICK: 30,
-    PERSONAL: 6,
-    EMERGENCY: 5,
+    ANNUAL: 0,
+    SICK: 0,
+    PERSONAL: 0,
+    EMERGENCY: 0,
   });
 
   const handleQuotaChange = (type, value) => {
@@ -69,7 +69,7 @@ const YearEndProcessing = () => {
 
   // ===================== ✅ NEW: Carry Over limit per type =====================
   const [carryOverLimits, setCarryOverLimits] = useState({
-    ANNUAL: 12,
+    ANNUAL: 0,
     SICK: 0,
     PERSONAL: 0,
     EMERGENCY: 0,
