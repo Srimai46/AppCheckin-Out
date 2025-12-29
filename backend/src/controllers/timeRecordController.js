@@ -785,3 +785,42 @@ exports.hrCheckOutEmployee = async (req, res) => {
     return res.status(500).json({ error: "HR Clock-out failed." });
   }
 };
+
+exports.updateWorkConfig = async (req, res) => {
+  try {
+    const { role, startHour, startMin, endHour, endMin } = req.body;
+    const hrId = req.user.id; // ID ของ HR ผู้ทำการแก้ไข
+
+    // 1. ตรวจสอบความถูกต้องของข้อมูล
+    if (startHour < 0 || startHour > 23 || endHour < 0 || endHour > 23) {
+      return res.status(400).json({ error: "ชั่วโมงต้องอยู่ระหว่าง 0-23" });
+    }
+
+    // 2. อัปเดตลง Database (ใช้ upsert เผื่อกรณี Role นั้นยังไม่มี config)
+    const updatedConfig = await prisma.workConfiguration.upsert({
+      where: { role: role },
+      update: { startHour, startMin, endHour, endMin },
+      create: { role, startHour, startMin, endHour, endMin },
+    });
+
+    // ✅ 3. บันทึก Audit Log (สำคัญมาก เพราะเป็นการแก้กฎบริษัท)
+    await auditLog(prisma, {
+      action: "UPDATE",
+      modelName: "WorkConfiguration",
+      recordId: updatedConfig.id,
+      userId: hrId,
+      details: `HR ได้แก้ไขเวลาทำงานของ Role: ${role} เป็น ${startHour}:${startMin} - ${endHour}:${endMin}`,
+      newValue: updatedConfig,
+      req: req
+    });
+
+    res.json({
+      success: true,
+      message: `อัปเดตเวลาทำงานของ Role ${role} สำเร็จ`,
+      data: updatedConfig
+    });
+  } catch (error) {
+    console.error("Update Config Error:", error);
+    res.status(500).json({ error: "ไม่สามารถอัปเดตการตั้งค่าได้" });
+  }
+};
