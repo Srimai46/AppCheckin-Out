@@ -30,19 +30,6 @@ CREATE TABLE `leave_types` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `special_leave_grants` (
-    `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `employee_id` INTEGER NOT NULL,
-    `leave_type_id` INTEGER NOT NULL,
-    `amount` DECIMAL(5, 2) NOT NULL,
-    `reason` VARCHAR(255) NOT NULL,
-    `expiry_date` DATE NOT NULL,
-    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
 CREATE TABLE `leave_quotas` (
     `quota_id` INTEGER NOT NULL AUTO_INCREMENT,
     `employee_id` INTEGER NOT NULL,
@@ -86,11 +73,25 @@ CREATE TABLE `leave_requests` (
     `requested_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `approved_by_hr_id` INTEGER NULL,
     `approval_date` DATETIME(3) NULL,
+    `special_grant_id` INTEGER NULL,
     `is_special_approved` BOOLEAN NOT NULL DEFAULT false,
 
     INDEX `leave_requests_employee_id_start_date_idx`(`employee_id`, `start_date`),
     INDEX `leave_requests_status_idx`(`status`),
     PRIMARY KEY (`request_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `special_leave_grants` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `employee_id` INTEGER NOT NULL,
+    `leave_type_id` INTEGER NOT NULL,
+    `amount` DECIMAL(5, 2) NOT NULL,
+    `reason` VARCHAR(255) NOT NULL,
+    `expiry_date` DATE NOT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -108,11 +109,44 @@ CREATE TABLE `notifications` (
     PRIMARY KEY (`notification_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- AddForeignKey
-ALTER TABLE `special_leave_grants` ADD CONSTRAINT `special_leave_grants_employee_id_fkey` FOREIGN KEY (`employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CreateTable
+CREATE TABLE `SystemConfig` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `year` INTEGER NOT NULL,
+    `isClosed` BOOLEAN NOT NULL DEFAULT false,
+    `closedAt` DATETIME(3) NULL,
+    `processedBy` INTEGER NULL,
 
--- AddForeignKey
-ALTER TABLE `special_leave_grants` ADD CONSTRAINT `special_leave_grants_leave_type_id_fkey` FOREIGN KEY (`leave_type_id`) REFERENCES `leave_types`(`leave_type_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+    UNIQUE INDEX `SystemConfig_year_key`(`year`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `work_configurations` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `role` ENUM('Worker', 'HR') NOT NULL,
+    `startHour` INTEGER NOT NULL,
+    `startMin` INTEGER NOT NULL,
+    `endHour` INTEGER NOT NULL,
+    `endMin` INTEGER NOT NULL,
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `work_configurations_role_key`(`role`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Holiday` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `date` DATETIME(3) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `isSubsidy` BOOLEAN NOT NULL DEFAULT false,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `Holiday_date_key`(`date`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- AddForeignKey
 ALTER TABLE `leave_quotas` ADD CONSTRAINT `leave_quotas_employee_id_fkey` FOREIGN KEY (`employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -131,6 +165,15 @@ ALTER TABLE `leave_requests` ADD CONSTRAINT `leave_requests_leave_type_id_fkey` 
 
 -- AddForeignKey
 ALTER TABLE `leave_requests` ADD CONSTRAINT `leave_requests_approved_by_hr_id_fkey` FOREIGN KEY (`approved_by_hr_id`) REFERENCES `employees`(`employee_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `leave_requests` ADD CONSTRAINT `leave_requests_special_grant_id_fkey` FOREIGN KEY (`special_grant_id`) REFERENCES `special_leave_grants`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `special_leave_grants` ADD CONSTRAINT `special_leave_grants_employee_id_fkey` FOREIGN KEY (`employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `special_leave_grants` ADD CONSTRAINT `special_leave_grants_leave_type_id_fkey` FOREIGN KEY (`leave_type_id`) REFERENCES `leave_types`(`leave_type_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `notifications` ADD CONSTRAINT `notifications_employee_id_fkey` FOREIGN KEY (`employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
