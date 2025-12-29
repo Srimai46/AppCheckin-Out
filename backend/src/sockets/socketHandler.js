@@ -1,9 +1,8 @@
 const jwt = require('jsonwebtoken')
 
 module.exports = (io) => {
-  // 1. Middleware ตรวจสอบ Token ก่อนยอมให้ Connect
+  // 1. Middleware ตรวจสอบ Token (คงเดิม - ดีอยู่แล้ว)
   io.use((socket, next) => {
-    // รับ Token ที่ Client ส่งมาทาง auth: { token: "..." }
     const token = socket.handshake.auth.token
 
     if (!token) {
@@ -11,9 +10,8 @@ module.exports = (io) => {
     }
 
     try {
-      // ตรวจสอบความถูกต้องของ Token
       const decoded = jwt.verify(token, process.env.JWT_SECRET)
-      socket.user = decoded // เก็บข้อมูล user (id, role) ไว้ใน socket
+      socket.user = decoded 
       next()
     } catch (err) {
       next(new Error("Authentication error: Invalid token"))
@@ -22,16 +20,25 @@ module.exports = (io) => {
 
   // 2. เมื่อ User Connect สำเร็จ
   io.on('connection', (socket) => {
-    console.log(`⚡ User connected: ${socket.id} (User ID: ${socket.user.id})`)
+    const userId = socket.user.id
+    const userRole = socket.user.role // ดึง Role มาจาก Token
 
-    // จับ User เข้าห้องส่วนตัวทันที (ชื่อห้อง: "user_1", "user_2")
-    const personalRoom = `user_${socket.user.id}`
+    console.log(`⚡ User connected: ${socket.id} (ID: ${userId}, Role: ${userRole})`)
+
+    // ✅ 2.1 เข้าห้องส่วนตัว (Personal Room) สำหรับรับแจ้งเตือนเฉพาะบุคคล
+    const personalRoom = `user_${userId}`
     socket.join(personalRoom)
-    console.log(`   -> Joined room: ${personalRoom}`)
+
+    // ✅ 2.2 เข้าห้องกลุ่ม HR (HR Group Room) 
+    // หากเป็น HR ให้เข้ากลุ่ม 'hr_group' เพื่อรับยอด Pending Badge รวม
+    if (userRole === 'HR') {
+      socket.join('hr_group')
+      console.log(`   -> HR User joined: hr_group`)
+    }
 
     // Handle Disconnect
     socket.on('disconnect', () => {
-      console.log(`User disconnected: ${socket.id}`)
+      console.log(`🔥 User disconnected: ${socket.id}`)
     })
   })
 }

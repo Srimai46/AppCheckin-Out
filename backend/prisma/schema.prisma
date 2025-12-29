@@ -156,12 +156,13 @@ model LeaveRequest {
   reason             String?       @db.Text
   attachmentUrl      String?       @map("attachment_url") @db.VarChar(255)
   status             RequestStatus @map("status")
+  rejectionReason    String?  @map("rejection_reason") @db.Text
+  cancelReason    String?  @map("cancel_reason") @db.Text
   requestedAt        DateTime      @default(now()) @map("requested_at")
 
   approvedByHrId     Int?          @map("approved_by_hr_id")
   approvalDate       DateTime?     @map("approval_date")
 
-  // ✅ 1. เพิ่มฟิลด์ Foreign Key เพื่อเก็บ ID ของการมอบสิทธิ์พิเศษ
   specialGrantId     Int?          @map("special_grant_id")
 
   // Relations

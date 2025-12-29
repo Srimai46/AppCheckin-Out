@@ -189,24 +189,38 @@ exports.getMyLeaves = async (req, res) => {
     });
 
     // 4. ปรับโครงสร้างข้อมูลประวัติการลา (Formatted History)
-    const formattedLeaves = leaves.map((l) => ({
-      id: l.id,
-      typeName: l.leaveType?.typeName,
-      startDate: l.startDate,
-      endDate: l.endDate,
-      totalDaysRequested: Number(l.totalDaysRequested),
-      status: l.status,
-      reason: l.reason,
-      requestedAt: l.requestedAt,
-      approverName: l.approvedByHr
-        ? `${l.approvedByHr.firstName} ${l.approvedByHr.lastName}`
-        : l.status === "Pending"
-        ? "Waiting for HR"
-        : "-",
-      attachmentUrl: l.attachmentUrl
-        ? `${process.env.BASE_URL || ""}${l.attachmentUrl}`
-        : null,
-    }));
+    const formattedLeaves = leaves.map((l) => {
+      // Logic สำหรับแสดงสถานะผู้จัดการ (Approver Display)
+      let approverDisplay = "-";
+      if (l.approvedByHr) {
+        approverDisplay = `${l.approvedByHr.firstName} ${l.approvedByHr.lastName}`;
+      } else if (l.status === "Pending") {
+        approverDisplay = "Waiting for HR";
+      } else if (l.status === "Withdraw_Pending") {
+        approverDisplay = "Withdrawal Reviewing"; 
+      }
+
+      return {
+        id: l.id,
+        typeName: l.leaveType?.typeName,
+        startDate: l.startDate,
+        endDate: l.endDate,
+        totalDaysRequested: Number(l.totalDaysRequested),
+        status: l.status,
+        reason: l.reason, // เหตุผลตอนขอลา
+        // ✅ เพิ่มฟิลด์เหตุผลการปฏิเสธ (จาก HR)
+        rejectionReason: l.rejectionReason, 
+        // ✅ เพิ่มฟิลด์เหตุผลการยกเลิก (จากพนักงาน)
+        cancelReason: l.cancelReason, 
+        requestedAt: l.requestedAt,
+        approvalDate: l.approvalDate,
+        isSpecialApproved: l.isSpecialApproved,
+        approverName: approverDisplay,
+        attachmentUrl: l.attachmentUrl
+          ? `${process.env.BASE_URL || ""}${l.attachmentUrl}`
+          : null,
+      };
+    });
 
     // ส่งกลับทั้ง Summary และ History ในทีเดียว
     res.json({
@@ -222,8 +236,7 @@ exports.getMyLeaves = async (req, res) => {
 // 3. ยื่นคำขอลาใหม่ (เพิ่ม validation แน่น)
 exports.createLeaveRequest = async (req, res) => {
   try {
-    const { type, startDate, endDate, reason, startDuration, endDuration } =
-      req.body;
+    const { type, startDate, endDate, reason, startDuration, endDuration } = req.body;
     const userId = req.user.id;
 
     const start = new Date(startDate);
@@ -233,9 +246,7 @@ exports.createLeaveRequest = async (req, res) => {
     // 1. ตรวจสอบสถานะปี (Locked/Open)
     const config = await prisma.systemConfig.findUnique({ where: { year } });
     if (config?.isClosed) {
-      return res
-        .status(403)
-        .json({ error: `System for ${year} is locked for processing.` });
+      return res.status(403).json({ error: `System for ${year} is locked for processing.` });
     }
 
     // 2. Validate วันที่
@@ -243,62 +254,36 @@ exports.createLeaveRequest = async (req, res) => {
       return res.status(400).json({ error: "Incorrect date format." });
     }
     if (start > end) {
-      return res
-        .status(400)
-        .json({ error: "Start date cannot be after end date." });
+      return res.status(400).json({ error: "Start date cannot be after end date." });
     }
 
-    const leaveType = await prisma.leaveType.findUnique({
-      where: { typeName: type },
-    });
-    if (!leaveType)
-      return res.status(400).json({ error: "Leave type not found." });
+    const leaveType = await prisma.leaveType.findUnique({ where: { typeName: type } });
+    if (!leaveType) return res.status(400).json({ error: "Leave type not found." });
 
     // 3. ดึงวันหยุด
     const queryEnd = new Date(end);
     queryEnd.setHours(23, 59, 59, 999);
-
     const holidays = await prisma.holiday.findMany({
       where: { date: { gte: start, lte: queryEnd } },
       select: { date: true },
     });
-
-    const holidayDates = holidays.map((h) => {
-      const d = new Date(h.date);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
-        2,
-        "0"
-      )}-${String(d.getDate()).padStart(2, "0")}`;
-    });
+    const holidayDates = holidays.map((h) => h.date.toISOString().split('T')[0]);
 
     // 4. คำนวณวันลาจริง
-    const totalDaysRequested = calculateTotalDays(
-      start,
-      end,
-      startDuration,
-      endDuration,
-      holidayDates
-    );
+    const totalDaysRequested = calculateTotalDays(start, end, startDuration, endDuration, holidayDates);
 
     // 5. ตรวจสอบวันหยุด
     if (totalDaysRequested <= 0) {
-      return res.status(400).json({
-        error:
-          "ไม่สามารถส่งคำขอลาได้ เนื่องจากวันที่คุณเลือกเป็นวันหยุดทั้งหมด",
-      });
+      return res.status(400).json({ error: "ไม่สามารถส่งคำขอลาได้ เนื่องจากวันที่คุณเลือกเป็นวันหยุดทั้งหมด" });
     }
 
     // 6. ตรวจสอบเงื่อนไขลาติดต่อกัน
     const maxConsecutive = Number(leaveType.maxConsecutiveDays ?? 0);
     if (maxConsecutive > 0 && totalDaysRequested > maxConsecutive) {
-      return res.status(400).json({
-        error: `You cannot take ${type} leave for more than ${maxConsecutive} consecutive days.`,
-      });
+      return res.status(400).json({ error: `You cannot take ${type} leave for more than ${maxConsecutive} consecutive days.` });
     }
 
-    const attachmentUrl = req.file
-      ? `/uploads/leaves/${req.file.filename}`
-      : null;
+    const attachmentUrl = req.file ? `/uploads/leaves/${req.file.filename}` : null;
 
     // 7. Database Transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -306,7 +291,7 @@ exports.createLeaveRequest = async (req, res) => {
       const overlap = await tx.leaveRequest.findFirst({
         where: {
           employeeId: userId,
-          status: { in: ["Pending", "Approved"] },
+          status: { in: ["Pending", "Approved", "Withdraw_Pending"] },
           OR: [{ startDate: { lte: end }, endDate: { gte: start } }],
         },
       });
@@ -314,28 +299,14 @@ exports.createLeaveRequest = async (req, res) => {
 
       // ตรวจสอบโควต้า
       const quota = await tx.leaveQuota.findUnique({
-        where: {
-          employeeId_leaveTypeId_year: {
-            employeeId: userId,
-            leaveTypeId: leaveType.id,
-            year,
-          },
-        },
+        where: { employeeId_leaveTypeId_year: { employeeId: userId, leaveTypeId: leaveType.id, year } },
       });
 
-      if (!quota)
-        throw new Error(
-          `No leave quota found for ${type} in ${year}. Please contact HR.`
-        );
+      if (!quota) throw new Error(`No leave quota found for ${type} in ${year}.`);
 
-      const remaining =
-        Number(quota.totalDays) +
-        Number(quota.carryOverDays || 0) -
-        Number(quota.usedDays);
+      const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
       if (remaining < totalDaysRequested) {
-        throw new Error(
-          `Insufficient balance. You have ${remaining} days left.`
-        );
+        throw new Error(`Insufficient balance. You have ${remaining} days left.`);
       }
 
       // 7.1 สร้างบันทึกใบลา
@@ -363,16 +334,21 @@ exports.createLeaveRequest = async (req, res) => {
           recordId: newLeave.id,
           performedById: userId,
           details: `Submitted ${type} leave request for ${totalDaysRequested} days`,
-          newValue: newLeave, // บันทึกข้อมูลใบลาที่เพิ่งสร้างไว้ดูย้อนหลัง
+          newValue: newLeave,
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
         },
       });
 
-      // 8. ระบบแจ้งเตือน HR
+      // 8. เตรียมข้อมูลแจ้งเตือน HR
       const admins = await tx.employee.findMany({
         where: { role: "HR", id: { not: userId } },
         select: { id: true },
+      });
+
+      // ✅ 8.1 นับยอดคำร้องที่ค้างทั้งหมดในระบบ (เพื่ออัปเดต Badge ของ HR)
+      const totalPendingCount = await tx.leaveRequest.count({
+        where: { status: { in: ["Pending", "Withdraw_Pending"] } }
       });
 
       const fullName = `${newLeave.employee.firstName} ${newLeave.employee.lastName}`;
@@ -396,26 +372,33 @@ exports.createLeaveRequest = async (req, res) => {
             return { adminId: admin.id, unreadCount: count };
           })
         );
-        return { newLeave, adminUpdates, message: notificationMsg };
+        return { newLeave, adminUpdates, message: notificationMsg, totalPendingCount };
       }
-      return { newLeave, adminUpdates: [] };
+      return { newLeave, adminUpdates: [], totalPendingCount };
     });
 
-    // 8. Real-time Notification
+    // 🚀 8. Real-time Notification
     const io = req.app.get("io");
-    if (io && result.adminUpdates.length > 0) {
-      result.adminUpdates.forEach((update) => {
-        io.to(`user_${update.adminId}`).emit("new_notification", {
-          message: result.message,
-          notificationType: "NewRequest",
-          unreadCount: update.unreadCount,
-        });
+    if (io) {
+      // ✅ 8.1 ส่งอัปเดต Badge ให้ HR ทุกคนในห้อง 'hr_group'
+      io.to("hr_group").emit("update_pending_count", {
+        count: result.totalPendingCount,
+        message: result.message
       });
+
+      // 8.2 ส่งแจ้งเตือนรายบุคคล (Notification Bell)
+      if (result.adminUpdates.length > 0) {
+        result.adminUpdates.forEach((update) => {
+          io.to(`user_${update.adminId}`).emit("new_notification", {
+            message: result.message,
+            notificationType: "NewRequest",
+            unreadCount: update.unreadCount,
+          });
+        });
+      }
     }
 
-    res
-      .status(201)
-      .json({ message: "Request submitted.", data: result.newLeave });
+    res.status(201).json({ message: "Request submitted.", data: result.newLeave });
   } catch (error) {
     console.error("CreateLeaveRequest Error:", error);
     res.status(400).json({ error: error.message });
@@ -425,15 +408,17 @@ exports.createLeaveRequest = async (req, res) => {
 exports.cancelLeaveRequest = async (req, res) => {
   try {
     const { id } = req.params;
+    // ✅ 1. รับเหตุผลการยกเลิกจาก body
+    const { cancelReason } = req.body; 
     const userId = req.user.id;
     const leaveId = parseInt(id, 10);
 
     if (!leaveId) return res.status(400).json({ error: "Invalid leave ID" });
 
-    // 1. ดึงข้อมูลมาเช็คเบื้องต้น
+    // 2. ดึงข้อมูลมาเช็คเบื้องต้น
     const request = await prisma.leaveRequest.findUnique({
       where: { id: leaveId },
-      include: { leaveType: true },
+      include: { leaveType: true, employee: true },
     });
 
     if (!request) throw new Error("Leave request not found.");
@@ -444,9 +429,7 @@ exports.cancelLeaveRequest = async (req, res) => {
     today.setHours(0, 0, 0, 0);
     const startDate = new Date(request.startDate);
     if (startDate <= today) {
-      throw new Error(
-        "Cannot cancel/withdraw leave that has already started or passed."
-      );
+      throw new Error("Cannot cancel/withdraw leave that has already started or passed.");
     }
 
     // ตรวจสอบสถานะที่อนุญาต
@@ -455,46 +438,44 @@ exports.cancelLeaveRequest = async (req, res) => {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      let targetStatus = "Cancelled"; // สำหรับ Pending
-      let actionType = "WITHDRAW"; // สำหรับ Audit Log
-      let messageToHr = `Employee cancelled their ${request.leaveType.typeName} leave (Pending).`;
+      let targetStatus = "Cancelled"; 
+      let actionType = "WITHDRAW"; 
+      let messageToHr = `${request.employee.firstName} cancelled their ${request.leaveType.typeName} leave.`;
 
-      // 2. ถ้า Approved ต้องเปลี่ยนเป็น 'Withdraw_Pending'
+      // 3. ถ้า Approved ต้องเปลี่ยนเป็น 'Withdraw_Pending'
       if (request.status === "Approved") {
         targetStatus = "Withdraw_Pending";
-        messageToHr = `Employee requested to WITHDRAW their approved ${request.leaveType.typeName} leave. Please review.`;
+        // ✅ แนบเหตุผลไปในข้อความแจ้งเตือน HR
+        messageToHr = `${request.employee.firstName} requested to WITHDRAW approved ${request.leaveType.typeName} leave. Reason: ${cancelReason || 'Not specified'}`;
       }
 
-      // 3. อัปเดตสถานะใบลา
+      // 4. อัปเดตสถานะใบลา
       const updatedRequest = await tx.leaveRequest.update({
         where: { id: leaveId },
         data: {
           status: targetStatus,
-          attachmentUrl:
-            targetStatus === "Cancelled" ? null : request.attachmentUrl,
+          // ✅ บันทึกเหตุผลลงใน field cancelReason (อย่าลืมเพิ่มใน Schema นะครับ)
+          cancelReason: cancelReason || null, 
+          attachmentUrl: targetStatus === "Cancelled" ? null : request.attachmentUrl,
         },
       });
 
-      // 4. บันทึก Audit Log (เพิ่มตรงนี้!)
+      // 5. บันทึก Audit Log
       await tx.auditLog.create({
         data: {
           action: actionType,
           modelName: "LeaveRequest",
           recordId: leaveId,
           performedById: userId,
-          details: `User ${
-            targetStatus === "Cancelled"
-              ? "cancelled"
-              : "requested withdrawal of"
-          } leave request #${leaveId}`,
-          oldValue: { status: request.status }, // สถานะก่อนเปลี่ยน
-          newValue: { status: targetStatus }, // สถานะหลังเปลี่ยน
+          details: `User requested ${targetStatus}. Reason: ${cancelReason || 'N/A'}`,
+          oldValue: { status: request.status },
+          newValue: { status: targetStatus, cancelReason },
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
         },
       });
 
-      // 5. แจ้งเตือน HR
+      // 6. แจ้งเตือน HR (ใน Database)
       const admins = await tx.employee.findMany({
         where: { role: "HR" },
         select: { id: true },
@@ -511,22 +492,53 @@ exports.cancelLeaveRequest = async (req, res) => {
         });
       }
 
+      // 7. นับยอดงานค้างทั้งหมดใหม่สำหรับ HR Badge
+      const totalPendingCount = await tx.leaveRequest.count({
+        where: { status: { in: ["Pending", "Withdraw_Pending"] } }
+      });
+
+      const adminUpdates = await Promise.all(
+        admins.map(async (admin) => {
+          const count = await tx.notification.count({
+            where: { employeeId: admin.id, isRead: false },
+          });
+          return { adminId: admin.id, unreadCount: count };
+        })
+      );
+
       return {
         updatedRequest,
-        oldAttachment:
-          targetStatus === "Cancelled" ? request.attachmentUrl : null,
+        oldAttachment: targetStatus === "Cancelled" ? request.attachmentUrl : null,
+        totalPendingCount,
+        messageToHr,
+        adminUpdates
       };
     });
 
-    // 6. ลบไฟล์จริง (เฉพาะกรณี Cancelled ทันที)
+    // 8. ลบไฟล์จริง (เฉพาะกรณี Cancelled ทันที)
     if (result.oldAttachment) {
       const fileName = path.basename(result.oldAttachment);
       const fullPath = path.join(process.cwd(), "uploads", "leaves", fileName);
       if (fs.existsSync(fullPath)) {
-        fs.unlink(fullPath, (err) => {
-          if (err) console.error(`❌ Delete error: ${fullPath}`, err);
-        });
+        fs.unlink(fullPath, (err) => { if (err) console.error(`❌ Delete error: ${fullPath}`, err); });
       }
+    }
+
+    // 🚀 9. Real-time Notification
+    const io = req.app.get("io");
+    if (io) {
+      io.to("hr_group").emit("update_pending_count", {
+        count: result.totalPendingCount,
+        message: result.messageToHr
+      });
+
+      result.adminUpdates.forEach((update) => {
+        io.to(`user_${update.adminId}`).emit("new_notification", {
+          message: result.messageToHr,
+          unreadCount: update.unreadCount,
+          notificationType: "NewRequest"
+        });
+      });
     }
 
     const responseMsg =
@@ -540,7 +552,6 @@ exports.cancelLeaveRequest = async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 };
-
 // ---------------------------------------------------------
 // ส่วนของ HR (จัดการและอนุมัติ)
 // ---------------------------------------------------------
@@ -551,7 +562,9 @@ exports.getPendingRequests = async (req, res) => {
     const currentYear = new Date().getFullYear();
 
     const requests = await prisma.leaveRequest.findMany({
-      where: { status: "Pending" },
+      where: {
+        status: { in: ["Pending", "Withdraw_Pending"] },
+      },
       include: {
         employee: {
           select: {
@@ -560,7 +573,6 @@ exports.getPendingRequests = async (req, res) => {
             lastName: true,
             email: true,
             profileImageUrl: true,
-            // ✅ ดึงโควต้าของพนักงานคนนี้ในปีปัจจุบันมาด้วย
             leaveQuotas: {
               where: { year: currentYear },
               select: {
@@ -577,25 +589,29 @@ exports.getPendingRequests = async (req, res) => {
       orderBy: { requestedAt: "asc" },
     });
 
-    // ✅ ปรับ Format ข้อมูลเล็กน้อยเพื่อให้หน้าบ้านแสดงผล "โควต้าคงเหลือ" ของประเภทที่ลาได้ทันที
-    const formattedRequests = requests.map((req) => {
-      const quotaForThisType = req.employee.leaveQuotas.find(
-        (q) => q.leaveTypeId === req.leaveTypeId
+    const formattedRequests = requests.map((leave) => {
+      const quotaForThisType = leave.employee.leaveQuotas.find(
+        (q) => q.leaveTypeId === leave.leaveTypeId
       );
 
+      let quotaInfo = null;
+      if (quotaForThisType) {
+        const total = Number(quotaForThisType.totalDays) + Number(quotaForThisType.carryOverDays || 0);
+        const used = Number(quotaForThisType.usedDays);
+        quotaInfo = {
+          total: total,
+          used: used,
+          remaining: total - used,
+        };
+      }
+
       return {
-        ...req,
-        quotaInfo: quotaForThisType
-          ? {
-              remaining:
-                parseFloat(quotaForThisType.totalDays) +
-                parseFloat(quotaForThisType.carryOverDays || 0) -
-                parseFloat(quotaForThisType.usedDays),
-              total:
-                parseFloat(quotaForThisType.totalDays) +
-                parseFloat(quotaForThisType.carryOverDays || 0),
-            }
-          : null,
+        ...leave,
+        totalDaysRequested: Number(leave.totalDaysRequested),
+        quotaInfo,
+        // ✅ ระบุเหตุผลการถอนใบลา (ถ้ามี) เพื่อให้ HR เห็นในหน้าจัดการ
+        cancelReason: leave.cancelReason, 
+        isWithdrawRequest: leave.status === "Withdraw_Pending"
       };
     });
 
@@ -609,18 +625,21 @@ exports.getPendingRequests = async (req, res) => {
 // 2. ดึงคำขอทั้งหมด (กรองสถานะ, ปี, ชื่อพนักงาน)
 exports.getAllLeaves = async (req, res) => {
   try {
-    // 1. รับ Query 'hrAction' เพื่อใช้กรองดูเฉพาะรายการที่ HR คนนั้นๆ เป็นคนจัดการเอง
     const { status, year, employeeName, hrAction } = req.query;
 
     const where = {};
+    
+    // กรองตามสถานะ
     if (status) where.status = status;
 
+    // กรองตามปี
     if (year) {
       const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
       const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
       where.startDate = { gte: startOfYear, lte: endOfYear };
     }
 
+    // กรองตามชื่อพนักงาน
     if (employeeName) {
       where.employee = {
         OR: [
@@ -630,21 +649,19 @@ exports.getAllLeaves = async (req, res) => {
       };
     }
 
-    // ถ้าส่ง hrAction=true มา ให้กรองเฉพาะรายการที่ User คนนี้เป็นคน Approve/Reject
+    // กรองรายการที่จัดการโดย HR คนปัจจุบัน
     if (hrAction === "true") {
       where.approvedByHrId = req.user.id;
     }
 
+    // ดึงข้อมูลวันหยุด
     const holidays = await prisma.holiday.findMany({ select: { date: true } });
-    const holidayDates = holidays.map((h) => {
-      const d = new Date(h.date);
-      return d.toLocaleDateString("en-CA"); // จะได้รูปแบบ "YYYY-MM-DD" เสมอ
-    });
+    const holidayDates = holidays.map((h) => new Date(h.date).toLocaleDateString("en-CA"));
 
     const leaves = await prisma.leaveRequest.findMany({
       where,
       include: {
-        employee: { select: { firstName: true, lastName: true, role: true } },
+        employee: { select: { id: true, firstName: true, lastName: true, role: true, email: true } },
         leaveType: { select: { typeName: true } },
         approvedByHr: { select: { firstName: true, lastName: true } },
       },
@@ -660,23 +677,26 @@ exports.getAllLeaves = async (req, res) => {
 
       return {
         id: l.id,
+        employeeId: l.employee.id, 
         name: `${l.employee.firstName} ${l.employee.lastName}`,
+        email: l.employee.email, 
         type: l.leaveType.typeName,
         startDate: l.startDate,
         endDate: l.endDate,
         totalDays: Number(l.totalDaysRequested),
         status: l.status,
-        reason: l.reason,
+        reason: l.reason, // เหตุผลตอนขอลา
+        // ✅ ส่งออกเหตุผลทั้งฝั่ง HR และ ฝั่งพนักงาน
+        rejectionReason: l.rejectionReason, 
+        cancelReason: l.cancelReason, 
         attachmentUrl: l.attachmentUrl,
         requestedAt: l.requestedAt,
 
-        // ข้อมูลสำหรับการย้อนดูประวัติ HR
         approverName: l.approvedByHr
           ? `${l.approvedByHr.firstName} ${l.approvedByHr.lastName}`
           : null,
-        approvalDate: l.approvalDate, // วันที่ HR กดจัดการ
-        isSpecialApproved: l.isSpecialApproved, // บอกว่าเป็นเคสพิเศษหรือไม่
-
+        approvalDate: l.approvalDate,
+        isSpecialApproved: l.isSpecialApproved,
         workingDaysList: workingDays,
       };
     });
@@ -691,7 +711,8 @@ exports.getAllLeaves = async (req, res) => {
 // 3. อนุมัติหรือปฏิเสธคำขอลา
 exports.updateLeaveStatus = async (req, res) => {
   try {
-    const { id, status, isSpecial } = req.body;
+    // 1. รับค่า (รวมเหตุผลการปฏิเสธ)
+    const { id, status, isSpecial, rejectionReason } = req.body;
     const hrId = req.user.id;
     const leaveId = parseInt(id, 10);
     const now = new Date();
@@ -703,7 +724,6 @@ exports.updateLeaveStatus = async (req, res) => {
     let fileToDelete = null;
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. ดึงข้อมูลใบลา
       const request = await tx.leaveRequest.findUnique({
         where: { id: leaveId },
         include: { leaveType: true },
@@ -714,60 +734,45 @@ exports.updateLeaveStatus = async (req, res) => {
       const currentStatus = request.status;
       let finalStatus = status;
       let auditAction = status === "Approved" ? "APPROVE" : "REJECT";
-
-      // 💡 ตรวจสอบใบลาหมดอายุ (เลยวันลาไปแล้วแต่ยัง Pending)
       const startDate = new Date(request.startDate);
       const isPastLeave = startDate < today;
 
-      if (
-        currentStatus === "Pending" &&
-        isPastLeave &&
-        status === "Approved" &&
-        !isSpecial
-      ) {
-        throw new Error(
-          "This leave request has already expired. Please reject it or use 'Special Approve' for backdated processing."
-        );
+      // Guard: ใบลาหมดอายุ
+      if (currentStatus === "Pending" && isPastLeave && status === "Approved" && !isSpecial) {
+        throw new Error("This leave request has already expired. Please reject it or use 'Special Approve' for backdated processing.");
       }
 
-      // --- กรณีที่ 1: จัดการคำขอถอนใบลา (Withdraw_Pending) ---
+      // Logic: Withdraw (ถอนใบลา)
       if (currentStatus === "Withdraw_Pending") {
         if (status === "Approved") {
           finalStatus = "Cancelled";
           fileToDelete = request.attachmentUrl;
-
-          // คืนโควต้า (ถ้าตอนแรกไม่ได้ลาแบบ Special)
           if (!request.isSpecialApproved) {
             await tx.leaveQuota.update({
               where: {
                 employeeId_leaveTypeId_year: {
                   employeeId: request.employeeId,
                   leaveTypeId: request.leaveTypeId,
-                  year: request.startDate.getFullYear(),
+                  year: startDate.getFullYear(),
                 },
               },
               data: { usedDays: { decrement: request.totalDaysRequested } },
             });
           }
         } else {
-          finalStatus = "Approved"; // HR ปฏิเสธการถอน กลับไปเป็น Approved เหมือนเดิม
+          finalStatus = "Approved"; 
         }
-      }
-
-      // --- กรณีที่ 2: จัดการใบลาใหม่ (Pending) ---
+      } 
+      // Logic: New Request (ใบลาใหม่)
       else if (currentStatus === "Pending") {
-        if (status === "Rejected") {
-          fileToDelete = request.attachmentUrl;
-        }
-
-        // ตัดโควต้ากรณี Approved ปกติ
+        if (status === "Rejected") fileToDelete = request.attachmentUrl;
         if (status === "Approved" && !isSpecial) {
           await tx.leaveQuota.update({
             where: {
               employeeId_leaveTypeId_year: {
                 employeeId: request.employeeId,
                 leaveTypeId: request.leaveTypeId,
-                year: request.startDate.getFullYear(),
+                year: startDate.getFullYear(),
               },
             },
             data: { usedDays: { increment: request.totalDaysRequested } },
@@ -777,100 +782,83 @@ exports.updateLeaveStatus = async (req, res) => {
         throw new Error(`Cannot update request in ${currentStatus} status.`);
       }
 
-      // 2. อัปเดตสถานะใบลา
+      // 2. อัปเดต DB
       const updatedRequest = await tx.leaveRequest.update({
         where: { id: leaveId },
         data: {
           status: finalStatus,
+          rejectionReason: (finalStatus === "Rejected" || finalStatus === "Cancelled") ? (rejectionReason || null) : null,
           approvedByHrId: hrId,
           approvalDate: now,
-          isSpecialApproved:
-            currentStatus === "Pending" && finalStatus === "Approved"
-              ? isSpecial || false
-              : request.isSpecialApproved,
-          attachmentUrl:
-            finalStatus === "Cancelled" || finalStatus === "Rejected"
-              ? null
-              : request.attachmentUrl,
+          isSpecialApproved: currentStatus === "Pending" && finalStatus === "Approved" ? (isSpecial || false) : request.isSpecialApproved,
+          attachmentUrl: (finalStatus === "Cancelled" || finalStatus === "Rejected") ? null : request.attachmentUrl,
         },
       });
 
-      // 3. บันทึก Audit Log โดยใช้ตัวกลาง
+      // 3. Audit Log
       await auditLog(tx, {
         action: auditAction,
         modelName: "LeaveRequest",
         recordId: leaveId,
         userId: hrId,
-        details: `HR ${auditAction} leave from ${currentStatus} to ${finalStatus} ${
-          isPastLeave ? "(Processed post-dated)" : ""
-        }`,
-        oldValue: {
-          status: currentStatus,
-          isSpecialApproved: request.isSpecialApproved,
-        },
-        newValue: {
-          status: finalStatus,
-          isSpecialApproved: updatedRequest.isSpecialApproved,
-        },
+        details: `HR ${auditAction} leave from ${currentStatus} to ${finalStatus}. ${rejectionReason ? `Reason: ${rejectionReason}` : ""}`,
+        oldValue: { status: currentStatus },
+        newValue: { status: finalStatus, rejectionReason: updatedRequest.rejectionReason },
         req: req,
       });
 
-      // 4. แจ้งเตือนพนักงาน
-      let notifyMsg = `Your ${
-        request.leaveType.typeName
-      } request has been ${finalStatus.toLowerCase()}.`;
-      if (currentStatus === "Withdraw_Pending" && finalStatus === "Cancelled") {
+      // 4. Notification Message
+      let notifyMsg = `Your ${request.leaveType.typeName} request has been ${finalStatus.toLowerCase()}.`;
+      if (finalStatus === "Rejected" && rejectionReason) {
+        notifyMsg += ` Reason: ${rejectionReason}`;
+      } else if (currentStatus === "Withdraw_Pending" && finalStatus === "Cancelled") {
         notifyMsg = `Withdrawal for ${request.leaveType.typeName} approved. Quota refunded.`;
       }
 
       const newNotification = await tx.notification.create({
         data: {
           employeeId: request.employeeId,
-          notificationType:
-            finalStatus === "Approved" ? "Approval" : "Rejection",
+          notificationType: finalStatus === "Approved" ? "Approval" : "Rejection",
           message: notifyMsg,
           relatedRequestId: request.id,
         },
       });
 
-      const unreadCount = await tx.notification.count({
-        where: { employeeId: request.employeeId, isRead: false },
-      });
+      // 5. นับยอดงานค้างให้ HR
+      const unreadCount = await tx.notification.count({ where: { employeeId: request.employeeId, isRead: false } });
+      const totalPendingCount = await tx.leaveRequest.count({ where: { status: { in: ["Pending", "Withdraw_Pending"] } } });
 
-      return { updatedRequest, newNotification, unreadCount, auditAction };
+      return { updatedRequest, newNotification, unreadCount, auditAction, totalPendingCount };
     });
 
-    // 5. ลบไฟล์จริง
+    // ลบไฟล์
     if (fileToDelete) {
       const fileName = path.basename(fileToDelete);
       const fullPath = path.join(process.cwd(), "uploads", "leaves", fileName);
       if (fs.existsSync(fullPath)) {
-        fs.unlink(fullPath, (err) => {
-          if (err) console.error("❌ File delete error:", err);
-        });
+        fs.unlink(fullPath, (err) => { if (err) console.error("❌ File delete error:", err); });
       }
     }
 
-    // 6. Real-time Notification
+    // 6. Socket Notification
     const io = req.app.get("io");
     if (io) {
-      io.to(`user_${result.updatedRequest.employeeId}`).emit(
-        "new_notification",
-        {
-          message: result.newNotification.message,
-          unreadCount: result.unreadCount,
-          // ✅ เพิ่มข้อมูลเพื่อให้ Frontend อัปเดตสถานะได้ทันที
-          type: result.auditAction,
-          requestId: result.updatedRequest.id,
-          newStatus: result.updatedRequest.status,
-        }
-      );
+      io.to(`user_${result.updatedRequest.employeeId}`).emit("new_notification", {
+        message: result.newNotification.message,
+        unreadCount: result.unreadCount,
+        type: result.auditAction,
+        requestId: result.updatedRequest.id,
+        newStatus: result.updatedRequest.status,
+        rejectionReason: result.updatedRequest.rejectionReason
+      });
+
+      io.to("hr_group").emit("update_pending_count", {
+        count: result.totalPendingCount
+      });
     }
 
-    res.json({
-      message: `Success: ${result.auditAction}`,
-      data: result.updatedRequest,
-    });
+    res.json({ message: `Success: ${result.auditAction}`, data: result.updatedRequest });
+
   } catch (error) {
     console.error("UpdateLeaveStatus Error:", error);
     res.status(400).json({ error: error.message });
@@ -1030,12 +1018,10 @@ exports.grantSpecialLeave = async (req, res) => {
     });
 
     if (!specialType) {
-      return res
-        .status(400)
-        .json({ error: "System Error: 'Special' leave type not found." });
+      return res.status(400).json({ error: "System Error: 'Special' leave type not found." });
     }
 
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // 1. สร้าง Grant Record
       const grant = await tx.specialLeaveGrant.create({
         data: {
@@ -1069,7 +1055,7 @@ exports.grantSpecialLeave = async (req, res) => {
         },
       });
 
-      // 3. อัปเดตใบลา
+      // 3. อัปเดตใบลา (ถ้ามี)
       let updatedRequest = null;
       if (leaveRequestId) {
         updatedRequest = await tx.leaveRequest.update({
@@ -1077,39 +1063,68 @@ exports.grantSpecialLeave = async (req, res) => {
           data: {
             status: "Approved",
             isSpecialApproved: true,
-            leaveType: { connect: { id: specialType.id } },
-            specialGrant: { connect: { id: grant.id } },
-            approvedByHr: { connect: { id: hrId } },
+            leaveTypeId: specialType.id, // ✅ เปลี่ยนประเภทการลาเป็น Special
+            specialGrantId: grant.id,
+            approvedByHrId: hrId,
             approvalDate: new Date(),
           },
         });
       }
 
-      // ✅ 4. บันทึก Audit Log
-      await tx.auditLog.create({
+      // 4. บันทึก Audit Log (ใช้ตัวกลาง auditLog ถ้ามี หรือใช้แบบเดิม)
+      const log = await tx.auditLog.create({
         data: {
-          action: "CREATE", // หรือใช้ Enum GRANT_SPECIAL ถ้าคุณเพิ่มไว้
+          action: "GRANT_SPECIAL", 
           modelName: "SpecialLeaveGrant",
           recordId: grant.id,
           performedById: hrId,
-          details: `HR granted ${amount} special days to Employee #${employeeId}. Reason: ${reason}. Connected Request: ${
-            leaveRequestId || "None"
-          }`,
-          newValue: {
-            grantDetails: grant,
-            quotaStatus: updatedQuota,
-            requestUpdated: updatedRequest ? true : false,
-          },
+          details: `HR granted ${amount} special days to Employee #${employeeId}. Reason: ${reason}`,
+          newValue: { grant, quota: updatedQuota },
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
         },
       });
+
+      // 5. สร้างการแจ้งเตือนพนักงานรายบุคคล
+      const notification = await tx.notification.create({
+        data: {
+          employeeId: parseInt(employeeId),
+          notificationType: "Approval",
+          message: `Your leave request #${leaveRequestId} has been approved as a SPECIAL case (${amount} days).`,
+          relatedRequestId: leaveRequestId ? parseInt(leaveRequestId) : null,
+        },
+      });
+
+      // 6. นับยอด Pending ใหม่สำหรับ HR Badge
+      const totalPendingCount = await tx.leaveRequest.count({
+        where: { status: { in: ["Pending", "Withdraw_Pending"] } }
+      });
+
+      const unreadCount = await tx.notification.count({
+        where: { employeeId: parseInt(employeeId), isRead: false }
+      });
+
+      return { updatedRequest, totalPendingCount, unreadCount, notification };
     });
 
+    // 🚀 7. Real-time Notification
     const io = req.app.get("io");
-    if (io) io.emit("notification_refresh");
+    if (io) {
+      // ส่งถึงพนักงานคนนั้นโดยตรง
+      io.to(`user_${employeeId}`).emit("new_notification", {
+        message: result.notification.message,
+        unreadCount: result.unreadCount,
+        status: "Approved",
+        isSpecial: true
+      });
 
-    res.json({ message: "Special Case processed and logged successfully." });
+      // ส่งถึงห้อง HR ทุกคนเพื่ออัปเดต Badge
+      io.to("hr_group").emit("update_pending_count", {
+        count: result.totalPendingCount
+      });
+    }
+
+    res.json({ message: "Special Case processed and logged successfully.", data: result.updatedRequest });
   } catch (error) {
     console.error("grantSpecialLeave Error:", error);
     res.status(500).json({ error: error.message });
