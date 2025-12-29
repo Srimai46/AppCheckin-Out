@@ -484,9 +484,7 @@ const YearEndProcessing = () => {
                 ].map((d) => {
                   const active = (workingDays || []).includes(d.k);
                   return (
-                    <button
-                      key={d.k}
-                      type="button"
+                    <button key={d.k} type="button"
                       onClick={() =>
                         setWorkingDays((prev) => {
                           const p = Array.isArray(prev) ? prev : [];
@@ -532,14 +530,10 @@ const YearEndProcessing = () => {
                   </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={saveWorkingDaysPolicy}
-                  disabled={policySaving}
+                <button type="button" onClick={saveWorkingDaysPolicy} disabled={policySaving}
                   className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
                     uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
-                    shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none
-                    inline-flex items-center gap-2"
+                    shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none inline-flex items-center gap-2"
                 >
                   {policySaving ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
                   {policySaving ? "Saving..." : "Save"}
@@ -560,14 +554,10 @@ const YearEndProcessing = () => {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={saveWorkTimePolicy}
-                disabled={workTimeSaving}
+              <button type="button" onClick={saveWorkTimePolicy} disabled={workTimeSaving}
                 className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
                   uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
-                  shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none
-                  inline-flex items-center gap-2"
+                  shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none inline-flex items-center gap-2"
               >
                 {workTimeSaving ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
                 {workTimeSaving ? "Saving..." : "Save Work Time"}
@@ -632,14 +622,8 @@ const YearEndProcessing = () => {
               </div>
 
               <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={maxConsecutiveHolidayDays}
-                  onChange={(e) =>
-                    setMaxConsecutiveHolidayDays(clamp(Number(e.target.value || 1), 1, 365))
-                  }
+                <input type="number" min={1} max={365} value={maxConsecutiveHolidayDays}
+                  onChange={(e) => setMaxConsecutiveHolidayDays(clamp(Number(e.target.value || 1), 1, 365))}
                   className="w-24 h-11 px-4 rounded-2xl bg-white border border-gray-200
                     text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
                 />
@@ -647,14 +631,10 @@ const YearEndProcessing = () => {
                   day(s)
                 </span>
 
-                <button
-                  type="button"
-                  onClick={saveMaxConsecutivePolicy}
-                  disabled={maxConsecutiveSaving}
+                <button type="button" onClick={saveMaxConsecutivePolicy} disabled={maxConsecutiveSaving}
                   className="h-11 px-5 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
                     uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
-                    shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none
-                    inline-flex items-center gap-2"
+                    shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none inline-flex items-center gap-2"
                 >
                   {maxConsecutiveSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
                   {maxConsecutiveSaving ? "Saving..." : "Save"}
@@ -676,9 +656,7 @@ const YearEndProcessing = () => {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
+                <button type="button" onClick={() => {
                     setFormOpen(false);
                     resetHolidayForm();
                   }}
@@ -695,13 +673,9 @@ const YearEndProcessing = () => {
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                       Holiday Name
                     </label>
-                    <input
-                      value={holidayName}
-                      onChange={(e) => setHolidayName(e.target.value)}
-                      placeholder="e.g., Songkran Festival"
+                    <input value={holidayName} onChange={(e) => setHolidayName(e.target.value)} placeholder="e.g., Songkran Festival"
                       className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-                        text-slate-800 font-black text-[12px]
-                        outline-none focus:ring-2 focus:ring-indigo-100"
+                        text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
                     />
                   </div>
 
@@ -709,13 +683,9 @@ const YearEndProcessing = () => {
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                       Start Date
                     </label>
-                    <input
-                      type="date"
-                      value={holidayStart}
-                      onChange={(e) => setHolidayStart(e.target.value)}
+                    <input type="date" value={holidayStart} onChange={(e) => setHolidayStart(e.target.value)}
                       className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-                        text-slate-800 font-black text-[12px]
-                        outline-none focus:ring-2 focus:ring-indigo-100"
+                        text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
                     />
                   </div>
 
@@ -723,13 +693,9 @@ const YearEndProcessing = () => {
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                       End Date
                     </label>
-                    <input
-                      type="date"
-                      value={holidayEnd}
-                      onChange={(e) => setHolidayEnd(e.target.value)}
+                    <input type="date" value={holidayEnd} onChange={(e) => setHolidayEnd(e.target.value)}
                       className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-                        text-slate-800 font-black text-[12px]
-                        outline-none focus:ring-2 focus:ring-indigo-100"
+                        text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
                     />
                   </div>
                 </div>
@@ -744,9 +710,7 @@ const YearEndProcessing = () => {
 
                   <div className="flex items-center gap-2">
                     {editId && (
-                      <button
-                        type="button"
-                        onClick={() => {
+                      <button type="button" onClick={() => {
                           resetHolidayForm();
                           setFormOpen(false);
                         }}
@@ -757,12 +721,9 @@ const YearEndProcessing = () => {
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={upsertSpecialHoliday}
+                    <button type="button" onClick={upsertSpecialHoliday}
                       className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
-                        uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
-                        shadow-lg shadow-indigo-100 inline-flex items-center gap-2"
+                        uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100 inline-flex items-center gap-2"
                     >
                       <Plus size={16} />
                       {editId ? "Update" : "Add"}
@@ -785,9 +746,7 @@ const YearEndProcessing = () => {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={openAddForm}
+              <button type="button" onClick={openAddForm}
                 className="h-10 px-4 rounded-3xl bg-white border border-gray-200 text-slate-800
                   font-black text-[11px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95
                   inline-flex items-center gap-2"
@@ -817,8 +776,7 @@ const YearEndProcessing = () => {
                   ) : (
                     sortedSpecialHolidays.map((h) => {
                       const totalDays = calcTotalDays(h.startDate, h.endDate);
-                      const dateText =
-                        safeYMD(h.startDate) === safeYMD(h.endDate)
+                      const dateText = safeYMD(h.startDate) === safeYMD(h.endDate)
                           ? `${ymdToDDMMYYYY(h.startDate)} (${totalDays} day)`
                           : `${ymdToDDMMYYYY(h.startDate)} to ${ymdToDDMMYYYY(h.endDate)} (${totalDays} days)`;
 
@@ -828,9 +786,7 @@ const YearEndProcessing = () => {
                           <td className="px-6 py-4 text-slate-700 font-bold">{h.name}</td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => onEditHoliday(h)}
+                              <button type="button" onClick={() => onEditHoliday(h)}
                                 className="h-9 px-4 rounded-3xl border border-gray-200 bg-white text-slate-700
                                   font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95
                                   inline-flex items-center gap-2"
@@ -839,9 +795,7 @@ const YearEndProcessing = () => {
                                 Edit
                               </button>
 
-                              <button
-                                type="button"
-                                onClick={() => onDeleteHoliday(h)}
+                              <button type="button" onClick={() => onDeleteHoliday(h)}
                                 className="h-9 px-4 rounded-3xl border border-rose-100 bg-rose-50 text-rose-700
                                   font-black text-[10px] uppercase tracking-widest hover:bg-rose-100 transition-all active:scale-95
                                   inline-flex items-center gap-2"
@@ -884,14 +838,10 @@ const YearEndProcessing = () => {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={saveCarryOverLimits}
-                disabled={carrySaving}
+              <button type="button" onClick={saveCarryOverLimits} disabled={carrySaving}
                 className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
                   uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
-                  shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none
-                  inline-flex items-center gap-2"
+                  shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none inline-flex items-center gap-2"
               >
                 {carrySaving ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
                 {carrySaving ? "Saving..." : "Save Carry Over"}
@@ -904,12 +854,7 @@ const YearEndProcessing = () => {
                   <label className="block text-xs font-black text-gray-400 uppercase mb-1">
                     {type}
                   </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={365}
-                    value={carryOverLimits[type]}
-                    onChange={(e) => handleCarryOverChange(type, e.target.value)}
+                  <input type="number" min={0} max={365} value={carryOverLimits[type]} onChange={(e) => handleCarryOverChange(type, e.target.value)}
                     className="w-full border border-gray-200 rounded-3xl px-3 py-2 text-sm font-bold
                       focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                   />
@@ -938,10 +883,7 @@ const YearEndProcessing = () => {
                       <label className="block text-xs font-black text-gray-400 uppercase mb-1">
                         {type}
                       </label>
-                      <input
-                        type="number"
-                        value={quotas[type]}
-                        onChange={(e) => handleQuotaChange(type, e.target.value)}
+                      <input type="number" value={quotas[type]} onChange={(e) => handleQuotaChange(type, e.target.value)}
                         className="w-full border border-gray-200 rounded-3xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
                       />
                     </div>
@@ -955,18 +897,13 @@ const YearEndProcessing = () => {
                     <button
                       type="button"
                       onClick={() => setTargetYearOpen((v) => !v)}
-                      className={`w-full bg-white border border-gray-300 rounded-3xl
-                        px-4 py-2 text-sm font-black text-slate-700
-                        flex items-center justify-between transition-all
-                        hover:bg-gray-50
+                      className={`w-full bg-white border border-gray-300 rounded-3xl px-4 py-2 text-sm font-black text-slate-700
+                        flex items-center justify-between transition-all hover:bg-gray-50
                         ${targetYearOpen ? "ring-2 ring-blue-100" : ""}`}
                     >
                       <span>Year {targetYear}</span>
-                      <svg
-                        className={`w-4 h-4 transition-transform ${targetYearOpen ? "rotate-180" : ""}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                      <svg className={`w-4 h-4 transition-transform ${targetYearOpen ? "rotate-180" : ""}`}
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
                       </svg>
@@ -974,18 +911,10 @@ const YearEndProcessing = () => {
 
                     {targetYearOpen && (
                       <>
-                        <button
-                          type="button"
-                          className="fixed inset-0 z-10 cursor-default"
-                          onClick={() => setTargetYearOpen(false)}
-                          aria-label="Close target year dropdown"
-                        />
+                        <button type="button" className="fixed inset-0 z-10 cursor-default" onClick={() => setTargetYearOpen(false)} aria-label="Close target year dropdown" />
                         <div className="absolute z-20 mt-2 w-full rounded-3xl bg-white shadow-xl border border-gray-100 overflow-hidden">
                           {years.map((y) => (
-                            <button
-                              key={y}
-                              type="button"
-                              onClick={() => {
+                            <button key={y} type="button" onClick={() => {
                                 setTargetYear(y);
                                 setTargetYearOpen(false);
                               }}
@@ -1000,9 +929,7 @@ const YearEndProcessing = () => {
                     )}
                   </div>
 
-                  <button
-                    onClick={handleProcess}
-                    disabled={loading}
+                  <button onClick={handleProcess} disabled={loading}
                     className="mt-5 bg-indigo-600 text-white px-8 py-2.5 rounded-3xl hover:bg-indigo-700 disabled:bg-gray-400 flex items-center gap-2 font-bold transition-all shadow-lg shadow-indigo-100 active:scale-95"
                   >
                     {loading ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
