@@ -84,9 +84,37 @@ const YearEndProcessing = () => {
 
   const [carrySaving, setCarrySaving] = useState(false);
 
+  const buildCarryOverConfirmHtml = () => {
+    const co = carryOverLimits || {};
+    const rows = Object.keys(co).map((k) => {
+      const v = Number(co[k] ?? 0);
+      return `
+        <div style="display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid rgba(0,0,0,.06);">
+          <div style="font-weight:900; letter-spacing:.06em; font-size:12px;">${escapeHtml(k)}</div>
+          <div style="font-weight:900; font-size:12px; color:#111827;">
+            ${escapeHtml(String(v))} day(s)
+          </div>
+        </div>
+      `;
+    });
+
+    return `
+      <div style="text-align:left; line-height:1.7;">
+        <div style="font-weight:900; margin-bottom:8px;">Confirm Carry Over Limits</div>
+        <div style="font-size:12px; opacity:.85; margin-bottom:10px;">
+          You are about to save these carry over limits (per employee).
+        </div>
+        <div style="border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:10px 12px; background:#f9fafb;">
+          ${rows.join("")}
+        </div>
+      </div>
+    `.trim();
+  };
+
   const saveCarryOverLimits = async () => {
     if (carrySaving) return;
 
+    // validation
     for (const k of Object.keys(carryOverLimits)) {
       const v = Number(carryOverLimits[k]);
       if (Number.isNaN(v) || v < 0 || v > 365) {
@@ -95,10 +123,17 @@ const YearEndProcessing = () => {
       }
     }
 
+    const ok = await alertConfirm(
+      "Save Custom Holidays Carry Over?",
+      buildCarryOverConfirmHtml(),
+      "Save"
+    );
+    if (!ok) return;
+
     setCarrySaving(true);
     try {
       await new Promise((r) => setTimeout(r, 250));
-      await alertSuccess("Saved", "Carry Over limits saved (Front-end only).");
+      await alertSuccess("Saved", "Carry Over limits saved.");
     } catch (e) {
       console.error(e);
       alertError("Save Failed", "Unable to save carry over limits.");
@@ -153,16 +188,52 @@ const YearEndProcessing = () => {
       }
     }
 
+    const ok = await alertConfirm(
+      "Save Work Time?",
+      buildWorkTimeConfirmHtml(),
+      "Save"
+    );
+    if (!ok) return;
+
     setWorkTimeSaving(true);
     try {
       await new Promise((r) => setTimeout(r, 300));
-      await alertSuccess("Saved", "Work time per role saved (Front-end only).");
+      await alertSuccess("Saved", "Work time per role saved.");
     } catch (e) {
       console.error(e);
       alertError("Save Failed", "Unable to save work time policy.");
     } finally {
       setWorkTimeSaving(false);
     }
+  };
+
+  const buildWorkTimeConfirmHtml = () => {
+    const roles = [
+      { k: "HR", label: "HR" },
+      { k: "WORKER", label: "Worker" },
+    ];
+
+    const rows = roles.map((r) => {
+      const start = workTimeByRole?.[r.k]?.start || "-";
+      const end = workTimeByRole?.[r.k]?.end || "-";
+      return `
+        <div style="display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid rgba(0,0,0,.06);">
+          <div style="font-weight:900; letter-spacing:.06em; font-size:12px;">${escapeHtml(r.label)}</div>
+          <div style="font-weight:900; font-size:12px; color:#111827;">
+            ${escapeHtml(String(start))} - ${escapeHtml(String(end))}
+          </div>
+        </div>
+      `;
+    });
+
+    return `
+      <div style="text-align:left; line-height:1.7;">
+        <div style="font-weight:900; margin-bottom:8px;">Confirm Work Time (By Role)</div>
+        <div style="border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:10px 12px; background:#f9fafb;">
+          ${rows.join("")}
+        </div>
+      </div>
+    `.trim();
   };
 
   // ✅ HR sets max "consecutive" holidays allowed
@@ -177,12 +248,19 @@ const YearEndProcessing = () => {
       return;
     }
 
+    const ok = await alertConfirm(
+      "Save Max Consecutive Holidays?",
+      buildMaxConsecutiveConfirmHtml(),
+      "Save"
+    );
+    if (!ok) return;
+
     setMaxConsecutiveSaving(true);
     try {
       await new Promise((r) => setTimeout(r, 300));
       await alertSuccess(
         "Saved",
-        `Max consecutive holiday days saved: ${Number(maxConsecutiveHolidayDays)} day(s). (Front-end only)`
+        `Max consecutive holiday days saved: ${Number(maxConsecutiveHolidayDays)} day(s).`
       );
     } catch (e) {
       console.error(e);
@@ -191,6 +269,22 @@ const YearEndProcessing = () => {
       setMaxConsecutiveSaving(false);
     }
   };
+
+  const buildMaxConsecutiveConfirmHtml = () => {
+    return `
+      <div style="text-align:left; line-height:1.7;">
+        <div style="font-weight:900; margin-bottom:8px;">Confirm Max Consecutive Holidays</div>
+        <div style="border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:10px 12px; background:#f9fafb;">
+          <div style="display:flex; justify-content:space-between; gap:12px;">
+            <div style="font-weight:900; font-size:12px;">Max consecutive days</div>
+            <div style="font-weight:900; font-size:12px; color:#111827;">
+              ${escapeHtml(String(maxConsecutiveHolidayDays))} day(s)
+            </div>
+          </div>
+        </div>
+      </div>
+    `.trim();
+  };        
 
   // Special Holidays list
   const [specialHolidays, setSpecialHolidays] = useState([]);
@@ -245,16 +339,43 @@ const YearEndProcessing = () => {
       return;
     }
 
+    const ok = await alertConfirm(
+      "Save Working Days?",
+      buildWorkingDaysConfirmHtml(),
+      "Save"
+    );
+    if (!ok) return;
+
     setPolicySaving(true);
     try {
       await new Promise((r) => setTimeout(r, 250));
-      await alertSuccess("Saved", "Working Days saved (Front-end only).");
+      await alertSuccess("Saved", "Working Days saved.");
     } catch (e) {
       console.error(e);
       alertError("Save Failed", "Unable to save policy.");
     } finally {
       setPolicySaving(false);
     }
+  };
+
+  const buildWorkingDaysConfirmHtml = () => {
+    const order = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+    const label = { MON:"Mon", TUE:"Tue", WED:"Wed", THU:"Thu", FRI:"Fri", SAT:"Sat", SUN:"Sun" };
+    const selected = (workingDays || []).slice().sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+
+    return `
+      <div style="text-align:left; line-height:1.7;">
+        <div style="font-weight:900; margin-bottom:8px;">Confirm Working Days</div>
+        <div style="font-size:12px; opacity:.85; margin-bottom:10px;">
+          Selected working days:
+        </div>
+        <div style="border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:10px 12px; background:#f9fafb;">
+          <div style="font-weight:900; font-size:12px;">
+            ${escapeHtml(selected.map((d)=>label[d]||d).join(", ") || "-")}
+          </div>
+        </div>
+      </div>
+    `.trim();
   };
 
   const upsertSpecialHoliday = async () => {
@@ -297,22 +418,34 @@ const YearEndProcessing = () => {
         return;
       }
 
+      // ✅ Confirm ก่อนบันทึก (Add/Update)
+      const mode = editId ? "Update Holiday" : "Add Holiday";
+      const ok = await alertConfirm(
+        editId ? "Confirm Update?" : "Confirm Add?",
+        buildHolidayUpsertConfirmHtml({ name, start, end, total, mode }),
+        editId ? "Update" : "Add"
+      );
+      if (!ok) return;
+
       if (editId) {
         setSpecialHolidays((prev) =>
           (prev || []).map((x) =>
             x.id === editId ? { ...x, startDate: start, endDate: end, name } : x
           )
         );
-        await alertSuccess("Updated", "Holiday updated successfully (Front-end only).");
+        await alertSuccess("Updated", "Holiday updated successfully.");
       } else {
         const newItem = {
-          id: crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+          id:
+            typeof crypto !== "undefined" && crypto?.randomUUID
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random()}`,
           startDate: start,
           endDate: end,
           name,
         };
         setSpecialHolidays((prev) => [...(prev || []), newItem]);
-        await alertSuccess("Added", "Holiday added successfully (Front-end only).");
+        await alertSuccess("Added", "Holiday added successfully.");
       }
 
       setFormOpen(false);
@@ -323,6 +456,29 @@ const YearEndProcessing = () => {
     }
   };
 
+  const buildHolidayUpsertConfirmHtml = ({ name, start, end, total, mode }) => {
+    const dateText =
+      start === end
+        ? `${ymdToDDMMYYYY(start)} (${total} day)`
+        : `${ymdToDDMMYYYY(start)} to ${ymdToDDMMYYYY(end)} (${total} days)`;
+
+    return `
+      <div style="text-align:left; line-height:1.7;">
+        <div style="font-weight:900; margin-bottom:8px;">Confirm ${escapeHtml(mode)}</div>
+        <div style="border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:10px 12px; background:#f9fafb;">
+          <div style="display:flex; justify-content:space-between; gap:12px; padding:6px 0;">
+            <div style="font-weight:900; font-size:12px;">Holiday</div>
+            <div style="font-weight:900; font-size:12px; color:#111827;">${escapeHtml(name)}</div>
+          </div>
+          <div style="display:flex; justify-content:space-between; gap:12px; padding:6px 0;">
+            <div style="font-weight:900; font-size:12px;">Date</div>
+            <div style="font-weight:900; font-size:12px; color:#111827;">${escapeHtml(dateText)}</div>
+          </div>
+        </div>
+      </div>
+    `.trim();
+  };
+
   const onEditHoliday = (row) => {
     setFormOpen(true);
     setEditId(row.id);
@@ -331,16 +487,44 @@ const YearEndProcessing = () => {
     setHolidayEnd(safeYMD(row.endDate));
   };
 
+  const buildHolidayDeleteConfirmHtml = (row) => {
+    const start = safeYMD(row?.startDate);
+    const end = safeYMD(row?.endDate);
+    const total = calcTotalDays(start, end);
+
+    const dateText =
+      start === end
+        ? `${ymdToDDMMYYYY(start)} (${total} day)`
+        : `${ymdToDDMMYYYY(start)} to ${ymdToDDMMYYYY(end)} (${total} days)`;
+
+    return `
+      <div style="text-align:left; line-height:1.7;">
+        <div style="font-weight:900; margin-bottom:8px;">Confirm Delete Holiday</div>
+        <div style="border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:10px 12px; background:#fff7ed;">
+          <div style="font-weight:900; font-size:12px; margin-bottom:6px;">
+            ${escapeHtml(row?.name || "Holiday")}
+          </div>
+          <div style="font-size:12px; font-weight:800; color:#111827;">
+            ${escapeHtml(dateText)}
+          </div>
+        </div>
+        <div style="margin-top:8px; font-size:12px; opacity:.8;">
+          This action cannot be undone.
+        </div>
+      </div>
+    `.trim();
+  };
+
   const onDeleteHoliday = async (row) => {
     const ok = await alertConfirm(
-      "Confirm Delete",
-      `Delete holiday <b>${escapeHtml(row?.name || "Holiday")}</b>?`,
+      "Delete this holiday?",
+      buildHolidayDeleteConfirmHtml(row),
       "Delete"
     );
     if (!ok) return;
 
     setSpecialHolidays((prev) => (prev || []).filter((x) => x.id !== row.id));
-    await alertSuccess("Deleted", "Holiday removed successfully (Front-end only).");
+    await alertSuccess("Deleted", "Holiday removed successfully.");
   };
 
   const buildProcessConfirmHtml = () => {
@@ -390,7 +574,7 @@ const YearEndProcessing = () => {
       const res = await processCarryOver({
         targetYear: Number(targetYear),
         quotas: quotas,
-        carryOverLimits: carryOverLimits, // ✅ added (backend may ignore if not implemented yet)
+        carryOverLimits: carryOverLimits,
       });
 
       await alertSuccess(
@@ -652,7 +836,7 @@ const YearEndProcessing = () => {
                     Special Holidays
                   </div>
                   <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                    Add / Edit holiday and apply immediately (Front-end only)
+                    Add / Edit holiday and apply immediately
                   </div>
                 </div>
 
