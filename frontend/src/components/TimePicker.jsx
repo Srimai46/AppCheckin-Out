@@ -49,7 +49,7 @@ export default function TimePicker({ value = "09:00", onChange, label = "Select 
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-200 p-3">
+        <div className="absolute z-50 mt-2 w-[520px] max-w-[90vw] rounded-3xl bg-white shadow-xl border border-gray-200 p-5">
           <div className="grid grid-cols-2 gap-3">
             {/* Hours */}
             <div className="rounded-xl border border-gray-100 bg-gray-50/40 p-2">
