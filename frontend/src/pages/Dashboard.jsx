@@ -62,10 +62,11 @@ export default function Dashboard() {
         ]);
 
         setData({
-          att: Array.isArray(h) ? h : h?.data || [],
-          quotas: Array.isArray(q) ? q : q?.data || [],
-          leaves: Array.isArray(l) ? l : l?.data || [],
-        });
+        att: Array.isArray(h) ? h : h?.data || [],
+        quotas: Array.isArray(q) ? q : q?.data || [],
+        leaves: l?.history || [], 
+        leaveSummary: l?.summary || [] 
+      });
       } catch (err) {
         console.error(err);
         alertError(t("common.error"), t("dashboard.loadFail"));
