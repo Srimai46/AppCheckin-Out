@@ -1,10 +1,9 @@
-import React, { useState, useMemo } from "react";
-import { History, FileText, Image as ImageIcon } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { History, FileText, Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { openAttachment } from "../../utils/attachmentPreview";
 
-const PAGE_SIZE = 10;
-const SHIFT_START = "09:00"; // ✅ เวลาเริ่มงาน
+const PAGE_SIZE = 5; // ✅ แสดง 5 รายการ/หน้า (ทั้ง Attendance และ Leave)
 
 export default function HistoryTable({
   activeTab,
@@ -13,7 +12,8 @@ export default function HistoryTable({
   leaveData = [],
   buildFileUrl,
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+
   const getStatusStyle = (status) => {
     switch (status) {
       case "Approved":
@@ -26,12 +26,24 @@ export default function HistoryTable({
   };
 
   const [page, setPage] = useState(1);
+
+  // ✅ รีเซ็ตหน้าเมื่อสลับแท็บ
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab]);
+
   const data = activeTab === "attendance" ? attendanceData : leaveData;
-  const totalPages = Math.ceil(data.length / PAGE_SIZE);
+
+  const totalPages = Math.max(1, Math.ceil((data?.length || 0) / PAGE_SIZE));
+
+  // ✅ กันกรณีข้อมูลลดลงแล้ว page เกิน totalPages
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const pagedData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return data.slice(start, start + PAGE_SIZE);
+    return (data || []).slice(start, start + PAGE_SIZE);
   }, [data, page]);
 
   const calcLeaveDays = (leave) => {
@@ -47,12 +59,14 @@ export default function HistoryTable({
     return Math.max(1, Math.round((e - s) / ms) + 1);
   };
 
-  // ===================== ✅ LATE CALC (Frontend Override) =====================
-  const toMinutes = (hhmm) => {
-    if (!hhmm) return null;
-    const s = String(hhmm).trim();
+  // ===================== ✅ LATE (เชื่อ backend 100% ถ้ามี isLate) =====================
+  const toMinutes = (value) => {
+    if (!value) return null;
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      return value.getHours() * 60 + value.getMinutes();
+    }
 
-    // รองรับ "09:05", "09:05:00", หรือ ISO date string
+    const s = String(value).trim();
     if (s.includes("T")) {
       const d = new Date(s);
       if (!isNaN(d.getTime())) return d.getHours() * 60 + d.getMinutes();
@@ -67,32 +81,23 @@ export default function HistoryTable({
   };
 
   const isLateByRow = (row) => {
-    // เอาเวลา check-in ที่มีจริงมากที่สุด
-    const inRaw =
-      row?.checkInTimeDisplay ||
-      row?.checkIn ||
-      row?.checkInTime ||
-      row?.checkInTimeISO ||
-      null;
+    // ✅ เชื่อ backend 100% ถ้ามี isLate
+    if (typeof row?.isLate === "boolean") return row.isLate;
+    // fallback เผื่อบาง endpoint ไม่ส่ง isLate
+    const start = row?.standardConfig?.start || "09:00";
+    const inRaw = row?.checkInTimeDisplay || row?.checkInDisplay || row?.checkIn || row?.checkInTime || null;
 
     const inM = toMinutes(inRaw);
-    const startM = toMinutes(SHIFT_START);
+    const startM = toMinutes(start);
     if (inM == null || startM == null) return false;
 
-    // ✅ เกิน 09:00 ถือว่า Late (09:00 = on time)
+    // ✅ 09:00 = ตรงเวลา, 09:01 = สาย
     return inM > startM;
   };
-
-  const normalizeAttendanceStatus = (status) => {
-    const s = String(status || "")
-      .trim()
-      .toLowerCase();
-    if (!s) return ""; // ว่าง
-    if (s === "late" || s === "สาย") return "Late";
-    if (s === "on time" || s === "ontime" || s === "ตรงเวลา") return "On Time";
-    return status; // อย่างอื่น
-  };
   // ==========================================================================
+
+  const onPrev = () => setPage((p) => Math.max(1, p - 1));
+  const onNext = () => setPage((p) => Math.min(totalPages, p + 1));
 
   return (
     <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
@@ -111,29 +116,31 @@ export default function HistoryTable({
           </h2>
         </div>
 
-        <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1">
-     <button
-  onClick={() => setActiveTab("attendance")}
-  className={`px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-    activeTab === "attendance"
-      ? "bg-white shadow-sm text-slate-800"
-      : "text-gray-400"
-  }`}
->
-  {t("history.tabAttendance")}
-</button>
+        <div className="flex items-center gap-3">
+          {/* Tabs */}
+          <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1">
+            <button
+              onClick={() => setActiveTab("attendance")}
+              className={`px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
+                activeTab === "attendance"
+                  ? "bg-white shadow-sm text-slate-800"
+                  : "text-gray-400"
+              }`}
+            >
+              {t("history.tabAttendance")}
+            </button>
 
-<button
-  onClick={() => setActiveTab("leave")}
-  className={`px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-    activeTab === "leave"
-      ? "bg-white shadow-sm text-slate-800"
-      : "text-gray-400"
-  }`}
->
-  {t("history.tabLeave")}
-</button>
-
+            <button
+              onClick={() => setActiveTab("leave")}
+              className={`px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
+                activeTab === "leave"
+                  ? "bg-white shadow-sm text-slate-800"
+                  : "text-gray-400"
+              }`}
+            >
+              {t("history.tabLeave")}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -163,20 +170,8 @@ export default function HistoryTable({
               pagedData.length > 0 ? (
                 pagedData.map((row, i) => {
                   const late = isLateByRow(row);
-                  const statusFromApi = normalizeAttendanceStatus(
-                    row.status || row.statusDisplay
-                  );
 
-                  const statusLabel = late
-                    ? t("history.late")
-                    : statusFromApi
-                    ? t(
-                        statusFromApi === "On Time"
-                          ? "history.onTime"
-                          : "history.late"
-                      )
-                    : t("history.onTime");
-
+                  const statusLabel = late ? t("history.late") : t("history.onTime");
                   const statusClass = late
                     ? "bg-rose-50 text-rose-600 border-rose-100"
                     : "bg-emerald-50 text-emerald-600 border-emerald-100";
@@ -185,6 +180,7 @@ export default function HistoryTable({
                     <tr
                       key={i}
                       className="border-b border-gray-50 hover:bg-gray-50/30"
+                      title={row?.standardConfig?.start ? `Standard Start: ${row.standardConfig.start}` : ""}
                     >
                       <td className="px-6 py-4 text-slate-600">
                         {row.date || row.dateDisplay}
@@ -192,18 +188,16 @@ export default function HistoryTable({
 
                       <td className="px-6 py-4">
                         <span className="text-emerald-600">
-                          {row.checkIn || row.checkInTimeDisplay || "--:--"}
+                          {row.checkIn || row.checkInDisplay || row.checkInTimeDisplay || "--:--"}
                         </span>
                         <span className="mx-2 text-gray-300">/</span>
                         <span className="text-rose-500">
-                          {row.checkOut || row.checkOutTimeDisplay || "--:--"}
+                          {row.checkOut || row.checkOutDisplay || row.checkOutTimeDisplay || "--:--"}
                         </span>
                       </td>
 
                       <td className="px-6 py-4 text-center">
-                        <span
-                          className={`px-3 py-1 rounded-lg border ${statusClass}`}
-                        >
+                        <span className={`px-3 py-1 rounded-lg border ${statusClass}`}>
                           {statusLabel}
                         </span>
                       </td>
@@ -212,10 +206,7 @@ export default function HistoryTable({
                 })
               ) : (
                 <tr>
-                  <td
-                    colSpan="3"
-                    className="p-10 text-center text-gray-300 italic"
-                  >
+                  <td colSpan="3" className="p-10 text-center text-gray-300 italic">
                     {t("history.noData")}
                   </td>
                 </tr>
@@ -226,10 +217,7 @@ export default function HistoryTable({
                 const note = leave.note || leave.reason || leave.remark || "-";
 
                 return (
-                  <tr
-                    key={i}
-                    className="border-b border-gray-50 hover:bg-gray-50/30"
-                  >
+                  <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
                     <td className="px-6 py-4">
                       <div className="text-slate-800">
                         {leave.leaveType?.typeName || leave.type}
@@ -255,11 +243,10 @@ export default function HistoryTable({
                     <td className="px-6 py-4 text-center">
                       {leave.attachmentUrl && (
                         <button
-                          onClick={() =>
-                            openAttachment(buildFileUrl(leave.attachmentUrl))
-                          }
+                          onClick={() => openAttachment(buildFileUrl(leave.attachmentUrl))}
                           className="bg-indigo-100 text-indigo-700 p-2 rounded-xl active:scale-95 transition-all"
                         >
+                          <Image as={ImageIcon} />
                           <ImageIcon size={16} />
                         </button>
                       )}
@@ -279,16 +266,49 @@ export default function HistoryTable({
               })
             ) : (
               <tr>
-                <td
-                  colSpan="6"
-                  className="p-10 text-center text-gray-300 italic"
-                >
+                <td colSpan="6" className="p-10 text-center text-gray-300 italic">
                   {t("history.noData")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+              <div className="overflow-x-auto">
+        <table className="w-full text-left">
+        </table>
+      </div>
+      {/* ✅ Pagination */}
+        <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-end gap-2">
+          <button
+            onClick={onPrev}
+            disabled={page <= 1}
+            className={`p-2 rounded-xl border text-slate-700 transition-all ${
+              page <= 1
+                ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
+                : "bg-white border-gray-200 hover:bg-gray-50"
+            }`}
+            title="Prev"
+          >
+            <ChevronLeft size={16} />
+          </button>
+
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            Page {page} / {totalPages}
+          </div>
+
+          <button
+            onClick={onNext}
+            disabled={page >= totalPages}
+            className={`p-2 rounded-xl border text-slate-700 transition-all ${
+              page >= totalPages
+                ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
+                : "bg-white border-gray-200 hover:bg-gray-50"
+            }`}
+            title="Next"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );
