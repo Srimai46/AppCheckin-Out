@@ -1,3 +1,4 @@
+// backend/src/app.js
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -42,6 +43,7 @@ const leaveRoutes = require("./routes/leaveRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const employeeRoutes = require("./routes/employeeRoute");
 const auditRoutes = require("./routes/auditRoutes");
+const holidayRoutes = require("./routes/holidayRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/attendance", timeRecordRoutes);
@@ -49,6 +51,7 @@ app.use("/api/leaves", leaveRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/activity-view", auditRoutes); // Cron Jobs
+app.use("/api/holidays", holidayRoutes);
 const { startCarryOverJob } = require("./jobs/carryOverJob");
 startCarryOverJob();
 
