@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
+// Controller หลักเกี่ยวกับการลา
 const {
   getMyLeaves,
   getMyQuotas,
@@ -16,10 +17,15 @@ const {
   reopenYear,
 } = require("../controllers/leaveController");
 
-const { protect, authorize } = require("../middlewares/authMiddleware");
-const { uploadLeaveAttachment } = require("../middlewares/uploadMiddleware");
+// ✅ Import Controller จัดการประเภทวันลา (ที่เราเพิ่งสร้าง)
+const {
+  getAllLeaveTypes,
+  createLeaveType,
+  updateLeaveType,
+  deleteLeaveType
+} = require("../controllers/leaveTypeController");
 
-// ✅ ดึงฟังก์ชันจัดการวันหยุดมาจากไฟล์ที่ถูกต้อง
+// Controller จัดการวันหยุด
 const { 
   createHoliday, 
   getHolidays, 
@@ -27,7 +33,28 @@ const {
   updateHoliday 
 } = require("../controllers/holidayController");
 
-// ---------------- Worker ----------------
+const { protect, authorize } = require("../middlewares/authMiddleware");
+const { uploadLeaveAttachment } = require("../middlewares/uploadMiddleware");
+
+// ============================================================
+// ---------------- Leave Type Management (จัดการประเภทวันลา) ----------------
+// ============================================================
+// GET: ดึงประเภทวันลาทั้งหมด (พนักงานทุกคนต้องเห็น เพื่อเลือกตอนลา)
+router.get("/types", protect, getAllLeaveTypes);
+
+// POST: สร้างประเภทวันลาใหม่ (เฉพาะ HR)
+router.post("/types", protect, authorize("HR"), createLeaveType);
+
+// PUT: แก้ไขประเภทวันลา (เฉพาะ HR)
+router.put("/types/:id", protect, authorize("HR"), updateLeaveType);
+
+// DELETE: ลบประเภทวันลา (เฉพาะ HR)
+router.delete("/types/:id", protect, authorize("HR"), deleteLeaveType);
+
+
+// ============================================================
+// ---------------- Worker (พนักงานทั่วไป) ----------------
+// ============================================================
 router.get("/my-quota", protect, getMyQuotas);
 router.get("/my-history", protect, getMyLeaves);
 
@@ -38,7 +65,9 @@ router.post(
   createLeaveRequest 
 );
 
-// ---------------- HR ----------------
+// ============================================================
+// ---------------- HR (ผู้ดูแลระบบ) ----------------
+// ============================================================
 router.get("/", protect, authorize("HR"), getAllLeaves);
 router.get("/pending", protect, authorize("HR"), getPendingRequests);
 router.patch("/status", protect, authorize("HR"), updateLeaveStatus);
@@ -49,7 +78,9 @@ router.put("/policy/quotas/:employeeId", protect, authorize("HR"), updateEmploye
 router.get("/system-configs", protect, authorize("HR"), getSystemConfigs);
 router.post("/reopen-year", protect, authorize("HR"), reopenYear);
 
-// ---------------- Holiday Management ----------------
+// ============================================================
+// ---------------- Holiday Management (จัดการวันหยุด) ----------------
+// ============================================================
 router.get("/holidays", protect, getHolidays); 
 router.post("/holidays", protect, authorize("HR"), createHoliday); 
 router.delete("/holidays/:id", protect, authorize("HR"), deleteHoliday); 

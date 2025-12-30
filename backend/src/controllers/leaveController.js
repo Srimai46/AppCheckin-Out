@@ -236,6 +236,12 @@ exports.createLeaveRequest = async (req, res) => {
     const { type, startDate, endDate, reason, startDuration, endDuration } = req.body;
     const userId = req.user.id;
 
+    // 0. ดึงข้อมูลคนทำรายการ (เพื่อเอาชื่อไปใส่ Socket/Log)
+    const requesterUser = await prisma.employee.findUnique({
+      where: { id: userId },
+      select: { firstName: true, lastName: true, email: true }
+    });
+
     const start = new Date(startDate);
     const end = new Date(endDate);
     const year = start.getFullYear();
@@ -271,13 +277,17 @@ exports.createLeaveRequest = async (req, res) => {
 
     // 5. ตรวจสอบวันหยุด
     if (totalDaysRequested <= 0) {
-      return res.status(400).json({ error: "ไม่สามารถส่งคำขอลาได้ เนื่องจากวันที่คุณเลือกเป็นวันหยุดทั้งหมด" });
+      return res.status(400).json({ error: "Cannot request leave as the selected dates are all holidays." });
     }
 
-    // 6. ตรวจสอบเงื่อนไขลาติดต่อกัน
-    const maxConsecutive = Number(leaveType.maxConsecutiveDays ?? 0);
+    // 6. ตรวจสอบเงื่อนไขลาติดต่อกัน (Custom Consecutive Limit)
+    // ถ้าเป็น 0 หรือ null แปลว่า "ไม่จำกัด" (Unlimited)
+    const maxConsecutive = leaveType.maxConsecutiveDays ? Number(leaveType.maxConsecutiveDays) : 0;
+    
     if (maxConsecutive > 0 && totalDaysRequested > maxConsecutive) {
-      return res.status(400).json({ error: `You cannot take ${type} leave for more than ${maxConsecutive} consecutive days.` });
+      return res.status(400).json({ 
+        error: `Policy Violation: You cannot take "${type}" for more than ${maxConsecutive} consecutive working days.` 
+      });
     }
 
     const attachmentUrl = req.file ? `/uploads/leaves/${req.file.filename}` : null;
@@ -299,11 +309,14 @@ exports.createLeaveRequest = async (req, res) => {
         where: { employeeId_leaveTypeId_year: { employeeId: userId, leaveTypeId: leaveType.id, year } },
       });
 
-      if (!quota) throw new Error(`No leave quota found for ${type} in ${year}.`);
+      // Special Type อาจไม่มี Quota ปกติ (ข้ามการเช็คได้ถ้าต้องการ หรือต้องมี Quota 0)
+      if (type !== "Special") {
+         if (!quota) throw new Error(`No leave quota found for ${type} in ${year}.`);
 
-      const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
-      if (remaining < totalDaysRequested) {
-        throw new Error(`Insufficient balance. You have ${remaining} days left.`);
+         const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
+         if (remaining < totalDaysRequested) {
+           throw new Error(`Insufficient balance. You have ${remaining} days left.`);
+         }
       }
 
       // 7.1 สร้างบันทึกใบลา
@@ -323,20 +336,28 @@ exports.createLeaveRequest = async (req, res) => {
         include: { employee: true, leaveType: true },
       });
 
-      const auditDetails = `Submitted ${type} leave request for ${totalDaysRequested} days`;
+      // จัด Format Log ให้สวยงาม (Clean Data)
+      const cleanNewValue = {
+          requestId: newLeave.id,
+          type: type,
+          from: start.toISOString().split('T')[0],
+          to: end.toISOString().split('T')[0],
+          days: totalDaysRequested,
+          reason: reason,
+          status: "Pending"
+      };
+
+      const auditDetails = `Submitted ${type} request (${totalDaysRequested} days)`;
 
       // 7.2 บันทึก Audit Log ลง DB
-      await tx.auditLog.create({
-        data: {
-          action: "CREATE",
-          modelName: "LeaveRequest",
-          recordId: newLeave.id,
-          performedById: userId,
-          details: auditDetails,
-          newValue: newLeave,
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent"),
-        },
+      await auditLog(tx, {
+        action: "CREATE",
+        modelName: "LeaveRequest",
+        recordId: newLeave.id,
+        userId: userId,
+        details: auditDetails,
+        newValue: cleanNewValue, // 🔥 ใช้ข้อมูลที่จัด Format แล้ว
+        req: req,
       });
 
       // 8. เตรียมข้อมูลแจ้งเตือน HR
@@ -352,6 +373,7 @@ exports.createLeaveRequest = async (req, res) => {
       const fullName = `${newLeave.employee.firstName} ${newLeave.employee.lastName}`;
       const notificationMsg = `${fullName} requested ${type} leave for ${totalDaysRequested} days.`;
 
+      const adminUpdates = [];
       if (admins.length > 0) {
         await tx.notification.createMany({
           data: admins.map((admin) => ({
@@ -362,17 +384,23 @@ exports.createLeaveRequest = async (req, res) => {
           })),
         });
 
-        const adminUpdates = await Promise.all(
-          admins.map(async (admin) => {
-            const count = await tx.notification.count({
-              where: { employeeId: admin.id, isRead: false },
-            });
-            return { adminId: admin.id, unreadCount: count };
-          })
-        );
-        return { newLeave, adminUpdates, message: notificationMsg, totalPendingCount, auditDetails };
+        // เตรียมข้อมูลส่ง Socket ให้ Admin แต่ละคน
+        for (const admin of admins) {
+           const count = await tx.notification.count({
+             where: { employeeId: admin.id, isRead: false },
+           });
+           adminUpdates.push({ adminId: admin.id, unreadCount: count });
+        }
       }
-      return { newLeave, adminUpdates: [], totalPendingCount, auditDetails };
+
+      return { 
+          newLeave, 
+          cleanNewValue, // ส่งกลับไปใช้ใน Socket
+          adminUpdates, 
+          message: notificationMsg, 
+          totalPendingCount, 
+          auditDetails 
+      };
     });
 
     // 🚀 8. Real-time Notification & Audit Log
@@ -395,19 +423,19 @@ exports.createLeaveRequest = async (req, res) => {
         });
       }
 
-      // ============================================================
-      // ✅ 8.3 ส่ง Real-time Audit Log (เพื่อให้หน้า System Activities เด้ง)
-      // ============================================================
+      // 8.3 ส่ง Real-time Audit Log
       io.emit("new-audit-log", {
         id: Date.now(),
         action: "CREATE", // สีเขียว
         modelName: "LeaveRequest",
         recordId: result.newLeave.id,
         performedBy: {
-            firstName: req.user.firstName,
-            lastName: req.user.lastName
+            // ใช้ชื่อจริงจาก DB ที่ดึงมาตอนต้น
+            firstName: requesterUser?.firstName || "Unknown",
+            lastName: requesterUser?.lastName || ""
         },
-        details: result.auditDetails, // ใช้ข้อความเดียวกับใน DB
+        details: result.auditDetails,
+        newValue: result.cleanNewValue, // ส่งข้อมูลสวยๆ ให้ Frontend
         createdAt: new Date()
       });
     }
@@ -415,6 +443,273 @@ exports.createLeaveRequest = async (req, res) => {
     res.status(201).json({ message: "Request submitted.", data: result.newLeave });
   } catch (error) {
     console.error("CreateLeaveRequest Error:", error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+exports.createLeaveType = async (req, res) => {
+  try {
+    const { typeName, isPaid, maxCarryOver, maxConsecutiveDays } = req.body;
+    const adminId = req.user.id;
+
+    // Validation ง่ายๆ
+    if (!typeName) return res.status(400).json({ error: "Type name is required." });
+
+    // หาข้อมูล Admin
+    const adminUser = await prisma.employee.findUnique({
+      where: { id: adminId },
+      select: { firstName: true, lastName: true }
+    });
+
+    const result = await prisma.$transaction(async (tx) => {
+      // เช็คชื่อซ้ำ
+      const existing = await tx.leaveType.findUnique({ where: { typeName } });
+      if (existing) throw new Error(`Leave type "${typeName}" already exists.`);
+
+      // สร้างข้อมูล
+      const newType = await tx.leaveType.create({
+        data: {
+          typeName,
+          isPaid: isPaid ?? true, // Default เป็นจ่ายเงิน
+          maxCarryOver: maxCarryOver ? parseFloat(maxCarryOver) : 0,
+          maxConsecutiveDays: maxConsecutiveDays ? parseInt(maxConsecutiveDays) : 0,
+        },
+      });
+
+      const logDetails = `Created new leave type: ${typeName}`;
+
+      // จัด Format Log
+      const cleanNewValue = {
+          id: newType.id,
+          name: newType.typeName,
+          isPaid: newType.isPaid ? "Yes" : "No",
+          maxConsecutive: newType.maxConsecutiveDays || "Unlimited",
+          maxCarryOver: newType.maxCarryOver
+      };
+
+      // บันทึก Audit Log
+      await auditLog(tx, {
+        action: "CREATE",
+        modelName: "LeaveType",
+        recordId: newType.id,
+        userId: adminId,
+        details: logDetails,
+        newValue: cleanNewValue,
+        req: req
+      });
+
+      return { newType, logDetails, cleanNewValue };
+    });
+
+    // Socket
+    const io = req.app.get("io");
+    if (io) {
+        io.emit("notification_refresh");
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "CREATE",
+            modelName: "LeaveType",
+            recordId: result.newType.id,
+            performedBy: {
+                firstName: adminUser?.firstName || "Unknown",
+                lastName: adminUser?.lastName || ""
+            },
+            details: result.logDetails,
+            newValue: result.cleanNewValue,
+            createdAt: new Date()
+        });
+    }
+
+    res.status(201).json({ message: "Leave type created.", data: result.newType });
+
+  } catch (error) {
+    console.error("createLeaveType Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateLeaveType = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { maxConsecutiveDays, maxCarryOver, isPaid } = req.body;
+    const adminId = req.user.id;
+    const typeId = parseInt(id);
+
+    // 1. หาข้อมูล Admin
+    const adminUser = await prisma.employee.findUnique({
+      where: { id: adminId },
+      select: { firstName: true, lastName: true }
+    });
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 2. ดึงข้อมูลเก่า
+      const oldType = await tx.leaveType.findUnique({
+        where: { id: typeId }
+      });
+
+      if (!oldType) throw new Error("Leave type not found.");
+
+      // 3. เตรียมข้อมูลที่จะอัปเดต (✅ เพิ่ม Validation กันค่า NaN)
+      const dataToUpdate = {};
+      
+      if (maxConsecutiveDays !== undefined) {
+        const val = parseInt(maxConsecutiveDays);
+        if (!isNaN(val)) dataToUpdate.maxConsecutiveDays = val;
+      }
+
+      if (maxCarryOver !== undefined) {
+        const val = parseFloat(maxCarryOver);
+        if (!isNaN(val)) dataToUpdate.maxCarryOver = val;
+      }
+
+      if (isPaid !== undefined) {
+        // แปลงเป็น Boolean ให้ชัวร์ (เผื่อส่งมาเป็น string "true"/"false")
+        dataToUpdate.isPaid = String(isPaid) === "true" || isPaid === true;
+      }
+
+      // 4. อัปเดตลง Database
+      const updatedType = await tx.leaveType.update({
+        where: { id: typeId },
+        data: dataToUpdate,
+      });
+
+      // 5. สร้าง Log
+      const changes = [];
+      
+      // เทียบ Max Consecutive
+      if (dataToUpdate.maxConsecutiveDays !== undefined && dataToUpdate.maxConsecutiveDays !== oldType.maxConsecutiveDays) {
+         const oldVal = oldType.maxConsecutiveDays === 0 ? "Unlimited" : `${oldType.maxConsecutiveDays} days`;
+         const newVal = dataToUpdate.maxConsecutiveDays === 0 ? "Unlimited" : `${dataToUpdate.maxConsecutiveDays} days`;
+         changes.push(`Consecutive Limit: ${oldVal} -> ${newVal}`);
+      }
+      
+      // เทียบ Carry Over (ระวังเรื่อง Prisma Decimal)
+      if (dataToUpdate.maxCarryOver !== undefined && Number(dataToUpdate.maxCarryOver) !== Number(oldType.maxCarryOver)) {
+         changes.push(`Max Carry Over: ${Number(oldType.maxCarryOver)} -> ${Number(dataToUpdate.maxCarryOver)}`);
+      }
+
+      // เทียบ isPaid (แถมให้)
+      if (dataToUpdate.isPaid !== undefined && dataToUpdate.isPaid !== oldType.isPaid) {
+         changes.push(`Paid Status: ${oldType.isPaid ? 'Paid' : 'Unpaid'} -> ${dataToUpdate.isPaid ? 'Paid' : 'Unpaid'}`);
+      }
+
+      const logDetails = `Updated policy for ${oldType.typeName}: ${changes.join(", ")}`;
+
+      // 6. Audit Log (อย่าลืม import auditLog helper มาด้วยนะครับ)
+      await auditLog(tx, {
+        action: "UPDATE",
+        modelName: "LeaveType",
+        recordId: typeId,
+        userId: adminId,
+        details: changes.length > 0 ? logDetails : `Updated ${oldType.typeName} (No critical changes)`,
+        newValue: {
+            typeName: updatedType.typeName,
+            policyChanges: changes,
+            updatedConfig: dataToUpdate
+        },
+        req: req
+      });
+
+      return { updatedType, logDetails, changes };
+    });
+
+    // 7. Socket
+    const io = req.app.get("io");
+    if (io) {
+        io.emit("notification_refresh");
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "UPDATE",
+            modelName: "LeaveType",
+            recordId: typeId,
+            performedBy: {
+                firstName: adminUser?.firstName || "Unknown",
+                lastName: adminUser?.lastName || ""
+            },
+            details: result.logDetails,
+            newValue: { changes: result.changes },
+            createdAt: new Date()
+        });
+    }
+
+    res.json({ message: "Leave type updated.", data: result.updatedType });
+
+  } catch (error) {
+    console.error("updateLeaveType Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.deleteLeaveType = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user.id;
+    const typeId = parseInt(id);
+
+    const adminUser = await prisma.employee.findUnique({
+      where: { id: adminId },
+      select: { firstName: true, lastName: true }
+    });
+
+    const result = await prisma.$transaction(async (tx) => {
+      // เช็คว่ามีอยู่จริงไหม
+      const targetType = await tx.leaveType.findUnique({ where: { id: typeId } });
+      if (!targetType) throw new Error("Leave type not found.");
+
+      // 🛑 Guard: เช็คว่ามีการใช้งานไปแล้วหรือยัง (ใน LeaveRequest)
+      // ถ้ามีคนเคยลาประเภทนี้แล้ว ห้ามลบ! (เพื่อรักษาประวัติ)
+      const usageCount = await tx.leaveRequest.count({ where: { leaveTypeId: typeId } });
+      if (usageCount > 0) {
+        throw new Error(`Cannot delete "${targetType.typeName}" because it has ${usageCount} related leave requests. Please disable/rename it instead.`);
+      }
+
+      // ลบ Quota ของพนักงานทุกคนที่ผูกกับ Type นี้ก่อน (ไม่งั้นจะติด FK)
+      await tx.leaveQuota.deleteMany({ where: { leaveTypeId: typeId } });
+      
+      // ลบ Special Grant ที่เกี่ยวข้อง (ถ้ามี)
+      await tx.specialLeaveGrant.deleteMany({ where: { leaveTypeId: typeId } });
+
+      // ลบตัว Type จริงๆ
+      await tx.leaveType.delete({ where: { id: typeId } });
+
+      const logDetails = `Deleted leave type: ${targetType.typeName}`;
+
+      // บันทึก Audit Log
+      await auditLog(tx, {
+        action: "DELETE", // จะโชว์สีแดง
+        modelName: "LeaveType",
+        recordId: typeId,
+        userId: adminId,
+        details: logDetails,
+        oldValue: { name: targetType.typeName }, // เก็บชื่อไว้ดูต่างหน้า
+        req: req
+      });
+
+      return { logDetails, typeName: targetType.typeName };
+    });
+
+    // Socket
+    const io = req.app.get("io");
+    if (io) {
+        io.emit("notification_refresh");
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "DELETE", // สีแดง
+            modelName: "LeaveType",
+            recordId: typeId,
+            performedBy: {
+                firstName: adminUser?.firstName || "Unknown",
+                lastName: adminUser?.lastName || ""
+            },
+            details: result.logDetails,
+            createdAt: new Date()
+        });
+    }
+
+    res.json({ message: `Leave type "${result.typeName}" deleted successfully.` });
+
+  } catch (error) {
+    console.error("deleteLeaveType Error:", error);
     res.status(400).json({ error: error.message });
   }
 };

@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+// อย่าลืมลง library นี้: npm install socket.io-client
+import { io } from "socket.io-client"; 
 import { alertConfirm, alertError, alertSuccess } from "../../../utils/sweetAlert";
 import { escapeHtml } from "../utils";
 import { getSystemConfigs, processCarryOver, reopenYear } from "../../../api/leaveService";
@@ -33,8 +35,27 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
     }
   };
 
+  // ✅ 1. โหลดข้อมูลครั้งแรก + เชื่อมต่อ Socket เพื่อรอฟังการอัปเดตจากเครื่องอื่น
   useEffect(() => {
     fetchConfigs();
+
+    // ตั้งค่า Socket URL (ใช้ค่าเดียวกับที่ตั้งไว้ในไฟล์ config อื่นๆ)
+    const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(/\/$/, "");
+    
+    const socket = io(API_URL, { 
+      withCredentials: true,
+      transports: ["websocket", "polling"]
+    });
+
+    // เมื่อ Backend บอกให้รีเฟรช (เช่น มีการ Lock ปีงบประมาณสำเร็จ)
+    socket.on("notification_refresh", () => {
+      console.log("🔄 System config updated via socket");
+      fetchConfigs();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const buildProcessConfirmHtml = () => {
@@ -73,7 +94,7 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
         </div>
         </div>
     `.trim();
-    };
+  };
 
   const handleProcess = async () => {
     if (loading) return;
@@ -87,10 +108,11 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
 
     setLoading(true);
     try {
+      // ✅ 2. แก้ไขชื่อ Parameter ตรงนี้ให้ตรงกับ Backend (carryConfigs)
       const res = await processCarryOver({
         targetYear: Number(targetYear),
         quotas,
-        carryOverLimits: carryOverLimitsRef?.current || {},
+        carryConfigs: carryOverLimitsRef?.current || {}, // แก้จาก carryOverLimits เป็น carryConfigs
       });
 
       await alertSuccess(
