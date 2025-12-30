@@ -2,12 +2,15 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { checkIn, checkOut, getMyHistory } from "../api/attendanceService";
 import { getMyQuotas, getMyLeaves } from "../api/leaveService";
-import { LogIn, LogOut, Calendar, ChevronDown, Loader2 } from "lucide-react"; // เพิ่ม Loader2
+import { LogIn, LogOut, Calendar, ChevronDown, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 import { useTranslation } from "react-i18next";
 
 import { QuotaCards, HistoryTable } from "../components/shared";
+import EditLeaveModal from "../components/shared/EditLeaveModal"; // ✅ เพิ่ม
+
+import api from "../api/axios"; // ✅ สำหรับยิง update leave ใน modal
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -15,12 +18,16 @@ export default function Dashboard() {
   const { t, i18n } = useTranslation();
 
   const [time, setTime] = useState(new Date());
-  const [data, setData] = useState({ att: [], quotas: [], leaves: [] });
+  const [data, setData] = useState({ att: [], quotas: [], leaves: [], leaveSummary: [] });
   const [activeTab, setActiveTab] = useState("attendance");
-  const [isProcessing, setIsProcessing] = useState(false); // ✅ เพิ่มสถานะโหลดขณะส่งข้อมูล
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [yearOpen, setYearOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  // ✅ Modal state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingLeave, setEditingLeave] = useState(null);
 
   /* -------------------- Year List Logic -------------------- */
   const currentYear = new Date().getFullYear();
@@ -28,20 +35,15 @@ export default function Dashboard() {
   const formatYear = (year, lang) => (lang === "th" ? year + 543 : year);
 
   const years = useMemo(() => {
-    const yearsFromHistory = data.att
+    const yearsFromHistory = (data.att || [])
       .map((r) => new Date(r.date || r.dateDisplay).getFullYear())
       .filter(Boolean);
 
-    const maxYear = Math.max(currentYear, ...yearsFromHistory);
+    const maxYear = Math.max(currentYear, ...(yearsFromHistory.length ? yearsFromHistory : [currentYear]));
 
-    const futureYears = Array.from(
-      { length: FUTURE_YEARS },
-      (_, i) => maxYear + 1
-    );
+    const futureYears = Array.from({ length: FUTURE_YEARS }, (_, i) => maxYear + 1 + i);
 
-    return [
-      ...new Set([...yearsFromHistory, currentYear, ...futureYears]),
-    ].sort((a, b) => a - b);
+    return [...new Set([...yearsFromHistory, currentYear, ...futureYears])].sort((a, b) => a - b);
   }, [data.att, currentYear]);
 
   /* --------------------------------------------------------- */
@@ -55,22 +57,18 @@ export default function Dashboard() {
   const fetchData = useCallback(
     async (year) => {
       try {
-        const [h, q, l] = await Promise.all([
-          getMyHistory(),
-          getMyQuotas(year),
-          getMyLeaves(),
-        ]);
+        const [h, q, l] = await Promise.all([getMyHistory(), getMyQuotas(year), getMyLeaves()]);
 
         setData({
-        att: Array.isArray(h) ? h : h?.data || [],
-        quotas: Array.isArray(q) ? q : q?.data || [],
-        leaves: l?.history || [], 
-        leaveSummary: l?.summary || [] 
-      });
+          att: Array.isArray(h) ? h : h?.data || [],
+          quotas: Array.isArray(q) ? q : q?.data || [],
+          leaves: l?.history || [],
+          leaveSummary: l?.summary || [],
+        });
       } catch (err) {
         console.error(err);
         alertError(t("common.error"), t("dashboard.loadFail"));
-        setData({ att: [], quotas: [], leaves: [] });
+        setData({ att: [], quotas: [], leaves: [], leaveSummary: [] });
       }
     },
     [t]
@@ -85,19 +83,15 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // ✅ ฟังก์ชันดึงพิกัด GPS แบบ Promise
-  const getCoordinates = () => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        return reject(new Error("Geolocation not supported"));
-      }
+  const getCoordinates = () =>
+    new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error("Geolocation not supported"));
       navigator.geolocation.getCurrentPosition(
         (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         (err) => reject(err),
         { enableHighAccuracy: true, timeout: 5000 }
       );
     });
-  };
 
   const handleAction = async (type) => {
     const confirmed = await alertConfirm(
@@ -109,38 +103,59 @@ export default function Dashboard() {
 
     if (!confirmed) return;
 
-    setIsProcessing(true); // เริ่มกระบวนการ
+    setIsProcessing(true);
 
     try {
-      // 1. ดึงพิกัด GPS
       let location = null;
       try {
         location = await getCoordinates();
       } catch (geoErr) {
         console.warn("GPS Access Denied/Failed:", geoErr.message);
-        // หากนโยบายบริษัทบังคับใช้ GPS ให้เปิดคอมเมนต์บรรทัดล่างนี้:
-        // throw new Error("Please enable GPS to proceed.");
       }
 
-      // 2. ส่งข้อมูลไปยัง Backend
-      const res = type === "in" 
-        ? await checkIn({ location }) 
-        : await checkOut({ location });
+      const res = type === "in" ? await checkIn({ location }) : await checkOut({ location });
 
       await alertSuccess(t("common.success"), res?.message || "");
       fetchData(selectedYear);
     } catch (err) {
       console.error(err);
-      // ✅ แก้ไขการดึง Message: ตรวจเช็คทั้ง message และ error จาก Backend
-      const errorMsg = 
-        err?.response?.data?.message || 
-        err?.response?.data?.error || 
-        err?.message || 
-        t("common.error");
-
+      const errorMsg =
+        err?.response?.data?.message || err?.response?.data?.error || err?.message || t("common.error");
       alertError(t("common.error"), errorMsg);
     } finally {
-      setIsProcessing(false); // สิ้นสุดกระบวนการ
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSaveEditLeave = async (payload) => {
+    try {
+      // payload: { id, startDate, endDate, reason, startDuration, endDuration, attachmentFile }
+      const fd = new FormData();
+      fd.append("startDate", payload.startDate);
+      fd.append("endDate", payload.endDate);
+      fd.append("reason", payload.reason || "");
+      fd.append("startDuration", payload.startDuration);
+      fd.append("endDuration", payload.endDuration);
+      if (payload.attachmentFile) fd.append("attachment", payload.attachmentFile);
+
+      const res = await api.patch(`/leaves/${payload.id}`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      await alertSuccess("Updated", "Leave request updated successfully.");
+
+      // ✅ อัปเดต row ในตารางแบบทันที (หรือจะ fetchData ก็ได้)
+      const updated = res?.data?.data || res?.data; // รองรับหลายรูปแบบ
+      setData((prev) => ({
+        ...prev,
+        leaves: (prev.leaves || []).map((x) => (x.id === payload.id ? { ...x, ...updated } : x)),
+      }));
+
+      setEditOpen(false);
+      setEditingLeave(null);
+    } catch (err) {
+      console.error(err);
+      alertError("Update failed", err?.response?.data?.error || err?.response?.data?.message || err.message);
     }
   };
 
@@ -156,15 +171,10 @@ export default function Dashboard() {
     <div className="max-w-6xl mx-auto p-6 space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-black text-slate-800">
-          {t("dashboard.title")}
-        </h1>
+        <h1 className="text-3xl font-black text-slate-800">{t("dashboard.title")}</h1>
 
         <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest">
-          {t("dashboard.welcome", {
-            firstName: user?.firstName,
-            lastName: user?.lastName,
-          })}
+          {t("dashboard.welcome", { firstName: user?.firstName, lastName: user?.lastName })}
         </p>
 
         <p className="text-xs text-blue-600 font-black mt-2">
@@ -189,13 +199,9 @@ export default function Dashboard() {
           >
             <div className="flex justify-between items-center">
               <span>
-                {t("dashboard.year")}{" "}
-                {formatYear(selectedYear, i18n.language)}
+                {t("dashboard.year")} {formatYear(selectedYear, i18n.language)}
               </span>
-              <ChevronDown
-                size={18}
-                className={`transition-transform ${yearOpen ? "rotate-180" : ""}`}
-              />
+              <ChevronDown size={18} className={`transition-transform ${yearOpen ? "rotate-180" : ""}`} />
             </div>
           </button>
 
@@ -259,6 +265,30 @@ export default function Dashboard() {
         attendanceData={data.att}
         leaveData={data.leaves}
         buildFileUrl={buildFileUrl}
+        onEditLeave={(leave) => {
+          // ✅ เปิด popup
+          setEditingLeave(leave);
+          setEditOpen(true);
+        }}
+        onDeletedLeaveSuccess={(deletedLeave) => {
+          // ✅ ตัด row ออกทันที
+          if (!deletedLeave?.id) return;
+          setData((prev) => ({
+            ...prev,
+            leaves: (prev.leaves || []).filter((x) => x.id !== deletedLeave.id),
+          }));
+        }}
+      />
+
+      {/* ✅ POPUP EDIT */}
+      <EditLeaveModal
+        open={editOpen}
+        leave={editingLeave}
+        onClose={() => {
+          setEditOpen(false);
+          setEditingLeave(null);
+        }}
+        onSave={handleSaveEditLeave}
       />
     </div>
   );

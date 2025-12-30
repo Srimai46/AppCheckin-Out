@@ -1,7 +1,15 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { History, FileText, Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  History,
+  FileText,
+  Image as ImageIcon,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { openAttachment } from "../../utils/attachmentPreview";
+import api from "../../api/axios";
+import { alertConfirm, alertSuccess, alertError } from "../../utils/sweetAlert";
 
 const PAGE_SIZE = 5;
 
@@ -11,6 +19,8 @@ export default function HistoryTable({
   attendanceData = [],
   leaveData = [],
   buildFileUrl,
+  onEditLeave, // function(leave) -> เปิดหน้า/โมดัลแก้ไข
+  onDeletedLeaveSuccess, // function() -> callback หลังลบสำเร็จ
 }) {
   const { t } = useTranslation();
 
@@ -23,7 +33,7 @@ export default function HistoryTable({
       case "Cancelled":
         return "bg-slate-50 text-slate-600 border-slate-100";
       default:
-        return "bg-amber-50 text-amber-600 border-amber-100";
+        return "bg-amber-50 text-amber-600 border-amber-100"; // Pending / Withdraw_Pending etc.
     }
   };
 
@@ -47,7 +57,7 @@ export default function HistoryTable({
   }, [data, page]);
 
   const calcLeaveDays = (leave) => {
-    const raw = leave?.totalDaysRequested ?? leave?.days;
+    const raw = leave?.totalDaysRequested ?? leave?.days ?? leave?.totalDays;
     const n = Number(raw);
     if (Number.isFinite(n) && n > 0) return n;
 
@@ -85,7 +95,11 @@ export default function HistoryTable({
 
     const start = row?.standardConfig?.start || "09:00";
     const inRaw =
-      row?.checkInTimeDisplay || row?.checkInDisplay || row?.checkIn || row?.checkInTime || null;
+      row?.checkInTimeDisplay ||
+      row?.checkInDisplay ||
+      row?.checkIn ||
+      row?.checkInTime ||
+      null;
 
     const inM = toMinutes(inRaw);
     const startM = toMinutes(start);
@@ -98,7 +112,7 @@ export default function HistoryTable({
   const onPrev = () => setPage((p) => Math.max(1, p - 1));
   const onNext = () => setPage((p) => Math.min(totalPages, p + 1));
 
-  // ✅ helper: Signed by (คนอนุมัติ/ปฏิเสธ)
+  // ✅ Signed By (คนลงนาม)
   const getSignedBy = (leave) => {
     // backend ของคุณส่ง approverName มาแล้ว (ดีที่สุด)
     if (leave?.approverName) return leave.approverName;
@@ -111,11 +125,40 @@ export default function HistoryTable({
     if (typeof leave?.approvedBy === "string") return leave.approvedBy;
     if (typeof leave?.rejectedBy === "string") return leave.rejectedBy;
 
-    // ถ้า pending
+    // pending
     if (String(leave?.status || "").toLowerCase() === "pending") return "Waiting for HR";
 
     return "-";
   };
+
+  // ✅ Delete (ใช้ cancel endpoint)
+  const handleDeleteLeave = async (leave) => {
+    try {
+      if (!leave?.id) return;
+
+      const ok = await alertConfirm(
+        "Delete leave request?",
+        `Are you sure you want to delete this request?<br/>
+         <b>${leave?.leaveType?.typeName || leave?.type || "-"}</b>`,
+        "Delete"
+      );
+      if (!ok) return;
+
+      await api.patch(`/leaves/${leave.id}/cancel`, {
+        cancelReason: "User deleted request",
+      });
+
+      await alertSuccess("Deleted", "Leave request deleted successfully.");
+      onDeletedLeaveSuccess?.(leave);
+    } catch (err) {
+      alertError(
+        "Delete failed",
+        err?.response?.data?.error || err?.response?.data?.message || err.message
+      );
+    }
+  };
+
+  const isPending = (status) => String(status || "").toLowerCase() === "pending";
 
   return (
     <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
@@ -171,11 +214,9 @@ export default function HistoryTable({
                 <th className="px-6 py-4 text-center">{t("history.days")}</th>
                 <th className="px-6 py-4">{t("history.note")}</th>
                 <th className="px-6 py-4 text-center">{t("history.file")}</th>
-
-                {/* ✅ เพิ่มคอลัมน์ “Signed By” */}
                 <th className="px-6 py-4 text-center">Signed By</th>
-
                 <th className="px-6 py-4 text-center">{t("history.status")}</th>
+                <th className="px-6 py-4 text-center">Actions</th>
               </tr>
             )}
           </thead>
@@ -217,7 +258,7 @@ export default function HistoryTable({
                 })
               ) : (
                 <tr>
-                  <td colSpan="3" className="p-10 text-center text-gray-300 italic">
+                  <td colSpan={3} className="p-10 text-center text-gray-300 italic">
                     {t("history.noData")}
                   </td>
                 </tr>
@@ -258,7 +299,6 @@ export default function HistoryTable({
                       )}
                     </td>
 
-                    {/* ✅ Signed By */}
                     <td className="px-6 py-4 text-center">
                       <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-100 text-[10px] font-black text-slate-700 normal-case">
                         {signedBy}
@@ -270,12 +310,37 @@ export default function HistoryTable({
                         {leave.status}
                       </span>
                     </td>
+
+                    <td className="px-6 py-4 text-center">
+                      {isPending(leave.status) ? (
+                        <div className="inline-flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => onEditLeave?.(leave)}
+                            className="px-3 py-2 rounded-xl border border-yellow-100 bg-yellow-50 text-yellow-700
+                                      text-[10px] font-black uppercase tracking-widest hover:bg-yellow-100 transition active:scale-95"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteLeave(leave)}
+                            className="px-3 py-2 rounded-xl border border-rose-100 bg-rose-50 text-rose-700
+                                      text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition active:scale-95"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })
             ) : (
               <tr>
-                <td colSpan="7" className="p-10 text-center text-gray-300 italic">
+                {/* ✅ ต้องเป็น 8 คอลัมน์ (Leave table มี 8 ช่อง) */}
+                <td colSpan={8} className="p-10 text-center text-gray-300 italic">
                   {t("history.noData")}
                 </td>
               </tr>
@@ -283,7 +348,7 @@ export default function HistoryTable({
           </tbody>
         </table>
 
-        {/* ✅ Pagination */}
+        {/* Pagination */}
         <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-end gap-2">
           <button
             onClick={onPrev}

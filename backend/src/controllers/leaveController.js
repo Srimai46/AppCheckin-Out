@@ -584,6 +584,245 @@ exports.cancelLeaveRequest = async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 };
+
+// 4. Worker: แก้ไขใบลา (เฉพาะ Pending เท่านั้น)
+exports.updateLeaveRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const leaveId = parseInt(id, 10);
+    const userId = req.user.id;
+
+    if (!Number.isFinite(leaveId) || leaveId <= 0) {
+      return res.status(400).json({ error: "Invalid leave ID" });
+    }
+
+    const {
+      type,
+      startDate,
+      endDate,
+      reason,
+      startDuration,
+      endDuration,
+    } = req.body;
+
+    // ✅ ต้องส่งวันเริ่ม-วันสิ้นสุด
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+
+    if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ error: "Incorrect date format." });
+    }
+    if (start > end) {
+      return res.status(400).json({ error: "Start date cannot be after end date." });
+    }
+
+    const year = start.getFullYear();
+
+    // ✅ 1) เช็คปีถูก lock ไหม
+    const config = await prisma.systemConfig.findUnique({ where: { year } });
+    if (config?.isClosed) {
+      return res.status(403).json({ error: `System for ${year} is locked for processing.` });
+    }
+
+    // ✅ 2) ดึงใบลาเดิม + ตรวจ ownership
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: leaveId },
+      include: { leaveType: true, employee: true },
+    });
+
+    if (!oldRequest) return res.status(404).json({ error: "Leave request not found." });
+    if (oldRequest.employeeId !== userId) return res.status(403).json({ error: "Unauthorized." });
+
+    // ✅ 3) อนุญาตแก้ได้เฉพาะ Pending
+    if (oldRequest.status !== "Pending") {
+      return res.status(400).json({ error: `Cannot edit a request with status: ${oldRequest.status}` });
+    }
+
+    // ✅ 4) หา leaveType ใหม่ (ถ้าไม่ส่ง type มา ให้ใช้ของเดิม)
+    const newTypeName = type ? String(type).trim() : oldRequest.leaveType?.typeName;
+    const leaveType = await prisma.leaveType.findUnique({ where: { typeName: newTypeName } });
+    if (!leaveType) return res.status(400).json({ error: "Leave type not found." });
+
+    // ✅ 5) ดึงวันหยุดในช่วงใหม่
+    const queryEnd = new Date(end);
+    queryEnd.setHours(23, 59, 59, 999);
+
+    const holidays = await prisma.holiday.findMany({
+      where: { date: { gte: start, lte: queryEnd } },
+      select: { date: true },
+    });
+    const holidayDates = holidays.map((h) => h.date.toISOString().split("T")[0]);
+
+    // ✅ 6) คำนวณวันลาใหม่
+    const newTotalDaysRequested = calculateTotalDays(
+      start,
+      end,
+      startDuration,
+      endDuration,
+      holidayDates
+    );
+
+    if (newTotalDaysRequested <= 0) {
+      return res.status(400).json({ error: "ไม่สามารถแก้ไขใบลาได้ เนื่องจากวันที่คุณเลือกเป็นวันหยุดทั้งหมด" });
+    }
+
+    // ✅ 7) ตรวจ max consecutive
+    const maxConsecutive = Number(leaveType.maxConsecutiveDays ?? 0);
+    if (maxConsecutive > 0 && newTotalDaysRequested > maxConsecutive) {
+      return res.status(400).json({
+        error: `You cannot take ${leaveType.typeName} leave for more than ${maxConsecutive} consecutive days.`,
+      });
+    }
+
+    // ✅ 8) ถ้ามีไฟล์ใหม่ -> ใช้ไฟล์ใหม่ และเตรียมลบไฟล์เก่า
+    const newAttachmentUrl = req.file ? `/uploads/leaves/${req.file.filename}` : null;
+    const oldAttachmentUrl = oldRequest.attachmentUrl;
+
+    // ✅ 9) Transaction: overlap + quota + update + audit
+    const txResult = await prisma.$transaction(async (tx) => {
+      // 9.1 ตรวจ overlap (ยกเว้นใบเดิม)
+      const overlap = await tx.leaveRequest.findFirst({
+        where: {
+          employeeId: userId,
+          id: { not: leaveId },
+          status: { in: ["Pending", "Approved", "Withdraw_Pending"] },
+          OR: [{ startDate: { lte: end }, endDate: { gte: start } }],
+        },
+      });
+      if (overlap) throw new Error("Overlapping leave request found.");
+
+      // 9.2 ตรวจ quota ของปีใหม่ (ปีจาก start)
+      const quota = await tx.leaveQuota.findUnique({
+        where: {
+          employeeId_leaveTypeId_year: {
+            employeeId: userId,
+            leaveTypeId: leaveType.id,
+            year,
+          },
+        },
+      });
+
+      if (!quota) throw new Error(`No leave quota found for ${leaveType.typeName} in ${year}.`);
+
+      // Pending ใบเดิมยังไม่หัก usedDays อยู่แล้ว
+      const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
+      if (remaining < newTotalDaysRequested) {
+        throw new Error(`Insufficient balance. You have ${remaining} days left.`);
+      }
+
+      const updated = await tx.leaveRequest.update({
+        where: { id: leaveId },
+        data: {
+          leaveTypeId: leaveType.id,
+          startDate: start,
+          endDate: end,
+          totalDaysRequested: newTotalDaysRequested,
+          reason: reason ?? null,
+          startDuration,
+          endDuration,
+          // ถ้ามีไฟล์ใหม่ -> replace, ถ้าไม่มี -> คงเดิม
+          attachmentUrl: newAttachmentUrl ? newAttachmentUrl : oldAttachmentUrl,
+        },
+        include: {
+          leaveType: true,
+          approvedByHr: { select: { firstName: true, lastName: true } },
+        },
+      });
+
+      const auditDetails = `User updated leave request #${leaveId}: ${oldRequest.leaveType?.typeName || "-"} -> ${leaveType.typeName}, ${newTotalDaysRequested} days`;
+
+      await tx.auditLog.create({
+        data: {
+          action: "UPDATE",
+          modelName: "LeaveRequest",
+          recordId: leaveId,
+          performedById: userId,
+          details: auditDetails,
+          oldValue: {
+            leaveTypeId: oldRequest.leaveTypeId,
+            startDate: oldRequest.startDate,
+            endDate: oldRequest.endDate,
+            totalDaysRequested: oldRequest.totalDaysRequested,
+            reason: oldRequest.reason,
+            startDuration: oldRequest.startDuration,
+            endDuration: oldRequest.endDuration,
+            attachmentUrl: oldRequest.attachmentUrl,
+          },
+          newValue: {
+            leaveTypeId: updated.leaveTypeId,
+            startDate: updated.startDate,
+            endDate: updated.endDate,
+            totalDaysRequested: updated.totalDaysRequested,
+            reason: updated.reason,
+            startDuration: updated.startDuration,
+            endDuration: updated.endDuration,
+            attachmentUrl: updated.attachmentUrl,
+          },
+          ipAddress: req.ip,
+          userAgent: req.get("User-Agent"),
+        },
+      });
+
+      return { updated, auditDetails };
+    });
+
+    // ✅ 10) ลบไฟล์เก่าถ้ามีไฟล์ใหม่แทน
+    if (newAttachmentUrl && oldAttachmentUrl) {
+      const fileName = path.basename(oldAttachmentUrl);
+      const fullPath = path.join(process.cwd(), "uploads", "leaves", fileName);
+      if (fs.existsSync(fullPath)) {
+        fs.unlink(fullPath, (err) => {
+          if (err) console.error(`❌ Delete old attachment error: ${fullPath}`, err);
+        });
+      }
+    }
+
+    // ✅ 11) socket audit log
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("new-audit-log", {
+        id: Date.now(),
+        action: "UPDATE",
+        modelName: "LeaveRequest",
+        recordId: leaveId,
+        performedBy: {
+          firstName: req.user.firstName,
+          lastName: req.user.lastName,
+        },
+        details: txResult.auditDetails,
+        createdAt: new Date(),
+      });
+    }
+
+    // ✅ ส่งกลับรูปแบบเดียวกับ getMyLeaves ที่ FE ใช้ (approverName)
+    res.json({
+      message: "Leave request updated.",
+      data: {
+        id: txResult.updated.id,
+        typeName: txResult.updated.leaveType?.typeName,
+        startDate: txResult.updated.startDate,
+        endDate: txResult.updated.endDate,
+        totalDaysRequested: Number(txResult.updated.totalDaysRequested),
+        status: txResult.updated.status,
+        reason: txResult.updated.reason,
+        requestedAt: txResult.updated.requestedAt,
+        approvalDate: txResult.updated.approvalDate,
+        rejectionReason: txResult.updated.rejectionReason,
+        cancelReason: txResult.updated.cancelReason,
+        isSpecialApproved: txResult.updated.isSpecialApproved,
+        approverName: "Waiting for HR",
+        attachmentUrl: txResult.updated.attachmentUrl
+          ? `${process.env.BASE_URL || ""}${txResult.updated.attachmentUrl}`
+          : null,
+      },
+    });
+  } catch (error) {
+    console.error("updateLeaveRequest Error:", error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+
 // ---------------------------------------------------------
 // ส่วนของ HR (จัดการและอนุมัติ)
 // ---------------------------------------------------------
