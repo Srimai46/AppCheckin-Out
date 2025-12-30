@@ -1,5 +1,3 @@
-// backend/src/controllers/leaveController.js
-
 const prisma = require("../config/prisma");
 const { calculateTotalDays } = require("../utils/leaveHelpers");
 const { auditLog } = require("../utils/logger");
@@ -619,6 +617,11 @@ exports.getPendingRequests = async (req, res) => {
           },
         },
         leaveType: true,
+
+        // ✅ เพิ่มเพื่อให้ response มีชื่อ HR ถ้า request เคยถูก action
+        approvedByHr: {
+          select: { firstName: true, lastName: true },
+        },
       },
       orderBy: { requestedAt: "asc" },
     });
@@ -630,22 +633,32 @@ exports.getPendingRequests = async (req, res) => {
 
       let quotaInfo = null;
       if (quotaForThisType) {
-        const total = Number(quotaForThisType.totalDays) + Number(quotaForThisType.carryOverDays || 0);
+        const total =
+          Number(quotaForThisType.totalDays) +
+          Number(quotaForThisType.carryOverDays || 0);
         const used = Number(quotaForThisType.usedDays);
         quotaInfo = {
-          total: total,
-          used: used,
+          total,
+          used,
           remaining: total - used,
         };
       }
+
+      const hrFullName = leave.approvedByHr
+        ? `${leave.approvedByHr.firstName} ${leave.approvedByHr.lastName}`.trim()
+        : null;
 
       return {
         ...leave,
         totalDaysRequested: Number(leave.totalDaysRequested),
         quotaInfo,
-        // ✅ ระบุเหตุผลการถอนใบลา (ถ้ามี) เพื่อให้ HR เห็นในหน้าจัดการ
-        cancelReason: leave.cancelReason, 
-        isWithdrawRequest: leave.status === "Withdraw_Pending"
+
+        cancelReason: leave.cancelReason,
+        isWithdrawRequest: leave.status === "Withdraw_Pending",
+
+        // ✅ ส่งชื่อ HR (ถ้ามี) เผื่อ FE ต้องใช้
+        actedByHrId: leave.approvedByHrId || null,
+        actedByHrName: hrFullName,
       };
     });
 
@@ -662,7 +675,7 @@ exports.getAllLeaves = async (req, res) => {
     const { status, year, employeeName, hrAction } = req.query;
 
     const where = {};
-    
+
     // กรองตามสถานะ
     if (status) where.status = status;
 
@@ -690,44 +703,55 @@ exports.getAllLeaves = async (req, res) => {
 
     // ดึงข้อมูลวันหยุด
     const holidays = await prisma.holiday.findMany({ select: { date: true } });
-    const holidayDates = holidays.map((h) => new Date(h.date).toLocaleDateString("en-CA"));
+    const holidayDates = holidays.map((h) =>
+      new Date(h.date).toLocaleDateString("en-CA")
+    );
 
     const leaves = await prisma.leaveRequest.findMany({
       where,
       include: {
-        employee: { select: { id: true, firstName: true, lastName: true, role: true, email: true } },
+        employee: {
+          select: { id: true, firstName: true, lastName: true, role: true, email: true },
+        },
         leaveType: { select: { typeName: true } },
+
+        // ✅ ต้อง include เพื่อเอาชื่อ HR
         approvedByHr: { select: { firstName: true, lastName: true } },
       },
       orderBy: { requestedAt: "desc" },
     });
 
     const result = leaves.map((l) => {
-      const workingDays = getWorkingDaysList(
-        l.startDate,
-        l.endDate,
-        holidayDates
-      );
+      const workingDays = getWorkingDaysList(l.startDate, l.endDate, holidayDates);
+
+      const hrFullName = l.approvedByHr
+        ? `${l.approvedByHr.firstName} ${l.approvedByHr.lastName}`.trim()
+        : null;
 
       return {
         id: l.id,
-        employeeId: l.employee.id, 
+        employeeId: l.employee.id,
         name: `${l.employee.firstName} ${l.employee.lastName}`,
-        email: l.employee.email, 
+        email: l.employee.email,
         type: l.leaveType.typeName,
         startDate: l.startDate,
         endDate: l.endDate,
         totalDays: Number(l.totalDaysRequested),
         status: l.status,
         reason: l.reason,
-        rejectionReason: l.rejectionReason, 
-        cancelReason: l.cancelReason, 
+        rejectionReason: l.rejectionReason,
+        cancelReason: l.cancelReason,
         attachmentUrl: l.attachmentUrl,
         requestedAt: l.requestedAt,
 
-        approverName: l.approvedByHr
-          ? `${l.approvedByHr.firstName} ${l.approvedByHr.lastName}`
-          : null,
+        // ✅ “คนที่ทำรายการล่าสุด” (Approve/Reject/Cancel) อิง HrId เดิม
+        actedByHrId: l.approvedByHrId || null,
+        actedByHrName: hrFullName,
+
+        // ✅ ทำให้ FE แสดง "Approved By / Rejected By" ได้ตรงๆ
+        approvedBy: l.status === "Approved" ? hrFullName : null,
+        rejectedBy: l.status === "Rejected" ? hrFullName : null,
+
         approvalDate: l.approvalDate,
         isSpecialApproved: l.isSpecialApproved,
         workingDaysList: workingDays,
@@ -918,7 +942,18 @@ exports.updateLeaveStatus = async (req, res) => {
       });
     }
 
-    res.json({ message: `Success: ${result.auditAction}`, data: result.updatedRequest });
+    const hrFullName = `${req.user.firstName} ${req.user.lastName}`.trim();
+
+    res.json({
+      message: `Success: ${result.auditAction}`,
+      data: {
+        ...result.updatedRequest,
+        actedByHrId: req.user.id,
+        actedByHrName: hrFullName,
+        approvedBy: result.updatedRequest.status === "Approved" ? hrFullName : null,
+        rejectedBy: result.updatedRequest.status === "Rejected" ? hrFullName : null,
+      },
+    });
 
   } catch (error) {
     console.error("UpdateLeaveStatus Error:", error);

@@ -3,7 +3,7 @@ import { History, FileText, Image as ImageIcon, ChevronLeft, ChevronRight } from
 import { useTranslation } from "react-i18next";
 import { openAttachment } from "../../utils/attachmentPreview";
 
-const PAGE_SIZE = 5; // ✅ แสดง 5 รายการ/หน้า (ทั้ง Attendance และ Leave)
+const PAGE_SIZE = 5;
 
 export default function HistoryTable({
   activeTab,
@@ -20,6 +20,8 @@ export default function HistoryTable({
         return "bg-emerald-50 text-emerald-600 border-emerald-100";
       case "Rejected":
         return "bg-rose-50 text-rose-600 border-rose-100";
+      case "Cancelled":
+        return "bg-slate-50 text-slate-600 border-slate-100";
       default:
         return "bg-amber-50 text-amber-600 border-amber-100";
     }
@@ -27,7 +29,6 @@ export default function HistoryTable({
 
   const [page, setPage] = useState(1);
 
-  // ✅ รีเซ็ตหน้าเมื่อสลับแท็บ
   useEffect(() => {
     setPage(1);
   }, [activeTab]);
@@ -36,7 +37,6 @@ export default function HistoryTable({
 
   const totalPages = Math.max(1, Math.ceil((data?.length || 0) / PAGE_SIZE));
 
-  // ✅ กันกรณีข้อมูลลดลงแล้ว page เกิน totalPages
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
@@ -81,23 +81,41 @@ export default function HistoryTable({
   };
 
   const isLateByRow = (row) => {
-    // ✅ เชื่อ backend 100% ถ้ามี isLate
     if (typeof row?.isLate === "boolean") return row.isLate;
-    // fallback เผื่อบาง endpoint ไม่ส่ง isLate
+
     const start = row?.standardConfig?.start || "09:00";
-    const inRaw = row?.checkInTimeDisplay || row?.checkInDisplay || row?.checkIn || row?.checkInTime || null;
+    const inRaw =
+      row?.checkInTimeDisplay || row?.checkInDisplay || row?.checkIn || row?.checkInTime || null;
 
     const inM = toMinutes(inRaw);
     const startM = toMinutes(start);
     if (inM == null || startM == null) return false;
 
-    // ✅ 09:00 = ตรงเวลา, 09:01 = สาย
     return inM > startM;
   };
   // ==========================================================================
 
   const onPrev = () => setPage((p) => Math.max(1, p - 1));
   const onNext = () => setPage((p) => Math.min(totalPages, p + 1));
+
+  // ✅ helper: Signed by (คนอนุมัติ/ปฏิเสธ)
+  const getSignedBy = (leave) => {
+    // backend ของคุณส่ง approverName มาแล้ว (ดีที่สุด)
+    if (leave?.approverName) return leave.approverName;
+
+    // fallback เผื่อบาง endpoint ส่ง approvedByHr เป็น object
+    const a = leave?.approvedByHr;
+    if (a?.firstName || a?.lastName) return `${a.firstName || ""} ${a.lastName || ""}`.trim();
+
+    // fallback เผื่อบางที่ส่งชื่อเป็น string
+    if (typeof leave?.approvedBy === "string") return leave.approvedBy;
+    if (typeof leave?.rejectedBy === "string") return leave.rejectedBy;
+
+    // ถ้า pending
+    if (String(leave?.status || "").toLowerCase() === "pending") return "Waiting for HR";
+
+    return "-";
+  };
 
   return (
     <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
@@ -110,21 +128,16 @@ export default function HistoryTable({
             <FileText size={18} className="text-amber-500" />
           )}
           <h2 className="font-black text-slate-800 text-sm uppercase tracking-widest">
-            {activeTab === "attendance"
-              ? t("history.attendanceLog")
-              : t("history.leaveHistory")}
+            {activeTab === "attendance" ? t("history.attendanceLog") : t("history.leaveHistory")}
           </h2>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Tabs */}
           <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1">
             <button
               onClick={() => setActiveTab("attendance")}
               className={`px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-                activeTab === "attendance"
-                  ? "bg-white shadow-sm text-slate-800"
-                  : "text-gray-400"
+                activeTab === "attendance" ? "bg-white shadow-sm text-slate-800" : "text-gray-400"
               }`}
             >
               {t("history.tabAttendance")}
@@ -133,9 +146,7 @@ export default function HistoryTable({
             <button
               onClick={() => setActiveTab("leave")}
               className={`px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-                activeTab === "leave"
-                  ? "bg-white shadow-sm text-slate-800"
-                  : "text-gray-400"
+                activeTab === "leave" ? "bg-white shadow-sm text-slate-800" : "text-gray-400"
               }`}
             >
               {t("history.tabLeave")}
@@ -160,6 +171,10 @@ export default function HistoryTable({
                 <th className="px-6 py-4 text-center">{t("history.days")}</th>
                 <th className="px-6 py-4">{t("history.note")}</th>
                 <th className="px-6 py-4 text-center">{t("history.file")}</th>
+
+                {/* ✅ เพิ่มคอลัมน์ “Signed By” */}
+                <th className="px-6 py-4 text-center">Signed By</th>
+
                 <th className="px-6 py-4 text-center">{t("history.status")}</th>
               </tr>
             )}
@@ -182,9 +197,7 @@ export default function HistoryTable({
                       className="border-b border-gray-50 hover:bg-gray-50/30"
                       title={row?.standardConfig?.start ? `Standard Start: ${row.standardConfig.start}` : ""}
                     >
-                      <td className="px-6 py-4 text-slate-600">
-                        {row.date || row.dateDisplay}
-                      </td>
+                      <td className="px-6 py-4 text-slate-600">{row.date || row.dateDisplay}</td>
 
                       <td className="px-6 py-4">
                         <span className="text-emerald-600">
@@ -197,9 +210,7 @@ export default function HistoryTable({
                       </td>
 
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-3 py-1 rounded-lg border ${statusClass}`}>
-                          {statusLabel}
-                        </span>
+                        <span className={`px-3 py-1 rounded-lg border ${statusClass}`}>{statusLabel}</span>
                       </td>
                     </tr>
                   );
@@ -215,16 +226,13 @@ export default function HistoryTable({
               pagedData.map((leave, i) => {
                 const days = calcLeaveDays(leave);
                 const note = leave.note || leave.reason || leave.remark || "-";
+                const signedBy = getSignedBy(leave);
 
                 return (
                   <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
                     <td className="px-6 py-4">
-                      <div className="text-slate-800">
-                        {leave.leaveType?.typeName || leave.type}
-                      </div>
-                      <div className="text-[9px] text-gray-400 font-black">
-                        {t("history.usedDays", { days })}
-                      </div>
+                      <div className="text-slate-800">{leave.leaveType?.typeName || leave.type}</div>
+                      <div className="text-[9px] text-gray-400 font-black">{t("history.usedDays", { days })}</div>
                     </td>
 
                     <td className="px-6 py-4 text-gray-500">
@@ -232,32 +240,33 @@ export default function HistoryTable({
                       {new Date(leave.endDate).toLocaleDateString("th-TH")}
                     </td>
 
-                    <td className="px-6 py-4 text-center text-slate-600 font-bold">
-                      {days}
-                    </td>
+                    <td className="px-6 py-4 text-center text-slate-600 font-bold">{days}</td>
 
-                    <td className="px-6 py-4 text-gray-500 normal-case max-w-xs truncate">
-                      {note}
-                    </td>
+                    <td className="px-6 py-4 text-gray-500 normal-case max-w-xs truncate">{note}</td>
 
                     <td className="px-6 py-4 text-center">
-                      {leave.attachmentUrl && (
+                      {leave.attachmentUrl ? (
                         <button
                           onClick={() => openAttachment(buildFileUrl(leave.attachmentUrl))}
                           className="bg-indigo-100 text-indigo-700 p-2 rounded-xl active:scale-95 transition-all"
+                          title="View Attachment"
                         >
-                          <Image as={ImageIcon} />
                           <ImageIcon size={16} />
                         </button>
+                      ) : (
+                        <span className="text-gray-300">-</span>
                       )}
                     </td>
 
+                    {/* ✅ Signed By */}
                     <td className="px-6 py-4 text-center">
-                      <span
-                        className={`px-3 py-1.5 rounded-xl border-2 ${getStatusStyle(
-                          leave.status
-                        )}`}
-                      >
+                      <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-100 text-[10px] font-black text-slate-700 normal-case">
+                        {signedBy}
+                      </span>
+                    </td>
+
+                    <td className="px-6 py-4 text-center">
+                      <span className={`px-3 py-1.5 rounded-xl border-2 ${getStatusStyle(leave.status)}`}>
                         {leave.status}
                       </span>
                     </td>
@@ -266,18 +275,15 @@ export default function HistoryTable({
               })
             ) : (
               <tr>
-                <td colSpan="6" className="p-10 text-center text-gray-300 italic">
+                <td colSpan="7" className="p-10 text-center text-gray-300 italic">
                   {t("history.noData")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-              <div className="overflow-x-auto">
-        <table className="w-full text-left">
-        </table>
-      </div>
-      {/* ✅ Pagination */}
+
+        {/* ✅ Pagination */}
         <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-end gap-2">
           <button
             onClick={onPrev}

@@ -956,13 +956,9 @@ export default function TeamCalendar() {
 
                           const showHrName =
                             modalTab === "APPROVED"
-                              ? leaf.approvedBy?.fullName ||
-                                leaf.approvedBy?.name ||
-                                (typeof leaf.approvedBy === "string" ? leaf.approvedBy : null)
+                              ? leaf.approvedBy || leaf.actedByHrName || "-"
                               : modalTab === "REJECTED"
-                              ? leaf.rejectedBy?.fullName ||
-                                leaf.rejectedBy?.name ||
-                                (typeof leaf.rejectedBy === "string" ? leaf.rejectedBy : null)
+                              ? leaf.rejectedBy || leaf.actedByHrName || "-"
                               : null;
 
                           return (
