@@ -8,7 +8,6 @@ const { protect, authorize } = require("../middlewares/authMiddleware");
 // ==========================================
 
 // 1. ดึงรายการวันหยุด (อาจจะให้พนักงานทุกคนดูได้ หรือเฉพาะ HR ก็ได้ตาม Policy)
-// ถ้าให้พนักงานดูได้ด้วย ให้เอา authorize("HR") ออกเฉพาะบรรทัดนี้
 router.get("/", protect, holidayController.getHolidays);
 
 // 2. สร้างวันหยุดใหม่ (เฉพาะ HR)

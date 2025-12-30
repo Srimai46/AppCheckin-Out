@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { NotebookText, Loader2, AlertCircle } from "lucide-react";
-// ✅ 1. Import Socket Client
 import { io } from "socket.io-client";
 
 export default function AuditLog() {
+  // Config URL: ตัด /api ออก ถ้ามี เพื่อให้ Socket ต่อไปที่ Root (http://localhost:8080)
   const API_BASE = (
     import.meta.env.VITE_API_URL || "http://localhost:8080"
   ).replace(/\/$/, "");
@@ -18,6 +18,7 @@ export default function AuditLog() {
     // ----------------------------------------------------
     // ส่วนที่ A: ดึงข้อมูลย้อนหลัง (History)
     // ----------------------------------------------------
+    // เรียกไปที่ Path ที่เราแก้ไว้เพื่อเลี่ยง AdBlock (/api/activity-view/history)
     fetch(`${API_BASE}/api/activity-view/history`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -26,15 +27,14 @@ export default function AuditLog() {
     })
       .then((res) => {
         if (!res.ok) {
-          if (res.status === 401 || res.status === 403)
-            throw new Error("สิทธิ์ไม่เพียงพอ หรือ Token หมดอายุ");
-          if (res.status === 404)
-            throw new Error("ไม่พบข้อมูล (404) - ตรวจสอบ Backend Path");
-          throw new Error("ไม่สามารถดึงข้อมูลได้");
+          if (res.status === 401 || res.status === 403) throw new Error("Token หมดอายุ");
+          if (res.status === 404) throw new Error("ไม่พบ Path API (404)");
+          throw new Error("ดึงข้อมูลไม่สำเร็จ");
         }
         return res.json();
       })
       .then((response) => {
+        // Backend ส่ง { success: true, data: [...] }
         setLogs(response.data || []);
         setLoading(false);
       })
@@ -47,21 +47,29 @@ export default function AuditLog() {
     // ----------------------------------------------------
     // ส่วนที่ B: ✅ เชื่อมต่อ Socket.io (Real-time)
     // ----------------------------------------------------
-    const socket = io(API_BASE);
-
-    socket.on("connect", () => {
-      console.log("✅ Socket Connected: Audit Log");
+    // Socket ต้องต่อไปที่ Base URL (เช่น http://localhost:8080) ไม่ใช่ /api
+    const socket = io(API_BASE, {
+        transports: ['websocket', 'polling'], // บังคับใช้ websocket เพื่อความชัวร์
+        withCredentials: true
     });
 
-    // รอรับ Event 'new-audit-log' จาก Backend
+    socket.on("connect", () => {
+      console.log("✅ Socket Connected: พร้อมรับข้อมูล Real-time");
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("❌ Socket Connection Error:", err);
+    });
+
+    // ฟัง Event 'new-audit-log' จาก Backend
     socket.on("new-audit-log", (newLog) => {
-      console.log("🔔 New Activity:", newLog);
+      console.log("🔔 มีรายการใหม่เข้ามา:", newLog);
       
-      // แทรกข้อมูลใหม่ไปไว้ตัวแรกสุดของ Array ทันที
+      // เอาข้อมูลใหม่ แทรกไปไว้บนสุดทันที
       setLogs((prevLogs) => [newLog, ...prevLogs]);
     });
 
-    // Cleanup: ตัดการเชื่อมต่อเมื่อปิดหน้า
+    // Cleanup เมื่อเปลี่ยนหน้า
     return () => {
       socket.disconnect();
     };
@@ -88,20 +96,13 @@ export default function AuditLog() {
             System Activities (Real-time)
           </h1>
         </div>
-        {loading && (
-          <Loader2 className="animate-spin text-slate-400" size={20} />
-        )}
+        {loading && <Loader2 className="animate-spin text-slate-400" size={20} />}
       </div>
 
       {/* Log Box */}
-      <div className="flex-1 rounded-[2rem] border border-slate-200 bg-gray-50 overflow-hidden flex flex-col">
+      <div className="flex-1 rounded-[2rem] border border-slate-200 bg-gray-50 overflow-hidden flex flex-col shadow-sm">
         <div className="overflow-y-auto p-6 font-mono text-sm space-y-2">
-          {error && (
-            <div className="flex items-center gap-2 text-rose-500 p-4 bg-rose-50 rounded-xl border border-rose-100 font-sans">
-              <AlertCircle size={18} />
-              <span>{error}</span>
-            </div>
-          )}
+          {error && <div className="text-rose-500 text-center p-4">{error}</div>}
 
           {!loading && logs.length === 0 && !error && (
             <div className="text-gray-400 italic text-center py-10">
@@ -118,26 +119,20 @@ export default function AuditLog() {
             return (
               <div
                 key={log.id}
-                // เพิ่ม animation เล็กน้อยให้รู้ว่าอันไหนมาใหม่
-                className="group hover:bg-white p-1 rounded-md transition-all border-b border-gray-100 flex gap-3 animate-in fade-in slide-in-from-top-2 duration-300"
+                // Animation: ให้รายการใหม่ Slide เข้ามาสวยๆ
+                className="group hover:bg-white p-2 rounded-lg transition-all border-b border-gray-100 flex gap-3 items-start animate-in fade-in slide-in-from-top-2 duration-500"
               >
-                <span className="text-slate-400 shrink-0">[{time}]</span>
-                <span
-                  className={`font-bold w-16 shrink-0 ${getActionColor(
-                    log.action
-                  )}`}
-                >
+                <span className="text-slate-400 shrink-0 text-xs mt-1">[{time}]</span>
+                <span className={`font-bold w-16 shrink-0 text-xs mt-1 ${getActionColor(log.action)}`}>
                   {log.action}
                 </span>
-                <span className="text-slate-700 font-bold shrink-0">
-                  {log.modelName}#{log.recordId}
-                </span>
-                <span className="text-slate-500 flex-1 truncate italic">
-                  - {log.details}
-                </span>
-                <span className="text-blue-600 font-bold shrink-0">
-                  @{user}
-                </span>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <span className="text-slate-700 font-bold">{log.modelName}#{log.recordId}</span>
+                        <span className="text-blue-600 font-bold text-xs bg-blue-50 px-2 rounded-full">@{user}</span>
+                    </div>
+                    <p className="text-slate-500 italic truncate text-xs mt-1">- {log.details}</p>
+                </div>
               </div>
             );
           })}

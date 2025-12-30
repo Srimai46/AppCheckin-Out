@@ -27,8 +27,6 @@ router.post("/", protect, authorize("HR"), createEmployee);
 router.patch("/:id/status", protect, authorize("HR"), updateEmployeeStatus);
 
 // 6. รีเซ็ตรหัสผ่านพนักงาน 
-// ไม่ใส่ authorize เพราะต้องการให้พนักงานทั่วไป (Worker) เปลี่ยนรหัสตัวเองได้ด้วย
-// แต่ Logic ภายใน controller ต้องเช็คว่า (id == requesterId || role == HR)
 router.post("/:id/reset-password", protect, resetPassword); 
 
 // 7. แก้ไขข้อมูลพนักงาน (ชื่อ-นามสกุล/อีเมล/role) - PUT (Admin/HR)

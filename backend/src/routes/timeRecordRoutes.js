@@ -36,7 +36,6 @@ router.post("/team/:employeeId/check-out", protect, authorize("HR"), hrCheckOutE
 // ✅ 3. ตั้ง Route ให้เรียกใช้ฟังก์ชันจากที่ Import มาด้านบน
 router.get("/activities", protect, authorize("HR"), getAuditLogs); 
 router.put("/work-config", protect, authorize("HR"), updateWorkConfig);
-
 router.get("/work-config", protect, authorize("HR"), getWorkConfigs);
 
 module.exports = router;
