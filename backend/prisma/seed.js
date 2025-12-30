@@ -44,9 +44,7 @@ async function main() {
     { typeName: 'Sick', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 30 },
     { typeName: 'Personal', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 6 },
     { typeName: 'Annual', isPaid: true, maxCarryOver: 12.0, maxConsecutiveDays: 14 },
-    { typeName: 'Maternity', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 98 },
-    { typeName: 'Ordination', isPaid: false, maxCarryOver: 0, maxConsecutiveDays: 30 },
-    // 🔥 เพิ่มประเภท Special สำหรับ Grant
+    { typeName: 'Emergency', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 98 }, // Emergency
     { typeName: 'Special', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 365 }, 
   ];
   const leaveTypes = [];

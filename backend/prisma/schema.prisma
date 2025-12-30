@@ -97,12 +97,11 @@ model LeaveType {
   typeName      String   @unique @map("type_name") @db.VarChar(100)
   isPaid        Boolean  @default(true) @map("is_paid")
   maxCarryOver  Decimal  @default(0.00) @map("max_carry_over") @db.Decimal(5, 2) 
-  maxConsecutiveDays Int     @default(0) @map("max_consecutive_days")
+  maxConsecutiveDays Int?     @default(0) @map("max_consecutive_days")
   leaveQuotas   LeaveQuota[]
   leaveRequests LeaveRequest[]
   specialLeaveGrants SpecialLeaveGrant[]
   @@map("leave_types")
-
 
 }
 

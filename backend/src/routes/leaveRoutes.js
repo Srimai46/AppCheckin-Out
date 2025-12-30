@@ -1,7 +1,9 @@
 const express = require("express");
 const router = express.Router();
 
+// ✅ 1. Import ทุกอย่างจาก leaveController.js ที่เดียว (รวม Type และ Cancel)
 const {
+  // --- ส่วน Leave Request ---
   getMyLeaves,
   getMyQuotas,
   getAllLeaves,
@@ -16,19 +18,36 @@ const {
   updateEmployeeQuotasByType,
   getSystemConfigs,
   reopenYear,
+
+  // --- ส่วน Leave Type Management ---
+  getAllLeaveTypes, // เพิ่ม Get All Types
+  createLeaveType,
+  updateLeaveType,
+  deleteLeaveType
 } = require("../controllers/leaveController");
+
+// (ลบ import ซ้ำซ้อนตรง controllers/leave ออกไปได้เลยครับ)
+const { 
+  createHoliday, 
+  getHolidays, 
+  deleteHoliday, 
+  updateHoliday 
+} = require("../controllers/holidayController");
 
 const { protect, authorize } = require("../middlewares/authMiddleware");
 const { uploadLeaveAttachment } = require("../middlewares/uploadMiddleware");
 
-const {
-  createHoliday,
-  getHolidays,
-  deleteHoliday,
-  updateHoliday,
-} = require("../controllers/holidayController");
+// ============================================================
+// ---------------- Leave Type Management (จัดการประเภทวันลา) ----------------
+// ============================================================
+router.get("/types", protect, getAllLeaveTypes);
+router.post("/types", protect, authorize("HR"), createLeaveType);
+router.put("/types/:id", protect, authorize("HR"), updateLeaveType);
+router.delete("/types/:id", protect, authorize("HR"), deleteLeaveType);
 
-// ---------------- Worker ----------------
+// ============================================================
+// ---------------- Worker (พนักงานทั่วไป) ----------------
+// ============================================================
 router.get("/my-quota", protect, getMyQuotas);
 router.get("/my-history", protect, getMyLeaves);
 
@@ -47,11 +66,7 @@ router.patch(
   updateLeaveRequest
 );
 
-router.patch(
-  "/:id/cancel",
-  protect,
-  cancelLeaveRequest
-);
+router.patch("/:id/cancel", protect, cancelLeaveRequest);
 
 // ✅ Cancel / Delete leave request (Worker)  <<< FE เรียก /leaves/:id/cancel
 router.patch("/:id/cancel", protect, cancelLeaveRequest);

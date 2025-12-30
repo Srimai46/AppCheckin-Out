@@ -1,3 +1,4 @@
+//frontend/src/pages/yearEnd/components/SpecialHolidaysCard.jsx
 import React from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useHolidayPolicy } from "../hooks/useHolidayPolicy";
