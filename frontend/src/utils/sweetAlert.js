@@ -55,24 +55,34 @@ export const alertError = async (title, text = "") => {
 export const alertRejectReason = async () => {
   const { value, isConfirmed } = await Swal.fire({
     title: "Reject Leave Request",
-    input: "textarea",
-    inputLabel: "Reason for rejection",
-    inputPlaceholder: "Please enter rejection reason...",
-    inputAttributes: {
-      rows: 4,
-      style: "resize:none",
-    },
+    html: `
+      <div class="swal-reject-wrapper">
+        <label class="swal-reject-label">Reason for rejection</label>
+        <textarea id="swal-reject-textarea" class="swal-reject-textarea"
+          placeholder="Please enter rejection reason..."></textarea>
+      </div>
+    `,
     showCancelButton: true,
     confirmButtonText: "Reject",
     cancelButtonText: "Cancel",
-    confirmButtonColor: "#ef4444",
-    inputValidator: (value) => {
-      if (!value || !value.trim()) {
-        return "Rejection reason is required";
+    reverseButtons: true,
+    buttonsStyling: false,
+    customClass: {
+      popup: "swal-pill-popup",
+      title: "swal-pill-title",
+      confirmButton: "swal-pill-danger",
+      cancelButton: "swal-pill-cancel",
+    },
+    preConfirm: () => {
+      const v = document.getElementById("swal-reject-textarea").value.trim();
+      if (!v) {
+        Swal.showValidationMessage("Rejection reason is required");
+        return false;
       }
+      return v;
     },
   });
 
   if (!isConfirmed) return null;
-  return value.trim();
+  return value;
 };

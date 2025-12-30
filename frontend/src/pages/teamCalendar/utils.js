@@ -1,3 +1,4 @@
+// pages/teamCalendar/utils.js
 import { format } from "date-fns";
 import { SHIFT_START } from "./constants";
 
@@ -48,17 +49,42 @@ const nowMinutes = () => {
   return d.getHours() * 60 + d.getMinutes();
 };
 
+// ✅ ดึงเวลาเริ่มงานจาก backend ที่ HR ตั้ง (ถ้ามี)
+// รองรับหลายชื่อ field เผื่อ endpoint ต่างกัน
+const getStartFromRow = (row) => {
+  // 1) backend ส่งมาชัดสุด
+  const fromStandard = row?.standardConfig?.start;
+  if (fromStandard) return String(fromStandard).slice(0, 5);
+
+  // 2) เผื่อบางจุดใช้ชื่ออื่น
+  const fromRoleConfig = row?.roleConfig?.start;
+  if (fromRoleConfig) return String(fromRoleConfig).slice(0, 5);
+
+  const fromWorkConfig = row?.workConfig?.start;
+  if (fromWorkConfig) return String(fromWorkConfig).slice(0, 5);
+
+  // 3) fallback
+  return SHIFT_START;
+};
+
 // late rule:
-// - NOT_IN = late only for today (now > SHIFT_START)
-// - IN/OUT = late if check-in time > SHIFT_START
-export const isLate = (state, inTime, isForToday = true) => {
-  const startM = toMinutes(SHIFT_START);
+// - ถ้า row.isLate เป็น boolean -> เชื่อ backend 100%
+// - NOT_IN = late เฉพาะ "วันนี้" (now > start)
+// - IN/OUT = late ถ้า check-in time > start
+// ✅ 09:00 = ตรงเวลา, 09:01 = สาย => ใช้ >
+export const isLate = (state, inTime, isForToday = true, row = null) => {
+  // ✅ 1) เชื่อ backend 100%
+  if (typeof row?.isLate === "boolean") return row.isLate;
+
+  const startStr = getStartFromRow(row);
+  const startM = toMinutes(startStr);
   if (startM == null) return false;
 
   if (state === "NOT_IN") return isForToday ? nowMinutes() > startM : false;
 
   const inM = toMinutes(inTime);
   if (inM == null) return false;
+
   return inM > startM;
 };
 
