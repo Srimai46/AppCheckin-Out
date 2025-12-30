@@ -339,7 +339,6 @@ export default function HistoryTable({
               })
             ) : (
               <tr>
-                {/* ✅ ต้องเป็น 8 คอลัมน์ (Leave table มี 8 ช่อง) */}
                 <td colSpan={8} className="p-10 text-center text-gray-300 italic">
                   {t("history.noData")}
                 </td>
