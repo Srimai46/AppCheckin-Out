@@ -226,7 +226,7 @@ model SystemConfig {
 }
 
 model WorkConfiguration {
-id              Int      @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   role            Role     @unique
   startHour       Int      
   startMin        Int      

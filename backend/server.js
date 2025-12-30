@@ -6,7 +6,7 @@ const app = require('./src/app')
 const prisma = require('./src/config/prisma')
 const startCronJobs = require('./src/jobs/attendanceJob') 
 const socketHandler = require('./src/sockets/socketHandler')
-const os = require('os'); // ✅ เพิ่ม os module เพื่อดึง IP เครื่องอัตโนมัติ
+const os = require('os'); // 
 
 const PORT = process.env.PORT || 8080 // ปกติ API มักใช้ 8080
 
@@ -15,7 +15,7 @@ const server = http.createServer(app)
 // ตั้งค่า Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "*", // ✅ สำคัญมาก: ยอมรับทุกที่เพื่อให้คนใน LAN เชื่อมต่อ Socket ได้
+    origin: "*", // 
     methods: ["GET", "POST"]
   }
 })

@@ -40,18 +40,36 @@ exports.login = async (req, res) => {
       expiresIn: '1d',
     });
 
-    // ✅ 4. บันทึกประวัติการ Login (Audit Log)
-    // ใช้ prisma ปกติ (ไม่ใช่ tx) เพราะไม่ใช่การแก้ไขข้อมูลหลายตารางที่ต้อง rollback
+    const logDetails = `User logged in successfully (${user.firstName})`;
+
+    // 4. บันทึกประวัติการ Login (Audit Log ลง Database)
     await auditLog(prisma, {
       action: "LOGIN",
       modelName: "Employee",
       recordId: user.id,
       userId: user.id,
-      details: `พนักงานเข้าสู่ระบบสำเร็จ (${user.firstName})`,
+      details: logDetails,
       req: req
     });
 
-    // 5. ส่งข้อมูลกลับ
+    // 5. ส่วน Real-time (Socket.io)
+    const io = req.app.get("io");
+    if (io) {
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "LOGIN", // ใน Frontend คุณตั้งค่าสีไว้เป็น "text-blue-600" (สีน้ำเงิน)
+            modelName: "Auth", // หรือใช้ "Employee" ก็ได้
+            recordId: user.id,
+            performedBy: {
+                firstName: user.firstName,
+                lastName: user.lastName
+            },
+            details: logDetails,
+            createdAt: new Date()
+        });
+    }
+
+    // 6. ส่งข้อมูลกลับ
     res.json({
       message: "Login Successful",
       token,

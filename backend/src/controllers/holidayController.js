@@ -15,7 +15,7 @@ exports.createHoliday = async (req, res) => {
   try {
     const { holidays } = req.body;
     const hrId = req.user.id;
-    // ตรวจสอบว่าเป็น Array หรือไม่ ถ้าเป็น Object เดียวให้เปลี่ยนเป็น Array
+    // Check if it's an Array, if single object convert to Array
     const holidayList = Array.isArray(holidays) ? holidays : [req.body];
 
     const result = await prisma.$transaction(async (tx) => {
@@ -24,12 +24,12 @@ exports.createHoliday = async (req, res) => {
       for (const item of holidayList) {
         const { date, name, isSubsidy } = item;
 
-        // ✅ Validation เบื้องต้น
+        // Validation
         if (!date || !name) continue;
 
         const targetDate = normalizeDate(date);
 
-        // ตรวจสอบวันที่ซ้ำภายใน Transaction
+        // Check for duplicates
         const existing = await tx.holiday.findUnique({
           where: { date: targetDate }
         });
@@ -46,26 +46,49 @@ exports.createHoliday = async (req, res) => {
         }
       }
 
-      // ✅ บันทึก Audit Log เมื่อมีการเพิ่มวันหยุดสำเร็จอย่างน้อย 1 รายการ
+      const auditDetails = `HR added ${addedHolidays.length} new holidays.`;
+
+      // Database Audit Log
       if (addedHolidays.length > 0) {
         await auditLog(tx, {
           action: "CREATE",
           modelName: "Holiday",
-          recordId: 0, // ใช้ 0 หรือ ID ตัวแรกสำหรับการเพิ่มแบบกลุ่ม
+          recordId: 0, 
           userId: hrId,
-          details: `HR added ${addedHolidays.length} new holidays.`,
-          newValue: addedHolidays, // เก็บรายการวันหยุดทั้งหมดที่เพิ่มใน Log
+          details: auditDetails,
+          newValue: addedHolidays,
           req: req
         });
       }
 
-      return addedHolidays;
+      return { addedHolidays, auditDetails };
     });
+
+    // Real-time Notification (Socket.io)
+    const io = req.app.get("io");
+    if (io && result.addedHolidays.length > 0) {
+        // 1. Refresh calendars on client side
+        io.emit("notification_refresh");
+
+        // 2. Show on System Activities screen
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "CREATE", // Green color
+            modelName: "Holiday",
+            recordId: result.addedHolidays.length, // Display count as ID or 0
+            performedBy: {
+                firstName: req.user.firstName,
+                lastName: req.user.lastName
+            },
+            details: result.auditDetails, // "HR added X new holidays."
+            createdAt: new Date()
+        });
+    }
 
     res.json({ 
       message: `Processed ${holidayList.length} items.`, 
-      addedCount: result.length,
-      data: result 
+      addedCount: result.addedHolidays.length,
+      data: result.addedHolidays 
     });
     
   } catch (error) {
@@ -82,13 +105,13 @@ exports.updateHoliday = async (req, res) => {
     const hrId = req.user.id;
     const holidayId = parseInt(id, 10);
 
-    // ✅ 1. Validation เบื้องต้น
+    // 1. Validation
     if (!date && !name && isSubsidy === undefined) {
       throw new Error("No data provided for update.");
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // ✅ 2. ดึงข้อมูลเดิมเก็บไว้เป็น oldValue
+      // 2. Get old data
       const oldHoliday = await tx.holiday.findUnique({
         where: { id: holidayId }
       });
@@ -101,7 +124,7 @@ exports.updateHoliday = async (req, res) => {
       
       if (date) {
         const targetDate = normalizeDate(date);
-        // ตรวจสอบวันที่ซ้ำ (ยกเว้น ID ตัวเอง)
+        // Check duplicate
         const conflict = await tx.holiday.findFirst({
           where: { 
             date: targetDate,
@@ -112,28 +135,51 @@ exports.updateHoliday = async (req, res) => {
         dataToUpdate.date = targetDate;
       }
 
-      // ✅ 3. อัปเดตข้อมูล
+      // 3. Update
       const updated = await tx.holiday.update({
         where: { id: holidayId },
         data: dataToUpdate
       });
 
-      // ✅ 4. บันทึก Audit Log
+      const auditDetails = `Updated holiday: ${oldHoliday.name} -> ${updated.name}`;
+
+      // 4. Database Audit Log
       await auditLog(tx, {
         action: "UPDATE",
         modelName: "Holiday",
         recordId: holidayId,
         userId: hrId,
-        details: `Updated holiday: ${oldHoliday.name} -> ${updated.name}`,
-        oldValue: oldHoliday, // ข้อมูลก่อนเปลี่ยน
-        newValue: updated,    // ข้อมูลหลังเปลี่ยน
+        details: auditDetails,
+        oldValue: oldHoliday,
+        newValue: updated,
         req: req
       });
 
-      return updated;
+      return { updated, auditDetails };
     });
 
-    res.json({ message: "Holiday updated successfully", data: result });
+    // Real-time Notification (Socket.io)
+    const io = req.app.get("io");
+    if (io) {
+        // 1. Refresh calendars
+        io.emit("notification_refresh");
+
+        // 2. Show on System Activities screen
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "UPDATE", // Orange color
+            modelName: "Holiday",
+            recordId: holidayId,
+            performedBy: {
+                firstName: req.user.firstName,
+                lastName: req.user.lastName
+            },
+            details: result.auditDetails, // "Updated holiday: Old -> New"
+            createdAt: new Date()
+        });
+    }
+
+    res.json({ message: "Holiday updated successfully", data: result.updated });
   } catch (error) {
     console.error("updateHoliday Error:", error);
     res.status(400).json({ error: error.message });
@@ -183,24 +229,47 @@ exports.deleteHoliday = async (req, res) => {
         where: { id: holidayId }
       });
 
-      // ✅ 3. บันทึก Audit Log (Action: DELETE)
+      const auditDetails = `HR deleted holiday: ${oldHoliday.name} (${oldHoliday.date.toISOString().split('T')[0]})`;
+
+      // ✅ 3. บันทึก Audit Log (Action: DELETE) ลง Database
       await auditLog(tx, {
         action: "DELETE",
         modelName: "Holiday",
         recordId: holidayId,
         userId: hrId,
-        details: `HR deleted holiday: ${oldHoliday.name} (${oldHoliday.date.toISOString().split('T')[0]})`,
+        details: auditDetails,
         oldValue: oldHoliday, // เก็บก้อนข้อมูลที่ลบไว้ทั้งหมด
         newValue: null,       // ข้อมูลใหม่ไม่มีเพราะถูกลบไปแล้ว
         req: req
       });
 
-      return oldHoliday;
+      return { oldHoliday, auditDetails };
     });
+
+    // 4. ส่วน Real-time (Socket.io)
+    const io = req.app.get("io");
+    if (io) {
+        // 4.1 สั่งให้หน้าปฏิทินรีเฟรช (วันหยุดที่ลบจะหายไปทันที)
+        io.emit("notification_refresh");
+
+        // 4.2 ส่ง Audit Log ไปแสดงบนหน้าจอ System Activities
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "DELETE", // ใช้สีแดง เพื่อบอกว่าเป็นการลบ
+            modelName: "Holiday",
+            recordId: holidayId,
+            performedBy: {
+                firstName: req.user.firstName,
+                lastName: req.user.lastName
+            },
+            details: result.auditDetails, // "HR deleted holiday: ..."
+            createdAt: new Date()
+        });
+    }
 
     res.json({ 
       message: "Holiday deleted successfully", 
-      data: result 
+      data: result.oldHoliday 
     });
 
   } catch (error) {
