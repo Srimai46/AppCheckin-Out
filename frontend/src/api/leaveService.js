@@ -22,7 +22,6 @@ export const updateLeaveStatus = async (idOrIds, status, rejectionReason = null)
   return data;
 };
 
-
 // 3. อนุมัติกรณีพิเศษ (เพิ่มวันลาใหม่ + อนุมัติใบลา)
 // ใช้สำหรับปุ่ม "Bulk Special" ในหน้า LeaveApproval
 export const grantSpecialLeave = async (payload) => {

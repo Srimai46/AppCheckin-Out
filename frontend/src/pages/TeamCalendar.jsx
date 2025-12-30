@@ -1,4 +1,3 @@
-// frontend/src/pages/TeamCalendar.jsx
 import React, { useState, useMemo } from "react";
 import {
   format,
@@ -31,7 +30,7 @@ import {
 } from "lucide-react";
 
 import { updateLeaveStatus, grantSpecialLeave } from "../api/leaveService";
-import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
+import { alertConfirm, alertSuccess, alertError, alertRejectReason } from "../utils/sweetAlert";
 import { openAttachment } from "../utils/attachmentPreview";
 
 // ===== teamCalendar modules =====
@@ -272,6 +271,9 @@ export default function TeamCalendar() {
   const handleLeaveActionInModal = async (mode, leaf) => {
     if (!leaf?.id) return;
 
+    // ✅ กันกรณีบางที่ส่ง "Reject" แทน "Rejected"
+    const isReject = String(mode || "").toLowerCase() === "rejected" || String(mode || "").toLowerCase() === "reject";
+
     const actionText =
       mode === "Special"
         ? "Special Approval (Non-deductible)"
@@ -279,13 +281,28 @@ export default function TeamCalendar() {
         ? "Normal Approve"
         : "Reject";
 
-    const ok = await alertConfirm(
-      `Confirm ${actionText}`,
-      `Process request of <b>${buildRowName(leaf)}</b> as <b>${actionText}</b>?`
-    );
-    if (!ok) return;
-
     try {
+      // ✅ Reject -> ขอเหตุผลก่อน
+      let rejectionReason = null;
+      if (isReject) {
+        if (typeof alertRejectReason !== "function") {
+          // ถ้า import ไม่เข้า จะได้รู้ทันที
+          throw new Error("alertRejectReason is not a function (check import from ../utils/sweetAlert)");
+        }
+
+        rejectionReason = await alertRejectReason();
+        if (!rejectionReason) return; // cancel / ไม่กรอก
+      }
+
+      // ✅ Confirm เฉพาะ Approved/Special (Reject ไม่ confirm ซ้ำ)
+      if (!isReject) {
+        const ok = await alertConfirm(
+          `Confirm ${actionText}`,
+          `Process request of <b>${buildRowName(leaf)}</b> as <b>${actionText}</b>?`
+        );
+        if (!ok) return;
+      }
+
       if (mode === "Special") {
         await grantSpecialLeave({
           employeeId: leaf.employeeId ?? leaf.employee?.id,
@@ -295,13 +312,21 @@ export default function TeamCalendar() {
           leaveRequestId: leaf.id,
         });
       } else {
-        await updateLeaveStatus(leaf.id, mode);
+        // ✅ บังคับส่ง status เป็น "Rejected" ให้ backend แน่นอน
+        const finalStatus = isReject ? "Rejected" : mode;
+
+        await updateLeaveStatus(
+          leaf.id,
+          finalStatus,
+          isReject ? rejectionReason : null
+        );
       }
 
       await alertSuccess("Success", `Processed 1 request.`);
       await refetchLeaves();
     } catch (err) {
-      alertError("Action Failed", err?.response?.data?.error || err?.response?.data?.message || err.message);
+      alertError("Action Failed", err?.message || err?.response?.data?.message || "Unknown error");
+      console.error(err);
     }
   };
 
@@ -608,7 +633,7 @@ export default function TeamCalendar() {
                       const state = getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw });
                       const busy = actionLoading[employeeId];
 
-                      const lateFlag = isLate(state, inTime, true);
+                      const lateFlag = isLate(state, inTime, true, row);
                       const statusText = lateFlag ? "LATE" : labelByAttendance(state);
                       const statusClass = lateFlag
                         ? "bg-rose-50 text-rose-600 border-rose-100"
@@ -765,7 +790,7 @@ export default function TeamCalendar() {
             onClick={() => setShowModal(false)}
           />
 
-          <div className="relative w-full max-w-[1200px] max-h-[92vh] bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100">
+          <div className="relative w-full max-w-[1500px] max-h-[94vh] bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100">
             {/* Top Bar */}
             <div className="px-6 sm:px-8 pt-6 pb-4 border-b border-slate-100">
               <div className="flex items-start justify-between gap-4">
