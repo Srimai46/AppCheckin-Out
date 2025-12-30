@@ -79,3 +79,48 @@ export const getAllLeaves = async () => {
   return data;
 };
 
+// 11. จัดการประเภทวันลา (Leave Type Management)
+
+// 11.1 ดึงประเภทวันลาทั้งหมด (ใช้ในหน้า Setting และ Dropdown ตอนลา)
+export const getLeaveTypes = async () => {
+  const { data } = await api.get('/leaves/types');
+  return data;
+};
+
+// 11.2 สร้างประเภทวันลาใหม่ (HR)
+export const createLeaveType = async (payload) => {
+  const { data } = await api.post('/leaves/types', payload);
+  return data;
+};
+
+// 11.3 แก้ไขประเภทวันลา (HR - แก้ไข Max Consecutive / Carry Over)
+export const updateLeaveType = async (id, payload) => {
+  const { data } = await api.put(`/leaves/types/${id}`, payload);
+  return data;
+};
+
+// 11.4 ลบประเภทวันลา (HR)
+export const deleteLeaveType = async (id) => {
+  const { data } = await api.delete(`/leaves/types/${id}`);
+  return data;
+};
+
+// 12. การจัดการใบลาเพิ่มเติม
+
+// 12.1 ยกเลิกใบลา (Cancel / Withdraw)
+export const cancelLeaveRequest = async (id, reason) => {
+  const { data } = await api.post(`/leaves/cancel/${id}`, { cancelReason: reason });
+  return data;
+};
+
+// 13. ตั้งค่าระบบ (System Configuration)
+
+// 13.1 อัปเดตการตั้งค่าระบบ (เช่น แก้ไข Global Max Consecutive Days)
+export const updateSystemConfig = async (year, maxConsecutiveDays) => {
+  const { data } = await api.put('/leaves/system-configs', { 
+    year, 
+    maxConsecutiveDays 
+  });
+  return data;
+};
+
