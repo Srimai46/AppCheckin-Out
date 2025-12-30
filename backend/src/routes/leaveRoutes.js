@@ -1,8 +1,9 @@
 const express = require("express");
 const router = express.Router();
 
-// Controller หลักเกี่ยวกับการลา
+// ✅ 1. Import ทุกอย่างจาก leaveController.js ที่เดียว (รวม Type และ Cancel)
 const {
+  // --- ส่วน Leave Request ---
   getMyLeaves,
   getMyQuotas,
   getAllLeaves,
@@ -11,21 +12,22 @@ const {
   processCarryOver,
   grantSpecialLeave,
   createLeaveRequest,
+  cancelLeaveRequest, // เพิ่ม Cancel
   updateCompanyQuotasByType,
   updateEmployeeQuotasByType,
   getSystemConfigs,
   reopenYear,
-} = require("../controllers/leaveController");
 
-// ✅ Import Controller จัดการประเภทวันลา (ที่เราเพิ่งสร้าง)
-const {
-  getAllLeaveTypes,
+  // --- ส่วน Leave Type Management ---
+  getAllLeaveTypes, // เพิ่ม Get All Types
   createLeaveType,
   updateLeaveType,
   deleteLeaveType
-} = require("../controllers/leaveTypeController");
+} = require("../controllers/leaveController");
 
-// Controller จัดการวันหยุด
+// (ลบ import ซ้ำซ้อนตรง controllers/leave ออกไปได้เลยครับ)
+
+// Controller จัดการวันหยุด (แยกไฟล์ถูกต้องแล้ว)
 const { 
   createHoliday, 
   getHolidays, 
@@ -39,18 +41,10 @@ const { uploadLeaveAttachment } = require("../middlewares/uploadMiddleware");
 // ============================================================
 // ---------------- Leave Type Management (จัดการประเภทวันลา) ----------------
 // ============================================================
-// GET: ดึงประเภทวันลาทั้งหมด (พนักงานทุกคนต้องเห็น เพื่อเลือกตอนลา)
 router.get("/types", protect, getAllLeaveTypes);
-
-// POST: สร้างประเภทวันลาใหม่ (เฉพาะ HR)
 router.post("/types", protect, authorize("HR"), createLeaveType);
-
-// PUT: แก้ไขประเภทวันลา (เฉพาะ HR)
 router.put("/types/:id", protect, authorize("HR"), updateLeaveType);
-
-// DELETE: ลบประเภทวันลา (เฉพาะ HR)
 router.delete("/types/:id", protect, authorize("HR"), deleteLeaveType);
-
 
 // ============================================================
 // ---------------- Worker (พนักงานทั่วไป) ----------------
@@ -64,6 +58,9 @@ router.post(
   uploadLeaveAttachment.single("attachment"),
   createLeaveRequest 
 );
+
+// ✅ เพิ่ม Route ยกเลิกใบลา (Cancel)
+router.post("/cancel/:id", protect, cancelLeaveRequest);
 
 // ============================================================
 // ---------------- HR (ผู้ดูแลระบบ) ----------------

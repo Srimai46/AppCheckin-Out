@@ -714,6 +714,18 @@ exports.deleteLeaveType = async (req, res) => {
   }
 };
 
+exports.getAllLeaveTypes = async (req, res) => {
+  try {
+    const leaveTypes = await prisma.leaveType.findMany({
+      orderBy: { id: 'asc' } // เรียงตาม ID
+    });
+    res.json(leaveTypes);
+  } catch (error) {
+    console.error("getAllLeaveTypes Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.cancelLeaveRequest = async (req, res) => {
   try {
     const { id } = req.params;
