@@ -5,7 +5,7 @@ import { io } from "socket.io-client";
 
 export default function AuditLog() {
   const API_BASE = (
-    import.meta.env.VITE_API_URL || "http://localhost:8080"
+    import.meta.env.VITE_API_URL || "http://192.168.1.36:8080" // * localhost หรือ IP จริง
   ).replace(/\/$/, "");
 
   const [logs, setLogs] = useState([]);
