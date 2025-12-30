@@ -1155,7 +1155,7 @@ exports.grantSpecialLeave = async (req, res) => {
       // 4. บันทึก Audit Log ลง DB
       await tx.auditLog.create({
         data: {
-          action: "GRANT_SPECIAL", // หรือ "CREATE" ก็ได้ถ้าอยากให้เป็นสีเขียว
+          action: "CREATE", // หรือ "CREATE" ก็ได้ถ้าอยากให้เป็นสีเขียว
           modelName: "SpecialLeaveGrant",
           recordId: grant.id,
           performedById: hrId,
