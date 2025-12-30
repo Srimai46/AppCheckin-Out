@@ -325,14 +325,16 @@ exports.createLeaveRequest = async (req, res) => {
         include: { employee: true, leaveType: true },
       });
 
-      // 7.2 บันทึก Audit Log
+      const auditDetails = `Submitted ${type} leave request for ${totalDaysRequested} days`;
+
+      // 7.2 บันทึก Audit Log ลง DB
       await tx.auditLog.create({
         data: {
           action: "CREATE",
           modelName: "LeaveRequest",
           recordId: newLeave.id,
           performedById: userId,
-          details: `Submitted ${type} leave request for ${totalDaysRequested} days`,
+          details: auditDetails,
           newValue: newLeave,
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
@@ -345,7 +347,6 @@ exports.createLeaveRequest = async (req, res) => {
         select: { id: true },
       });
 
-      // ✅ 8.1 นับยอดคำร้องที่ค้างทั้งหมดในระบบ (เพื่ออัปเดต Badge ของ HR)
       const totalPendingCount = await tx.leaveRequest.count({
         where: { status: { in: ["Pending", "Withdraw_Pending"] } }
       });
@@ -371,21 +372,21 @@ exports.createLeaveRequest = async (req, res) => {
             return { adminId: admin.id, unreadCount: count };
           })
         );
-        return { newLeave, adminUpdates, message: notificationMsg, totalPendingCount };
+        return { newLeave, adminUpdates, message: notificationMsg, totalPendingCount, auditDetails };
       }
-      return { newLeave, adminUpdates: [], totalPendingCount };
+      return { newLeave, adminUpdates: [], totalPendingCount, auditDetails };
     });
 
-    // 🚀 8. Real-time Notification
+    // 🚀 8. Real-time Notification & Audit Log
     const io = req.app.get("io");
     if (io) {
-      // ✅ 8.1 ส่งอัปเดต Badge ให้ HR ทุกคนในห้อง 'hr_group'
+      // 8.1 ส่งอัปเดต Badge ให้ HR
       io.to("hr_group").emit("update_pending_count", {
         count: result.totalPendingCount,
         message: result.message
       });
 
-      // 8.2 ส่งแจ้งเตือนรายบุคคล (Notification Bell)
+      // 8.2 ส่งแจ้งเตือนรายบุคคล (กระดิ่ง)
       if (result.adminUpdates.length > 0) {
         result.adminUpdates.forEach((update) => {
           io.to(`user_${update.adminId}`).emit("new_notification", {
@@ -395,6 +396,22 @@ exports.createLeaveRequest = async (req, res) => {
           });
         });
       }
+
+      // ============================================================
+      // ✅ 8.3 ส่ง Real-time Audit Log (เพื่อให้หน้า System Activities เด้ง)
+      // ============================================================
+      io.emit("new-audit-log", {
+        id: Date.now(),
+        action: "CREATE", // สีเขียว
+        modelName: "LeaveRequest",
+        recordId: result.newLeave.id,
+        performedBy: {
+            firstName: req.user.firstName,
+            lastName: req.user.lastName
+        },
+        details: result.auditDetails, // ใช้ข้อความเดียวกับใน DB
+        createdAt: new Date()
+      });
     }
 
     res.status(201).json({ message: "Request submitted.", data: result.newLeave });
@@ -407,7 +424,6 @@ exports.createLeaveRequest = async (req, res) => {
 exports.cancelLeaveRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    // ✅ 1. รับเหตุผลการยกเลิกจาก body
     const { cancelReason } = req.body; 
     const userId = req.user.id;
     const leaveId = parseInt(id, 10);
@@ -431,7 +447,6 @@ exports.cancelLeaveRequest = async (req, res) => {
       throw new Error("Cannot cancel/withdraw leave that has already started or passed.");
     }
 
-    // ตรวจสอบสถานะที่อนุญาต
     if (!["Pending", "Approved"].includes(request.status)) {
       throw new Error(`Cannot cancel a request with status: ${request.status}`);
     }
@@ -444,7 +459,6 @@ exports.cancelLeaveRequest = async (req, res) => {
       // 3. ถ้า Approved ต้องเปลี่ยนเป็น 'Withdraw_Pending'
       if (request.status === "Approved") {
         targetStatus = "Withdraw_Pending";
-        // ✅ แนบเหตุผลไปในข้อความแจ้งเตือน HR
         messageToHr = `${request.employee.firstName} requested to WITHDRAW approved ${request.leaveType.typeName} leave. Reason: ${cancelReason || 'Not specified'}`;
       }
 
@@ -453,16 +467,15 @@ exports.cancelLeaveRequest = async (req, res) => {
         where: { id: leaveId },
         data: {
           status: targetStatus,
-          // ✅ บันทึกเหตุผลลงใน field cancelReason (อย่าลืมเพิ่มใน Schema นะครับ)
           cancelReason: cancelReason || null, 
           attachmentUrl: targetStatus === "Cancelled" ? null : request.attachmentUrl,
         },
       });
 
-      // 5. บันทึก Audit Log
+      // 5. บันทึก Audit Log ลง Database
       await tx.auditLog.create({
         data: {
-          action: actionType,
+          action: targetStatus === "Cancelled" ? "DELETE" : "UPDATE", // บันทึกลง DB ตามความจริง
           modelName: "LeaveRequest",
           recordId: leaveId,
           performedById: userId,
@@ -474,7 +487,7 @@ exports.cancelLeaveRequest = async (req, res) => {
         },
       });
 
-      // 6. แจ้งเตือน HR (ใน Database)
+      // 6. แจ้งเตือน HR (Database)
       const admins = await tx.employee.findMany({
         where: { role: "HR" },
         select: { id: true },
@@ -484,14 +497,14 @@ exports.cancelLeaveRequest = async (req, res) => {
         await tx.notification.createMany({
           data: admins.map((admin) => ({
             employeeId: admin.id,
-            notificationType: "NewRequest",
+            notificationType: "NewRequest", // หรือสร้าง Type ใหม่เช่น CancelRequest
             message: messageToHr,
             relatedRequestId: leaveId,
           })),
         });
       }
 
-      // 7. นับยอดงานค้างทั้งหมดใหม่สำหรับ HR Badge
+      // 7. นับยอดงานค้างทั้งหมดใหม่
       const totalPendingCount = await tx.leaveRequest.count({
         where: { status: { in: ["Pending", "Withdraw_Pending"] } }
       });
@@ -510,11 +523,12 @@ exports.cancelLeaveRequest = async (req, res) => {
         oldAttachment: targetStatus === "Cancelled" ? request.attachmentUrl : null,
         totalPendingCount,
         messageToHr,
-        adminUpdates
+        adminUpdates,
+        targetStatus // ส่ง status ออกมาด้วยเพื่อใช้ตัดสินใจสีของ Log
       };
     });
 
-    // 8. ลบไฟล์จริง (เฉพาะกรณี Cancelled ทันที)
+    // 8. ลบไฟล์จริง (เฉพาะกรณี Cancelled)
     if (result.oldAttachment) {
       const fileName = path.basename(result.oldAttachment);
       const fullPath = path.join(process.cwd(), "uploads", "leaves", fileName);
@@ -523,20 +537,41 @@ exports.cancelLeaveRequest = async (req, res) => {
       }
     }
 
-    // 🚀 9. Real-time Notification
+    // 🚀 9. Real-time Notification & Audit Log
     const io = req.app.get("io");
     if (io) {
+      // 9.1 อัปเดตยอด Badge ของ HR
       io.to("hr_group").emit("update_pending_count", {
         count: result.totalPendingCount,
         message: result.messageToHr
       });
 
+      // 9.2 แจ้งเตือนกระดิ่ง
       result.adminUpdates.forEach((update) => {
         io.to(`user_${update.adminId}`).emit("new_notification", {
           message: result.messageToHr,
           unreadCount: update.unreadCount,
           notificationType: "NewRequest"
         });
+      });
+
+      // ============================================================
+      // ✅ 9.3 ส่ง Real-time Audit Log (เพื่อให้หน้าจอเด้ง)
+      // ============================================================
+      // ถ้า Cancelled ให้ใช้ DELETE (สีแดง), ถ้า Withdraw ให้ใช้ UPDATE (สีส้ม)
+      const socketAction = result.targetStatus === "Cancelled" ? "DELETE" : "UPDATE";
+
+      io.emit("new-audit-log", {
+        id: Date.now(),
+        action: socketAction, 
+        modelName: "LeaveRequest",
+        recordId: result.updatedRequest.id,
+        performedBy: {
+            firstName: req.user.firstName,
+            lastName: req.user.lastName
+        },
+        details: result.messageToHr,
+        createdAt: new Date()
       });
     }
 
@@ -796,13 +831,15 @@ exports.updateLeaveStatus = async (req, res) => {
         },
       });
 
-      // 3. Audit Log
+      const detailsText = `HR ${auditAction} leave from ${currentStatus} to ${finalStatus}. ${rejectionReason ? `Reason: ${rejectionReason}` : ""}`;
+
+      // 3. Audit Log ลง DB
       await auditLog(tx, {
         action: auditAction,
         modelName: "LeaveRequest",
         recordId: leaveId,
         userId: hrId,
-        details: `HR ${auditAction} leave from ${currentStatus} to ${finalStatus}. ${rejectionReason ? `Reason: ${rejectionReason}` : ""}`,
+        details: detailsText,
         oldValue: { status: currentStatus },
         newValue: { status: finalStatus, rejectionReason: updatedRequest.rejectionReason },
         req: req,
@@ -829,7 +866,7 @@ exports.updateLeaveStatus = async (req, res) => {
       const unreadCount = await tx.notification.count({ where: { employeeId: request.employeeId, isRead: false } });
       const totalPendingCount = await tx.leaveRequest.count({ where: { status: { in: ["Pending", "Withdraw_Pending"] } } });
 
-      return { updatedRequest, newNotification, unreadCount, auditAction, totalPendingCount };
+      return { updatedRequest, newNotification, unreadCount, auditAction, totalPendingCount, detailsText };
     });
 
     // ลบไฟล์
@@ -844,6 +881,7 @@ exports.updateLeaveStatus = async (req, res) => {
     // 6. Socket Notification
     const io = req.app.get("io");
     if (io) {
+      // 6.1 แจ้งพนักงานเจ้าของใบลา
       io.to(`user_${result.updatedRequest.employeeId}`).emit("new_notification", {
         message: result.newNotification.message,
         unreadCount: result.unreadCount,
@@ -853,8 +891,30 @@ exports.updateLeaveStatus = async (req, res) => {
         rejectionReason: result.updatedRequest.rejectionReason
       });
 
+      // 6.2 อัปเดตยอด Badge ของ HR
       io.to("hr_group").emit("update_pending_count", {
         count: result.totalPendingCount
+      });
+
+      // 6.3 ส่ง Real-time Audit Log (ส่วนที่เพิ่ม)
+      
+      // กำหนดสี: ถ้า Reject/Cancel ให้เป็นสีแดง (DELETE), ถ้า Approve ให้เป็นสีส้ม (UPDATE)
+      let socketAction = "UPDATE";
+      if (result.updatedRequest.status === "Rejected" || result.updatedRequest.status === "Cancelled") {
+        socketAction = "DELETE"; 
+      }
+
+      io.emit("new-audit-log", {
+        id: Date.now(),
+        action: socketAction,
+        modelName: "LeaveRequest",
+        recordId: result.updatedRequest.id,
+        performedBy: {
+            firstName: req.user.firstName,
+            lastName: req.user.lastName
+        },
+        details: result.detailsText, // ใช้ข้อความเดียวกับที่ลง DB
+        createdAt: now
       });
     }
 
@@ -872,7 +932,7 @@ exports.processCarryOver = async (req, res) => {
     const { targetYear, quotas = {}, carryConfigs = {} } = req.body;
     const tYear = parseInt(targetYear, 10);
     const lastYear = tYear - 1;
-    const userId = req.user.id; // ดึง ID ของ HR ที่รันระบบ
+    const userId = req.user.id; 
 
     if (!tYear || isNaN(tYear)) throw new Error("Invalid targetYear.");
 
@@ -892,7 +952,7 @@ exports.processCarryOver = async (req, res) => {
 
       let processedCount = 0;
 
-      // วนลูปประมวลผล (Business Logic เดิมของคุณ)
+      // วนลูปประมวลผล
       for (const emp of allEmployees) {
         for (const type of leaveTypes) {
           const typeName = type.typeName.toUpperCase();
@@ -968,15 +1028,16 @@ exports.processCarryOver = async (req, res) => {
         create: { year: tYear, isClosed: false },
       });
 
-      // 4. บันทึก Audit Log (Big Log สำหรับการรันระบบขึ้นปีใหม่)
+      const auditDetails = `Processed carry over from ${lastYear} to ${tYear}. Total employees: ${allEmployees.length}`;
+
+      // 4. บันทึก Audit Log (ลง Database)
       await tx.auditLog.create({
         data: {
-          action: "SYSTEM_LOCK", // หรือ "PROCESS_CARRY_OVER"
+          action: "SYSTEM_LOCK", 
           modelName: "SystemConfig",
           recordId: tYear,
           performedById: userId,
-          details: `Processed carry over from ${lastYear} to ${tYear}. Total employees: ${allEmployees.length}`,
-          // เก็บค่า Config ที่ HR ใช้รันในครั้งนี้ไว้ดูย้อนหลัง
+          details: auditDetails,
           newValue: {
             targetYear: tYear,
             baseQuotasSent: quotas,
@@ -995,19 +1056,36 @@ exports.processCarryOver = async (req, res) => {
       }));
       await tx.notification.createMany({ data: notifyData });
 
-      return processedCount;
+      return { processedCount, auditDetails };
     });
 
+    // 6. ส่วน Real-time (Socket.io)
     const io = req.app.get("io");
-    if (io) io.emit("notification_refresh");
+    if (io) {
+        // 6.1 สั่งให้ Client ทุกคน Refresh ข้อมูล (เช่น หน้า Dashboard, หน้า Quota)
+        io.emit("notification_refresh");
 
-    res.json({ message: "Success", employeesProcessed: result });
+        // 6.2 ส่ง Audit Log ไปแสดงบนหน้าจอ System Activities ทันที
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "CREATE", // ใช้สีเขียว เพื่อสื่อว่าเป็นการสร้างปีงบประมาณใหม่สำเร็จ
+            modelName: "SystemConfig",
+            recordId: tYear,
+            performedBy: {
+                firstName: req.user.firstName,
+                lastName: req.user.lastName
+            },
+            details: result.auditDetails, // "Processed carry over... Total: X"
+            createdAt: new Date()
+        });
+    }
+
+    res.json({ message: "Success", employeesProcessed: result.processedCount });
   } catch (error) {
     console.error("processCarryOver Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
-
 // 5. HR: อนุมัติกรณีพิเศษ (ไม่หักโควต้า)
 exports.grantSpecialLeave = async (req, res) => {
   try {
@@ -1034,7 +1112,7 @@ exports.grantSpecialLeave = async (req, res) => {
         },
       });
 
-      // 2. จัดการ Quota หมวด Special (เพิ่ม total และ used ทันที)
+      // 2. จัดการ Quota หมวด Special
       const updatedQuota = await tx.leaveQuota.upsert({
         where: {
           employeeId_leaveTypeId_year: {
@@ -1064,7 +1142,7 @@ exports.grantSpecialLeave = async (req, res) => {
           data: {
             status: "Approved",
             isSpecialApproved: true,
-            leaveTypeId: specialType.id, // ✅ เปลี่ยนประเภทการลาเป็น Special
+            leaveTypeId: specialType.id,
             specialGrantId: grant.id,
             approvedByHrId: hrId,
             approvalDate: new Date(),
@@ -1072,14 +1150,16 @@ exports.grantSpecialLeave = async (req, res) => {
         });
       }
 
-      // 4. บันทึก Audit Log (ใช้ตัวกลาง auditLog ถ้ามี หรือใช้แบบเดิม)
-      const log = await tx.auditLog.create({
+      const logDetails = `HR granted ${amount} special days to Employee #${employeeId}. Reason: ${reason}`;
+
+      // 4. บันทึก Audit Log ลง DB
+      await tx.auditLog.create({
         data: {
-          action: "GRANT_SPECIAL", 
+          action: "GRANT_SPECIAL", // หรือ "CREATE" ก็ได้ถ้าอยากให้เป็นสีเขียว
           modelName: "SpecialLeaveGrant",
           recordId: grant.id,
           performedById: hrId,
-          details: `HR granted ${amount} special days to Employee #${employeeId}. Reason: ${reason}`,
+          details: logDetails,
           newValue: { grant, quota: updatedQuota },
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
@@ -1096,7 +1176,7 @@ exports.grantSpecialLeave = async (req, res) => {
         },
       });
 
-      // 6. นับยอด Pending ใหม่สำหรับ HR Badge
+      // 6. นับยอด Pending ใหม่
       const totalPendingCount = await tx.leaveRequest.count({
         where: { status: { in: ["Pending", "Withdraw_Pending"] } }
       });
@@ -1105,13 +1185,13 @@ exports.grantSpecialLeave = async (req, res) => {
         where: { employeeId: parseInt(employeeId), isRead: false }
       });
 
-      return { updatedRequest, totalPendingCount, unreadCount, notification };
+      return { updatedRequest, totalPendingCount, unreadCount, notification, logDetails, grantId: grant.id };
     });
 
-    // 🚀 7. Real-time Notification
+    // 🚀 7. Real-time Notification & Audit Log
     const io = req.app.get("io");
     if (io) {
-      // ส่งถึงพนักงานคนนั้นโดยตรง
+      // 7.1 ส่งถึงพนักงานคนนั้นโดยตรง
       io.to(`user_${employeeId}`).emit("new_notification", {
         message: result.notification.message,
         unreadCount: result.unreadCount,
@@ -1119,9 +1199,23 @@ exports.grantSpecialLeave = async (req, res) => {
         isSpecial: true
       });
 
-      // ส่งถึงห้อง HR ทุกคนเพื่ออัปเดต Badge
+      // 7.2 ส่งถึงห้อง HR ทุกคนเพื่ออัปเดต Badge
       io.to("hr_group").emit("update_pending_count", {
         count: result.totalPendingCount
+      });
+
+      // 7.3 ส่ง Real-time Audit Log (ส่วนที่เพิ่ม)
+      io.emit("new-audit-log", {
+        id: Date.now(),
+        action: "CREATE", // ใช้สีเขียว เพราะเป็นการให้สิทธิ์/อนุมัติ
+        modelName: "SpecialLeaveGrant",
+        recordId: result.grantId,
+        performedBy: {
+            firstName: req.user.firstName,
+            lastName: req.user.lastName
+        },
+        details: result.logDetails,
+        createdAt: new Date()
       });
     }
 
@@ -1132,15 +1226,13 @@ exports.grantSpecialLeave = async (req, res) => {
   }
 };
 
-// =========================================================
-// ✅ HR: Update quotas by TYPE (Company-wide + Single employee)
-// =========================================================
+// HR: Update quotas by TYPE (Company-wide + Single employee)
 
 // 6. HR: ปรับโควต้า "ทั้งบริษัท" แยกประเภท (หลายประเภทพร้อมกัน)
 exports.updateCompanyQuotasByType = async (req, res) => {
   try {
     const { quotas, year, onlyActive, configs = {} } = req.body;
-    const hrId = req.user.id; // ดึง ID ของ HR ผู้กระทำการ
+    const hrId = req.user.id; 
 
     // Normalize ปี
     let targetYear = year ? parseInt(year, 10) : new Date().getFullYear();
@@ -1208,17 +1300,19 @@ exports.updateCompanyQuotasByType = async (req, res) => {
           }
         }
 
-        // ✅ บันทึก Audit Log (1 Log ต่อ 1 การอัปเดตทั้งบริษัท)
+        const auditDetails = `Bulk update company quotas for year ${targetYear}. Affected employees: ${employees.length}`;
+
+        // ✅ บันทึก Audit Log ลง DB
         await tx.auditLog.create({
           data: {
             action: "UPDATE",
             modelName: "LeaveQuota",
-            recordId: targetYear, // ใช้ปีที่อัปเดตเป็น recordId อ้างอิง
+            recordId: targetYear,
             performedById: hrId,
-            details: `Bulk update company quotas for year ${targetYear}. Affected employees: ${employees.length}`,
+            details: auditDetails,
             newValue: {
-              quotasSent: quotas, // ยอดวันลาพื้นฐานที่ตั้งค่ามา
-              configsUsed: configs, // เพดาน (Cap) ที่ใช้คำนวณ
+              quotasSent: quotas,
+              configsUsed: configs,
               onlyActiveOnly: onlyActive,
             },
             ipAddress: req.ip,
@@ -1226,12 +1320,33 @@ exports.updateCompanyQuotasByType = async (req, res) => {
           },
         });
 
-        return { updatedCount, employeeCount: employees.length };
+        return { updatedCount, employeeCount: employees.length, auditDetails };
       },
       {
-        timeout: 30000, // เพิ่ม timeout เพราะเป็น bulk operation
+        timeout: 30000, 
       }
     );
+
+    // ส่วน Real-time (Socket.io)
+    const io = req.app.get("io");
+    if (io) {
+        // 1. สั่งให้เครื่องอื่น Refresh ข้อมูลตัวเลขโควตาใหม่
+        io.emit("notification_refresh");
+
+        // 2. ส่ง Audit Log ไปแสดงบนหน้าจอ System Activities
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "UPDATE", // สีส้ม
+            modelName: "LeaveQuota",
+            recordId: targetYear,
+            performedBy: {
+                firstName: req.user.firstName,
+                lastName: req.user.lastName
+            },
+            details: result.auditDetails, // "Bulk update... Affected: X"
+            createdAt: new Date()
+        });
+    }
 
     res.json({
       message: `Updated quotas for ${targetYear} successfully using Capped Logic.`,
@@ -1248,7 +1363,7 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
   try {
     const employeeId = parseInt(req.params.employeeId, 10);
     const { quotas, year, configs = {} } = req.body;
-    const hrId = req.user.id; // ดึง ID ของ HR ผู้กระทำการ
+    const hrId = req.user.id; 
 
     if (!Number.isFinite(employeeId) || employeeId <= 0) {
       throw new Error("Invalid employee ID");
@@ -1270,6 +1385,7 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
 
     const result = await prisma.$transaction(async (tx) => {
       let updatedCount = 0;
+      let changeLogs = []; // ✅ เก็บประวัติการแก้ไขเพื่อส่งไปที่ Socket
 
       for (const lt of leaveTypes) {
         const key = lt.typeName.toUpperCase();
@@ -1293,7 +1409,7 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
         const currentCarry = existing ? Number(existing.carryOverDays || 0) : 0;
         const currentTotal = existing ? Number(existing.totalDays || 0) : 0;
 
-        // ✅ 2. คำนวณ Safe Base
+        // 2. คำนวณ Safe Base
         let safeBase = newBase;
         if (safeBase + currentCarry > setting.totalCap) {
           safeBase = Math.max(setting.totalCap - currentCarry, 0);
@@ -1322,15 +1438,18 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
           },
         });
 
-        // ✅ 4. บันทึก Audit Log รายบุคคล (เฉพาะกรณีที่ค่ามีการเปลี่ยนแปลงจริง)
+        // 4. บันทึก Audit Log รายบุคคล (เฉพาะกรณีที่ค่ามีการเปลี่ยนแปลงจริง)
         if (currentTotal !== safeBase) {
+          const detailStr = `${lt.typeName}: ${currentTotal} -> ${safeBase}`;
+          changeLogs.push(detailStr); // เก็บใส่ Array ไว้รวมยอด
+
           await tx.auditLog.create({
             data: {
               action: "UPDATE",
               modelName: "LeaveQuota",
               recordId: updatedQuota.id,
               performedById: hrId,
-              details: `HR updated ${lt.typeName} quota for ${employee.firstName} ${employee.lastName} (${targetYear})`,
+              details: `HR updated ${lt.typeName} quota for ${employee.firstName} ${employee.lastName} (${targetYear}). Change: ${detailStr}`,
               oldValue: { totalDays: currentTotal },
               newValue: { totalDays: safeBase },
               ipAddress: req.ip,
@@ -1342,8 +1461,33 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
         updatedCount++;
       }
 
-      return { updatedCount };
+      return { updatedCount, changeLogs };
     });
+
+    // 5. ส่วน Real-time (Socket.io)
+    const io = req.app.get("io");
+    if (io) {
+        // 5.1 สั่งให้ Frontend รีเฟรชข้อมูลโควตาใหม่
+        io.emit("notification_refresh");
+
+        // 5.2 ส่งข้อมูลเข้า System Activities (เฉพาะถ้ามีการแก้ไขค่าจริงๆ)
+        if (result.changeLogs.length > 0) {
+            const summaryDetails = `Updated quotas for ${employee.firstName} ${employee.lastName}: ${result.changeLogs.join(", ")}`;
+            
+            io.emit("new-audit-log", {
+                id: Date.now(),
+                action: "UPDATE", // สีส้ม
+                modelName: "LeaveQuota",
+                recordId: employeeId,
+                performedBy: {
+                    firstName: req.user.firstName,
+                    lastName: req.user.lastName
+                },
+                details: summaryDetails,
+                createdAt: new Date()
+            });
+        }
+    }
 
     res.json({
       message: `Quotas for ${targetYear} updated successfully.`,
@@ -1356,7 +1500,6 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 };
-
 // ดึงสถานะการปิดงวดทั้งหมด
 exports.getSystemConfigs = async (req, res) => {
   try {
@@ -1381,7 +1524,7 @@ exports.getSystemConfigs = async (req, res) => {
 // ยกเลิกการปิดงวด (Re-open Year)
 exports.reopenYear = async (req, res) => {
   try {
-    const { year, reason } = req.body; // 💡 รับเหตุผลเพิ่มเข้ามา
+    const { year, reason } = req.body; 
     const targetYear = parseInt(year, 10);
     const hrId = req.user.id;
 
@@ -1390,14 +1533,12 @@ exports.reopenYear = async (req, res) => {
     }
 
     if (!reason || reason.trim().length < 5) {
-      return res
-        .status(400)
-        .json({
+      return res.status(400).json({
           error: "Please provide a valid reason for re-opening the year.",
         });
     }
 
-    // เริ่ม Transaction เพื่อความปลอดภัย
+    // เริ่ม Transaction
     const result = await prisma.$transaction(async (tx) => {
       // 1. เช็คว่ามีข้อมูลปีนี้อยู่จริงไหม
       const existing = await tx.systemConfig.findUnique({
@@ -1418,18 +1559,19 @@ exports.reopenYear = async (req, res) => {
         data: {
           isClosed: false,
           closedAt: null,
-          // เราอาจจะเพิ่มฟิลด์เพื่อเก็บว่าใครเป็นคนเปิดล่าสุดได้ที่นี่ด้วย
         },
       });
 
-      // 3. บันทึก Audit Log (สำคัญมาก)
+      const auditDetails = `HR re-opened year ${targetYear}. Reason: ${reason}`;
+
+      // 3. บันทึก Audit Log ลง Database
       await tx.auditLog.create({
         data: {
           action: "UPDATE", // หรือ "SYSTEM_UNLOCK"
           modelName: "SystemConfig",
           recordId: targetYear,
           performedById: hrId,
-          details: `HR re-opened year ${targetYear}. Reason: ${reason}`,
+          details: auditDetails,
           oldValue: { isClosed: true, closedAt: existing.closedAt },
           newValue: { isClosed: false, closedAt: null },
           ipAddress: req.ip,
@@ -1437,17 +1579,36 @@ exports.reopenYear = async (req, res) => {
         },
       });
 
-      return updated;
+      return { updated, auditDetails };
     });
+
+    // 4. ส่วน Real-time (Socket.io)
+    const io = req.app.get("io");
+    if (io) {
+        // 4.1 สั่งให้หน้าจอ Dashboard/Settings ของเครื่องอื่นรีเฟรชสถานะ
+        io.emit("notification_refresh");
+
+        // 4.2 ส่ง Audit Log ไปแสดงบนหน้าจอ System Activities
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "UPDATE", // ใช้สีส้ม เพื่อเตือนว่ามีการแก้ไขปีงบประมาณ
+            modelName: "SystemConfig",
+            recordId: targetYear,
+            performedBy: {
+                firstName: req.user.firstName,
+                lastName: req.user.lastName
+            },
+            details: result.auditDetails, // "HR re-opened year... Reason: ..."
+            createdAt: new Date()
+        });
+    }
 
     res.json({
       message: `Year ${targetYear} has been re-opened for editing.`,
-      data: result,
+      data: result.updated,
     });
   } catch (error) {
     console.error("reopenYear Error:", error);
-    res
-      .status(400)
-      .json({ error: error.message || "Failed to re-open the fiscal year." });
+    res.status(400).json({ error: error.message || "Failed to re-open the fiscal year." });
   }
 };

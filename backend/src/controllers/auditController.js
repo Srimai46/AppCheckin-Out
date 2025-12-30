@@ -1,6 +1,8 @@
 // controllers/auditController.js
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
+// 1. ✅ ใช้ Prisma จากไฟล์ config กลาง (เพื่อลด Connection)
+// (ตรวจสอบ path ให้ตรงกับโครงสร้างโปรเจกต์ของคุณ)
+const prisma = require('../config/prisma'); 
 
 exports.getAuditLogs = async (req, res) => {
   try {
@@ -20,15 +22,21 @@ exports.getAuditLogs = async (req, res) => {
     let where = {};
     if (action) where.action = action;
     if (modelName) where.modelName = modelName;
-    if (performedById) where.performedById = parseInt(performedById);
+
+    // 2. ✅ เพิ่มการเช็ค isNaN ป้องกัน Error กรณีค่าที่ส่งมาไม่ใช่ตัวเลข
+    if (performedById && !isNaN(parseInt(performedById))) {
+        where.performedById = parseInt(performedById);
+    }
+
     if (start && end) {
       where.createdAt = {
         gte: new Date(start),
+        // ตั้งเวลาจบวันเป็น 23:59:59.999 เพื่อให้ครอบคลุมทั้งวัน
         lte: new Date(new Date(end).setHours(23, 59, 59, 999))
       };
     }
 
-    // 2. ดึงข้อมูลพร้อมนับจำนวนทั้งหมด
+    // 3. ดึงข้อมูลพร้อมนับจำนวนทั้งหมด
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({
         where,
