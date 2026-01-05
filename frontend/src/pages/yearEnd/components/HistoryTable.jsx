@@ -1,3 +1,4 @@
+//frontend/src/pages/yearEnd/components/HistoryTable.jsx
 import React from "react";
 import { Lock, Unlock } from "lucide-react";
 
@@ -22,7 +23,7 @@ export default function HistoryTable({ configs = [], onReopen }) {
           <tbody className="divide-y divide-gray-100">
             {configs.length > 0 ? (
               configs.map((config) => (
-                <tr key={config.id} className="hover:bg-gray-50/50 transition-colors">
+                <tr key={config.year} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4 font-bold text-gray-700">{config.year}</td>
 
                   <td className="px-6 py-4">

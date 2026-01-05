@@ -1,3 +1,4 @@
+//frontend/src/pages/YearEndProcessing.jsx
 import React, { useEffect, useRef } from "react";
 import { Calendar, ShieldCheck } from "lucide-react";
 
@@ -11,6 +12,8 @@ import MaxConsecutiveCard from "./yearEnd/components/MaxConsecutiveCard";
 import SpecialHolidaysCard from "./yearEnd/components/SpecialHolidaysCard";
 import CarryOverCard from "./yearEnd/components/CarryOverCard";
 import YearEndCard from "./yearEnd/components/YearEndCard";
+import HistoryTable from "./yearEnd/components/HistoryTable";
+
 
 function ProvidersBridge({ children }) {
   // ทำ ref เพื่อส่งค่า realtime ให้ YearEndProcessingProvider เอาไป build confirm summary
@@ -34,6 +37,7 @@ function ProvidersBridge({ children }) {
     </YearEndProcessingProvider>
   );
 }
+
 
 export default function YearEndProcessing() {
   return (
