@@ -1,5 +1,5 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+// backend/src/controllers/holidayController.js
+const prisma = require('../config/prisma'); 
 const { auditLog } = require("../utils/logger");
 
 const normalizeDate = (dateInput) => {

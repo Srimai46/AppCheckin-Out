@@ -1,6 +1,6 @@
 // backend/src/controllers/leaves/leaveSystemController.js
 
-const prisma = require("../../utils/prisma");
+const prisma = require('../../config/prisma'); 
 const { validateAndApplyQuotaCaps } = require("../../utils/leaveUtils");
 const { auditLog } = require("../../utils/logger");
 

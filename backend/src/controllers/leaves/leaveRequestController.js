@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const prisma = require("../../utils/prisma");
+const prisma = require('../../config/prisma'); 
 const { auditLog } = require("../../utils/logger");
 const { calculateTotalDays, getWorkingDaysList } = require("../../utils/leaveHelpers");
 

@@ -1,6 +1,6 @@
 // backend/src/controllers/leaves/leaveTypeController.js
 
-const prisma = require("../../utils/prisma");
+const prisma = require('../../config/prisma'); 
 const { auditLog } = require("../../utils/logger");
 
 // ดึงรายการประเภทวันลา (Leave Types)
