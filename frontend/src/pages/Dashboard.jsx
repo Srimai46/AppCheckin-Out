@@ -6,10 +6,8 @@ import { LogIn, LogOut, Calendar, ChevronDown, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 import { useTranslation } from "react-i18next";
-
 import { QuotaCards, HistoryTable } from "../components/shared";
-
-import api from "../api/axios"; // ✅ สำหรับยิง update leave ใน modal
+import api from "../api/axios";
 
 export default function Dashboard() {
   const navigate = useNavigate();
