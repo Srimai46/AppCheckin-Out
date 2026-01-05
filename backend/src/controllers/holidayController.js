@@ -1,5 +1,5 @@
 // backend/src/controllers/holidayController.js
-const prisma = require('../config/prisma'); 
+const prisma = require("../config/prisma");
 const { auditLog } = require("../utils/logger");
 
 const normalizeDate = (dateInput) => {
@@ -9,8 +9,7 @@ const normalizeDate = (dateInput) => {
 };
 
 // =====================================================
-// ✅ Working Days Policy (NEW)
-// เก็บใน DB ผ่านตาราง/โมเดล "HolidayPolicy" (แนะนำ)
+// ✅ Working Days Policy
 // key = "WORKING_DAYS", workingDays = JSON ["MON","TUE",...]
 // =====================================================
 
@@ -23,21 +22,20 @@ const normalizeWorkingDays = (input) => {
   const cleaned = arr
     .map((x) => String(x || "").trim().toUpperCase())
     .filter((x) => VALID_DAYS.has(x));
-
-  // unique keep order
   return [...new Set(cleaned)];
 };
 
 // ✅ GET /api/holidays/working-days
 exports.getWorkingDaysPolicy = async (req, res) => {
   try {
-    // ต้องมี model HolidayPolicy ใน prisma (เดี๋ยวคุณส่ง schema มา ผมจะจัดให้)
     const row = await prisma.holidayPolicy.findUnique({
       where: { key: WORKING_DAYS_KEY },
       select: { key: true, workingDays: true, updatedAt: true, updatedBy: true },
     });
 
-    const workingDays = Array.isArray(row?.workingDays) ? row.workingDays : DEFAULT_WORKING_DAYS;
+    const workingDays = Array.isArray(row?.workingDays)
+      ? row.workingDays
+      : DEFAULT_WORKING_DAYS;
 
     res.json({
       key: WORKING_DAYS_KEY,
@@ -58,7 +56,9 @@ exports.saveWorkingDaysPolicy = async (req, res) => {
     const incoming = normalizeWorkingDays(req.body?.workingDays);
 
     if (incoming.length === 0) {
-      return res.status(400).json({ error: "workingDays must have at least 1 valid day" });
+      return res
+        .status(400)
+        .json({ error: "workingDays must have at least 1 valid day" });
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -79,9 +79,9 @@ exports.saveWorkingDaysPolicy = async (req, res) => {
         },
       });
 
-      const auditDetails = `HR updated Working Days policy: [${(oldRow?.workingDays || DEFAULT_WORKING_DAYS).join(
-        ", "
-      )}] -> [${incoming.join(", ")}]`;
+      const auditDetails = `HR updated Working Days policy: [${(
+        oldRow?.workingDays || DEFAULT_WORKING_DAYS
+      ).join(", ")}] -> [${incoming.join(", ")}]`;
 
       await auditLog(tx, {
         action: oldRow ? "UPDATE" : "CREATE",
@@ -103,7 +103,7 @@ exports.saveWorkingDaysPolicy = async (req, res) => {
       io.emit("notification_refresh");
       io.emit("new-audit-log", {
         id: Date.now(),
-        action: result.action, // CREATE / UPDATE
+        action: result.action,
         modelName: "HolidayPolicy",
         recordId: 0,
         performedBy: {
@@ -121,7 +121,157 @@ exports.saveWorkingDaysPolicy = async (req, res) => {
     });
   } catch (error) {
     console.error("saveWorkingDaysPolicy Error:", error);
-    res.status(400).json({ error: error.message || "Failed to save working days policy" });
+    res
+      .status(400)
+      .json({ error: error.message || "Failed to save working days policy" });
+  }
+};
+
+// =====================================================
+// ✅ Max Consecutive Holidays Policy (NEW)
+// key = "MAX_CONSECUTIVE_HOLIDAYS", maxConsecutiveHolidayDays = Int
+// =====================================================
+
+const MAX_CONSECUTIVE_KEY = "MAX_CONSECUTIVE_HOLIDAYS";
+const DEFAULT_MAX_CONSECUTIVE = 0;
+
+const normalizeMaxConsecutive = (n) => {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return null;
+  const intVal = Math.floor(num);
+  if (intVal < 0 || intVal > 365) return null; // 0-365
+  return intVal;
+};
+
+// ✅ GET /api/holidays/max-consecutive
+exports.getMaxConsecutivePolicy = async (req, res) => {
+  try {
+    const row = await prisma.holidayPolicy.findUnique({
+      where: { key: MAX_CONSECUTIVE_KEY },
+      select: { key: true, maxConsecutiveHolidayDays: true, updatedAt: true, updatedBy: true },
+    });
+
+    const maxConsecutiveHolidayDays =
+      row?.maxConsecutiveHolidayDays !== null && row?.maxConsecutiveHolidayDays !== undefined
+        ? Number(row.maxConsecutiveHolidayDays)
+        : DEFAULT_MAX_CONSECUTIVE;
+
+    return res.json({
+      key: MAX_CONSECUTIVE_KEY,
+      maxConsecutiveHolidayDays,
+      updatedAt: row?.updatedAt || null,
+      updatedBy: row?.updatedBy || null,
+    });
+  } catch (error) {
+    console.error("getMaxConsecutivePolicy Error:", error);
+    return res.status(500).json({ error: "Failed to fetch max consecutive policy" });
+  }
+};
+
+// ✅ PUT /api/holidays/max-consecutive (HR)
+// body: { days: number }  (รองรับ { maxConsecutiveHolidayDays } เผื่อเรียกแบบอื่น)
+exports.saveMaxConsecutivePolicy = async (req, res) => {
+  try {
+    const hrId = req.user.id;
+
+    const incomingRaw = req.body?.days ?? req.body?.maxConsecutiveHolidayDays;
+    const incoming = normalizeMaxConsecutive(incomingRaw);
+
+    if (incoming === null) {
+      return res.status(400).json({
+        error: "days must be a number between 0 and 365",
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const oldRow = await tx.holidayPolicy.findUnique({
+        where: { key: MAX_CONSECUTIVE_KEY },
+      });
+
+      // 1) upsert policy
+      const saved = await tx.holidayPolicy.upsert({
+        where: { key: MAX_CONSECUTIVE_KEY },
+        create: {
+          key: MAX_CONSECUTIVE_KEY,
+          maxConsecutiveHolidayDays: incoming,
+          updatedBy: hrId,
+        },
+        update: {
+          maxConsecutiveHolidayDays: incoming,
+          updatedBy: hrId,
+        },
+      });
+
+      // 2) apply ไปยังทุก LeaveType (ทุกประเภทวันลา)
+      const updateManyResult = await tx.leaveType.updateMany({
+        data: { maxConsecutiveDays: incoming },
+      });
+
+      const oldVal = Number(oldRow?.maxConsecutiveHolidayDays ?? DEFAULT_MAX_CONSECUTIVE);
+
+      const auditDetails = `HR updated Max Consecutive Holidays policy: ${oldVal} -> ${incoming} day(s) (applied to ALL leave types). Updated leave types: ${updateManyResult.count}`;
+
+      // ✅ กัน auditLog พังแล้ว rollback ทั้ง transaction
+      try {
+        await auditLog(tx, {
+          action: oldRow ? "UPDATE" : "CREATE",
+          modelName: "HolidayPolicy",
+          recordId: oldRow?.id || saved?.id || 0,
+          userId: hrId,
+          details: auditDetails,
+          oldValue: oldRow || null,
+          newValue: saved,
+          req: req,
+        });
+      } catch (e) {
+        console.error("[AUDIT LOG ERROR - ignored to avoid rollback]", e);
+      }
+
+      // (optional) sample ดูค่าใน DB หลัง update เพื่อเช็ค
+      const sample = await tx.leaveType.findMany({
+        select: { id: true, typeName: true, maxConsecutiveDays: true },
+        orderBy: { id: "asc" },
+        take: 10,
+      });
+
+      return {
+        saved,
+        auditDetails,
+        action: oldRow ? "UPDATE" : "CREATE",
+        updatedLeaveTypes: updateManyResult.count,
+        sample,
+      };
+    });
+
+    // Real-time Notification (Socket.io)
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("notification_refresh");
+      io.emit("new-audit-log", {
+        id: Date.now(),
+        action: result.action,
+        modelName: "HolidayPolicy",
+        recordId: 0,
+        performedBy: {
+          firstName: req.user.firstName,
+          lastName: req.user.lastName,
+        },
+        details: result.auditDetails,
+        createdAt: new Date(),
+      });
+    }
+
+    return res.json({
+      message: "Max consecutive policy saved successfully",
+      data: result.saved,
+      updatedLeaveTypes: result.updatedLeaveTypes, // ✅ สำคัญ: อัปเดตไปกี่แถว
+      sample: result.sample, // ✅ เช็คได้ทันทีว่าเปลี่ยนจริงไหม
+    });
+  } catch (error) {
+    console.error("saveMaxConsecutivePolicy Error:", error);
+    return res.status(400).json({
+      error: error.message || "Failed to save max consecutive policy",
+    });
   }
 };
 
@@ -129,12 +279,12 @@ exports.saveWorkingDaysPolicy = async (req, res) => {
 // ✅ Holiday CRUD (ของเดิมคุณ)
 // =====================================================
 
-// 1. สร้างวันหยุด (พร้อม Validation)
+// 1) สร้างวันหยุด (พร้อม Validation)
 exports.createHoliday = async (req, res) => {
   try {
     const { holidays } = req.body;
     const hrId = req.user.id;
-    // Check if it's an Array, if single object convert to Array
+
     const holidayList = Array.isArray(holidays) ? holidays : [req.body];
 
     const result = await prisma.$transaction(async (tx) => {
@@ -143,12 +293,10 @@ exports.createHoliday = async (req, res) => {
       for (const item of holidayList) {
         const { date, name, isSubsidy } = item;
 
-        // Validation
         if (!date || !name) continue;
 
         const targetDate = normalizeDate(date);
 
-        // Check for duplicates
         const existing = await tx.holiday.findUnique({
           where: { date: targetDate },
         });
@@ -167,7 +315,6 @@ exports.createHoliday = async (req, res) => {
 
       const auditDetails = `HR added ${addedHolidays.length} new holidays.`;
 
-      // Database Audit Log
       if (addedHolidays.length > 0) {
         await auditLog(tx, {
           action: "CREATE",
@@ -183,23 +330,19 @@ exports.createHoliday = async (req, res) => {
       return { addedHolidays, auditDetails };
     });
 
-    // Real-time Notification (Socket.io)
     const io = req.app.get("io");
     if (io && result.addedHolidays.length > 0) {
-      // 1. Refresh calendars on client side
       io.emit("notification_refresh");
-
-      // 2. Show on System Activities screen
       io.emit("new-audit-log", {
         id: Date.now(),
-        action: "CREATE", // Green color
+        action: "CREATE",
         modelName: "Holiday",
-        recordId: result.addedHolidays.length, // Display count as ID or 0
+        recordId: result.addedHolidays.length,
         performedBy: {
           firstName: req.user.firstName,
           lastName: req.user.lastName,
         },
-        details: result.auditDetails, // "HR added X new holidays."
+        details: result.auditDetails,
         createdAt: new Date(),
       });
     }
@@ -215,7 +358,7 @@ exports.createHoliday = async (req, res) => {
   }
 };
 
-// 2. แก้ไขวันหยุด (Update)
+// 2) แก้ไขวันหยุด (Update)
 exports.updateHoliday = async (req, res) => {
   try {
     const { id } = req.params;
@@ -223,13 +366,11 @@ exports.updateHoliday = async (req, res) => {
     const hrId = req.user.id;
     const holidayId = parseInt(id, 10);
 
-    // 1. Validation
     if (!date && !name && isSubsidy === undefined) {
       throw new Error("No data provided for update.");
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // 2. Get old data
       const oldHoliday = await tx.holiday.findUnique({
         where: { id: holidayId },
       });
@@ -242,7 +383,7 @@ exports.updateHoliday = async (req, res) => {
 
       if (date) {
         const targetDate = normalizeDate(date);
-        // Check duplicate
+
         const conflict = await tx.holiday.findFirst({
           where: {
             date: targetDate,
@@ -253,7 +394,6 @@ exports.updateHoliday = async (req, res) => {
         dataToUpdate.date = targetDate;
       }
 
-      // 3. Update
       const updated = await tx.holiday.update({
         where: { id: holidayId },
         data: dataToUpdate,
@@ -261,7 +401,6 @@ exports.updateHoliday = async (req, res) => {
 
       const auditDetails = `Updated holiday: ${oldHoliday.name} -> ${updated.name}`;
 
-      // 4. Database Audit Log
       await auditLog(tx, {
         action: "UPDATE",
         modelName: "Holiday",
@@ -276,23 +415,19 @@ exports.updateHoliday = async (req, res) => {
       return { updated, auditDetails };
     });
 
-    // Real-time Notification (Socket.io)
     const io = req.app.get("io");
     if (io) {
-      // 1. Refresh calendars
       io.emit("notification_refresh");
-
-      // 2. Show on System Activities screen
       io.emit("new-audit-log", {
         id: Date.now(),
-        action: "UPDATE", // Orange color
+        action: "UPDATE",
         modelName: "Holiday",
         recordId: holidayId,
         performedBy: {
           firstName: req.user.firstName,
           lastName: req.user.lastName,
         },
-        details: result.auditDetails, // "Updated holiday: Old -> New"
+        details: result.auditDetails,
         createdAt: new Date(),
       });
     }
@@ -304,7 +439,7 @@ exports.updateHoliday = async (req, res) => {
   }
 };
 
-// 3. ดึงข้อมูล (Get)
+// 3) ดึงข้อมูล (Get)
 exports.getHolidays = async (req, res) => {
   try {
     const { year } = req.query;
@@ -317,13 +452,14 @@ exports.getHolidays = async (req, res) => {
       where: { date: { gte: startDate, lte: endDate } },
       orderBy: { date: "asc" },
     });
+
     res.json(holidays);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch holidays" });
   }
 };
 
-// 4. ลบวันหยุด (Delete)
+// 4) ลบวันหยุด (Delete)
 exports.deleteHoliday = async (req, res) => {
   try {
     const { id } = req.params;
@@ -333,7 +469,6 @@ exports.deleteHoliday = async (req, res) => {
     if (!holidayId) return res.status(400).json({ error: "Invalid holiday ID" });
 
     const result = await prisma.$transaction(async (tx) => {
-      // ✅ 1. ต้องดึงข้อมูลไว้ก่อนที่จะลบ เพื่อเก็บลง Audit Log
       const oldHoliday = await tx.holiday.findUnique({
         where: { id: holidayId },
       });
@@ -342,45 +477,41 @@ exports.deleteHoliday = async (req, res) => {
         throw new Error("Holiday not found.");
       }
 
-      // ✅ 2. ทำการลบข้อมูล
       await tx.holiday.delete({
         where: { id: holidayId },
       });
 
-      const auditDetails = `HR deleted holiday: ${oldHoliday.name} (${oldHoliday.date.toISOString().split("T")[0]})`;
+      const auditDetails = `HR deleted holiday: ${oldHoliday.name} (${oldHoliday.date
+        .toISOString()
+        .split("T")[0]})`;
 
-      // ✅ 3. บันทึก Audit Log (Action: DELETE) ลง Database
       await auditLog(tx, {
         action: "DELETE",
         modelName: "Holiday",
         recordId: holidayId,
         userId: hrId,
         details: auditDetails,
-        oldValue: oldHoliday, // เก็บก้อนข้อมูลที่ลบไว้ทั้งหมด
-        newValue: null, // ข้อมูลใหม่ไม่มีเพราะถูกลบไปแล้ว
+        oldValue: oldHoliday,
+        newValue: null,
         req: req,
       });
 
       return { oldHoliday, auditDetails };
     });
 
-    // 4. ส่วน Real-time (Socket.io)
     const io = req.app.get("io");
     if (io) {
-      // 4.1 สั่งให้หน้าปฏิทินรีเฟรช (วันหยุดที่ลบจะหายไปทันที)
       io.emit("notification_refresh");
-
-      // 4.2 ส่ง Audit Log ไปแสดงบนหน้าจอ System Activities
       io.emit("new-audit-log", {
         id: Date.now(),
-        action: "DELETE", // ใช้สีแดง เพื่อบอกว่าเป็นการลบ
+        action: "DELETE",
         modelName: "Holiday",
         recordId: holidayId,
         performedBy: {
           firstName: req.user.firstName,
           lastName: req.user.lastName,
         },
-        details: result.auditDetails, // "HR deleted holiday: ..."
+        details: result.auditDetails,
         createdAt: new Date(),
       });
     }

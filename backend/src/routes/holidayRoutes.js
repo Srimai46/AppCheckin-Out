@@ -12,6 +12,10 @@ const { protect, authorize } = require("../middlewares/authMiddleware");
 router.get("/working-days", protect, holidayController.getWorkingDaysPolicy);
 router.put("/working-days", protect, authorize("HR"), holidayController.saveWorkingDaysPolicy);
 
+// ✅ Max Consecutive Holidays Policy (ต้องอยู่ก่อน "/:id" ไม่งั้นชนกัน)
+router.get("/max-consecutive", protect, holidayController.getMaxConsecutivePolicy);
+router.put("/max-consecutive", protect, authorize("HR"), holidayController.saveMaxConsecutivePolicy);
+
 // 1. ดึงรายการวันหยุด (อาจจะให้พนักงานทุกคนดูได้ หรือเฉพาะ HR ก็ได้ตาม Policy)
 router.get("/", protect, holidayController.getHolidays);
 

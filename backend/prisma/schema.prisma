@@ -102,7 +102,6 @@ model LeaveType {
   leaveRequests LeaveRequest[]
   specialLeaveGrants SpecialLeaveGrant[]
   @@map("leave_types")
-
 }
 
 model LeaveQuota {
@@ -250,6 +249,7 @@ model HolidayPolicy {
   id          Int      @id @default(autoincrement())
   key         String   @unique @db.VarChar(50) // เช่น "WORKING_DAYS"
   workingDays Json?    // เก็บเป็น ["MON","TUE",...]
+  maxConsecutiveHolidayDays Int @default(0)
   updatedBy   Int?
   updatedAt   DateTime @updatedAt
   createdAt   DateTime @default(now())

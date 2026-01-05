@@ -77,3 +77,22 @@ export const saveWorkingDaysPolicy = async (workingDays) => {
   );
   return response.data;
 };
+
+// 7) ดึง Max Consecutive
+export const fetchMaxConsecutivePolicy = async () => {
+  const response = await axios.get(`${API_BASE}/api/holidays/max-consecutive`, {
+    headers: getHeaders(),
+  });
+  // expected: { key: "MAX_CONSECUTIVE_HOLIDAYS", maxConsecutiveHolidayDays, updatedAt, updatedBy }
+  return response.data;
+};
+
+// 8) บันทึก Max Consecutive (HR)
+export const saveMaxConsecutivePolicy = async (days) => {
+  const response = await axios.put(
+    `${API_BASE}/api/holidays/max-consecutive`,
+    { days },
+    { headers: getHeaders() }
+  );
+  return response.data;
+};
