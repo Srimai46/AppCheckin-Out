@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-// อย่าลืมลง library นี้: npm install socket.io-client
-import { io } from "socket.io-client"; 
+// อย่าลืมลง library: npm install socket.io-client
+import { io } from "socket.io-client";
 import { alertConfirm, alertError, alertSuccess } from "../../../utils/sweetAlert";
 import { escapeHtml } from "../utils";
 import { getSystemConfigs, processCarryOver, reopenYear } from "../../../api/leaveService";
 
 const Ctx = createContext(null);
 
-export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxConsecutiveRef }) {
+export function YearEndProcessingProvider({ children, carryOverLimitsRef }) {
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -20,6 +20,9 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
     PERSONAL: 0,
     EMERGENCY: 0,
   });
+
+  // ✅ [State ใหม่] เก็บค่า Max Consecutive Days
+  const [maxConsecutive, setMaxConsecutive] = useState(0);
 
   const handleQuotaChange = (type, value) => {
     setQuotas((prev) => ({ ...prev, [type]: Number(value) }));
@@ -35,11 +38,10 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
     }
   };
 
-  // ✅ 1. โหลดข้อมูลครั้งแรก + เชื่อมต่อ Socket เพื่อรอฟังการอัปเดตจากเครื่องอื่น
+  // 1. โหลดข้อมูลครั้งแรก + เชื่อมต่อ Socket
   useEffect(() => {
     fetchConfigs();
 
-    // ตั้งค่า Socket URL (ใช้ค่าเดียวกับที่ตั้งไว้ในไฟล์ config อื่นๆ)
     const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(/\/$/, "");
     
     const socket = io(API_URL, { 
@@ -47,7 +49,6 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
       transports: ["websocket", "polling"]
     });
 
-    // เมื่อ Backend บอกให้รีเฟรช (เช่น มีการ Lock ปีงบประมาณสำเร็จ)
     socket.on("notification_refresh", () => {
       console.log("🔄 System config updated via socket");
       fetchConfigs();
@@ -60,7 +61,8 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
 
   const buildProcessConfirmHtml = () => {
     const co = carryOverLimitsRef?.current || {};
-    const maxConsecutiveHolidayDays = maxConsecutiveRef?.current ?? "-";
+    // ✅ แสดงค่าที่จะบันทึกจริง (ดึงจาก State)
+    const displayMaxConsecutive = maxConsecutive > 0 ? maxConsecutive : "Unlimited (0)";
 
     const row = (label, value) => `
         <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #eee;">
@@ -88,9 +90,9 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
             ${row("EMERGENCY", co.EMERGENCY ?? 0)}
         </div>
 
-        <div style="margin-top:12px; font-size:12px; opacity:.8;">
-            Max consecutive holiday days allowed:
-            <b>${escapeHtml(String(maxConsecutiveHolidayDays))}</b> day(s)
+        <div style="margin-top:12px; font-size:13px; color:#4b5563;">
+            <span style="font-weight:bold; color:#1f2937;">Max Consecutive Days:</span> 
+            ${escapeHtml(String(displayMaxConsecutive))}
         </div>
         </div>
     `.trim();
@@ -98,6 +100,11 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
 
   const handleProcess = async () => {
     if (loading) return;
+
+    // ตรวจสอบข้อมูลเบื้องต้น
+    if (!quotas.ANNUAL && !quotas.SICK && !quotas.PERSONAL) {
+       // Optional warning logic
+    }
 
     const confirmed = await alertConfirm(
       "Confirm Year-End Processing",
@@ -108,11 +115,12 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
 
     setLoading(true);
     try {
-      // ✅ 2. แก้ไขชื่อ Parameter ตรงนี้ให้ตรงกับ Backend (carryConfigs)
+      // ✅ ส่ง maxConsecutiveDays ไปหา Backend
       const res = await processCarryOver({
         targetYear: Number(targetYear),
         quotas,
-        carryConfigs: carryOverLimitsRef?.current || {}, // แก้จาก carryOverLimits เป็น carryConfigs
+        carryConfigs: carryOverLimitsRef?.current || {},
+        maxConsecutiveDays: maxConsecutive // [ส่งค่า]
       });
 
       await alertSuccess(
@@ -169,12 +177,16 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef, maxCon
     lastYear,
     quotas,
     handleQuotaChange,
+    
+    // ✅ ส่งออกไปให้ UI ใช้
+    maxConsecutive,
+    setMaxConsecutive,
+
     handleProcess,
     handleReopen,
     fetchConfigs,
   };
 
-  // ✅ NO JSX in .js
   return React.createElement(Ctx.Provider, { value }, children);
 }
 

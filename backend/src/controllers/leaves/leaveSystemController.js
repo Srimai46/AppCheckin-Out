@@ -7,10 +7,11 @@ const { auditLog } = require("../../utils/logger");
 
 exports.processCarryOver = async (req, res) => {
   try {
-    const { targetYear, quotas = {}, carryConfigs = {} } = req.body;
+    const { targetYear, quotas = {}, carryConfigs = {}, maxConsecutiveDays } = req.body;
+    
     const tYear = parseInt(targetYear, 10);
     const lastYear = tYear - 1;
-    const userId = req.user.id; 
+    const userId = req.user.id;
 
     if (!tYear || isNaN(tYear)) throw new Error("Invalid targetYear.");
 
@@ -30,14 +31,32 @@ exports.processCarryOver = async (req, res) => {
 
       let processedCount = 0;
 
-      // วนลูปประมวลผล
+      // วนลูปประมวลผลให้พนักงานทุกคน
       for (const emp of allEmployees) {
         for (const type of leaveTypes) {
-          const typeName = type.typeName.toUpperCase();
-          const setting = carryConfigs[typeName] || {
-            maxCarry: 0,
-            totalCap: 999,
-          };
+          
+          // 🔥 แก้ไข 1: จัดการ Key ให้เป็น UpperCase เสมอ เพื่อป้องกันปัญหา Case Sensitive
+          const typeKey = type.typeName.toUpperCase(); // เช่น "SICK", "ANNUAL"
+
+          // 🔥 แก้ไข 2: รองรับค่าจาก Frontend ทั้งแบบตัวเลข และแบบ Object
+          const configValue = carryConfigs[typeKey];
+          
+          let allowedMaxCarry = 0;
+          let allowedTotalCap = 999; // ค่า Default ถ้าไม่กำหนด
+
+          if (typeof configValue === 'number') {
+            // กรณี Frontend ส่งมาเป็น: { "SICK": 5 }
+            allowedMaxCarry = configValue;
+          } else if (typeof configValue === 'string') {
+             // กรณีส่งมาเป็น String: { "SICK": "5" }
+             allowedMaxCarry = parseInt(configValue, 10) || 0;
+          } else if (typeof configValue === 'object' && configValue !== null) {
+            // กรณี Frontend ส่งมาเป็น Object: { "SICK": { maxCarry: 5 } }
+            allowedMaxCarry = Number(configValue.maxCarry || 0);
+            allowedTotalCap = Number(configValue.totalCap || 999);
+          }
+
+          // -------------------------------------------------------------
 
           const oldQuota = await tx.leaveQuota.findUnique({
             where: {
@@ -51,21 +70,27 @@ exports.processCarryOver = async (req, res) => {
 
           let rawCarry = 0;
           if (oldQuota) {
+            // คำนวณยอดคงเหลือจากปีที่แล้ว (Total + Carry - Used)
             const remaining =
               Number(oldQuota.totalDays) +
               Number(oldQuota.carryOverDays) -
               Number(oldQuota.usedDays);
+            
+            // ต้องไม่ต่ำกว่า 0
             rawCarry = Math.max(remaining, 0);
           }
 
+          // ตรวจสอบเงื่อนไขเพดานการทบ (Caps)
+          // ใช้งาน allowedMaxCarry ที่เราแกะค่ามาได้อย่างถูกต้อง
           const { finalBase, finalCarry } = validateAndApplyQuotaCaps({
-            typeName: typeName,
-            totalDays: Number(quotas[typeName] || 0),
+            typeName: typeKey,
+            totalDays: Number(quotas[typeKey] || 0),
             carryOverDays: rawCarry,
-            hrMaxCarry: setting.maxCarry,
-            hrTotalCap: setting.totalCap,
+            hrMaxCarry: allowedMaxCarry, // ✅ ใช้ค่าที่รับมาจาก Frontend
+            hrTotalCap: allowedTotalCap,
           });
 
+          // บันทึก Quota ปีใหม่
           await tx.leaveQuota.upsert({
             where: {
               employeeId_leaveTypeId_year: {
@@ -88,7 +113,7 @@ exports.processCarryOver = async (req, res) => {
         processedCount++;
       }
 
-      // 3. ปิดงวดปีเก่า และ เปิดงวดปีใหม่
+      // 3. ปิดงวดปีเก่า
       await tx.systemConfig.upsert({
         where: { year: lastYear },
         update: { isClosed: true, closedAt: new Date(), processedBy: userId },
@@ -100,18 +125,28 @@ exports.processCarryOver = async (req, res) => {
         },
       });
 
+      // 4. เปิดงวดปีใหม่ และบันทึกค่า Max Consecutive Days
+      const maxConsecutiveVal = maxConsecutiveDays ? parseInt(maxConsecutiveDays, 10) : 0;
+
       await tx.systemConfig.upsert({
         where: { year: tYear },
-        update: { isClosed: false },
-        create: { year: tYear, isClosed: false },
+        update: { 
+            isClosed: false,
+            maxConsecutiveDays: maxConsecutiveVal 
+        },
+        create: { 
+            year: tYear, 
+            isClosed: false,
+            maxConsecutiveDays: maxConsecutiveVal 
+        },
       });
 
       const auditDetails = `Processed carry over from ${lastYear} to ${tYear}. Total employees: ${allEmployees.length}`;
 
-      // 4. บันทึก Audit Log (ลง Database)
+      // 5. บันทึก Audit Log
       await tx.auditLog.create({
         data: {
-          action: "SYSTEM_LOCK", 
+          action: "SYSTEM_LOCK",
           modelName: "SystemConfig",
           recordId: tYear,
           performedById: userId,
@@ -119,43 +154,41 @@ exports.processCarryOver = async (req, res) => {
           newValue: {
             targetYear: tYear,
             baseQuotasSent: quotas,
-            carryConfigsUsed: carryConfigs,
+            carryConfigsUsed: carryConfigs, // บันทึกสิ่งที่ Frontend ส่งมา
+            maxConsecutiveDays: maxConsecutiveVal
           },
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
         },
       });
 
-      // 5. สร้าง Notification สรุป
+      // 6. สร้าง Notification แจ้งพนักงาน
       const notifyData = allEmployees.map((emp) => ({
         employeeId: emp.id,
         notificationType: "Approval",
-        message: `Your leave quotas for ${tYear} have been processed. Carry over: Checked.`,
+        message: `Your leave quotas for ${tYear} have been processed.`,
       }));
       await tx.notification.createMany({ data: notifyData });
 
       return { processedCount, auditDetails };
     });
 
-    // 6. ส่วน Real-time (Socket.io)
+    // 7. Real-time Socket
     const io = req.app.get("io");
     if (io) {
-        // 6.1 สั่งให้ Client ทุกคน Refresh ข้อมูล (เช่น หน้า Dashboard, หน้า Quota)
-        io.emit("notification_refresh");
-
-        // 6.2 ส่ง Audit Log ไปแสดงบนหน้าจอ System Activities ทันที
-        io.emit("new-audit-log", {
-            id: Date.now(),
-            action: "CREATE", // ใช้สีเขียว เพื่อสื่อว่าเป็นการสร้างปีงบประมาณใหม่สำเร็จ
-            modelName: "SystemConfig",
-            recordId: tYear,
-            performedBy: {
-                firstName: req.user.firstName,
-                lastName: req.user.lastName
-            },
-            details: result.auditDetails, // "Processed carry over... Total: X"
-            createdAt: new Date()
-        });
+      io.emit("notification_refresh");
+      io.emit("new-audit-log", {
+        id: Date.now(),
+        action: "CREATE",
+        modelName: "SystemConfig",
+        recordId: tYear,
+        performedBy: {
+          firstName: req.user.firstName,
+          lastName: req.user.lastName,
+        },
+        details: result.auditDetails,
+        createdAt: new Date(),
+      });
     }
 
     res.json({ message: "Success", employeesProcessed: result.processedCount });

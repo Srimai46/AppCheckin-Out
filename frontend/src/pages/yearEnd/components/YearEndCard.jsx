@@ -1,25 +1,32 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { AlertTriangle, Info, RefreshCw, Save } from "lucide-react";
 import { useCarryOverLimits } from "../hooks/useCarryOverLimits";
-import { useHolidayPolicy } from "../hooks/useHolidayPolicy";
+// import { useHolidayPolicy } from "../hooks/useHolidayPolicy"; // ไม่จำเป็นต้องใช้แล้ว
 import { useYearEndProcessing } from "../hooks/useYearEndProcessing";
 import HistoryTable from "./HistoryTable";
 
 export default function YearEndCard() {
   const { carryOverLimits } = useCarryOverLimits();
-  const { maxConsecutiveHolidayDays } = useHolidayPolicy();
-  const { configs, loading, targetYear, setTargetYear, quotas, handleQuotaChange, handleProcess, handleReopen } =
-    useYearEndProcessing();
+  
+  // ✅ ดึง maxConsecutive และ setMaxConsecutive มาใช้
+  const { 
+    configs, 
+    loading, 
+    targetYear, 
+    setTargetYear, 
+    quotas, 
+    handleQuotaChange, 
+    handleProcess, 
+    handleReopen,
+    maxConsecutive,      // [ใหม่]
+    setMaxConsecutive    // [ใหม่]
+  } = useYearEndProcessing();
 
-  // dropdown year
+  // dropdown year state
   const [targetYearOpen, setTargetYearOpen] = useState(false);
   const currentYear = new Date().getFullYear();
   const FUTURE_YEARS = 3;
   const years = useMemo(() => Array.from({ length: FUTURE_YEARS }, (_, i) => currentYear + i), [currentYear]);
-
-  // keep refs synced for confirm summary (provider uses refs)
-  // (ไม่จำเป็นต้องทำเพิ่มในนี้ เพราะ provider รับ ref จากหน้า YearEndProcessing.jsx แล้ว)
-  // แสดงไว้ให้เข้าใจว่ามันแชร์ค่าจริง
 
   return (
     <>
@@ -32,24 +39,47 @@ export default function YearEndCard() {
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-800 mb-1">Configure Quotas for {targetYear}</h2>
             <p className="text-sm text-gray-500 mb-6">
-              Set the base leave quotas to be assigned to all employees along with carry-over.
+              Set the base leave quotas to be assigned to all employees along with carry-over and policies.
             </p>
 
+            {/* --- Quota Inputs --- */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               {Object.keys(quotas).map((type) => (
                 <div key={type}>
                   <label className="block text-xs font-black text-gray-400 uppercase mb-1">{type}</label>
                   <input
                     type="number"
+                    min="0"
                     value={quotas[type]}
                     onChange={(e) => handleQuotaChange(type, e.target.value)}
                     className="w-full border border-gray-200 rounded-3xl px-3 py-2 text-sm font-bold
-                      focus:ring-2 focus:ring-indigo-500 outline-none"
+                      focus:ring-2 focus:ring-indigo-500 outline-none text-slate-700"
                   />
                 </div>
               ))}
             </div>
 
+            {/* --- ✅ [UI ใหม่] Max Consecutive Days Input --- */}
+            <div className="mb-6 p-5 bg-gray-50 rounded-3xl border border-gray-100">
+               <label className="block text-xs font-black text-gray-500 uppercase mb-2">
+                 Global Policy: Max Consecutive Working Days
+               </label>
+               <div className="flex flex-col md:flex-row md:items-center gap-3">
+                 <input
+                   type="number"
+                   min="0"
+                   value={maxConsecutive}
+                   onChange={(e) => setMaxConsecutive(e.target.value)}
+                   className="w-full md:w-32 border border-gray-200 rounded-3xl px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+                   placeholder="0"
+                 />
+                 <span className="text-xs text-gray-400 font-medium">
+                   (Set <strong>0</strong> for Unlimited. This applies to all leave types unless overridden.)
+                 </span>
+               </div>
+            </div>
+
+            {/* --- Action Bar --- */}
             <div className="flex items-center gap-4 pt-4 border-t border-gray-50">
               <div className="flex flex-col relative w-44">
                 <span className="text-xs text-gray-400 font-bold mb-1">Target Year</span>
@@ -111,15 +141,14 @@ export default function YearEndCard() {
               </button>
             </div>
 
-            {/* (optional) แสดงค่าปัจจุบันแบบ debug เล็ก ๆ */}
+            {/* Debug info (Optional) */}
             <div className="mt-4 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-              CarryOver:{" "}
+              Current Settings:{" "}
               <span className="text-slate-600">
                 {Object.keys(carryOverLimits)
                   .map((k) => `${k}:${carryOverLimits[k]}`)
                   .join(" | ")}
               </span>
-              <span className="ml-3">MaxConsecutive: <span className="text-slate-600">{maxConsecutiveHolidayDays}</span></span>
             </div>
           </div>
         </div>
