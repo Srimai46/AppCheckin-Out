@@ -2,6 +2,8 @@
 import React, { createContext, useContext, useMemo, useState, useEffect, useCallback } from "react";
 import { alertConfirm, alertError, alertSuccess } from "../../../utils/sweetAlert";
 import { calcTotalDays, clamp, isValidTime, safeYMD, toYMD } from "../utils";
+import { updateSystemConfig } from "../../../api/leaveService";
+
 import {
   buildHolidayDeleteConfirmHtml,
   buildHolidayUpsertConfirmHtml,
@@ -229,35 +231,51 @@ export function HolidayPolicyProvider({ children }) {
   const [maxConsecutiveSaving, setMaxConsecutiveSaving] = useState(false);
 
   const saveMaxConsecutivePolicy = async () => {
-    if (maxConsecutiveSaving) return;
+  if (maxConsecutiveSaving) return;
 
-    if (Number(maxConsecutiveHolidayDays) < 1 || Number(maxConsecutiveHolidayDays) > 365) {
-      alertError("Invalid Limit", "Max consecutive holidays must be between 1 and 365 days.");
-      return;
-    }
-
-    const ok = await alertConfirm(
-      "Save Max Consecutive Holidays?",
-      buildMaxConsecutiveConfirmHtml(maxConsecutiveHolidayDays),
-      "Save"
+  const value = Number(maxConsecutiveHolidayDays);
+  if (value < 1 || value > 365) {
+    return alertError(
+      "Invalid Limit",
+      "Max consecutive days must be between 1 and 365."
     );
-    if (!ok) return;
+  }
 
-    setMaxConsecutiveSaving(true);
-    try {
-      // TODO: เปลี่ยนเป็น API จริงถ้ามี
-      await new Promise((r) => setTimeout(r, 300));
-      await alertSuccess("Saved", `Max consecutive holiday days saved: ${Number(maxConsecutiveHolidayDays)} day(s).`);
-    } catch (e) {
-      console.error(e);
-      alertError("Save Failed", "Unable to save max consecutive holidays.");
-    } finally {
-      setMaxConsecutiveSaving(false);
-    }
-  };
+  const ok = await alertConfirm(
+    "Save Max Consecutive Holidays?",
+    buildMaxConsecutiveConfirmHtml(value),
+    "Save"
+  );
+  if (!ok) return;
 
-  // =========================================
-// 4. Special Holidays (Connected to Backend)
+  setMaxConsecutiveSaving(true);
+  try {
+
+    // ✅ ใช้ service ที่คุณมีอยู่แล้ว
+    const year = new Date().getFullYear();
+
+    await updateSystemConfig(
+      year,
+      Number(maxConsecutiveHolidayDays)
+    );
+
+
+
+    await alertSuccess(
+      "Saved",
+      `Max consecutive holidays updated to ${value} day(s).`
+    );
+  } catch (e) {
+    console.error(e);
+    alertError("Save Failed", e.message || "Unable to save policy.");
+  } finally {
+    setMaxConsecutiveSaving(false);
+  }
+};
+
+
+// =========================================
+// 4. Special Holidays (FULL - MERGED)
 // =========================================
 const [specialHolidays, setSpecialHolidays] = useState([]);
 const [formOpen, setFormOpen] = useState(false);
@@ -267,34 +285,30 @@ const [holidayName, setHolidayName] = useState("");
 const [holidayStart, setHolidayStart] = useState("");
 const [holidayEnd, setHolidayEnd] = useState("");
 
-// ✅ 4.1 ฟังก์ชันดึงข้อมูลวันหยุดจาก Backend
 const fetchSpecialHolidays = useCallback(async () => {
   try {
     const year = new Date().getFullYear();
     const res = await fetch(`${API_BASE}/holidays?year=${year}`, {
-      method: "GET",
-      headers: { "Authorization": `Bearer ${token}` }
+      headers: getAuthHeaders(),
     });
     const data = await res.json();
+
     if (res.ok) {
-      // ปรับโครงสร้างข้อมูล: เนื่องจาก Backend ส่งมาเป็นรายวัน 
-      // หากคุณต้องการแสดงเป็น "ช่วง" ใน UI คุณอาจต้องเขียน Logic ยุบรวม (Grouping) 
-      // แต่ในที่นี้จะนำมาแสดงเป็นรายรายการตามที่ Backend ส่งมาครับ
-      const formatted = data.map(h => ({
-        id: h.id,
-        startDate: h.date, // Backend ส่ง field date
-        endDate: h.date,   // รายวัน start/end คือวันเดียวกัน
-        name: h.name,
-        isSubsidy: h.isSubsidy
-      }));
-      setSpecialHolidays(formatted);
+      setSpecialHolidays(
+        data.map((h) => ({
+          id: h.id,
+          startDate: h.date,
+          endDate: h.date,
+          name: h.name,
+          isSubsidy: h.isSubsidy,
+        }))
+      );
     }
   } catch (e) {
-    console.error("Fetch Holidays Error:", e);
+    console.error(e);
   }
 }, []);
 
-// โหลดข้อมูลเมื่อเริ่มต้น
 useEffect(() => {
   fetchSpecialHolidays();
 }, [fetchSpecialHolidays]);
@@ -309,9 +323,9 @@ const resetHolidayForm = () => {
 const openAddForm = () => {
   setFormOpen(true);
   resetHolidayForm();
-  const t = toYMD(new Date());
-  setHolidayStart(t);
-  setHolidayEnd(t);
+  const today = toYMD(new Date());
+  setHolidayStart(today);
+  setHolidayEnd(today);
 };
 
 const onEditHoliday = (row) => {
@@ -322,68 +336,68 @@ const onEditHoliday = (row) => {
   setHolidayEnd(safeYMD(row.endDate));
 };
 
-// ✅ 4.2 ฟังก์ชันบันทึกข้อมูล (แตกช่วงวันที่ส่ง Backend)
 const upsertSpecialHoliday = async () => {
-  const name = String(holidayName || "").trim();
+  const name = holidayName.trim();
   const start = safeYMD(holidayStart);
   const end = safeYMD(holidayEnd);
 
-  // -- Validation (เหมือนเดิม) --
   if (!name) return alertError("Missing Name", "Please enter holiday name.");
-  if (!start || start.length !== 10) return alertError("Missing Start Date", "Please select a valid start date.");
-  if (!end || end.length !== 10) return alertError("Missing End Date", "Please select a valid end date.");
-  if (start > end) return alertError("Invalid Range", "Start date must be before or equal to end date.");
+  if (!start || !end) return alertError("Missing Date", "Please select date.");
+  if (start > end) return alertError("Invalid Range");
 
   const total = calcTotalDays(start, end);
-  
+
   const ok = await alertConfirm(
     editId ? "Confirm Update?" : "Confirm Add?",
-    buildHolidayUpsertConfirmHtml({ name, start, end, total, mode: editId ? "Update" : "Add" }),
+    buildHolidayUpsertConfirmHtml({
+      name,
+      start,
+      end,
+      total,
+      mode: editId ? "Update" : "Add",
+    }),
     editId ? "Update" : "Add"
   );
   if (!ok) return;
 
   try {
     if (editId) {
-      // 🟢 กรณี UPDATE: ส่งไปที่ /api/holidays/:id
-      const res = await fetch(`${API_BASE}/holidays/${editId}`, {
+      await fetch(`${API_BASE}/holidays/${editId}`, {
         method: "PUT",
-        headers: { 
+        headers: {
+          ...getAuthHeaders(),
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` 
         },
-        body: JSON.stringify({ name, date: start }) // การแก้รายวันใช้ start date
+        body: JSON.stringify({ name, date: start }),
       });
-      if (!res.ok) throw new Error("Update failed");
       await alertSuccess("Updated", "Holiday updated.");
     } else {
-      // 🟢 กรณี CREATE: แตกช่วงวันที่เป็น Array ตามที่ Backend คาดหวัง ({ holidays: [...] })
-      const holidaysList = [];
-      let current = new Date(start);
+      const holidays = [];
+      let d = new Date(start);
       const last = new Date(end);
 
-      while (current <= last) {
-        holidaysList.push({
-          date: toYMD(current),
-          name: name,
-          isSubsidy: false
+      while (d <= last) {
+        holidays.push({
+          date: toYMD(d),
+          name,
+          isSubsidy: false,
         });
-        current.setDate(current.getDate() + 1);
+        d.setDate(d.getDate() + 1);
       }
 
-      const res = await fetch(`${API_BASE}/holidays`, {
+      await fetch(`${API_BASE}/holidays`, {
         method: "POST",
-        headers: { 
+        headers: {
+          ...getAuthHeaders(),
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` 
         },
-        body: JSON.stringify({ holidays: holidaysList })
+        body: JSON.stringify({ holidays }),
       });
-      if (!res.ok) throw new Error("Create failed");
+
       await alertSuccess("Added", "Holidays added.");
     }
 
-    fetchSpecialHolidays(); // โหลดข้อมูลใหม่
+    fetchSpecialHolidays();
     setFormOpen(false);
     resetHolidayForm();
   } catch (e) {
@@ -391,35 +405,42 @@ const upsertSpecialHoliday = async () => {
   }
 };
 
-// ✅ 4.3 ฟังก์ชันลบวันหยุด
 const onDeleteHoliday = async (row) => {
-  const start = safeYMD(row?.startDate);
-  const total = calcTotalDays(start, safeYMD(row?.endDate));
+  const start = safeYMD(row.startDate);
+  const total = calcTotalDays(start, safeYMD(row.endDate));
 
   const ok = await alertConfirm(
     "Delete this holiday?",
-    buildHolidayDeleteConfirmHtml({ name: row?.name || "Holiday", start, end: row?.endDate, total }),
+    buildHolidayDeleteConfirmHtml({
+      name: row.name,
+      start,
+      end: row.endDate,
+      total,
+    }),
     "Delete"
   );
   if (!ok) return;
 
   try {
-    const res = await fetch(`${API_BASE}/holidays/${row.id}`, {
+    await fetch(`${API_BASE}/holidays/${row.id}`, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${token}` }
+      headers: getAuthHeaders(),
     });
-    if (!res.ok) throw new Error("Delete failed");
-    
     await alertSuccess("Deleted", "Holiday removed.");
-    fetchSpecialHolidays(); // โหลดข้อมูลใหม่
+    fetchSpecialHolidays();
   } catch (e) {
     alertError("Error", e.message);
   }
 };
-  const sortedSpecialHolidays = useMemo(() => {
-    const list = Array.isArray(specialHolidays) ? specialHolidays : [];
-    return [...list].sort((a, b) => safeYMD(a.startDate).localeCompare(safeYMD(b.startDate)));
-  }, [specialHolidays]);
+
+const sortedSpecialHolidays = useMemo(
+  () =>
+    [...specialHolidays].sort((a, b) =>
+      safeYMD(a.startDate).localeCompare(safeYMD(b.startDate))
+    ),
+  [specialHolidays]
+);
+
 
   const value = {
     workingDays,
