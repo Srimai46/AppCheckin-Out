@@ -2,6 +2,7 @@
 
 const prisma = require("../../utils/prisma");
 const { validateAndApplyQuotaCaps } = require("../../utils/leaveUtils");
+const { auditLog } = require("../../utils/logger");
 
 
 exports.processCarryOver = async (req, res) => {
@@ -184,6 +185,85 @@ exports.getSystemConfigs = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.updateSystemConfig = async (req, res) => {
+  try {
+    const { year, maxConsecutiveDays } = req.body;
+    const hrId = req.user.id;
+
+    // Validation: เช็คว่าส่งค่ามาครบไหม (ระวัง! ถ้าส่ง 0 มา !0 จะเป็น true ดังนั้นต้องเช็ค undefined)
+    if (!year || maxConsecutiveDays === undefined) {
+      return res.status(400).json({ message: "Missing required fields (year, maxConsecutiveDays)." });
+    }
+
+    const targetYear = parseInt(year, 10);
+    const newMax = parseInt(maxConsecutiveDays, 10);
+
+    if (isNaN(newMax) || newMax < 0) {
+       return res.status(400).json({ message: "Max consecutive days must be a positive number or 0." });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. หาข้อมูลเก่าก่อน (เพื่อเอามาทำ Audit Log)
+      const existing = await tx.systemConfig.findUnique({
+        where: { year: targetYear },
+      });
+
+      if (!existing) {
+        throw new Error(`Configuration for year ${targetYear} not found.`);
+      }
+
+      // 2. อัปเดตข้อมูล
+      const updated = await tx.systemConfig.update({
+        where: { year: targetYear },
+        data: { maxConsecutiveDays: newMax },
+      });
+
+      // 3. บันทึก Audit Log
+      const auditDetails = `HR updated System Config for ${targetYear}. Max Consecutive: ${existing.maxConsecutiveDays} -> ${newMax}`;
+      
+      await auditLog(tx, {
+        action: "UPDATE",
+        modelName: "SystemConfig",
+        recordId: targetYear,
+        userId: hrId,
+        details: auditDetails,
+        oldValue: { maxConsecutiveDays: existing.maxConsecutiveDays },
+        newValue: { maxConsecutiveDays: newMax },
+        req: req
+      });
+
+      return { updated, auditDetails };
+    });
+
+    // 4. Socket (Optional: ถ้าอยากให้หน้าจอ Setting เครื่องอื่นอัปเดตทันที)
+    const io = req.app.get("io");
+    if (io) {
+        io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "UPDATE",
+            modelName: "SystemConfig",
+            recordId: targetYear,
+            performedBy: {
+                firstName: req.user.firstName,
+                lastName: req.user.lastName
+            },
+            details: result.auditDetails,
+            createdAt: new Date()
+        });
+    }
+
+    res.json({ 
+        message: "System config updated successfully", 
+        data: result.updated 
+    });
+
+  } catch (err) {
+    console.error("updateSystemConfig Error:", err);
+    res.status(500).json({ message: err.message || "Server error" });
+  }
+};
+
 
 // ยกเลิกการปิดงวด (Re-open Year)
 exports.reopenYear = async (req, res) => {

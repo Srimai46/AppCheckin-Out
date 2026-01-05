@@ -1,32 +1,23 @@
+// backend/src/routes/leaveRoutes.js
+
 const express = require("express");
 const router = express.Router();
 
-// ✅ 1. Import ทุกอย่างจาก leaveController.js ที่เดียว (รวม Type และ Cancel)
-const {
-  // --- ส่วน Leave Request ---
-  getMyLeaves,
-  getMyQuotas,
-  getAllLeaves,
-  getPendingRequests,
-  updateLeaveStatus,
-  processCarryOver,
-  grantSpecialLeave,
-  createLeaveRequest,
-  cancelLeaveRequest,
-  updateLeaveRequest,
-  updateCompanyQuotasByType,
-  updateEmployeeQuotasByType,
-  getSystemConfigs,
-  reopenYear,
+// ✅ 1. Import Controllers (แยกตามไฟล์ที่เรา Refactor แล้ว)
 
-  // --- ส่วน Leave Type Management ---
-  getAllLeaveTypes, // เพิ่ม Get All Types
-  createLeaveType,
-  updateLeaveType,
-  deleteLeaveType
-} = require("../controllers/leaveController");
+// 1.1 จัดการคำขอลา (Request, Cancel, Approve, History)
+const requestController = require("../controllers/leaves/leaveRequestController");
 
-// (ลบ import ซ้ำซ้อนตรง controllers/leave ออกไปได้เลยครับ)
+// 1.2 จัดการโควตา (Quota Balance, Update Quota)
+const quotaController = require("../controllers/leaves/leaveQuotaController");
+
+// 1.3 จัดการประเภทวันลา (Leave Types Master Data)
+const typeController = require("../controllers/leaves/leaveTypeController");
+
+// 1.4 จัดการระบบ (Year End, Configs)
+const systemController = require("../controllers/leaves/leaveSystemController");
+
+// 1.5 จัดการวันหยุด (Holiday)
 const { 
   createHoliday, 
   getHolidays, 
@@ -34,63 +25,62 @@ const {
   updateHoliday 
 } = require("../controllers/holidayController");
 
+// Middlewares
 const { protect, authorize } = require("../middlewares/authMiddleware");
 const { uploadLeaveAttachment } = require("../middlewares/uploadMiddleware");
 
-// ============================================================
+
 // ---------------- Leave Type Management (จัดการประเภทวันลา) ----------------
-// ============================================================
-router.get("/types", protect, getAllLeaveTypes);
-router.post("/types", protect, authorize("HR"), createLeaveType);
-router.put("/types/:id", protect, authorize("HR"), updateLeaveType);
-router.delete("/types/:id", protect, authorize("HR"), deleteLeaveType);
 
-// ============================================================
+router.get("/types", protect, typeController.getAllLeaveTypes);
+router.post("/types", protect, authorize("HR"), typeController.createLeaveType);
+router.put("/types/:id", protect, authorize("HR"), typeController.updateLeaveType);
+router.delete("/types/:id", protect, authorize("HR"), typeController.deleteLeaveType);
+
 // ---------------- Worker (พนักงานทั่วไป) ----------------
-// ============================================================
-router.get("/my-quota", protect, getMyQuotas);
-router.get("/my-history", protect, getMyLeaves);
 
-// ✅ Create leave request
+// ดูโควตาตัวเอง
+router.get("/my-quota", protect, quotaController.getMyQuotas);
+// ดูประวัติการลา
+router.get("/my-history", protect, requestController.getMyLeaves);
+
+// ยื่นใบลา (พร้อมแนบไฟล์)
 router.post(
   "/",
   protect,
   uploadLeaveAttachment.single("attachment"),
-  createLeaveRequest
+  requestController.createLeaveRequest
 );
 
-router.patch(
-  "/:id",
-  protect,
-  uploadLeaveAttachment.single("attachment"),
-  updateLeaveRequest
-);
+// ยกเลิกใบลา
+router.post("/cancel/:id", protect, requestController.cancelLeaveRequest);
 
-router.patch("/:id/cancel", protect, cancelLeaveRequest);
+// ---------------- HR (ผู้ดูแลระบบ) ----------------
 
-// ✅ Cancel / Delete leave request (Worker)  <<< FE เรียก /leaves/:id/cancel
-router.patch("/:id/cancel", protect, cancelLeaveRequest);
-// ✅ Edit leave request (Worker) — แก้ได้เฉพาะ Pending
-// ถ้ายังไม่ทำ controller ตัวนี้ ให้คอมเมนต์บรรทัดนี้ไว้ก่อน
-router.patch("/:id", protect, uploadLeaveAttachment.single("attachment"), updateLeaveRequest);
+// ดูรายการลาทั้งหมด (Filter ได้)
+router.get("/", protect, authorize("HR"), requestController.getAllLeaves);
+// ดูรายการรออนุมัติ
+router.get("/pending", protect, authorize("HR"), requestController.getPendingRequests);
+// อนุมัติ/ปฏิเสธ
+router.patch("/status", protect, authorize("HR"), requestController.updateLeaveStatus);
+// อนุมัติกรณีพิเศษ (Special Grant)
+router.post("/grant-special", protect, authorize("HR"), requestController.grantSpecialLeave);
 
+// ปรับโควตา (ทั้งบริษัท / รายคน)
+router.put("/policy/quotas", protect, authorize("HR"), quotaController.updateCompanyQuotasByType); 
+router.put("/policy/quotas/:employeeId", protect, authorize("HR"), quotaController.updateEmployeeQuotasByType); 
 
+// จัดการระบบ (ปิดงวด / Re-open)
+router.get("/system-configs", protect, authorize("HR"), systemController.getSystemConfigs);
+router.post("/reopen-year", protect, authorize("HR"), systemController.reopenYear);
+router.post("/process-carry-over", protect, authorize("HR"), systemController.processCarryOver);
+router.put("/system-configs", protect, authorize("HR"), systemController.updateSystemConfig);
 
-// ---------------- HR ----------------
-router.get("/", protect, authorize("HR"), getAllLeaves);
-router.get("/pending", protect, authorize("HR"), getPendingRequests);
-router.patch("/status", protect, authorize("HR"), updateLeaveStatus);
-router.post("/process-carry-over", protect, authorize("HR"), processCarryOver);
-router.post("/grant-special", protect, authorize("HR"), grantSpecialLeave);
-router.put("/policy/quotas", protect, authorize("HR"), updateCompanyQuotasByType);
-router.put("/policy/quotas/:employeeId", protect, authorize("HR"), updateEmployeeQuotasByType);
-router.get("/system-configs", protect, authorize("HR"), getSystemConfigs);
-router.post("/reopen-year", protect, authorize("HR"), reopenYear);
+// ---------------- Holiday Management (จัดการวันหยุด) ----------------
 
-// ---------------- Holiday Management ----------------
-router.get("/holidays", protect, getHolidays);
-router.post("/holidays", protect, authorize("HR"), createHoliday);
-router.delete("/holidays/:id", protect, authorize("HR"), deleteHoliday);
-router.put("/holidays/:id", protect, authorize("HR"), updateHoliday);
+router.get("/holidays", protect, getHolidays); 
+router.post("/holidays", protect, authorize("HR"), createHoliday); 
+router.delete("/holidays/:id", protect, authorize("HR"), deleteHoliday); 
+router.put("/holidays/:id", protect, authorize("HR"), updateHoliday); 
 
 module.exports = router;
