@@ -70,10 +70,9 @@ export const getSystemConfigs = async () => {
 };
 
 // 9. ปลดล็อคปี (Reopen Year)
-export const reopenYear = async (year) => {
-  const { data } = await api.post('/leaves/reopen-year', { year });
-  return data;
-};
+export const reopenYear = (data) =>
+  api.post("/leaves/reopen-year", data);
+
 
 // 10. ดึงรายการลาทั้งหมด (Admin Overview)
 export const getAllLeaves = async () => {
