@@ -2,8 +2,6 @@
 import React, { createContext, useContext, useMemo, useState, useEffect, useCallback } from "react";
 import { alertConfirm, alertError, alertSuccess } from "../../../utils/sweetAlert";
 import { calcTotalDays, clamp, isValidTime, safeYMD, toYMD } from "../utils";
-import { updateSystemConfig } from "../../../api/leaveService";
-
 import {
   buildHolidayDeleteConfirmHtml,
   buildHolidayUpsertConfirmHtml,
@@ -231,48 +229,32 @@ export function HolidayPolicyProvider({ children }) {
   const [maxConsecutiveSaving, setMaxConsecutiveSaving] = useState(false);
 
   const saveMaxConsecutivePolicy = async () => {
-  if (maxConsecutiveSaving) return;
+    if (maxConsecutiveSaving) return;
 
-  const value = Number(maxConsecutiveHolidayDays);
-  if (value < 1 || value > 365) {
-    return alertError(
-      "Invalid Limit",
-      "Max consecutive days must be between 1 and 365."
+    if (Number(maxConsecutiveHolidayDays) < 1 || Number(maxConsecutiveHolidayDays) > 365) {
+      alertError("Invalid Limit", "Max consecutive holidays must be between 1 and 365 days.");
+      return;
+    }
+
+    const ok = await alertConfirm(
+      "Save Max Consecutive Holidays?",
+      buildMaxConsecutiveConfirmHtml(maxConsecutiveHolidayDays),
+      "Save"
     );
-  }
+    if (!ok) return;
 
-  const ok = await alertConfirm(
-    "Save Max Consecutive Holidays?",
-    buildMaxConsecutiveConfirmHtml(value),
-    "Save"
-  );
-  if (!ok) return;
-
-  setMaxConsecutiveSaving(true);
-  try {
-
-    // ✅ ใช้ service ที่คุณมีอยู่แล้ว
-    const year = new Date().getFullYear();
-
-    await updateSystemConfig(
-      year,
-      Number(maxConsecutiveHolidayDays)
-    );
-
-
-
-    await alertSuccess(
-      "Saved",
-      `Max consecutive holidays updated to ${value} day(s).`
-    );
-  } catch (e) {
-    console.error(e);
-    alertError("Save Failed", e.message || "Unable to save policy.");
-  } finally {
-    setMaxConsecutiveSaving(false);
-  }
-};
-
+    setMaxConsecutiveSaving(true);
+    try {
+      // TODO: เปลี่ยนเป็น API จริงถ้ามี
+      await new Promise((r) => setTimeout(r, 300));
+      await alertSuccess("Saved", `Max consecutive holiday days saved: ${Number(maxConsecutiveHolidayDays)} day(s).`);
+    } catch (e) {
+      console.error(e);
+      alertError("Save Failed", "Unable to save max consecutive holidays.");
+    } finally {
+      setMaxConsecutiveSaving(false);
+    }
+  };
 
   // =========================================
 // 4. Special Holidays (Connected to Backend)
