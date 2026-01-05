@@ -8,7 +8,6 @@ import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 import { useTranslation } from "react-i18next";
 
 import { QuotaCards, HistoryTable } from "../components/shared";
-import EditLeaveModal from "../components/shared/EditLeaveModal"; // ✅ เพิ่ม
 
 import api from "../api/axios"; // ✅ สำหรับยิง update leave ใน modal
 
@@ -127,38 +126,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleSaveEditLeave = async (payload) => {
-    try {
-      // payload: { id, startDate, endDate, reason, startDuration, endDuration, attachmentFile }
-      const fd = new FormData();
-      fd.append("startDate", payload.startDate);
-      fd.append("endDate", payload.endDate);
-      fd.append("reason", payload.reason || "");
-      fd.append("startDuration", payload.startDuration);
-      fd.append("endDuration", payload.endDuration);
-      if (payload.attachmentFile) fd.append("attachment", payload.attachmentFile);
-
-      const res = await api.patch(`/leaves/${payload.id}`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      await alertSuccess("Updated", "Leave request updated successfully.");
-
-      // ✅ อัปเดต row ในตารางแบบทันที (หรือจะ fetchData ก็ได้)
-      const updated = res?.data?.data || res?.data; // รองรับหลายรูปแบบ
-      setData((prev) => ({
-        ...prev,
-        leaves: (prev.leaves || []).map((x) => (x.id === payload.id ? { ...x, ...updated } : x)),
-      }));
-
-      setEditOpen(false);
-      setEditingLeave(null);
-    } catch (err) {
-      console.error(err);
-      alertError("Update failed", err?.response?.data?.error || err?.response?.data?.message || err.message);
-    }
-  };
-
   if (authLoading) {
     return (
       <div className="h-screen flex items-center justify-center text-blue-600 font-black">
@@ -265,30 +232,15 @@ export default function Dashboard() {
         attendanceData={data.att}
         leaveData={data.leaves}
         buildFileUrl={buildFileUrl}
-        onEditLeave={(leave) => {
-          // ✅ เปิด popup
-          setEditingLeave(leave);
-          setEditOpen(true);
-        }}
         onDeletedLeaveSuccess={(deletedLeave) => {
-          // ✅ ตัด row ออกทันที
+          console.log("DELETED =>", deletedLeave);
           if (!deletedLeave?.id) return;
+
           setData((prev) => ({
             ...prev,
-            leaves: (prev.leaves || []).filter((x) => x.id !== deletedLeave.id),
+            leaves: (prev?.leaves || []).filter((x) => x?.id !== deletedLeave.id),
           }));
         }}
-      />
-
-      {/* ✅ POPUP EDIT */}
-      <EditLeaveModal
-        open={editOpen}
-        leave={editingLeave}
-        onClose={() => {
-          setEditOpen(false);
-          setEditingLeave(null);
-        }}
-        onSave={handleSaveEditLeave}
       />
     </div>
   );

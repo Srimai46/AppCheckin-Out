@@ -19,8 +19,7 @@ export default function HistoryTable({
   attendanceData = [],
   leaveData = [],
   buildFileUrl,
-  onEditLeave, // function(leave) -> เปิดหน้า/โมดัลแก้ไข
-  onDeletedLeaveSuccess, // function() -> callback หลังลบสำเร็จ
+  onDeletedLeaveSuccess,
 }) {
   const { t } = useTranslation();
 
@@ -174,7 +173,7 @@ export default function HistoryTable({
       );
       if (!ok) return;
 
-      await api.patch(`/leaves/${leave.id}/cancel`, {
+      await api.post(`/leaves/cancel/${leave.id}`, {
         cancelReason: "User deleted request",
       });
 
@@ -295,6 +294,7 @@ export default function HistoryTable({
               )
             ) : pagedData.length > 0 ? (
               pagedData.map((leave, i) => {
+                if (!leave) return null;
                 const days = calcLeaveDays(leave);
                 const note = leave.note || leave.reason || leave.remark || "-";
                 const signedBy = getSignedBy(leave);
@@ -343,15 +343,7 @@ export default function HistoryTable({
 
                     <td className="px-6 py-4 text-center">
                       {isPending(leave.status) ? (
-                        <div className="inline-flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => onEditLeave?.(leave)}
-                            className="px-3 py-2 rounded-xl border border-yellow-100 bg-yellow-50 text-yellow-700
-                                      text-[10px] font-black uppercase tracking-widest hover:bg-yellow-100 transition active:scale-95"
-                          >
-                            Edit
-                          </button>
-
+                        <div className="inline-flex items-center justify-center">
                           <button
                             onClick={() => handleDeleteLeave(leave)}
                             className="px-3 py-2 rounded-xl border border-rose-100 bg-rose-50 text-rose-700
