@@ -222,6 +222,7 @@ model SystemConfig {
   isClosed     Boolean  @default(false) // ถ้า true คือปิดยอดปีนี้แล้ว ห้ามรัน Carry Over อีก
   closedAt     DateTime?
   processedBy  Int?
+  maxConsecutiveDays Int      @default(0)
 }
 
 model WorkConfiguration {
