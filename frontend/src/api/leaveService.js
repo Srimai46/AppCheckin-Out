@@ -1,4 +1,6 @@
-import api from './axios';
+//frontend/src/api/leaveService.js
+import api from "./axios"; // ❗ ต้องเป็น default import
+
 
 // 1. ดึงรายการรออนุมัติ (สำหรับหน้า LeaveApproval ของ HR)
 export const getPendingLeaves = async () => {
@@ -116,11 +118,11 @@ export const cancelLeaveRequest = async (id, reason) => {
 // 13. ตั้งค่าระบบ (System Configuration)
 
 // 13.1 อัปเดตการตั้งค่าระบบ (เช่น แก้ไข Global Max Consecutive Days)
-export const updateSystemConfig = async (year, maxConsecutiveDays) => {
-  const { data } = await api.put('/leaves/system-configs', { 
-    year, 
-    maxConsecutiveDays 
+export const updateSystemConfig = (year, maxConsecutiveDays) => {
+  return api.put("/leaves/system-configs", {
+    year,
+    maxConsecutiveDays,
   });
-  return data;
 };
+
 

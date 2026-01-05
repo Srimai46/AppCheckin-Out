@@ -28,11 +28,16 @@ export default function MaxConsecutiveCard() {
             min={1}
             max={365}
             value={maxConsecutiveHolidayDays}
-            onChange={(e) => setMaxConsecutiveHolidayDays(e.target.value)}
+            onChange={(e) =>
+              setMaxConsecutiveHolidayDays(Number(e.target.value))
+            }
             className="w-24 h-11 px-4 rounded-2xl bg-white border border-gray-200
               text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
           />
-          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">day(s)</span>
+
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            day(s)
+          </span>
 
           <button
             type="button"
@@ -42,7 +47,11 @@ export default function MaxConsecutiveCard() {
               uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
               shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none inline-flex items-center gap-2"
           >
-            {maxConsecutiveSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+            {maxConsecutiveSaving ? (
+              <RefreshCw size={16} className="animate-spin" />
+            ) : (
+              <Save size={16} />
+            )}
             {maxConsecutiveSaving ? "Saving..." : "Save"}
           </button>
         </div>
