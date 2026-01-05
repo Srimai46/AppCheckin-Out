@@ -2,9 +2,13 @@
 
 const fs = require("fs");
 const path = require("path");
-const prisma = require('../../config/prisma'); 
+const prisma = require("../../config/prisma");
 const { auditLog } = require("../../utils/logger");
-const { calculateTotalDays, getWorkingDaysList } = require("../../utils/leaveHelpers");
+const {
+  calculateTotalDays,
+  getWorkingDaysList,
+  getBlockedLeaveDates,
+} = require("../../utils/leaveHelpers");
 
 exports.createLeaveRequest = async (req, res) => {
   try {
@@ -14,7 +18,7 @@ exports.createLeaveRequest = async (req, res) => {
     // 0. ดึงข้อมูลคนทำรายการ
     const requesterUser = await prisma.employee.findUnique({
       where: { id: userId },
-      select: { firstName: true, lastName: true, email: true }
+      select: { firstName: true, lastName: true, email: true },
     });
 
     const start = new Date(startDate);
@@ -38,19 +42,67 @@ exports.createLeaveRequest = async (req, res) => {
     const leaveType = await prisma.leaveType.findUnique({ where: { typeName: type } });
     if (!leaveType) return res.status(400).json({ error: "Leave type not found." });
 
-    // 3. ดึงวันหยุด
+    // 3. ดึงวันหยุด (Holiday table) ในช่วงที่ขอลา
     const queryEnd = new Date(end);
     queryEnd.setHours(23, 59, 59, 999);
+
     const holidays = await prisma.holiday.findMany({
       where: { date: { gte: start, lte: queryEnd } },
-      select: { date: true },
+      select: { date: true, name: true },
     });
-    const holidayDates = holidays.map((h) => h.date.toISOString().split('T')[0]);
 
-    // 4. คำนวณวันลาจริง
-    const totalDaysRequested = calculateTotalDays(start, end, startDuration, endDuration, holidayDates);
+    const holidayDates = holidays.map((h) => h.date.toISOString().split("T")[0]);
+    const holidayNameMap = new Map(
+      holidays.map((h) => [h.date.toISOString().split("T")[0], h.name])
+    );
 
-    // 5. ตรวจสอบวันหยุด
+    // ✅ 3.1 ดึง Working Days Policy (จาก DB)
+    // ตาราง: HolidayPolicy, key = "WORKING_DAYS", workingDays = ["MON","TUE",...]
+    const policy = await prisma.holidayPolicy.findUnique({
+      where: { key: "WORKING_DAYS" },
+      select: { workingDays: true },
+    });
+
+    const workingDaysPolicy = Array.isArray(policy?.workingDays)
+      ? policy.workingDays
+      : ["MON", "TUE", "WED", "THU", "FRI"]; // default
+
+    // ✅ 3.2 บังคับ: ห้ามลาในวันหยุด/วันไม่ทำงาน
+    // - HOLIDAY: อยู่ใน holiday table
+    // - NON_WORKING_DAY: ไม่อยู่ใน workingDaysPolicy
+    const blocked = getBlockedLeaveDates(start, end, holidayDates, workingDaysPolicy);
+    if (blocked.length > 0) {
+      // ทำข้อความให้ user อ่านง่าย (แสดงไม่กี่ตัวพอ)
+      const preview = blocked
+        .slice(0, 5)
+        .map((b) => {
+          if (b.reason === "HOLIDAY") {
+            const nm = holidayNameMap.get(b.date);
+            return nm ? `${b.date} (${nm})` : `${b.date} (Holiday)`;
+          }
+          return `${b.date} (${b.dayKey} is non-working)`;
+        })
+        .join(", ");
+
+      return res.status(400).json({
+        error: `Cannot request leave on holidays/non-working days: ${preview}${
+          blocked.length > 5 ? ` ...(+${blocked.length - 5} more)` : ""
+        }`,
+        blockedDates: blocked, // เผื่อ FE เอาไป highlight วันในปฏิทิน
+      });
+    }
+
+    // 4. คำนวณวันลาจริง (ใช้ policy ใหม่ด้วย)
+    const totalDaysRequested = calculateTotalDays(
+      start,
+      end,
+      startDuration,
+      endDuration,
+      holidayDates,
+      workingDaysPolicy
+    );
+
+    // 5. ตรวจสอบวันหยุด (กันไว้ชั้นสอง)
     if (totalDaysRequested <= 0) {
       return res.status(400).json({ error: "Cannot request leave as the selected dates are all holidays." });
     }
@@ -62,17 +114,16 @@ exports.createLeaveRequest = async (req, res) => {
 
     // Priority 1: กฎเฉพาะประเภท (เช่น ลาป่วยห้ามเกิน 3 วัน)
     if (leaveType.maxConsecutiveDays && leaveType.maxConsecutiveDays > 0) {
-        limitDays = leaveType.maxConsecutiveDays;
-    } 
-    // Priority 2: กฎบริษัทรายปี (เช่น ปีนี้ห้ามลาติดกันเกิน 5 วัน ถ้าประเภทนั้นไม่ได้ระบุไว้)
+      limitDays = leaveType.maxConsecutiveDays;
+    }
+    // Priority 2: กฎบริษัทรายปี
     else if (config && config.maxConsecutiveDays > 0) {
-        limitDays = config.maxConsecutiveDays;
+      limitDays = config.maxConsecutiveDays;
     }
 
-    // ถ้า limitDays > 0 แปลว่ามีกฎบังคับ (ถ้าเป็น 0 คือ Unlimited)
     if (limitDays > 0 && totalDaysRequested > limitDays) {
-      return res.status(400).json({ 
-        error: `Policy Violation: You cannot take "${type}" for more than ${limitDays} consecutive working days.` 
+      return res.status(400).json({
+        error: `Policy Violation: You cannot take "${type}" for more than ${limitDays} consecutive working days.`,
       });
     }
     // ==================================================================================
@@ -98,12 +149,12 @@ exports.createLeaveRequest = async (req, res) => {
 
       // Special Type อาจไม่มี Quota ปกติ
       if (type !== "Special") {
-         if (!quota) throw new Error(`No leave quota found for ${type} in ${year}.`);
+        if (!quota) throw new Error(`No leave quota found for ${type} in ${year}.`);
 
-         const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
-         if (remaining < totalDaysRequested) {
-           throw new Error(`Insufficient balance. You have ${remaining} days left.`);
-         }
+        const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
+        if (remaining < totalDaysRequested) {
+          throw new Error(`Insufficient balance. You have ${remaining} days left.`);
+        }
       }
 
       // 7.1 สร้างบันทึกใบลา
@@ -125,13 +176,13 @@ exports.createLeaveRequest = async (req, res) => {
 
       // จัด Format Log
       const cleanNewValue = {
-          requestId: newLeave.id,
-          type: type,
-          from: start.toISOString().split('T')[0],
-          to: end.toISOString().split('T')[0],
-          days: totalDaysRequested,
-          reason: reason,
-          status: "Pending"
+        requestId: newLeave.id,
+        type: type,
+        from: start.toISOString().split("T")[0],
+        to: end.toISOString().split("T")[0],
+        days: totalDaysRequested,
+        reason: reason,
+        status: "Pending",
       };
 
       const auditDetails = `Submitted ${type} request (${totalDaysRequested} days)`;
@@ -154,7 +205,7 @@ exports.createLeaveRequest = async (req, res) => {
       });
 
       const totalPendingCount = await tx.leaveRequest.count({
-        where: { status: { in: ["Pending", "Withdraw_Pending"] } }
+        where: { status: { in: ["Pending", "Withdraw_Pending"] } },
       });
 
       const fullName = `${newLeave.employee.firstName} ${newLeave.employee.lastName}`;
@@ -172,20 +223,20 @@ exports.createLeaveRequest = async (req, res) => {
         });
 
         for (const admin of admins) {
-           const count = await tx.notification.count({
-             where: { employeeId: admin.id, isRead: false },
-           });
-           adminUpdates.push({ adminId: admin.id, unreadCount: count });
+          const count = await tx.notification.count({
+            where: { employeeId: admin.id, isRead: false },
+          });
+          adminUpdates.push({ adminId: admin.id, unreadCount: count });
         }
       }
 
-      return { 
-          newLeave, 
-          cleanNewValue, 
-          adminUpdates, 
-          message: notificationMsg, 
-          totalPendingCount, 
-          auditDetails 
+      return {
+        newLeave,
+        cleanNewValue,
+        adminUpdates,
+        message: notificationMsg,
+        totalPendingCount,
+        auditDetails,
       };
     });
 
@@ -194,7 +245,7 @@ exports.createLeaveRequest = async (req, res) => {
     if (io) {
       io.to("hr_group").emit("update_pending_count", {
         count: result.totalPendingCount,
-        message: result.message
+        message: result.message,
       });
 
       if (result.adminUpdates.length > 0) {
@@ -213,12 +264,12 @@ exports.createLeaveRequest = async (req, res) => {
         modelName: "LeaveRequest",
         recordId: result.newLeave.id,
         performedBy: {
-            firstName: requesterUser?.firstName || "Unknown",
-            lastName: requesterUser?.lastName || ""
+          firstName: requesterUser?.firstName || "Unknown",
+          lastName: requesterUser?.lastName || "",
         },
         details: result.auditDetails,
         newValue: result.cleanNewValue,
-        createdAt: new Date()
+        createdAt: new Date(),
       });
     }
 

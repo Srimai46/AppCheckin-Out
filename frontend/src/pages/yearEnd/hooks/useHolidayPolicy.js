@@ -121,25 +121,62 @@ export function HolidayPolicyProvider({ children }) {
   // ✅ 2.1 ฟังก์ชันดึงข้อมูลจาก Database (GET)
   const fetchWorkConfigs = useCallback(async () => {
     try {
+      // ✅ ดึง token สดจาก localStorage กันปัญหา state ยังไม่ทัน
+      const rawToken = token || localStorage.getItem("token");
+
+      if (!rawToken) {
+        console.warn("[fetchWorkConfigs] No token found -> redirect/login?");
+        return;
+      }
+
       const res = await fetch(`${API_BASE}/attendance/work-config`, {
         method: "GET",
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: {
+          Authorization: `Bearer ${rawToken}`,
+          "Content-Type": "application/json",
+        },
       });
-      const result = await res.json();
-      
-      if (res.ok && result.data) {
+
+      // ✅ ถ้า 401/403 จะได้เห็นข้อความจาก backend
+      const text = await res.text();
+      let result = null;
+      try {
+        result = text ? JSON.parse(text) : null;
+      } catch {
+        result = { message: text };
+      }
+
+      if (!res.ok) {
+        console.error(
+          "[fetchWorkConfigs] HTTP Error:",
+          res.status,
+          result?.message || result
+        );
+
+        // ✅ ถ้า token หมดอายุ/ไม่ถูกต้อง
+        if (res.status === 401) {
+          // ทางเลือก: เคลียร์ token แล้วเด้งไป login
+          // localStorage.removeItem("token");
+          // window.location.href = "/login";
+        }
+        return;
+      }
+
+      if (result?.data) {
         const newConfigs = {};
         result.data.forEach((item) => {
-          // แปลงชื่อ Role จาก DB (เช่น "Worker") ให้เป็น Key ของ Frontend ("WORKER")
-          const roleKey = item.role.toUpperCase(); 
-          
+          const roleKey = String(item.role || "").toUpperCase();
+
           newConfigs[roleKey] = {
-            start: `${String(item.startHour).padStart(2, '0')}:${String(item.startMin).padStart(2, '0')}`,
-            end: `${String(item.endHour).padStart(2, '0')}:${String(item.endMin).padStart(2, '0')}`
+            start: `${String(item.startHour).padStart(2, "0")}:${String(
+              item.startMin
+            ).padStart(2, "0")}`,
+            end: `${String(item.endHour).padStart(2, "0")}:${String(
+              item.endMin
+            ).padStart(2, "0")}`,
           };
         });
 
-        // อัปเดต State เฉพาะถ้ามีข้อมูลกลับมา
         if (Object.keys(newConfigs).length > 0) {
           setWorkTimeByRole((prev) => ({ ...prev, ...newConfigs }));
         }
@@ -147,7 +184,7 @@ export function HolidayPolicyProvider({ children }) {
     } catch (e) {
       console.error("Fetch Config Error:", e);
     }
-  }, []);
+  }, [API_BASE, token, setWorkTimeByRole]);
 
   // ✅ 2.2 โหลดข้อมูลเมื่อเปิดหน้าเว็บ
   useEffect(() => {
