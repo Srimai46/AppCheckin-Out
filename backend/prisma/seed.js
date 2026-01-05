@@ -41,10 +41,10 @@ async function main() {
 
   // 4. Leave Types (เพิ่ม Special)
   const leaveTypesData = [
-    { typeName: 'Sick', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 30 },
-    { typeName: 'Personal', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 6 },
-    { typeName: 'Annual', isPaid: true, maxCarryOver: 12.0, maxConsecutiveDays: 14 },
-    { typeName: 'Emergency', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 98 }, // Emergency
+    { typeName: 'Sick', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 0 },
+    { typeName: 'Personal', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 0 },
+    { typeName: 'Annual', isPaid: true, maxCarryOver: 12.0, maxConsecutiveDays: 0 },
+    { typeName: 'Emergency', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 0 }, 
     { typeName: 'Special', isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 365 }, 
   ];
   const leaveTypes = [];

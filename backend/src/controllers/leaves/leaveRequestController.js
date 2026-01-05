@@ -11,7 +11,7 @@ exports.createLeaveRequest = async (req, res) => {
     const { type, startDate, endDate, reason, startDuration, endDuration } = req.body;
     const userId = req.user.id;
 
-    // 0. ดึงข้อมูลคนทำรายการ (เพื่อเอาชื่อไปใส่ Socket/Log)
+    // 0. ดึงข้อมูลคนทำรายการ
     const requesterUser = await prisma.employee.findUnique({
       where: { id: userId },
       select: { firstName: true, lastName: true, email: true }
@@ -21,7 +21,7 @@ exports.createLeaveRequest = async (req, res) => {
     const end = new Date(endDate);
     const year = start.getFullYear();
 
-    // 1. ตรวจสอบสถานะปี (Locked/Open)
+    // 1. ตรวจสอบสถานะปี (และดึง Config มาด้วย)
     const config = await prisma.systemConfig.findUnique({ where: { year } });
     if (config?.isClosed) {
       return res.status(403).json({ error: `System for ${year} is locked for processing.` });
@@ -55,15 +55,27 @@ exports.createLeaveRequest = async (req, res) => {
       return res.status(400).json({ error: "Cannot request leave as the selected dates are all holidays." });
     }
 
-    // 6. ตรวจสอบเงื่อนไขลาติดต่อกัน (Custom Consecutive Limit)
-    // ถ้าเป็น 0 หรือ null แปลว่า "ไม่จำกัด" (Unlimited)
-    const maxConsecutive = leaveType.maxConsecutiveDays ? Number(leaveType.maxConsecutiveDays) : 0;
-    
-    if (maxConsecutive > 0 && totalDaysRequested > maxConsecutive) {
+    // ==================================================================================
+    // ✅ 6. ตรวจสอบเงื่อนไขลาติดต่อกัน (Hierarchy Logic: Type > Global)
+    // ==================================================================================
+    let limitDays = 0;
+
+    // Priority 1: กฎเฉพาะประเภท (เช่น ลาป่วยห้ามเกิน 3 วัน)
+    if (leaveType.maxConsecutiveDays && leaveType.maxConsecutiveDays > 0) {
+        limitDays = leaveType.maxConsecutiveDays;
+    } 
+    // Priority 2: กฎบริษัทรายปี (เช่น ปีนี้ห้ามลาติดกันเกิน 5 วัน ถ้าประเภทนั้นไม่ได้ระบุไว้)
+    else if (config && config.maxConsecutiveDays > 0) {
+        limitDays = config.maxConsecutiveDays;
+    }
+
+    // ถ้า limitDays > 0 แปลว่ามีกฎบังคับ (ถ้าเป็น 0 คือ Unlimited)
+    if (limitDays > 0 && totalDaysRequested > limitDays) {
       return res.status(400).json({ 
-        error: `Policy Violation: You cannot take "${type}" for more than ${maxConsecutive} consecutive working days.` 
+        error: `Policy Violation: You cannot take "${type}" for more than ${limitDays} consecutive working days.` 
       });
     }
+    // ==================================================================================
 
     const attachmentUrl = req.file ? `/uploads/leaves/${req.file.filename}` : null;
 
@@ -84,7 +96,7 @@ exports.createLeaveRequest = async (req, res) => {
         where: { employeeId_leaveTypeId_year: { employeeId: userId, leaveTypeId: leaveType.id, year } },
       });
 
-      // Special Type อาจไม่มี Quota ปกติ (ข้ามการเช็คได้ถ้าต้องการ หรือต้องมี Quota 0)
+      // Special Type อาจไม่มี Quota ปกติ
       if (type !== "Special") {
          if (!quota) throw new Error(`No leave quota found for ${type} in ${year}.`);
 
@@ -111,7 +123,7 @@ exports.createLeaveRequest = async (req, res) => {
         include: { employee: true, leaveType: true },
       });
 
-      // จัด Format Log ให้สวยงาม (Clean Data)
+      // จัด Format Log
       const cleanNewValue = {
           requestId: newLeave.id,
           type: type,
@@ -124,14 +136,14 @@ exports.createLeaveRequest = async (req, res) => {
 
       const auditDetails = `Submitted ${type} request (${totalDaysRequested} days)`;
 
-      // 7.2 บันทึก Audit Log ลง DB
+      // 7.2 บันทึก Audit Log
       await auditLog(tx, {
         action: "CREATE",
         modelName: "LeaveRequest",
         recordId: newLeave.id,
         userId: userId,
         details: auditDetails,
-        newValue: cleanNewValue, // 🔥 ใช้ข้อมูลที่จัด Format แล้ว
+        newValue: cleanNewValue,
         req: req,
       });
 
@@ -159,7 +171,6 @@ exports.createLeaveRequest = async (req, res) => {
           })),
         });
 
-        // เตรียมข้อมูลส่ง Socket ให้ Admin แต่ละคน
         for (const admin of admins) {
            const count = await tx.notification.count({
              where: { employeeId: admin.id, isRead: false },
@@ -170,7 +181,7 @@ exports.createLeaveRequest = async (req, res) => {
 
       return { 
           newLeave, 
-          cleanNewValue, // ส่งกลับไปใช้ใน Socket
+          cleanNewValue, 
           adminUpdates, 
           message: notificationMsg, 
           totalPendingCount, 
@@ -178,16 +189,14 @@ exports.createLeaveRequest = async (req, res) => {
       };
     });
 
-    // 🚀 8. Real-time Notification & Audit Log
+    // 🚀 8. Real-time Notification
     const io = req.app.get("io");
     if (io) {
-      // 8.1 ส่งอัปเดต Badge ให้ HR
       io.to("hr_group").emit("update_pending_count", {
         count: result.totalPendingCount,
         message: result.message
       });
 
-      // 8.2 ส่งแจ้งเตือนรายบุคคล (กระดิ่ง)
       if (result.adminUpdates.length > 0) {
         result.adminUpdates.forEach((update) => {
           io.to(`user_${update.adminId}`).emit("new_notification", {
@@ -198,19 +207,17 @@ exports.createLeaveRequest = async (req, res) => {
         });
       }
 
-      // 8.3 ส่ง Real-time Audit Log
       io.emit("new-audit-log", {
         id: Date.now(),
-        action: "CREATE", // สีเขียว
+        action: "CREATE",
         modelName: "LeaveRequest",
         recordId: result.newLeave.id,
         performedBy: {
-            // ใช้ชื่อจริงจาก DB ที่ดึงมาตอนต้น
             firstName: requesterUser?.firstName || "Unknown",
             lastName: requesterUser?.lastName || ""
         },
         details: result.auditDetails,
-        newValue: result.cleanNewValue, // ส่งข้อมูลสวยๆ ให้ Frontend
+        newValue: result.cleanNewValue,
         createdAt: new Date()
       });
     }

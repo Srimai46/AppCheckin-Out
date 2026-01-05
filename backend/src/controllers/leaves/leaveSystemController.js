@@ -186,6 +186,7 @@ exports.getSystemConfigs = async (req, res) => {
   }
 };
 
+// อัปเดตการตั้งค่าระบบ (System Config)
 exports.updateSystemConfig = async (req, res) => {
   try {
     const { year, maxConsecutiveDays } = req.body;
@@ -263,7 +264,6 @@ exports.updateSystemConfig = async (req, res) => {
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
-
 
 // ยกเลิกการปิดงวด (Re-open Year)
 exports.reopenYear = async (req, res) => {
