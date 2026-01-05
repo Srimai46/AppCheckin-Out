@@ -14,6 +14,7 @@ import {
   Trash2,
   Image as ImageIcon,
   MessageCircle,
+  Info,
 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError, alertRejectReason } from "../utils/sweetAlert";
 import { openAttachment } from "../utils/attachmentPreview";
@@ -254,14 +255,14 @@ export default function LeaveApproval() {
                       </div>
                     </td>
 
-                    {/* 3. Type (แยกออกมาอยู่ช่องของตัวเอง) */}
+                    {/* 3. Type */}
                     <td className="p-5">
                       <span className="inline-block bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap">
                         {req.leaveType?.typeName}
                       </span>
                     </td>
 
-                    {/* 4. Note / Reason (แยกออกมาอยู่ช่องของตัวเอง) */}
+                    {/* 4. Note / Reason */}
                     <td className="p-5 min-w-[200px]">
                       <div className="flex flex-col gap-1">
                         {req.reason && (
@@ -273,6 +274,17 @@ export default function LeaveApproval() {
                             <span className="truncate max-w-[180px]">{req.reason}</span>
                           </div>
                         )}
+
+                        {req.cancelReason && (
+                          <div
+                            className="flex items-start gap-1 text-rose-600 text-[11px] leading-tight"
+                            title={`Cancel Reason: ${req.cancelReason}`}
+                          >
+                            <MessageCircle size={12} className="mt-0.5 shrink-0 text-rose-500" />
+                            <span className="truncate max-w-[180px]">{req.cancelReason}</span>
+                          </div>
+                        )}
+
                         {req.note && (
                           <div
                             className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight"
@@ -282,7 +294,8 @@ export default function LeaveApproval() {
                             <span className="truncate max-w-[180px]">{req.note}</span>
                           </div>
                         )}
-                        {!req.reason && !req.note && (
+
+                        {!req.reason && !req.note && !req.cancelReason && (
                           <span className="text-slate-300 text-[10px] italic">-</span>
                         )}
                       </div>

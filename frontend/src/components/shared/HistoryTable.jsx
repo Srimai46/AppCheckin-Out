@@ -9,7 +9,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { openAttachment } from "../../utils/attachmentPreview";
 import api from "../../api/axios";
-import { alertConfirm, alertSuccess, alertError } from "../../utils/sweetAlert";
+import { alertConfirm, alertSuccess, alertError, alertCancelReason } from "../../utils/sweetAlert";
+import Swal from "sweetalert2";
 
 const PAGE_SIZE = 5;
 
@@ -173,12 +174,14 @@ export default function HistoryTable({
       );
       if (!ok) return;
 
-      await api.post(`/leaves/cancel/${leave.id}`, {
+      const res = await api.post(`/leaves/cancel/${leave.id}`, {
         cancelReason: "User deleted request",
       });
 
+      const updated = res?.data?.data || null;
+
       await alertSuccess("Deleted", "Leave request deleted successfully.");
-      onDeletedLeaveSuccess?.(leave);
+      onDeletedLeaveSuccess?.(updated || leave);
     } catch (err) {
       alertError(
         "Delete failed",
@@ -188,6 +191,33 @@ export default function HistoryTable({
   };
 
   const isPending = (status) => String(status || "").toLowerCase() === "pending";
+  const isApproved = (status) => String(status || "").toLowerCase() === "approved";
+
+  const handleRequestCancelLeave = async (leave) => {
+    try {
+      if (!leave?.id) return;
+
+      const reason = await alertCancelReason();
+      if (!reason) return;
+
+      const res = await api.post(`/leaves/cancel/${leave.id}`, {
+        cancelReason: reason,
+      });
+
+      // ✅ backend ส่งกลับมาแบบ { message, data: updatedRequest }
+      const updated = res?.data?.data;
+
+      await alertSuccess("Requested", "Cancellation request sent to HR.");
+
+      // ✅ ให้ parent เอาไป replace item ใน list (อัปเดต status/cancelReason ทันที)
+      onDeletedLeaveSuccess?.(updated || { ...leave, cancelReason: reason, status: "Withdraw_Pending" });
+    } catch (err) {
+      alertError(
+        "Request failed",
+        err?.response?.data?.message || err?.response?.data?.error || err.message
+      );
+    }
+  };
 
   return (
     <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
@@ -296,14 +326,19 @@ export default function HistoryTable({
               pagedData.map((leave, i) => {
                 if (!leave) return null;
                 const days = calcLeaveDays(leave);
-                const note = leave.note || leave.reason || leave.remark || "-";
+                const note = leave.note || leave.reason ||  leave.remark ||
+                  // ผู้ใช้ขอถอนลา
+                  (leave.cancelReason ? `Cancel: ${leave.cancelReason}` : null) ||
+                  // HR ตีกลับการถอนลา
+                  (leave.rejectionReason ? `Rejected: ${leave.rejectionReason}` : null) || "-";
                 const signedBy = getSignedBy(leave);
 
                 return (
                   <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
                     <td className="px-6 py-4">
-                      <div className="text-slate-800">{leave.leaveType?.typeName || leave.type}</div>
-                      <div className="text-[9px] text-gray-400 font-black">{t("history.usedDays", { days })}</div>
+                      <div className="text-slate-800 font-black">
+                        {leave.typeName || leave.leaveType?.typeName || leave.type || "-"}
+                      </div>
                     </td>
 
                     <td className="px-6 py-4 text-gray-500">
@@ -350,6 +385,16 @@ export default function HistoryTable({
                                       text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition active:scale-95"
                           >
                             Delete
+                          </button>
+                        </div>
+                      ) : isApproved(leave.status) ? (
+                        <div className="inline-flex items-center justify-center">
+                          <button
+                            onClick={() => handleRequestCancelLeave(leave)}
+                            className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700
+                                      text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 transition active:scale-95"
+                          >
+                            Request Cancel
                           </button>
                         </div>
                       ) : (

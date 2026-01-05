@@ -22,10 +22,6 @@ export default function Dashboard() {
   const [yearOpen, setYearOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  // ✅ Modal state
-  const [editOpen, setEditOpen] = useState(false);
-  const [editingLeave, setEditingLeave] = useState(null);
-
   /* -------------------- Year List Logic -------------------- */
   const currentYear = new Date().getFullYear();
   const FUTURE_YEARS = 2;
@@ -230,14 +226,28 @@ export default function Dashboard() {
         attendanceData={data.att}
         leaveData={data.leaves}
         buildFileUrl={buildFileUrl}
-        onDeletedLeaveSuccess={(deletedLeave) => {
-          console.log("DELETED =>", deletedLeave);
-          if (!deletedLeave?.id) return;
+        onDeletedLeaveSuccess={(updatedLeave) => {
+          console.log("UPDATED =>", updatedLeave);
+          if (!updatedLeave?.id) return;
 
-          setData((prev) => ({
-            ...prev,
-            leaves: (prev?.leaves || []).filter((x) => x?.id !== deletedLeave.id),
-          }));
+          setData((prev) => {
+            const list = prev?.leaves || [];
+            const status = String(updatedLeave.status || "").toLowerCase();
+
+            // ✅ ถ้า Cancelled = ลบทิ้งจาก list
+            if (status === "cancelled") {
+              return {
+                ...prev,
+                leaves: list.filter((x) => x?.id !== updatedLeave.id),
+              };
+            }
+
+            // ✅ ถ้า Withdraw_Pending / อัปเดตอื่นๆ = replace item เดิมด้วยข้อมูลใหม่
+            return {
+              ...prev,
+              leaves: list.map((x) => (x?.id === updatedLeave.id ? { ...x, ...updatedLeave } : x)),
+            };
+          });
         }}
       />
     </div>

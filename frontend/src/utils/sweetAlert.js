@@ -86,3 +86,39 @@ export const alertRejectReason = async () => {
   if (!isConfirmed) return null;
   return value;
 };
+
+// ===== Request Cancel Reason Popup =====
+export const alertCancelReason = async () => {
+  const { value, isConfirmed } = await Swal.fire({
+    title: "Request Cancel Leave",
+    html: `
+      <div class="swal-reject-wrapper">
+        <label class="swal-reject-label">Reason for cancellation</label>
+        <textarea id="swal-cancel-textarea" class="swal-reject-textarea"
+          placeholder="Please enter cancellation reason..."></textarea>
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: "Request",
+    cancelButtonText: "Cancel",
+    reverseButtons: true,
+    buttonsStyling: false,
+    customClass: {
+      popup: "swal-pill-popup",
+      title: "swal-pill-title",
+      confirmButton: "swal-pill-confirm", // ถ้าอยากให้เป็นแดงใช้ swal-pill-danger
+      cancelButton: "swal-pill-cancel",
+    },
+    preConfirm: () => {
+      const v = document.getElementById("swal-cancel-textarea").value.trim();
+      if (!v) {
+        Swal.showValidationMessage("Cancellation reason is required");
+        return false;
+      }
+      return v;
+    },
+  });
+
+  if (!isConfirmed) return null;
+  return value;
+};
