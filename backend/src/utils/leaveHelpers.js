@@ -1,3 +1,15 @@
+// backend/src/utils/leaveHelpers.js
+
+const toLocalYMD = (date) => {
+  const d = new Date(date);
+  // ป้องกันกรณี date object เปลี่ยนค่า ให้ clone มาใหม่
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+
 exports.calculateTotalDays = (
   start,
   end,
@@ -9,6 +21,7 @@ exports.calculateTotalDays = (
 
   const s = new Date(start);
   const e = new Date(end);
+  // Set เที่ยงวัน เพื่อเลี่ยงปัญหา Timezone
   s.setHours(12, 0, 0, 0);
   e.setHours(12, 0, 0, 0);
 
@@ -16,13 +29,13 @@ exports.calculateTotalDays = (
 
   const isWorkingDay = (d) => {
     const day = d.getDay();
-    const isWeekend = day === 0 || day === 6;
-    const dateStr = d.toISOString().split('T')[0]; // สั้นกว่าและแม่นยำเพราะเราเซ็ต 12:00 ไว้แล้ว
+    const isWeekend = day === 0 || day === 6; // 0=Sun, 6=Sat
+    const dateStr = toLocalYMD(d); // ✅ ใช้ Helper เดียวกัน
     const isHoliday = holidayDates.includes(dateStr);
     return !isWeekend && !isHoliday;
   };
 
-  // 1. นับจำนวนวันทำงานทั้งหมดในช่วงนั้นก่อน (ถ้านับได้ 0 คือจบเลย)
+  // 1. นับจำนวนวันทำงานทั้งหมดในช่วงนั้นก่อน
   let workingDaysCount = 0;
   let cur = new Date(s);
   while (cur <= e) {
@@ -35,47 +48,45 @@ exports.calculateTotalDays = (
   // 2. คำนวณส่วนลด (Deduction)
   let deduction = 0;
 
-  // ตรวจสอบวันแรก: ถ้าเป็นวันทำงานแต่ลาไม่เต็มวัน หักออก 0.5
+  // วันแรก: ถ้าเป็นวันทำงาน แต่ลาครึ่งวัน
   if (isWorkingDay(s) && startDuration !== "Full") {
     deduction += 0.5;
   }
 
-  // ตรวจสอบวันสุดท้าย: 
-  // ต้องเช็คก่อนว่าไม่ใช่ลาวันเดียวกัน (เพราะถ้าวันเดียวจะโดนหักซ้ำซ้อน)
+  // วันสุดท้าย: ถ้าคนละวันกับวันแรก และเป็นวันทำงาน แต่ลาครึ่งวัน
   const isSameDay = s.getTime() === e.getTime();
   if (!isSameDay && isWorkingDay(e) && endDuration !== "Full") {
     deduction += 0.5;
   }
 
-  // 3. ผลลัพธ์สุทธิ
+  // 3. ผลลัพธ์สุทธิ (ต้องไม่ต่ำกว่า 0)
   return Math.max(0, workingDaysCount - deduction);
 };
 
 exports.getWorkingDaysList = (start, end, holidayDates = []) => {
+  if (!start || !end) return [];
+
   const s = new Date(start);
   const e = new Date(end);
   s.setHours(12, 0, 0, 0);
   e.setHours(12, 0, 0, 0);
 
+  if (s > e) return [];
+
   const list = [];
   const cur = new Date(s);
 
   while (cur <= e) {
-    const dayOfWeek = cur.getDay(); // 0 อาทิตย์, 6 เสาร์
-    
-    const year = cur.getFullYear();
-    const month = String(cur.getMonth() + 1).padStart(2, "0");
-    const date = String(cur.getDate()).padStart(2, "0");
-    const dateStr = `${year}-${month}-${date}`;
+    const dayOfWeek = cur.getDay();
+    const dateStr = toLocalYMD(cur); // ✅ ใช้ Helper เดียวกัน
 
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     const isHoliday = holidayDates.includes(dateStr);
 
     if (!isWeekend && !isHoliday) {
-      list.push(dateStr); 
+      list.push(dateStr);
     }
     cur.setDate(cur.getDate() + 1);
-    cur.setHours(12, 0, 0, 0); 
   }
   return list;
 };
