@@ -16,15 +16,52 @@ const token = localStorage.getItem("token");
 
 export function HolidayPolicyProvider({ children }) {
   // =========================================
-  // 1. Working Days (Mon-Fri)
+  // 1. Working Days (Connected to Backend)
   // =========================================
   const [workingDays, setWorkingDays] = useState(["MON", "TUE", "WED", "THU", "FRI"]);
   const [policySaving, setPolicySaving] = useState(false);
+  const [policyLoading, setPolicyLoading] = useState(false);
+
+  // ✅ อย่าเก็บ token ไว้นอก component (มันค้างค่า)
+  const getToken = () => localStorage.getItem("token");
+  const getAuthHeaders = () => ({
+    Authorization: `Bearer ${getToken()}`,
+  });
+
+  // ✅ โหลด Working Days จาก Backend
+  const fetchWorkingDaysPolicy = useCallback(async () => {
+    try {
+      setPolicyLoading(true);
+      const res = await fetch(`${API_BASE}/holidays/working-days`, {
+        method: "GET",
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data?.error || "Failed to fetch working days policy");
+
+      const arr = Array.isArray(data?.workingDays) ? data.workingDays : ["MON", "TUE", "WED", "THU", "FRI"];
+      setWorkingDays(arr);
+    } catch (e) {
+      console.error("Fetch Working Days Error:", e);
+      alertError("Load Failed", e.message || "Unable to load working days policy.");
+      // fallback ค่าเดิม
+      setWorkingDays(["MON", "TUE", "WED", "THU", "FRI"]);
+    } finally {
+      setPolicyLoading(false);
+    }
+  }, []);
+
+  // ✅ โหลดครั้งแรกตอนเข้า page
+  useEffect(() => {
+    fetchWorkingDaysPolicy();
+  }, [fetchWorkingDaysPolicy]);
 
   const toggleWorkingDay = (k) => {
     setWorkingDays((prev) => {
       const p = Array.isArray(prev) ? prev : [];
-      return p.includes(k) ? p.filter((x) => x !== k) : [...p, k];
+      const kk = String(k || "").toUpperCase();
+      return p.includes(kk) ? p.filter((x) => x !== kk) : [...p, kk];
     });
   };
 
@@ -41,12 +78,30 @@ export function HolidayPolicyProvider({ children }) {
 
     setPolicySaving(true);
     try {
-      // TODO: เปลี่ยนเป็น API จริงถ้ามี Endpoint (เช่น PUT /attendance/working-days)
-      await new Promise((r) => setTimeout(r, 250));
+      const res = await fetch(`${API_BASE}/holidays/working-days`, {
+        method: "PUT",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ workingDays }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Save failed");
+
+      // backend ส่งกลับ { message, data } หรือ { key, workingDays } ได้
+      const savedDays = Array.isArray(data?.data?.workingDays)
+        ? data.data.workingDays
+        : Array.isArray(data?.workingDays)
+        ? data.workingDays
+        : workingDays;
+
+      setWorkingDays(savedDays);
+
       await alertSuccess("Saved", "Working Days saved.");
     } catch (e) {
       console.error(e);
-      alertError("Save Failed", "Unable to save policy.");
+      alertError("Save Failed", e.message || "Unable to save policy.");
     } finally {
       setPolicySaving(false);
     }

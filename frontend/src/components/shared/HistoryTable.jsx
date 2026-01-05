@@ -45,16 +45,53 @@ export default function HistoryTable({
 
   const data = activeTab === "attendance" ? attendanceData : leaveData;
 
-  const totalPages = Math.max(1, Math.ceil((data?.length || 0) / PAGE_SIZE));
+  const totalPages = useMemo(() => {
+    const total = data?.length || 0;
+    return Math.max(1, Math.ceil(total / PAGE_SIZE));
+  }, [data]);
 
+  // ถ้าจำนวนรายการเปลี่ยน แล้วหน้าเกิน ให้ดึงกลับ
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+    setPage((p) => Math.min(Math.max(1, p), totalPages));
+  }, [totalPages]);
 
   const pagedData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
     return (data || []).slice(start, start + PAGE_SIZE);
   }, [data, page]);
+
+  // ===================== ✅ page number style (เหมือนที่ทำให้) =====================
+  const pageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    const pages = [];
+
+    if (totalPages <= maxButtons) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+
+    let start = Math.max(1, page - 1);
+    let end = Math.min(totalPages, start + (maxButtons - 1));
+    start = Math.max(1, end - (maxButtons - 1));
+
+    if (start > 1) pages.push(1);
+    if (start > 2) pages.push("...");
+
+    for (let i = start; i <= end; i++) pages.push(i);
+
+    if (end < totalPages - 1) pages.push("...");
+    if (end < totalPages) pages.push(totalPages);
+
+    return pages;
+  }, [page, totalPages]);
+
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
+  const onPrev = () => canPrev && setPage((p) => p - 1);
+  const onNext = () => canNext && setPage((p) => p + 1);
+  const goTo = (n) => setPage(Math.min(Math.max(1, n), totalPages));
+  // ==============================================================================
 
   const calcLeaveDays = (leave) => {
     const raw = leave?.totalDaysRequested ?? leave?.days ?? leave?.totalDays;
@@ -109,23 +146,16 @@ export default function HistoryTable({
   };
   // ==========================================================================
 
-  const onPrev = () => setPage((p) => Math.max(1, p - 1));
-  const onNext = () => setPage((p) => Math.min(totalPages, p + 1));
-
   // ✅ Signed By (คนลงนาม)
   const getSignedBy = (leave) => {
-    // backend ของคุณส่ง approverName มาแล้ว (ดีที่สุด)
     if (leave?.approverName) return leave.approverName;
 
-    // fallback เผื่อบาง endpoint ส่ง approvedByHr เป็น object
     const a = leave?.approvedByHr;
     if (a?.firstName || a?.lastName) return `${a.firstName || ""} ${a.lastName || ""}`.trim();
 
-    // fallback เผื่อบางที่ส่งชื่อเป็น string
     if (typeof leave?.approvedBy === "string") return leave.approvedBy;
     if (typeof leave?.rejectedBy === "string") return leave.rejectedBy;
 
-    // pending
     if (String(leave?.status || "").toLowerCase() === "pending") return "Waiting for HR";
 
     return "-";
@@ -347,38 +377,76 @@ export default function HistoryTable({
           </tbody>
         </table>
 
-        {/* Pagination */}
-        <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-end gap-2">
-          <button
-            onClick={onPrev}
-            disabled={page <= 1}
-            className={`p-2 rounded-xl border text-slate-700 transition-all ${
-              page <= 1
-                ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
-                : "bg-white border-gray-200 hover:bg-gray-50"
-            }`}
-            title="Prev"
-          >
-            <ChevronLeft size={16} />
-          </button>
+        {/* Pagination (เหมือนที่ทำให้: Prev/Next + เลขหน้า + ...) */}
+        {((data?.length || 0) > 0) && (
+          <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-col sm:flex-row">
+            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              Page {page} / {totalPages} • Showing{" "}
+              <span className="text-slate-700">
+                {Math.min((page - 1) * PAGE_SIZE + 1, data.length)}-{Math.min(page * PAGE_SIZE, data.length)}
+              </span>{" "}
+              of <span className="text-slate-700">{data.length}</span>
+            </div>
 
-          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-            Page {page} / {totalPages}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onPrev}
+                disabled={!canPrev}
+                className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
+                  ${
+                    canPrev
+                      ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  }`}
+                title="Prev"
+              >
+                <ChevronLeft size={14} />
+                Prev
+              </button>
+
+              <div className="flex items-center gap-1">
+                {pageNumbers.map((p, idx) =>
+                  p === "..." ? (
+                    <span key={`dots-${idx}`} className="px-2 text-gray-300 font-black text-[12px]">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => goTo(p)}
+                      className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
+                        ${
+                          p === page
+                            ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                            : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                        }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={onNext}
+                disabled={!canNext}
+                className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
+                  ${
+                    canNext
+                      ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  }`}
+                title="Next"
+              >
+                Next
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
-
-          <button
-            onClick={onNext}
-            disabled={page >= totalPages}
-            className={`p-2 rounded-xl border text-slate-700 transition-all ${
-              page >= totalPages
-                ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
-                : "bg-white border-gray-200 hover:bg-gray-50"
-            }`}
-            title="Next"
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );

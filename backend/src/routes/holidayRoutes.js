@@ -1,4 +1,4 @@
-//backend/src/routes/holidayRoutes.js
+// backend/src/routes/holidayRoutes.js
 const express = require("express");
 const router = express.Router();
 const holidayController = require("../controllers/holidayController");
@@ -7,6 +7,10 @@ const { protect, authorize } = require("../middlewares/authMiddleware");
 // ==========================================
 // Holiday Routes (สำหรับ HR จัดการวันหยุด)
 // ==========================================
+
+// ✅ Working Days Policy (ต้องอยู่ก่อน "/:id" ไม่งั้นชนกัน)
+router.get("/working-days", protect, holidayController.getWorkingDaysPolicy);
+router.put("/working-days", protect, authorize("HR"), holidayController.saveWorkingDaysPolicy);
 
 // 1. ดึงรายการวันหยุด (อาจจะให้พนักงานทุกคนดูได้ หรือเฉพาะ HR ก็ได้ตาม Policy)
 router.get("/", protect, holidayController.getHolidays);

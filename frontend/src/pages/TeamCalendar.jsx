@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   format,
   startOfMonth,
@@ -27,6 +27,8 @@ import {
   MessageCircle,
   Info,
   Star,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { updateLeaveStatus, grantSpecialLeave } from "../api/leaveService";
@@ -98,6 +100,59 @@ export default function TeamCalendar() {
   } = att;
 
   const [roleOpen, setRoleOpen] = useState(false);
+
+  // ===================== ✅ TEAM Pagination (เลขหน้า + ... + Prev/Next) =====================
+  // กันกรณี hook ส่ง totalTeamPages เป็น 0/undefined
+  const safeTotalTeamPages = useMemo(() => {
+    const fromHook = Number(totalTeamPages);
+    if (Number.isFinite(fromHook) && fromHook >= 1) return fromHook;
+
+    const len = filteredTeamAttendance?.length || 0;
+    return Math.max(1, Math.ceil(len / PAGE_SIZE));
+  }, [totalTeamPages, filteredTeamAttendance]);
+
+  // รีเซ็ตหน้าเมื่อเปลี่ยน filter/search
+  useEffect(() => {
+    setTeamPage(1);
+  }, [roleFilter, searchTerm, setTeamPage]);
+
+  // กันหน้าเกิน
+  useEffect(() => {
+    if (teamPage > safeTotalTeamPages) setTeamPage(safeTotalTeamPages);
+    if (teamPage < 1) setTeamPage(1);
+  }, [teamPage, safeTotalTeamPages, setTeamPage]);
+
+  const teamPageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    const pages = [];
+
+    if (safeTotalTeamPages <= maxButtons) {
+      for (let i = 1; i <= safeTotalTeamPages; i++) pages.push(i);
+      return pages;
+    }
+
+    let start = Math.max(1, teamPage - 1);
+    let end = Math.min(safeTotalTeamPages, start + (maxButtons - 1));
+    start = Math.max(1, end - (maxButtons - 1));
+
+    if (start > 1) pages.push(1);
+    if (start > 2) pages.push("...");
+
+    for (let i = start; i <= end; i++) pages.push(i);
+
+    if (end < safeTotalTeamPages - 1) pages.push("...");
+    if (end < safeTotalTeamPages) pages.push(safeTotalTeamPages);
+
+    return pages;
+  }, [teamPage, safeTotalTeamPages]);
+
+  const canTeamPrev = teamPage > 1;
+  const canTeamNext = teamPage < safeTotalTeamPages;
+
+  const goTeamPrev = () => canTeamPrev && setTeamPage((p) => p - 1);
+  const goTeamNext = () => canTeamNext && setTeamPage((p) => p + 1);
+  const goTeamTo = (n) => setTeamPage(Math.min(Math.max(1, n), safeTotalTeamPages));
+  // ================================================================================
 
   // ===== ✅ Modal Attendance (hook) =====
   const { modalAttendance, modalAttLoading, fetchModalAttendance } = useModalAttendance();
@@ -248,7 +303,6 @@ export default function TeamCalendar() {
 
     const onLeave = modalOnLeaveEmployeeIds.size;
 
-    // adjust absent if someone is NOT_IN but on approved leave
     if (rows.length > 0 && onLeave > 0) {
       let leaveAndAbsent = 0;
       rows.forEach((r) => {
@@ -271,8 +325,8 @@ export default function TeamCalendar() {
   const handleLeaveActionInModal = async (mode, leaf) => {
     if (!leaf?.id) return;
 
-    // ✅ กันกรณีบางที่ส่ง "Reject" แทน "Rejected"
-    const isReject = String(mode || "").toLowerCase() === "rejected" || String(mode || "").toLowerCase() === "reject";
+    const isReject =
+      String(mode || "").toLowerCase() === "rejected" || String(mode || "").toLowerCase() === "reject";
 
     const actionText =
       mode === "Special"
@@ -282,19 +336,15 @@ export default function TeamCalendar() {
         : "Reject";
 
     try {
-      // ✅ Reject -> ขอเหตุผลก่อน
       let rejectionReason = null;
       if (isReject) {
         if (typeof alertRejectReason !== "function") {
-          // ถ้า import ไม่เข้า จะได้รู้ทันที
           throw new Error("alertRejectReason is not a function (check import from ../utils/sweetAlert)");
         }
-
         rejectionReason = await alertRejectReason();
-        if (!rejectionReason) return; // cancel / ไม่กรอก
+        if (!rejectionReason) return;
       }
 
-      // ✅ Confirm เฉพาะ Approved/Special (Reject ไม่ confirm ซ้ำ)
       if (!isReject) {
         const ok = await alertConfirm(
           `Confirm ${actionText}`,
@@ -312,14 +362,8 @@ export default function TeamCalendar() {
           leaveRequestId: leaf.id,
         });
       } else {
-        // ✅ บังคับส่ง status เป็น "Rejected" ให้ backend แน่นอน
         const finalStatus = isReject ? "Rejected" : mode;
-
-        await updateLeaveStatus(
-          leaf.id,
-          finalStatus,
-          isReject ? rejectionReason : null
-        );
+        await updateLeaveStatus(leaf.id, finalStatus, isReject ? rejectionReason : null);
       }
 
       await alertSuccess("Success", `Processed 1 request.`);
@@ -390,9 +434,7 @@ export default function TeamCalendar() {
                       type="button"
                       onClick={() =>
                         setSelectedTypes((prev) =>
-                          prev.includes(item.key)
-                            ? prev.filter((t) => t !== item.key)
-                            : [...prev, item.key]
+                          prev.includes(item.key) ? prev.filter((t) => t !== item.key) : [...prev, item.key]
                         )
                       }
                       className={`flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-black transition-all
@@ -540,21 +582,9 @@ export default function TeamCalendar() {
             </div>
 
             <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <SummaryCard
-                title="Checked In"
-                value={attendanceSummary.checkedIn}
-                icon={<LogIn size={18} className="text-emerald-600" />}
-              />
-              <SummaryCard
-                title="Late (มาสาย)"
-                value={attendanceSummary.late}
-                icon={<Clock size={18} className="text-rose-600" />}
-              />
-              <SummaryCard
-                title="Checked Out"
-                value={attendanceSummary.checkedOut}
-                icon={<LogOut size={18} className="text-slate-600" />}
-              />
+              <SummaryCard title="Checked In" value={attendanceSummary.checkedIn} icon={<LogIn size={18} className="text-emerald-600" />} />
+              <SummaryCard title="Late (มาสาย)" value={attendanceSummary.late} icon={<Clock size={18} className="text-rose-600" />} />
+              <SummaryCard title="Checked Out" value={attendanceSummary.checkedOut} icon={<LogOut size={18} className="text-slate-600" />} />
             </div>
 
             <div className="px-6 pb-4">
@@ -617,10 +647,7 @@ export default function TeamCalendar() {
                       const employeeId = row.employeeId ?? row.id ?? idx;
 
                       const name =
-                        row.fullName ||
-                        row.name ||
-                        `${row.firstName || ""} ${row.lastName || ""}`.trim() ||
-                        "Unknown";
+                        row.fullName || row.name || `${row.firstName || ""} ${row.lastName || ""}`.trim() || "Unknown";
 
                       const role = row.role || row.position || "-";
 
@@ -635,15 +662,10 @@ export default function TeamCalendar() {
 
                       const lateFlag = isLate(state, inTime, true, row);
                       const statusText = lateFlag ? "LATE" : labelByAttendance(state);
-                      const statusClass = lateFlag
-                        ? "bg-rose-50 text-rose-600 border-rose-100"
-                        : badgeByAttendance(state);
+                      const statusClass = lateFlag ? "bg-rose-50 text-rose-600 border-rose-100" : badgeByAttendance(state);
 
                       return (
-                        <tr
-                          key={employeeId}
-                          className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
-                        >
+                        <tr key={employeeId} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
                           <td className="px-6 py-4 text-slate-800">{name}</td>
                           <td className="px-6 py-4 text-gray-500">{role}</td>
 
@@ -656,9 +678,7 @@ export default function TeamCalendar() {
                           </td>
 
                           <td className="px-6 py-4 text-center">
-                            <span
-                              className={`px-3 py-1.5 rounded-xl border text-[10px] uppercase font-black tracking-widest ${statusClass}`}
-                            >
+                            <span className={`px-3 py-1.5 rounded-xl border text-[10px] uppercase font-black tracking-widest ${statusClass}`}>
                               {statusText}
                             </span>
                           </td>
@@ -701,74 +721,73 @@ export default function TeamCalendar() {
                 </tbody>
               </table>
 
+              {/* ✅ Pagination (ใหม่) */}
               {!attLoading && filteredTeamAttendance.length > 0 && (
                 <div className="px-6 py-4 border-t border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                    Showing{" "}
-                    {Math.min((teamPage - 1) * PAGE_SIZE + 1, filteredTeamAttendance.length)}-
-                    {Math.min(teamPage * PAGE_SIZE, filteredTeamAttendance.length)} of{" "}
-                    {filteredTeamAttendance.length}
+                    Page {teamPage} / {safeTotalTeamPages} • Showing{" "}
+                    <span className="text-slate-700">
+                      {Math.min((teamPage - 1) * PAGE_SIZE + 1, filteredTeamAttendance.length)}-
+                      {Math.min(teamPage * PAGE_SIZE, filteredTeamAttendance.length)}
+                    </span>{" "}
+                    of <span className="text-slate-700">{filteredTeamAttendance.length}</span>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setTeamPage(1)}
-                      disabled={teamPage === 1}
-                      className={`h-9 px-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition
+                      type="button"
+                      onClick={goTeamPrev}
+                      disabled={!canTeamPrev}
+                      className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
                         ${
-                          teamPage === 1
-                            ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
-                            : "bg-white text-slate-700 border-gray-200 hover:bg-gray-50"
+                          canTeamPrev
+                            ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                            : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
                         }`}
-                      title="First"
+                      title="Prev"
                     >
-                      {"<<"}
+                      <ChevronLeft size={14} />
+                      Prev
                     </button>
 
-                    <button
-                      onClick={() => setTeamPage((p) => Math.max(1, p - 1))}
-                      disabled={teamPage === 1}
-                      className={`h-9 px-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition
-                        ${
-                          teamPage === 1
-                            ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
-                            : "bg-white text-slate-700 border-gray-200 hover:bg-gray-50"
-                        }`}
-                      title="Previous"
-                    >
-                      {"<"}
-                    </button>
-
-                    <div className="h-9 px-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center text-[10px] font-black text-slate-700 uppercase tracking-widest">
-                      Page {teamPage} / {totalTeamPages}
+                    <div className="flex items-center gap-1">
+                      {teamPageNumbers.map((p, idx) =>
+                        p === "..." ? (
+                          <span key={`dots-${idx}`} className="px-2 text-gray-300 font-black text-[12px]">
+                            ...
+                          </span>
+                        ) : (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => goTeamTo(p)}
+                            className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
+                              ${
+                                p === teamPage
+                                  ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                                  : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                              }`}
+                          >
+                            {p}
+                          </button>
+                        )
+                      )}
                     </div>
 
                     <button
-                      onClick={() => setTeamPage((p) => Math.min(totalTeamPages, p + 1))}
-                      disabled={teamPage === totalTeamPages}
-                      className={`h-9 px-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition
+                      type="button"
+                      onClick={goTeamNext}
+                      disabled={!canTeamNext}
+                      className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
                         ${
-                          teamPage === totalTeamPages
-                            ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
-                            : "bg-white text-slate-700 border-gray-200 hover:bg-gray-50"
+                          canTeamNext
+                            ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                            : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
                         }`}
                       title="Next"
                     >
-                      {">"}
-                    </button>
-
-                    <button
-                      onClick={() => setTeamPage(totalTeamPages)}
-                      disabled={teamPage === totalTeamPages}
-                      className={`h-9 px-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition
-                        ${
-                          teamPage === totalTeamPages
-                            ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
-                            : "bg-white text-slate-700 border-gray-200 hover:bg-gray-50"
-                        }`}
-                      title="Last"
-                    >
-                      {">>"}
+                      Next
+                      <ChevronRight size={14} />
                     </button>
                   </div>
                 </div>
@@ -785,19 +804,14 @@ export default function TeamCalendar() {
       {/* ===================== ✅ BIG MODAL (Daily Details) ===================== */}
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
-          <div
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            onClick={() => setShowModal(false)}
-          />
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowModal(false)} />
 
           <div className="relative w-full max-w-[1500px] max-h-[94vh] bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100">
             {/* Top Bar */}
             <div className="px-6 sm:px-8 pt-6 pb-4 border-b border-slate-100">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-4xl sm:text-5xl font-black text-slate-900 leading-none">
-                    Daily Details
-                  </div>
+                  <div className="text-4xl sm:text-5xl font-black text-slate-900 leading-none">Daily Details</div>
                   <div className="mt-2 text-[12px] font-black text-slate-500 uppercase tracking-[0.2em]">
                     {format(selectedDate, "dd MMMM yyyy")}
                   </div>
@@ -926,11 +940,7 @@ export default function TeamCalendar() {
                           Evidence
                         </th>
                         <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest text-center">
-                          {modalTab === "APPROVED"
-                            ? "Approved By"
-                            : modalTab === "REJECTED"
-                            ? "Rejected By"
-                            : "Action"}
+                          {modalTab === "APPROVED" ? "Approved By" : modalTab === "REJECTED" ? "Rejected By" : "Action"}
                         </th>
                       </tr>
                     </thead>
@@ -965,9 +975,7 @@ export default function TeamCalendar() {
                             <tr key={leaf.id} className="hover:bg-slate-50/50 transition-all duration-200">
                               {/* Employee */}
                               <td className="p-5 min-w-[200px]">
-                                <div className="font-black text-slate-700 leading-none tracking-tight">
-                                  {name}
-                                </div>
+                                <div className="font-black text-slate-700 leading-none tracking-tight">{name}</div>
                                 <div className="text-[9px] font-black text-slate-300 uppercase mt-1">
                                   Ref: #{leaf.id}
                                 </div>
@@ -1005,9 +1013,7 @@ export default function TeamCalendar() {
                                       <span className="truncate max-w-[240px]">{leaf.note}</span>
                                     </div>
                                   )}
-                                  {!leaf.reason && !leaf.note && (
-                                    <span className="text-slate-300 text-[10px] italic">-</span>
-                                  )}
+                                  {!leaf.reason && !leaf.note && <span className="text-slate-300 text-[10px] italic">-</span>}
                                 </div>
                               </td>
 
@@ -1016,9 +1022,7 @@ export default function TeamCalendar() {
                                 <div className="text-[11px] font-bold text-slate-500 italic whitespace-nowrap">
                                   {dur.range}
                                 </div>
-                                <div className="font-black text-slate-800 text-sm mt-0.5">
-                                  {dur.days || "-"}
-                                </div>
+                                <div className="font-black text-slate-800 text-sm mt-0.5">{dur.days || "-"}</div>
                               </td>
 
                               {/* Evidence */}

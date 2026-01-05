@@ -1,8 +1,10 @@
 //frontend/src/pages/yearEnd/components/SpecialHolidaysCard.jsx
-import React from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Pencil, Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useHolidayPolicy } from "../hooks/useHolidayPolicy";
 import { calcTotalDays, safeYMD, ymdToDDMMYYYY } from "../utils";
+
+const PAGE_SIZE = 5;
 
 export default function SpecialHolidaysCard() {
   const {
@@ -23,13 +25,72 @@ export default function SpecialHolidaysCard() {
     upsertSpecialHoliday,
   } = useHolidayPolicy();
 
+  // =========================
+  // Pagination (5 per page)
+  // =========================
+  const [page, setPage] = useState(1);
+
+  const totalPages = useMemo(() => {
+    const total = sortedSpecialHolidays?.length || 0;
+    return Math.max(1, Math.ceil(total / PAGE_SIZE));
+  }, [sortedSpecialHolidays]);
+
+  // ถ้าจำนวนรายการเปลี่ยน (เพิ่ม/ลบ) แล้วหน้าเกิน ให้ดึงกลับ
+  useEffect(() => {
+    setPage((p) => Math.min(Math.max(1, p), totalPages));
+  }, [totalPages]);
+
+  const pagedHolidays = useMemo(() => {
+    const list = sortedSpecialHolidays || [];
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
+  }, [sortedSpecialHolidays, page]);
+
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
+  const goPrev = () => canPrev && setPage((p) => p - 1);
+  const goNext = () => canNext && setPage((p) => p + 1);
+  const goTo = (n) => setPage(Math.min(Math.max(1, n), totalPages));
+
+  // แสดงเลขหน้าแบบไม่รก: 1 ... 4 5 6 ... 20
+  const pageNumbers = useMemo(() => {
+    const maxButtons = 5; // จำนวนปุ่มตัวเลขที่อยากโชว์
+    const pages = [];
+
+    if (totalPages <= maxButtons) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+
+    // center around current page
+    let start = Math.max(1, page - 1);
+    let end = Math.min(totalPages, start + (maxButtons - 1));
+
+    // fix if near end
+    start = Math.max(1, end - (maxButtons - 1));
+
+    // always show 1 and last with ellipsis
+    if (start > 1) pages.push(1);
+    if (start > 2) pages.push("...");
+
+    for (let i = start; i <= end; i++) pages.push(i);
+
+    if (end < totalPages - 1) pages.push("...");
+    if (end < totalPages) pages.push(totalPages);
+
+    return pages;
+  }, [page, totalPages]);
+
   return (
     <>
       {formOpen && (
         <div className="mt-6 rounded-3xl border border-gray-200 bg-white overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-black text-slate-800 uppercase tracking-widest">Special Holidays</div>
+              <div className="text-sm font-black text-slate-800 uppercase tracking-widest">
+                Special Holidays
+              </div>
               <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
                 Add / Edit holiday and apply immediately
               </div>
@@ -93,7 +154,9 @@ export default function SpecialHolidaysCard() {
             <div className="mt-4 flex items-center justify-between gap-3 flex-col sm:flex-row">
               <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
                 Duration:{" "}
-                <span className="text-slate-700">{calcTotalDays(holidayStart, holidayEnd) || 0} day(s)</span>
+                <span className="text-slate-700">
+                  {calcTotalDays(holidayStart, holidayEnd) || 0} day(s)
+                </span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -130,7 +193,9 @@ export default function SpecialHolidaysCard() {
       <div className="mt-6 rounded-3xl border border-gray-200 bg-white overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-black text-slate-800 uppercase tracking-widest">Special Holidays Log</div>
+            <div className="text-sm font-black text-slate-800 uppercase tracking-widest">
+              Special Holidays Log
+            </div>
             <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
               DD-MM-YYYY (total days), name, edit, delete
             </div>
@@ -166,7 +231,7 @@ export default function SpecialHolidaysCard() {
                   </td>
                 </tr>
               ) : (
-                sortedSpecialHolidays.map((h) => {
+                pagedHolidays.map((h) => {
                   const totalDays = calcTotalDays(h.startDate, h.endDate);
                   const dateText =
                     safeYMD(h.startDate) === safeYMD(h.endDate)
@@ -209,6 +274,64 @@ export default function SpecialHolidaysCard() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Bar */}
+        {sortedSpecialHolidays.length > 0 && (
+          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-col sm:flex-row">
+            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              Page {page} / {totalPages} • Showing{" "}
+              <span className="text-slate-700">
+                {Math.min((page - 1) * PAGE_SIZE + 1, sortedSpecialHolidays.length)}-
+                {Math.min(page * PAGE_SIZE, sortedSpecialHolidays.length)}
+              </span>{" "}
+              of <span className="text-slate-700">{sortedSpecialHolidays.length}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goPrev}
+                disabled={!canPrev}
+                className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
+                  ${canPrev ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"}`}
+              >
+                <ChevronLeft size={14} />
+                Prev
+              </button>
+
+              <div className="flex items-center gap-1">
+                {pageNumbers.map((p, idx) =>
+                  p === "..." ? (
+                    <span key={`dots-${idx}`} className="px-2 text-gray-300 font-black text-[12px]">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => goTo(p)}
+                      className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
+                        ${p === page ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"}`}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={!canNext}
+                className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
+                  ${canNext ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"}`}
+              >
+                Next
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
