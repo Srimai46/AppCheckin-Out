@@ -117,3 +117,90 @@ html, body {
   border-color: #3b82f6;
   box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
 }
+
+/* =========================
+   SweetAlert - Policy Blocked (Holiday / Non-working)
+   ========================= */
+
+.swal-policy-popup {
+  padding: 28px !important;
+  border-radius: 28px !important;
+}
+
+.swal-policy-html {
+  margin-top: 10px !important;
+}
+
+.swal-policy-wrap {
+  text-align: center;
+}
+
+.swal-policy-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #991b1b;
+  background: rgba(239, 68, 68, 0.10);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  margin-bottom: 12px;
+}
+
+.swal-policy-msg {
+  font-size: 14px;
+  font-weight: 800;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.swal-policy-details {
+  margin-top: 14px;
+  text-align: left;
+  background: rgba(15, 23, 42, 0.03);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 18px;
+  padding: 14px 14px;
+}
+
+.swal-policy-details-title {
+  font-size: 11px;
+  font-weight: 900;
+  color: #64748b;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.swal-policy-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.swal-policy-list li {
+  margin: 4px 0;
+}
+
+.swal-policy-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #94a3b8;
+}
+
+.swal-policy-ok {
+  border-radius: 999px !important;
+  padding: 12px 18px !important;
+  min-width: 120px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 900;
+}

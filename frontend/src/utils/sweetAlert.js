@@ -122,3 +122,50 @@ export const alertCancelReason = async () => {
   if (!isConfirmed) return null;
   return value;
 };
+
+// ✅ Policy/Validation style error (holiday / non-working days)
+export const alertPolicyBlocked = async ({
+  title = "Request Not Allowed",
+  message = "You cannot request leave on holidays or non-working days.",
+  details = [], // array of strings OR single string
+  primary = null, // e.g. "2026-01-10"
+} = {}) => {
+  const detailItems = Array.isArray(details) ? details : [details].filter(Boolean);
+
+  const detailsHtml =
+    detailItems.length > 0
+      ? `
+        <div class="swal-policy-details">
+          <div class="swal-policy-details-title">Details</div>
+          <ul class="swal-policy-list">
+            ${detailItems.map((t) => `<li>${t}</li>`).join("")}
+          </ul>
+        </div>
+      `
+      : "";
+
+  const badgeHtml = primary
+    ? `<div class="swal-policy-badge">${primary}</div>`
+    : "";
+
+  return Swal.fire({
+    icon: "warning",
+    title,
+    html: `
+      <div class="swal-policy-wrap">
+        ${badgeHtml}
+        <div class="swal-policy-msg">${message}</div>
+        ${detailsHtml}
+        <div class="swal-policy-hint">Please choose working days only.</div>
+      </div>
+    `,
+    confirmButtonText: "OK",
+    buttonsStyling: false,
+    customClass: {
+      popup: "swal-pill-popup swal-policy-popup",
+      title: "swal-pill-title",
+      htmlContainer: "swal-pill-html swal-policy-html",
+      confirmButton: "swal-pill-danger swal-policy-ok",
+    },
+  });
+};

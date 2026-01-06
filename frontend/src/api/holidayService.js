@@ -1,6 +1,6 @@
 import axios from "axios";
 
-// 1. กำหนด Base URL (ใช้ logic เดียวกับ auditService)
+// 1. กำหนด Base URL
 const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(/\/$/, "");
 
 // Helper สำหรับดึง Token และสร้าง Header
@@ -18,35 +18,30 @@ const getHeaders = () => {
 
 // 1. ดึงข้อมูลวันหยุด (Get)
 export const fetchHolidays = async (year) => {
-  // params: { year: 2025 } (ถ้าไม่ส่งจะเอาปีปัจจุบัน)
   const response = await axios.get(`${API_BASE}/api/holidays`, {
     params: { year },
     headers: getHeaders(),
   });
-  return response.data; // Return Array ของวันหยุด
+  return response.data; // Array [{ id, date: "YYYY-MM-DD", name, ... }]
 };
 
-// 2. สร้างวันหยุดใหม่ (Create)
+// 2. สร้างวันหยุดใหม่
 export const createHoliday = async (holidayData) => {
-  // holidayData: { date: "2025-01-01", name: "New Year", isSubsidy: true }
-  // หรือส่งเป็น Array ก็ได้: [{...}, {...}]
   const response = await axios.post(`${API_BASE}/api/holidays`, holidayData, {
     headers: getHeaders(),
   });
   return response.data;
 };
 
-// 3. แก้ไขวันหยุด (Update)
+// 3. แก้ไขวันหยุด
 export const updateHoliday = async (id, holidayData) => {
-  // id: ไอดีของวันหยุดที่จะแก้
-  // holidayData: { name: "New Name", isSubsidy: false }
   const response = await axios.put(`${API_BASE}/api/holidays/${id}`, holidayData, {
     headers: getHeaders(),
   });
   return response.data;
 };
 
-// 4. ลบวันหยุด (Delete)
+// 4. ลบวันหยุด
 export const deleteHoliday = async (id) => {
   const response = await axios.delete(`${API_BASE}/api/holidays/${id}`, {
     headers: getHeaders(),
@@ -55,21 +50,17 @@ export const deleteHoliday = async (id) => {
 };
 
 // ---------------------------
-// ✅ Working Days Policy (NEW)
+// Working Days Policy
 // ---------------------------
 
-// 5) ดึง Working Days
 export const fetchWorkingDaysPolicy = async () => {
   const response = await axios.get(`${API_BASE}/api/holidays/working-days`, {
     headers: getHeaders(),
   });
-  // expected: { key: "WORKING_DAYS", workingDays: ["MON","TUE"...], updatedAt, updatedBy }
   return response.data;
 };
 
-// 6) บันทึก Working Days (HR)
 export const saveWorkingDaysPolicy = async (workingDays) => {
-  // workingDays: ["MON","TUE","WED"...]
   const response = await axios.put(
     `${API_BASE}/api/holidays/working-days`,
     { workingDays },
@@ -78,16 +69,17 @@ export const saveWorkingDaysPolicy = async (workingDays) => {
   return response.data;
 };
 
-// 7) ดึง Max Consecutive
+// ---------------------------
+// Max Consecutive Policy
+// ---------------------------
+
 export const fetchMaxConsecutivePolicy = async () => {
   const response = await axios.get(`${API_BASE}/api/holidays/max-consecutive`, {
     headers: getHeaders(),
   });
-  // expected: { key: "MAX_CONSECUTIVE_HOLIDAYS", maxConsecutiveHolidayDays, updatedAt, updatedBy }
   return response.data;
 };
 
-// 8) บันทึก Max Consecutive (HR)
 export const saveMaxConsecutivePolicy = async (days) => {
   const response = await axios.put(
     `${API_BASE}/api/holidays/max-consecutive`,
@@ -95,4 +87,57 @@ export const saveMaxConsecutivePolicy = async (days) => {
     { headers: getHeaders() }
   );
   return response.data;
+};
+
+// ===================================================================
+// Helper สำหรับเช็คว่าเลือกวันลาทับวันหยุดหรือไม่
+// ===================================================================
+
+const toISO = (d) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const parseISO = (iso) => {
+  const [y, m, d] = String(iso).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const dt = new Date(y, m - 1, d);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+};
+
+export const checkLeaveOverlapWithHoliday = async (startDate, endDate) => {
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+  if (!start || !end) return [];
+
+  const years = new Set([start.getFullYear(), end.getFullYear()]);
+  const holidayMap = new Map(); // "YYYY-MM-DD" -> name
+
+  for (const y of years) {
+    const list = await fetchHolidays(y);
+    if (Array.isArray(list)) {
+      list.forEach((h) => {
+        if (h?.date) holidayMap.set(h.date, h?.name || "Holiday");
+      });
+    }
+  }
+
+  const overlaps = [];
+  const cur = new Date(start);
+  cur.setHours(0, 0, 0, 0);
+
+  const endD = new Date(end);
+  endD.setHours(0, 0, 0, 0);
+
+  while (cur <= endD) {
+    const iso = toISO(cur);
+    if (holidayMap.has(iso)) {
+      overlaps.push({ date: iso, name: holidayMap.get(iso) });
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return overlaps; // [{ date: "2026-01-01", name: "New Year" }]
 };

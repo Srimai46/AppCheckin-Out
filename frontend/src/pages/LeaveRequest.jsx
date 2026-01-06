@@ -2,11 +2,11 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar as CalendarIcon, Paperclip, X } from "lucide-react";
 import { createLeaveRequest } from "../api/leaveService";
-import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
+import { alertConfirm, alertSuccess, alertPolicyBlocked, alertError } from "../utils/sweetAlert";
 
 export default function LeaveRequest() {
+  
   const navigate = useNavigate();
-
   const [selectedType, setSelectedType] = useState("");
   const [reason, setReason] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -65,14 +65,92 @@ export default function LeaveRequest() {
     if (el) el.value = "";
   };
 
+  // ================================
+  // ✅ Holiday overlap helpers
+  // ================================
+  const toISODate = (d) => {
+    // ให้เป็น YYYY-MM-DD แบบ local (กัน timezone เพี้ยน)
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const normalizeHolidayDate = (h) => {
+    // รองรับหลายชื่อ field เผื่อ backend ส่งมาไม่เหมือนกัน
+    const raw =
+      h?.date ||
+      h?.holidayDate ||
+      h?.holiday_date ||
+      h?.day ||
+      h?.holiday ||
+      h?.startDate ||
+      h?.start_date;
+
+    if (!raw) return null;
+
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    return toISODate(d);
+  };
+
+  const normalizeHolidayName = (h) =>
+    h?.name || h?.title || h?.holidayName || h?.holiday_name || "Holiday";
+
+  const getHolidayListFromResponse = (payload) => {
+    // รองรับรูปแบบ response: {data:[...]} หรือ {holidays:[...]} หรือเป็น array ตรง ๆ
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.holidays)) return payload.holidays;
+    if (Array.isArray(payload?.items)) return payload.items;
+    return [];
+  };
+
+  const findHolidayOverlaps = async (startISO, endISO) => {
+    const start = new Date(startISO);
+    const end = new Date(endISO);
+
+    const years = new Set([start.getFullYear(), end.getFullYear()]);
+    const all = [];
+
+    for (const y of years) {
+      const res = await fetchHolidays(y);
+      const list = getHolidayListFromResponse(res);
+      all.push(...list);
+    }
+
+    // ทำ lookup เป็น Map: date -> name
+    const holidayMap = new Map();
+    all.forEach((h) => {
+      const iso = normalizeHolidayDate(h);
+      if (!iso) return;
+      if (!holidayMap.has(iso)) holidayMap.set(iso, normalizeHolidayName(h));
+    });
+
+    // ไล่ทุกวันในช่วงที่เลือก
+    const overlaps = [];
+    const cur = new Date(start);
+    cur.setHours(0, 0, 0, 0);
+
+    const endD = new Date(end);
+    endD.setHours(0, 0, 0, 0);
+
+    while (cur <= endD) {
+      const iso = toISODate(cur);
+      if (holidayMap.has(iso)) {
+        overlaps.push({ date: iso, name: holidayMap.get(iso) });
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    return overlaps;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!selectedType) {
-      return alertError(
-        "Missing Information",
-        "Please select a leave type."
-      );
+      return alertError("Missing Information", "Please select a leave type.");
     }
     if (!startDate || !endDate) {
       return alertError(
@@ -84,10 +162,31 @@ export default function LeaveRequest() {
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (start > end) {
-      return alertError(
-        "Invalid Date",
-        "End date must be after the start date."
-      );
+      return alertError("Invalid Date", "End date must be after the start date.");
+    }
+
+    // ✅ เช็ควันหยุด (ทำครั้งเดียวก่อน Confirm)
+    try {
+      const overlaps = await checkLeaveOverlapWithHoliday(startDate, endDate);
+
+      if (overlaps.length > 0) {
+        const primary = overlaps?.[0]?.date || null;
+        const details = overlaps
+          .slice(0, 6)
+          .map((x) => `${escapeHtml(x.date)} — ${escapeHtml(x.name)}`);
+
+        await alertPolicyBlocked({
+          title: "Leave Request Blocked",
+          message: "You can’t request leave on holidays or non-working days. ",
+          primary,
+          details,
+        });
+        return;
+      }
+    } catch (err) {
+      console.error("[Holiday check failed]", err);
+      // ถ้าอยากบล็อกตอนเช็คไม่ได้:
+      // return alertError("System Error", "Cannot verify holiday dates. Please try again.");
     }
 
     const typeLabel =
@@ -103,12 +202,10 @@ export default function LeaveRequest() {
           Leave Request Summary
         </div>
         <ul style="margin:0; padding-left:18px;">
-          <li><b>Type</b>: ${escapeHtml(typeLabel)}</li>
-          <li><b>Period</b>: ${escapeHtml(startDate)} - ${escapeHtml(
-      endDate
-    )}</li>
-          <li><b>Duration</b>: ${escapeHtml(durationLabel)}</li>
-          <li><b>Attachment</b>: ${escapeHtml(fileLine)}</li>
+          <li><b>Type</b> : ${escapeHtml(typeLabel)}</li>
+          <li><b>Period</b> : ${escapeHtml(startDate)} - ${escapeHtml(endDate)}</li>
+          <li><b>Duration</b> : ${escapeHtml(durationLabel)}</li>
+          <li><b>Attachment</b> : ${escapeHtml(fileLine)}</li>
           ${
             reason?.trim()
               ? `<li><b>Reason</b>: ${escapeHtml(reason.trim())}</li>`
@@ -138,9 +235,7 @@ export default function LeaveRequest() {
       formData.append("startDuration", duration);
       formData.append("endDuration", duration);
 
-      if (attachment) {
-        formData.append("attachment", attachment);
-      }
+      if (attachment) formData.append("attachment", attachment);
 
       const res = await createLeaveRequest(formData);
 
@@ -157,6 +252,23 @@ export default function LeaveRequest() {
         error?.response?.data?.message ||
         error?.message ||
         "A system error occurred.";
+
+      // ✅ ถ้า backend บล็อกเพราะ holiday/non-working -> ใช้ popup สวยเหมือนกัน
+      if (
+        typeof msg === "string" &&
+        msg.toLowerCase().includes("cannot request leave")
+      ) {
+        const dateMatch = msg.match(/\d{4}-\d{2}-\d{2}/);
+        const primary = dateMatch?.[0] || null;
+
+        await alertPolicyBlocked({
+          title: "Leave Request Blocked",
+          message: "You can’t request leave on holidays or non-working days. ",
+          primary,
+          details: [escapeHtml(msg)],
+        });
+        return;
+      }
 
       alertError("Submission Failed", msg);
     } finally {
