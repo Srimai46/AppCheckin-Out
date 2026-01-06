@@ -64,16 +64,22 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef }) {
   useEffect(() => {
     fetchConfigs();
 
-    const API_URL = (
-      import.meta.env.VITE_API_URL || "http://localhost:8080"
-    ).replace(/\/$/, "");
+    const protocol = window.location.protocol; // http: หรือ https:
+    const hostname = window.location.hostname; // localhost หรือ 192.168.x.x
+    const port = 8080; // Port ของ Backend (ปกติไม่ค่อยเปลี่ยน)
 
-    const socket = io(API_URL, {
+    // สร้าง URL แบบ Auto: "http://192.168.1.36:8080"
+    const socketUrl = `${protocol}//${hostname}:${port}`;
+    
+    console.log("🔌 Auto-connecting Socket to:", socketUrl);
+
+    const socket = io(socketUrl, {
       withCredentials: true,
       transports: ["websocket", "polling"],
     });
 
     socket.on("notification_refresh", () => {
+      console.log("🔄 Socket received refresh signal");
       fetchConfigs();
     });
 

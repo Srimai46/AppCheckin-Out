@@ -2,32 +2,36 @@ const bcrypt = require('bcryptjs');
 const { z } = require('zod');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/prisma');
-const { auditLog } = require('../utils/logger'); // นำเข้าฟังก์ชันที่เราเขียนไว้
+const { auditLog } = require('../utils/logger'); 
 
 // 1. กำหนด Schema สำหรับตรวจสอบข้อมูลขาเข้าด้วย Zod
 const loginSchema = z.object({
-  email: z.string().email({ message: "Email is not correct." }),
-  password: z.string().min(6, { message: "Password required 6 characters." }),
+  email: z.string().email({ message: "Email format is invalid." }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
 
 // 2. ฟังก์ชัน Login
 exports.login = async (req, res) => {
   try {
     // 1. Validate Input (Zod)
+    // ถ้าข้อมูลไม่ตรงตาม Schema บรรทัดนี้จะ throw Error ไปที่ catch ทันที
     const { email, password } = loginSchema.parse(req.body);
 
-    // 2. หา User และเช็คความถูกต้อง
+    // 2. หา User จาก Database
     const user = await prisma.employee.findUnique({
       where: { email },
     });
 
+    // ตรวจสอบว่ามี User ไหม และ Password ตรงกันไหม
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      return res.status(401).json({ error: 'Email or password are not correct.' });
+      return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
+    // ตรวจสอบสถานะ User (Active ไหม)
     if (!user.isActive) {
       return res.status(403).json({ error: 'This account has been suspended.' });
     }
+
 
     // 3. สร้าง Token
     const payload = {
@@ -43,22 +47,27 @@ exports.login = async (req, res) => {
     const logDetails = `User logged in successfully (${user.firstName})`;
 
     // 4. บันทึกประวัติการ Login (Audit Log ลง Database)
-    await auditLog(prisma, {
-      action: "LOGIN",
-      modelName: "Employee",
-      recordId: user.id,
-      userId: user.id,
-      details: logDetails,
-      req: req
-    });
+    // ใส่ try-catch ย่อย เพื่อไม่ให้ Login ล้มเหลวถ้าแค่บันทึก Log ไม่ได้
+    try {
+        await auditLog(prisma, {
+          action: "LOGIN",
+          modelName: "Employee",
+          recordId: user.id,
+          userId: user.id,
+          details: logDetails,
+          req: req
+        });
+    } catch (logError) {
+        console.error("Audit Log Error:", logError);
+    }
 
     // 5. ส่วน Real-time (Socket.io)
     const io = req.app.get("io");
     if (io) {
         io.emit("new-audit-log", {
             id: Date.now(),
-            action: "LOGIN", // ใน Frontend คุณตั้งค่าสีไว้เป็น "text-blue-600" (สีน้ำเงิน)
-            modelName: "Auth", // หรือใช้ "Employee" ก็ได้
+            action: "LOGIN", 
+            modelName: "Auth",
             recordId: user.id,
             performedBy: {
                 firstName: user.firstName,
@@ -84,17 +93,25 @@ exports.login = async (req, res) => {
     });
 
   } catch (error) {
+    // ✅ จุดที่แก้ไข: จัดการ Error ให้ปลอดภัย ไม่ให้ Server Crash
+    
+    // กรณีเป็น Error จาก Zod (Validation Failed)
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors[0]?.message || "The information is not correct" });
+      // ใช้ ?. เพื่อความปลอดภัย (เผื่อ array ว่าง)
+      const message = error.errors?.[0]?.message || "Input validation failed";
+      return res.status(400).json({ error: message });
     }
-    console.error("Login Error:", error);
-    res.status(500).json({ error: 'There is something wrong with the server' });
+
+    // กรณีเป็น Error อื่นๆ (Database, Code logic)
+    console.error("Login System Error:", error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 };
 
 // 3. ฟังก์ชัน Get Me
 exports.getMe = async (req, res) => {
   try {
+    // ต้องแน่ใจว่ามี Middleware authenticateUser ทำงานก่อนหน้านี้ เพื่อใส่ req.user เข้ามา
     if (!req.user) {
         return res.status(401).json({ error: "Unauthorized" });
     }
@@ -114,11 +131,12 @@ exports.getMe = async (req, res) => {
     });
 
     if (!user) {
-       return res.status(404).json({ error: 'There is no user' });
+       return res.status(404).json({ error: 'User not found' });
     }
 
     res.json(user);
   } catch (error) {
+    console.error("GetMe Error:", error);
     res.status(500).json({ error: "Server Error" });
   }
 };
@@ -141,7 +159,7 @@ exports.getAllEmployees = async (req, res) => {
     });
     res.json(employees);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Employee data retrieval failed.' });
+    console.error("Get All Employees Error:", error);
+    res.status(500).json({ error: 'Failed to retrieve employee data.' });
   }
 };

@@ -2,8 +2,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  // ✅ ใช้ '/api' เพื่อให้ Vite Proxy (192.168.1.36) จัดการต่อให้
-  // ไม่ต้องระบุ IP หรือ localhost ที่นี่
+
   baseURL: '/api', 
   timeout: 10000,
 });
