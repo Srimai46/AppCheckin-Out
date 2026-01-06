@@ -12,7 +12,7 @@ import MaxConsecutiveCard from "./yearEnd/components/MaxConsecutiveCard";
 import SpecialHolidaysCard from "./yearEnd/components/SpecialHolidaysCard";
 import CarryOverCard from "./yearEnd/components/CarryOverCard";
 import YearEndCard from "./yearEnd/components/YearEndCard";
-import HistoryTable from "./yearEnd/components/HistoryTable";
+import LeaveTypeCard from "./yearEnd/components/LeaveTypeCard";
 
 
 function ProvidersBridge({ children }) {
@@ -63,6 +63,7 @@ export default function YearEndProcessing() {
                 <WorkingDaysCard />
                 <WorkTimeByRoleCard />
                 <MaxConsecutiveCard />
+                <LeaveTypeCard  />
                 <SpecialHolidaysCard />
               </div>
 

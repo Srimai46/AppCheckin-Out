@@ -5,12 +5,7 @@ import { useHolidayPolicy } from "../hooks/useHolidayPolicy";
 import { calcTotalDays, safeYMD } from "../utils";
 import { useTranslation } from "react-i18next";
 
-
-
 const PAGE_SIZE = 5;
-
-
-
 
 // ===== Date formatter: DD-MM-YYYY, locale-aware year =====
 const formatDateDDMMYYYY = (ymd, locale) => {
@@ -25,9 +20,9 @@ const formatDateDDMMYYYY = (ymd, locale) => {
     year: "numeric",
   }).formatToParts(date);
 
-  const day = parts.find(p => p.type === "day")?.value;
-  const month = parts.find(p => p.type === "month")?.value;
-  const year = parts.find(p => p.type === "year")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const year = parts.find((p) => p.type === "year")?.value;
 
   return `${day}-${month}-${year}`;
 };
@@ -50,7 +45,7 @@ export default function SpecialHolidaysCard() {
     onDeleteHoliday,
     upsertSpecialHoliday,
   } = useHolidayPolicy();
-const { t , i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   // =========================
   // Pagination (5 per page)
   // =========================
@@ -120,7 +115,7 @@ const { t , i18n } = useTranslation();
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
               <div className="text-sm font-black text-slate-800 uppercase tracking-widest">
-                 {t("specialHoliday.title")}
+                {t("specialHoliday.title")}
               </div>
               <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
                 {t("specialHoliday.subtitle")}
@@ -181,7 +176,7 @@ const { t , i18n } = useTranslation();
 
               <div>
                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
-                   {t("specialHoliday.form.endDate")}
+                  {t("specialHoliday.form.endDate")}
                 </label>
                 <input
                   type="date"
@@ -220,15 +215,16 @@ const { t , i18n } = useTranslation();
                 )}
 
                 <button
-                  type="button"
-                  onClick={upsertSpecialHoliday}
-                  className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
-                    uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100
-                    inline-flex items-center gap-2"
-                >
-                  <Plus size={16} />
-                  {editId ? "Update" : "Add"}
-                </button>
+  type="button"
+  onClick={upsertSpecialHoliday}
+  className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
+    uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100
+    inline-flex items-center gap-2"
+>
+  <Plus size={16} />
+  {editId ? t("specialHoliday.form.update") : t("specialHoliday.form.add")}
+</button>
+
               </div>
             </div>
           </div>
@@ -264,44 +260,50 @@ const { t , i18n } = useTranslation();
               <tr>
                 <th className="px-6 py-4">{t("specialHoliday.table.date")}</th>
                 <th className="px-6 py-4">{t("specialHoliday.table.name")}</th>
-                <th className="px-6 py-4 text-right">{t("specialHoliday.table.actions")}</th>
+                <th className="px-6 py-4 text-right">
+                  {t("specialHoliday.table.actions")}
+                </th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-gray-100">
               {sortedSpecialHolidays.length === 0 ? (
                 <tr>
-                 <td colSpan={3} className="py-10 text-center text-gray-400">
-                  {t("specialHoliday.table.empty")}
-                </td>
+                  <td colSpan={3} className="py-10 text-center text-gray-400">
+                    {t("specialHoliday.table.empty")}
+                  </td>
                 </tr>
               ) : (
                 pagedHolidays.map((h) => {
                   const totalDays = calcTotalDays(h.startDate, h.endDate);
                   const dateText =
-  safeYMD(h.startDate) === safeYMD(h.endDate)
-    ? `${formatDateDDMMYYYY(h.startDate, i18n.language)} (${totalDays} day)`
-    : `${formatDateDDMMYYYY(h.startDate, i18n.language)} - ${formatDateDDMMYYYY(
-        h.endDate,
-        i18n.language
-      )} (${totalDays} days)`;
-
+                    safeYMD(h.startDate) === safeYMD(h.endDate)
+                      ? `${formatDateDDMMYYYY(
+                          h.startDate,
+                          i18n.language
+                        )} (${totalDays} day)`
+                      : `${formatDateDDMMYYYY(
+                          h.startDate,
+                          i18n.language
+                        )} - ${formatDateDDMMYYYY(
+                          h.endDate,
+                          i18n.language
+                        )} (${totalDays} days)`;
 
                   const getHolidayDisplayName = (name, lang) => {
-  if (!name) return "-";
-  if (typeof name === "string") return name; // ข้อมูลเก่า
+                    if (!name) return "-";
+                    if (typeof name === "string") return name; // ข้อมูลเก่า
 
-  // normalize lang เช่น en-US → en
-  const key = lang?.split("-")[0];
+                    // normalize lang เช่น en-US → en
+                    const key = lang?.split("-")[0];
 
-  return (
-    name[key] ||          // ภาษาที่เลือก
-    name.th ||             // fallback 1
-    name.en ||             // fallback 2
-    "-"
-  );
-};
-
+                    return (
+                      name[key] || // ภาษาที่เลือก
+                      name.th || // fallback 1
+                      name.en || // fallback 2
+                      "-"
+                    );
+                  };
 
                   return (
                     <tr
@@ -312,9 +314,8 @@ const { t , i18n } = useTranslation();
                         {dateText}
                       </td>
                       <td className="px-6 py-4 text-slate-700 font-bold">
-  {getHolidayDisplayName(h.name, i18n.language)}
-</td>
-
+                        {getHolidayDisplayName(h.name, i18n.language)}
+                      </td>
 
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
@@ -337,7 +338,7 @@ const { t , i18n } = useTranslation();
                               inline-flex items-center gap-2"
                           >
                             <Trash2 size={14} />
-                             {t("specialHoliday.action.delete")}
+                            {t("specialHoliday.action.delete")}
                           </button>
                         </div>
                       </td>
@@ -353,7 +354,8 @@ const { t , i18n } = useTranslation();
         {sortedSpecialHolidays.length > 0 && (
           <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-col sm:flex-row">
             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              {t("specialHoliday.pagination.page")} {page} / {totalPages} • {t("specialHoliday.pagination.showing")}{" "}
+              {t("specialHoliday.pagination.page")} {page} / {totalPages} •{" "}
+              {t("specialHoliday.pagination.showing")}{" "}
               <span className="text-slate-700">
                 {Math.min(
                   (page - 1) * PAGE_SIZE + 1,
