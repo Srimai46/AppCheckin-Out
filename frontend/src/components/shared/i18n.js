@@ -1,3 +1,4 @@
+//frontend/src/components/shared/i18n.js
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
@@ -126,6 +127,47 @@ i18n.use(initReactI18next).init({
             note: "Note",
           },
         },
+        /* -------- Special Holidays -------- */
+        specialHoliday: {
+          title: "Special Holidays",
+          subtitle: "Add / Edit holiday and apply immediately",
+
+          form: {
+            holidayName: "Holiday Name",
+            startDate: "Start Date",
+            endDate: "End Date",
+            duration: "Duration",
+            day: "day",
+            days: "days",
+            add: "Add",
+            update: "Update",
+            cancelEdit: "Cancel Edit",
+            close: "Close",
+          },
+
+          table: {
+            title: "Special Holidays Log",
+            subtitle: "DD-MM-YYYY (total days), name, edit, delete",
+            date: "Date",
+            name: "Holiday Name",
+            actions: "Actions",
+            empty: "No special holidays yet.",
+          },
+
+          pagination: {
+            page: "Page",
+            showing: "Showing",
+            of: "of",
+            prev: "Prev",
+            next: "Next",
+          },
+
+          action: {
+            addHoliday: "Add Holiday",
+            edit: "Edit",
+            delete: "Delete",
+          },
+        },
       },
     },
 
@@ -246,6 +288,47 @@ i18n.use(initReactI18next).init({
             reason: "เหตุผล",
             cancelReason: "เหตุผลการยกเลิก",
             note: "หมายเหตุ",
+          },
+        },
+        /* -------- Special Holidays -------- */
+        specialHoliday: {
+          title: "วันหยุดพิเศษ",
+          subtitle: "เพิ่ม / แก้ไขวันหยุด และมีผลทันที",
+
+          form: {
+            holidayName: "ชื่อวันหยุด",
+            startDate: "วันที่เริ่ม",
+            endDate: "วันที่สิ้นสุด",
+            duration: "ระยะเวลา",
+            day: "วัน",
+            days: "วัน",
+            add: "เพิ่ม",
+            update: "อัปเดต",
+            cancelEdit: "ยกเลิกการแก้ไข",
+            close: "ปิด",
+          },
+
+          table: {
+            title: "ประวัติวันหยุดพิเศษ",
+            subtitle: "วัน-เดือน-ปี (จำนวนวัน), ชื่อ, แก้ไข, ลบ",
+            date: "วันที่",
+            name: "ชื่อวันหยุด",
+            actions: "การจัดการ",
+            empty: "ยังไม่มีวันหยุดพิเศษ",
+          },
+
+          pagination: {
+            page: "หน้า",
+            showing: "แสดง",
+            of: "จาก",
+            prev: "ก่อนหน้า",
+            next: "ถัดไป",
+          },
+
+          action: {
+            addHoliday: "เพิ่มวันหยุด",
+            edit: "แก้ไข",
+            delete: "ลบ",
           },
         },
       },
