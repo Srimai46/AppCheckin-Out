@@ -1,3 +1,4 @@
+//frontend/src/components/NotificationBell.jsx
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Bell, CheckCheck, Clock } from "lucide-react";

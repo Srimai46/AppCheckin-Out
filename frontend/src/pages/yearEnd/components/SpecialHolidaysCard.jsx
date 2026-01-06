@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useHolidayPolicy } from "../hooks/useHolidayPolicy";
 import { calcTotalDays, safeYMD, ymdToDDMMYYYY } from "../utils";
+import { useTranslation } from "react-i18next";
+
 
 const PAGE_SIZE = 5;
 
@@ -24,7 +26,7 @@ export default function SpecialHolidaysCard() {
     onDeleteHoliday,
     upsertSpecialHoliday,
   } = useHolidayPolicy();
-
+const { i18n } = useTranslation();
   // =========================
   // Pagination (5 per page)
   // =========================
@@ -82,6 +84,11 @@ export default function SpecialHolidaysCard() {
     return pages;
   }, [page, totalPages]);
 
+  const LANGS = [
+    { key: "th", label: "" }, // i18n: language.th
+    { key: "en", label: "" }, // i18n: language.en
+  ];
+
   return (
     <>
       {formOpen && (
@@ -115,13 +122,24 @@ export default function SpecialHolidaysCard() {
                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                   Holiday Name
                 </label>
-                <input
-                  value={holidayName}
-                  onChange={(e) => setHolidayName(e.target.value)}
-                  placeholder="e.g., Songkran Festival"
-                  className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-                    text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {LANGS.map((lang) => (
+                    <input
+                      key={lang.key}
+                      value={holidayName?.[lang.key] || ""}
+                      onChange={(e) =>
+                        setHolidayName((prev) => ({
+                          ...prev,
+                          [lang.key]: e.target.value,
+                        }))
+                      }
+                      placeholder={lang.key.toUpperCase()}
+                      className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
+          text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                    />
+                  ))}
+                </div>
               </div>
 
               <div>
@@ -226,7 +244,10 @@ export default function SpecialHolidaysCard() {
             <tbody className="divide-y divide-gray-100">
               {sortedSpecialHolidays.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-6 py-10 text-center text-gray-400 italic text-sm">
+                  <td
+                    colSpan={3}
+                    className="px-6 py-10 text-center text-gray-400 italic text-sm"
+                  >
                     No special holidays yet.
                   </td>
                 </tr>
@@ -236,12 +257,38 @@ export default function SpecialHolidaysCard() {
                   const dateText =
                     safeYMD(h.startDate) === safeYMD(h.endDate)
                       ? `${ymdToDDMMYYYY(h.startDate)} (${totalDays} day)`
-                      : `${ymdToDDMMYYYY(h.startDate)} to ${ymdToDDMMYYYY(h.endDate)} (${totalDays} days)`;
+                      : `${ymdToDDMMYYYY(h.startDate)} to ${ymdToDDMMYYYY(
+                          h.endDate
+                        )} (${totalDays} days)`;
+                  const getHolidayDisplayName = (name, lang) => {
+  if (!name) return "-";
+  if (typeof name === "string") return name; // ข้อมูลเก่า
+
+  // normalize lang เช่น en-US → en
+  const key = lang?.split("-")[0];
+
+  return (
+    name[key] ||          // ภาษาที่เลือก
+    name.th ||             // fallback 1
+    name.en ||             // fallback 2
+    "-"
+  );
+};
+
 
                   return (
-                    <tr key={h.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4 font-black text-slate-700">{dateText}</td>
-                      <td className="px-6 py-4 text-slate-700 font-bold">{h.name}</td>
+                    <tr
+                      key={h.id}
+                      className="hover:bg-gray-50/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 font-black text-slate-700">
+                        {dateText}
+                      </td>
+                      <td className="px-6 py-4 text-slate-700 font-bold">
+  {getHolidayDisplayName(h.name, i18n.language)}
+</td>
+
+
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -281,10 +328,16 @@ export default function SpecialHolidaysCard() {
             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               Page {page} / {totalPages} • Showing{" "}
               <span className="text-slate-700">
-                {Math.min((page - 1) * PAGE_SIZE + 1, sortedSpecialHolidays.length)}-
-                {Math.min(page * PAGE_SIZE, sortedSpecialHolidays.length)}
+                {Math.min(
+                  (page - 1) * PAGE_SIZE + 1,
+                  sortedSpecialHolidays.length
+                )}
+                -{Math.min(page * PAGE_SIZE, sortedSpecialHolidays.length)}
               </span>{" "}
-              of <span className="text-slate-700">{sortedSpecialHolidays.length}</span>
+              of{" "}
+              <span className="text-slate-700">
+                {sortedSpecialHolidays.length}
+              </span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -293,7 +346,11 @@ export default function SpecialHolidaysCard() {
                 onClick={goPrev}
                 disabled={!canPrev}
                 className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
-                  ${canPrev ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"}`}
+                  ${
+                    canPrev
+                      ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  }`}
               >
                 <ChevronLeft size={14} />
                 Prev
@@ -302,7 +359,10 @@ export default function SpecialHolidaysCard() {
               <div className="flex items-center gap-1">
                 {pageNumbers.map((p, idx) =>
                   p === "..." ? (
-                    <span key={`dots-${idx}`} className="px-2 text-gray-300 font-black text-[12px]">
+                    <span
+                      key={`dots-${idx}`}
+                      className="px-2 text-gray-300 font-black text-[12px]"
+                    >
                       ...
                     </span>
                   ) : (
@@ -311,7 +371,11 @@ export default function SpecialHolidaysCard() {
                       type="button"
                       onClick={() => goTo(p)}
                       className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
-                        ${p === page ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"}`}
+                        ${
+                          p === page
+                            ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                            : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                        }`}
                     >
                       {p}
                     </button>
@@ -324,7 +388,11 @@ export default function SpecialHolidaysCard() {
                 onClick={goNext}
                 disabled={!canNext}
                 className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
-                  ${canNext ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"}`}
+                  ${
+                    canNext
+                      ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  }`}
               >
                 Next
                 <ChevronRight size={14} />
