@@ -80,6 +80,52 @@ i18n.use(initReactI18next).init({
 
           usedDays: "{{days}} Days",
         },
+        /* -------- leaveApproveal -------- */
+        leaveApproval: {
+          title: "Pending Approvals",
+
+          selected: "{{count}} Selected",
+
+          bulkApprove: "Bulk Approve",
+          bulkSpecial: "Bulk Special",
+          bulkReject: "Reject",
+
+          table: {
+            employee: "Employee",
+            type: "Type",
+            reason: "Note / Reason",
+            duration: "Duration",
+            evidence: "Evidence",
+            action: "Action",
+          },
+
+          loading: "SYNCHRONIZING DATA...",
+          noData: "No Pending Tasks",
+
+          ref: "Ref: #{{id}}",
+
+          days: "Days",
+          noFile: "No File",
+
+          actions: {
+            approve: "Approved",
+            special: "Special",
+            reject: "Rejected",
+          },
+
+          tooltips: {
+            viewAttachment: "View Attachment",
+            approve: "Approve",
+            special: "Special Approval",
+            reject: "Reject",
+          },
+
+          labels: {
+            reason: "Reason",
+            cancelReason: "Cancel Reason",
+            note: "Note",
+          },
+        },
       },
     },
 
@@ -155,6 +201,52 @@ i18n.use(initReactI18next).init({
           onTime: "ตรงเวลา",
 
           usedDays: "{{days}} วัน",
+        },
+        /* -------- leaveApproveal -------- */
+        leaveApproval: {
+          title: "รายการรออนุมัติ",
+
+          selected: "เลือกแล้ว {{count}} รายการ",
+
+          bulkApprove: "อนุมัติทั้งหมด",
+          bulkSpecial: "อนุมัติพิเศษ",
+          bulkReject: "ปฏิเสธ",
+
+          table: {
+            employee: "พนักงาน",
+            type: "ประเภท",
+            reason: "หมายเหตุ / เหตุผล",
+            duration: "ระยะเวลา",
+            evidence: "เอกสารแนบ",
+            action: "การดำเนินการ",
+          },
+
+          loading: "กำลังซิงค์ข้อมูล...",
+          noData: "ไม่มีรายการที่รออนุมัติ",
+
+          ref: "อ้างอิง #{{id}}",
+
+          days: "วัน",
+          noFile: "ไม่มีไฟล์",
+
+          actions: {
+            approve: "อนุมัติ",
+            special: "อนุมัติพิเศษ",
+            reject: "ปฏิเสธ",
+          },
+
+          tooltips: {
+            viewAttachment: "ดูไฟล์แนบ",
+            approve: "อนุมัติ",
+            special: "อนุมัติพิเศษ",
+            reject: "ปฏิเสธ",
+          },
+
+          labels: {
+            reason: "เหตุผล",
+            cancelReason: "เหตุผลการยกเลิก",
+            note: "หมายเหตุ",
+          },
         },
       },
     },
