@@ -193,11 +193,14 @@ const { t , i18n } = useTranslation();
               </div>
             </div>
 
-            <div className="mt-4 flex items-center justify-between gap-3 flex-col sm:flex-row">
-              <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                 {t("specialHoliday.form.duration")}:{" "}
+            <div className="mt-4 flex justify-between flex-col sm:flex-row gap-3">
+              <div className="text-[10px] text-gray-400 font-bold uppercase">
+                {t("specialHoliday.form.duration")}:{" "}
                 <span className="text-slate-700">
-                  {calcTotalDays(holidayStart, holidayEnd) || 0} day(s)
+                  {calcTotalDays(holidayStart, holidayEnd) || 0}{" "}
+                  {(calcTotalDays(holidayStart, holidayEnd) || 0) <= 1
+                    ? t("specialHoliday.form.day")
+                    : t("specialHoliday.form.days")}
                 </span>
               </div>
 
