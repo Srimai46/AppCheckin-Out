@@ -219,6 +219,7 @@ exports.createLeaveRequest = async (req, res) => {
             notificationType: "NewRequest",
             message: notificationMsg,
             relatedRequestId: newLeave.id,
+            relatedEmployeeId: newLeave.employeeId,
           })),
         });
 
@@ -243,6 +244,7 @@ exports.createLeaveRequest = async (req, res) => {
     // 🚀 8. Real-time Notification
     const io = req.app.get("io");
     if (io) {
+      io.to("hr_group").emit("notification_refresh");
       io.to("hr_group").emit("update_pending_count", {
         count: result.totalPendingCount,
         message: result.message,

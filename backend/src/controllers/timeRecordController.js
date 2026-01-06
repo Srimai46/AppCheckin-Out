@@ -146,19 +146,14 @@ exports.checkIn = async (req, res) => {
             employeeId: hr.id,
             notificationType: "LateWarning",
             message: lateMessage,
+            relatedEmployeeId: userId,
           })),
         });
 
         // ใช้ io ตัวเดิมที่ประกาศไว้ข้างบน
         if (io) {
-          hrUsers.forEach(hr => {
-            io.to(`user_${hr.id}`).emit("notification", { 
-                type: "LateWarning", 
-                message: lateMessage, 
-                timestamp: now,
-                location: location 
-            });
-          });
+          // ✅ ให้ HR ทุกคนในกลุ่ม รีเฟรชรายการ noti ใหม่จาก API
+          io.to("hr_group").emit("notification_refresh");
         }
       }
     }
@@ -273,19 +268,17 @@ exports.checkOut = async (req, res) => {
 
       if (hrUsers.length > 0) {
         await prisma.notification.createMany({
-          data: hrUsers.map(hr => ({ employeeId: hr.id, notificationType: "EarlyLeaveWarning", message: earlyMsg })),
+          data: hrUsers.map((hr) => ({
+            employeeId: hr.id,
+            notificationType: "EarlyLeaveWarning",
+            message: earlyMsg,
+            relatedEmployeeId: userId,
+          })),
         });
 
         // ใช้ io ตัวเดิมส่ง Notification ให้ HR
         if (io) {
-          hrUsers.forEach(hr => {
-            io.to(`user_${hr.id}`).emit("notification", { 
-              type: "EarlyLeaveWarning", 
-              message: earlyMsg, 
-              timestamp: now,
-              location: location 
-            });
-          });
+          io.to("hr_group").emit("notification_refresh");
         }
       }
     }
