@@ -350,7 +350,7 @@ const { t , i18n } = useTranslation();
         {sortedSpecialHolidays.length > 0 && (
           <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-col sm:flex-row">
             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              Page {page} / {totalPages} • Showing{" "}
+              {t("specialHoliday.pagination.page")} {page} / {totalPages} • {t("specialHoliday.pagination.showing")}{" "}
               <span className="text-slate-700">
                 {Math.min(
                   (page - 1) * PAGE_SIZE + 1,
@@ -358,7 +358,7 @@ const { t , i18n } = useTranslation();
                 )}
                 -{Math.min(page * PAGE_SIZE, sortedSpecialHolidays.length)}
               </span>{" "}
-              of{" "}
+              {t("specialHoliday.pagination.of")}{" "}
               <span className="text-slate-700">
                 {sortedSpecialHolidays.length}
               </span>
@@ -377,7 +377,7 @@ const { t , i18n } = useTranslation();
                   }`}
               >
                 <ChevronLeft size={14} />
-                Prev
+                {t("specialHoliday.pagination.prev")}
               </button>
 
               <div className="flex items-center gap-1">
@@ -418,7 +418,7 @@ const { t , i18n } = useTranslation();
                       : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
                   }`}
               >
-                Next
+                {t("specialHoliday.pagination.next")}
                 <ChevronRight size={14} />
               </button>
             </div>
