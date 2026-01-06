@@ -32,7 +32,6 @@ exports.login = async (req, res) => {
       return res.status(403).json({ error: 'This account has been suspended.' });
     }
 
-
     // 3. สร้าง Token
     const payload = {
       id: user.id,

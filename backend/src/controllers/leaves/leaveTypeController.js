@@ -9,6 +9,12 @@ const { auditLog } = require("../../utils/logger");
 const MAX_CONSECUTIVE_KEY = "MAX_CONSECUTIVE_HOLIDAYS";
 const DEFAULT_MAX_CONSECUTIVE = 0; // 0 = Unlimited
 
+const getLabelStr = (label, fallback) => {
+  if (!label) return fallback || "Unknown";
+  if (typeof label === "string") return label; // เผื่อข้อมูลเก่า
+  return label.th || label.en || fallback || "Unnamed";
+};
+
 const toIntOrNull = (v) => {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
@@ -81,10 +87,11 @@ exports.getAllLeaveTypes = async (req, res) => {
 // =====================================================
 exports.createLeaveType = async (req, res) => {
   try {
-    const { typeName, isPaid, maxCarryOver, maxConsecutiveDays } = req.body;
+    // ✅ รับ label เพิ่มเข้ามา (คาดหวัง { th: "...", en: "..." })
+    const { typeName, label, isPaid, maxCarryOver, maxConsecutiveDays } = req.body;
     const adminId = req.user.id;
 
-    if (!typeName) return res.status(400).json({ error: "Type name is required." });
+    if (!typeName) return res.status(400).json({ error: "Type name (ID) is required." });
 
     const adminUser = await prisma.employee.findUnique({
       where: { id: adminId },
@@ -92,8 +99,13 @@ exports.createLeaveType = async (req, res) => {
     });
 
     const result = await prisma.$transaction(async (tx) => {
-      const existing = await tx.leaveType.findUnique({ where: { typeName } });
-      if (existing) throw new Error(`Leave type "${typeName}" already exists.`);
+      // typeName ควรเป็นตัวใหญ่เสมอเพื่อใช้เป็น Key (เช่น ANNUAL, SICK)
+      const normalizedTypeName = String(typeName).trim().toUpperCase();
+
+      const existing = await tx.leaveType.findUnique({ 
+          where: { typeName: normalizedTypeName } 
+      });
+      if (existing) throw new Error(`Leave type "${normalizedTypeName}" already exists.`);
 
       // ✅ normalize fields
       const paid = normalizeIsPaid(isPaid);
@@ -103,10 +115,9 @@ exports.createLeaveType = async (req, res) => {
       // ✅ default maxConsecutiveDays = global policy ถ้าไม่ได้ส่งมา
       const globalDefault = await getGlobalMaxConsecutive(tx);
       const finalConsecutive =
-        consecutive === null ? globalDefault : consecutive; // ถ้าส่งมาไม่ถูกต้อง -> null -> ใช้ global
+        consecutive === null ? globalDefault : consecutive;
 
       if (maxConsecutiveDays !== undefined && consecutive === null) {
-        // ผู้ใช้ส่งมาแต่ผิด format
         throw new Error("maxConsecutiveDays must be an integer between 0 and 365");
       }
       if (maxCarryOver !== undefined && carry === null) {
@@ -115,18 +126,23 @@ exports.createLeaveType = async (req, res) => {
 
       const newType = await tx.leaveType.create({
         data: {
-          typeName: String(typeName).trim(),
+          typeName: normalizedTypeName,
+          // ✅ บันทึก label (ถ้าไม่ส่งมา ให้ใช้ typeName เป็นค่าเริ่มต้นทั้ง 2 ภาษา)
+          label: label || { th: typeName, en: typeName },
           isPaid: paid !== undefined ? paid : true,
           maxCarryOver: carry !== null ? carry : 0,
           maxConsecutiveDays: finalConsecutive,
         },
       });
 
-      const logDetails = `Created new leave type: ${newType.typeName}`;
+      // ดึงชื่อภาษาไทยมาแสดงใน Log
+      const displayName = getLabelStr(newType.label, newType.typeName);
+      const logDetails = `Created new leave type: ${displayName} (${newType.typeName})`;
 
       const cleanNewValue = {
         id: newType.id,
-        name: newType.typeName,
+        typeName: newType.typeName,
+        label: newType.label, // เก็บ JSON ลง Log
         isPaid: newType.isPaid ? "Yes" : "No",
         maxConsecutive: formatConsecutive(newType.maxConsecutiveDays),
         maxCarryOver: Number(newType.maxCarryOver),
@@ -170,14 +186,11 @@ exports.createLeaveType = async (req, res) => {
   }
 };
 
-// =====================================================
-// ✅ Update Leave Type
-// - validate maxConsecutiveDays 0-365
-// =====================================================
 exports.updateLeaveType = async (req, res) => {
   try {
     const { id } = req.params;
-    const { maxConsecutiveDays, maxCarryOver, isPaid } = req.body;
+    // ✅ รับ label มาด้วย
+    const { label, maxConsecutiveDays, maxCarryOver, isPaid } = req.body;
 
     const adminId = req.user.id;
     const typeId = parseInt(id, 10);
@@ -193,6 +206,11 @@ exports.updateLeaveType = async (req, res) => {
       if (!oldType) throw new Error("Leave type not found.");
 
       const dataToUpdate = {};
+
+      // ✅ อัปเดต label (ถ้าส่งมา)
+      if (label) {
+          dataToUpdate.label = label;
+      }
 
       // ✅ maxConsecutiveDays
       if (maxConsecutiveDays !== undefined) {
@@ -216,7 +234,8 @@ exports.updateLeaveType = async (req, res) => {
       }
 
       if (Object.keys(dataToUpdate).length === 0) {
-        return { updatedType: oldType, logDetails: `Updated ${oldType.typeName} (No changes)`, changes: [] };
+        const name = getLabelStr(oldType.label, oldType.typeName);
+        return { updatedType: oldType, logDetails: `Updated ${name} (No changes)`, changes: [] };
       }
 
       const updatedType = await tx.leaveType.update({
@@ -225,6 +244,16 @@ exports.updateLeaveType = async (req, res) => {
       });
 
       const changes = [];
+
+      // ✅ เช็คการเปลี่ยนแปลงของ Label (Name)
+      if (dataToUpdate.label) {
+          const oldName = getLabelStr(oldType.label, "Unnamed");
+          const newName = getLabelStr(dataToUpdate.label, "Unnamed");
+          // ถ้าชื่อไทยเปลี่ยน หรือ อังกฤษเปลี่ยน ให้แจ้งเตือน
+          if (JSON.stringify(oldType.label) !== JSON.stringify(dataToUpdate.label)) {
+              changes.push(`Name: ${oldName} -> ${newName}`);
+          }
+      }
 
       if (
         dataToUpdate.maxConsecutiveDays !== undefined &&
@@ -248,10 +277,12 @@ exports.updateLeaveType = async (req, res) => {
         changes.push(`Paid Status: ${oldType.isPaid ? "Paid" : "Unpaid"} -> ${dataToUpdate.isPaid ? "Paid" : "Unpaid"}`);
       }
 
+      const typeNameDisplay = getLabelStr(oldType.label, oldType.typeName);
+      
       const logDetails =
         changes.length > 0
-          ? `Updated policy for ${oldType.typeName}: ${changes.join(", ")}`
-          : `Updated ${oldType.typeName} (No critical changes)`;
+          ? `Updated policy for ${typeNameDisplay}: ${changes.join(", ")}`
+          : `Updated ${typeNameDisplay} (No critical changes)`;
 
       await auditLog(tx, {
         action: "UPDATE",
