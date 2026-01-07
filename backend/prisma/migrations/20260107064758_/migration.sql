@@ -40,6 +40,7 @@ CREATE TABLE `employees` (
 CREATE TABLE `leave_types` (
     `leave_type_id` INTEGER NOT NULL AUTO_INCREMENT,
     `type_name` VARCHAR(100) NOT NULL,
+    `label` JSON NULL,
     `is_paid` BOOLEAN NOT NULL DEFAULT true,
     `max_carry_over` DECIMAL(5, 2) NOT NULL DEFAULT 0.00,
     `max_consecutive_days` INTEGER NULL DEFAULT 0,
@@ -126,11 +127,13 @@ CREATE TABLE `notifications` (
     `notification_type` ENUM('NewRequest', 'Approval', 'Rejection', 'LateWarning', 'EarlyLeaveWarning') NOT NULL,
     `message` VARCHAR(500) NOT NULL,
     `related_request_id` INTEGER NULL,
+    `related_employee_id` INTEGER NULL,
     `is_read` BOOLEAN NOT NULL DEFAULT false,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     INDEX `notifications_employee_id_created_at_idx`(`employee_id`, `created_at` DESC),
     INDEX `notifications_employee_id_is_read_idx`(`employee_id`, `is_read`),
+    INDEX `notifications_related_employee_id_idx`(`related_employee_id`),
     PRIMARY KEY (`notification_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -165,8 +168,7 @@ CREATE TABLE `work_configurations` (
 CREATE TABLE `Holiday` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `date` DATETIME(3) NOT NULL,
-    `name` VARCHAR(191) NOT NULL,
-    `isSubsidy` BOOLEAN NOT NULL DEFAULT false,
+    `name` JSON NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -179,6 +181,7 @@ CREATE TABLE `HolidayPolicy` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `key` VARCHAR(50) NOT NULL,
     `workingDays` JSON NULL,
+    `maxConsecutiveHolidayDays` INTEGER NOT NULL DEFAULT 0,
     `updatedBy` INTEGER NULL,
     `updatedAt` DATETIME(3) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -216,6 +219,9 @@ ALTER TABLE `special_leave_grants` ADD CONSTRAINT `special_leave_grants_employee
 
 -- AddForeignKey
 ALTER TABLE `special_leave_grants` ADD CONSTRAINT `special_leave_grants_leave_type_id_fkey` FOREIGN KEY (`leave_type_id`) REFERENCES `leave_types`(`leave_type_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `notifications` ADD CONSTRAINT `notifications_related_employee_id_fkey` FOREIGN KEY (`related_employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `notifications` ADD CONSTRAINT `notifications_employee_id_fkey` FOREIGN KEY (`employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;

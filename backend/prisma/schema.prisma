@@ -97,17 +97,17 @@ model Employee {
 }
 
 model LeaveType {
-  id                 Int      @id @default(autoincrement()) @map("leave_type_id")
-  typeName           String   @unique @map("type_name") @db.VarChar(100)
-  label              Json?    @map("label")
-  isPaid             Boolean  @default(true) @map("is_paid")
-  maxCarryOver       Decimal  @default(0.00) @map("max_carry_over") @db.Decimal(5, 2)
-  maxConsecutiveDays Int?     @default(0) @map("max_consecutive_days")
-  
+  id                 Int     @id @default(autoincrement()) @map("leave_type_id")
+  typeName           String  @unique @map("type_name") @db.VarChar(100)
+  label              Json?   @map("label")
+  isPaid             Boolean @default(true) @map("is_paid")
+  maxCarryOver       Decimal @default(0.00) @map("max_carry_over") @db.Decimal(5, 2)
+  maxConsecutiveDays Int?    @default(0) @map("max_consecutive_days")
+
   leaveQuotas        LeaveQuota[]
   leaveRequests      LeaveRequest[]
   specialLeaveGrants SpecialLeaveGrant[]
-  
+
   @@map("leave_types")
 }
 
@@ -248,8 +248,7 @@ model WorkConfiguration {
 model Holiday {
   id        Int      @id @default(autoincrement())
   date      DateTime @unique // วันที่หยุด
-  name      String // ชื่อวันหยุด เช่น "วันสงกรานต์"
-  isSubsidy Boolean  @default(false) // เป็นวันหยุดชดเชยหรือไม่
+  name      Json    // ชื่อวันหยุด หลายภาษา
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

@@ -1,25 +1,27 @@
+// prisma/seed.js
+
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Start seeding (Target Year: 2026) with SPECIAL LEAVE...');
+  console.log('🌱 Start seeding (Target Year: 2026) with i18n support...');
 
   // ==========================================
-  // 1. ล้างข้อมูลเก่า (เรียงลำดับการลบเพื่อป้องกัน Foreign Key Error)
+  // 1. ล้างข้อมูลเก่า (เรียงลำดับ Child -> Parent)
   // ==========================================
-  // ลบ Child tables ก่อน Parent tables
   await prisma.auditLog.deleteMany();
   await prisma.notification.deleteMany();
-  await prisma.leaveRequest.deleteMany(); // ลบใบลา
-  await prisma.specialLeaveGrant.deleteMany(); // 🔥 ลบ Grant (ต้องลบหลัง LeaveRequest ที่อ้างอิงมันถูกลบแล้ว)
+  await prisma.leaveRequest.deleteMany();
+  await prisma.specialLeaveGrant.deleteMany();
   await prisma.timeRecord.deleteMany();
   await prisma.leaveQuota.deleteMany();
   await prisma.holiday.deleteMany();
-  await prisma.leaveType.deleteMany(); // ลบประเภทวันลา
+  await prisma.leaveType.deleteMany();
   await prisma.workConfiguration.deleteMany();
-  await prisma.employee.deleteMany(); // ลบพนักงาน
+  await prisma.employee.deleteMany();
   await prisma.systemConfig.deleteMany();
+  await prisma.holidayPolicy.deleteMany(); // เพิ่มการลบ Policy ด้วย
 
   console.log('🧹 Database cleaned.');
 
@@ -34,8 +36,8 @@ async function main() {
     await prisma.workConfiguration.create({ data: conf });
   }
 
-// ==========================================
-  // 3. Holidays 2026 (รองรับ i18n: name เป็น JSON)
+  // ==========================================
+  // 3. Holidays 2026 (i18n: name เป็น JSON)
   // ==========================================
   const holidays = [
     { 
@@ -59,37 +61,35 @@ async function main() {
       name: { th: "วันพ่อแห่งชาติ", en: "Father's Day" } 
     },
   ];
-  
-  // ใช้ createMany ได้เลย Prisma จะแปลง Object เป็น JSON ให้เอง
   await prisma.holiday.createMany({ data: holidays });
 
   // ==========================================
-  // 4. Leave Types (รองรับ i18n: เพิ่ม label JSON)
+  // 4. Leave Types (i18n: เพิ่ม label JSON)
   // ==========================================
   const leaveTypesData = [
     { 
       typeName: 'Sick', 
-      label: { th: "ลาป่วย", en: "Sick Leave" }, // ✅ เพิ่ม Label
+      label: { th: "ลาป่วย", en: "Sick Leave" }, 
       isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 0 
     },
     { 
       typeName: 'Personal', 
-      label: { th: "ลากิจ", en: "Personal Leave" }, // ✅ เพิ่ม Label
+      label: { th: "ลากิจ", en: "Personal Leave" }, 
       isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 0 
     },
     { 
       typeName: 'Annual', 
-      label: { th: "ลาพักร้อน", en: "Annual Leave" }, // ✅ เพิ่ม Label
+      label: { th: "ลาพักร้อน", en: "Annual Leave" }, 
       isPaid: true, maxCarryOver: 12.0, maxConsecutiveDays: 0 
     },
     { 
       typeName: 'Emergency', 
-      label: { th: "ลาฉุกเฉิน", en: "Emergency Leave" }, // ✅ เพิ่ม Label
+      label: { th: "ลาฉุกเฉิน", en: "Emergency Leave" }, 
       isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 0 
     },
     { 
       typeName: 'Special', 
-      label: { th: "ลาพิเศษ", en: "Special Leave" }, // ✅ เพิ่ม Label
+      label: { th: "ลาพิเศษ", en: "Special Leave" }, 
       isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 365 
     }, 
   ];
@@ -100,7 +100,7 @@ async function main() {
     leaveTypes.push(created);
   }
 
-  // Helper เพื่อดึง ID ตามชื่อ
+  // Helper หา ID ตาม typeName
   const getTypeId = (name) => leaveTypes.find(t => t.typeName === name).id;
 
   // ==========================================
@@ -121,9 +121,8 @@ async function main() {
     createdEmployees.push(created);
   }
 
-  // Map ตัวแปรเพื่อให้เรียกใช้ง่ายๆ
-  const hr = createdEmployees[0];      // Somsri
-  const somchai = createdEmployees[1]; // Somchai
+  const hr = createdEmployees[0];
+  const somchai = createdEmployees[1];
   const suda = createdEmployees[2];
   const vichai = createdEmployees[3];
   const mana = createdEmployees[4];
@@ -134,16 +133,14 @@ async function main() {
   const targetYear = 2026;
   for (const emp of createdEmployees) {
     for (const lt of leaveTypes) {
-      // Special quota เริ่มต้นที่ 0 (เพิ่มผ่าน Grant)
-      // Sick = 30, Annual = 6, อื่นๆ = 6
       const baseDays = lt.typeName === 'Sick' ? 30 : (lt.typeName === 'Special' ? 0 : 6);
-
+      
       await prisma.leaveQuota.create({
         data: {
           employeeId: emp.id,
           leaveTypeId: lt.id,
           year: targetYear,
-          totalDays: baseDays,
+          totalDays: baseDays, 
           carryOverDays: (lt.typeName === 'Annual' && emp.role === 'HR') ? 5 : 0,
           usedDays: 0,
         }
@@ -152,9 +149,8 @@ async function main() {
   }
 
   // ==========================================
-  // 🔥 7. Special Leave Grant
+  // 7. Special Leave Grant
   // ==========================================
-  // ให้รางวัล Somchai
   const specialGrant = await prisma.specialLeaveGrant.create({
     data: {
       employeeId: somchai.id,
@@ -178,71 +174,64 @@ async function main() {
   await prisma.timeRecord.createMany({ data: timeRecords });
 
   // ==========================================
-  // 9. Leave Requests (เก็บค่าตัวแปรไว้ใช้กับ Audit Log)
+  // 9. Leave Requests
   // ==========================================
-  const createdRequests = [];
-
+  
   // 9.1 Sick Leave (Approved)
   const req1 = await prisma.leaveRequest.create({
-    data: {
-      employeeId: somchai.id, leaveTypeId: getTypeId('Sick'),
+    data: { 
+      employeeId: somchai.id, leaveTypeId: getTypeId('Sick'), 
       startDate: new Date('2026-01-10'), endDate: new Date('2026-01-10'), totalDaysRequested: 1,
       startDuration: 'Full', endDuration: 'Full', status: 'Approved', reason: 'High fever',
       approvedByHrId: hr.id, approvalDate: new Date()
     }
   });
-  createdRequests.push(req1);
 
   // 9.2 Annual Leave (Pending)
   const req2 = await prisma.leaveRequest.create({
-    data: {
-      employeeId: suda.id, leaveTypeId: getTypeId('Annual'),
+    data: { 
+      employeeId: suda.id, leaveTypeId: getTypeId('Annual'), 
       startDate: new Date('2026-02-14'), endDate: new Date('2026-02-15'), totalDaysRequested: 2,
       startDuration: 'Full', endDuration: 'Full', status: 'Pending', reason: 'Family trip'
     }
   });
-  createdRequests.push(req2);
 
   // 9.3 Personal Leave (Rejected)
   const req3 = await prisma.leaveRequest.create({
-    data: {
-      employeeId: vichai.id, leaveTypeId: getTypeId('Personal'),
+    data: { 
+      employeeId: vichai.id, leaveTypeId: getTypeId('Personal'), 
       startDate: new Date('2026-01-20'), endDate: new Date('2026-01-20'), totalDaysRequested: 0.5,
       startDuration: 'HalfMorning', endDuration: 'HalfMorning', status: 'Rejected', rejectionReason: 'Too many workers off'
     }
   });
-  createdRequests.push(req3);
 
   // 9.4 Sick Leave (Cancelled)
   const req4 = await prisma.leaveRequest.create({
-    data: {
-      employeeId: mana.id, leaveTypeId: getTypeId('Sick'),
+    data: { 
+      employeeId: mana.id, leaveTypeId: getTypeId('Sick'), 
       startDate: new Date('2026-03-01'), endDate: new Date('2026-03-01'), totalDaysRequested: 1,
       startDuration: 'Full', endDuration: 'Full', status: 'Cancelled', cancelReason: 'Recovered faster'
     }
   });
-  createdRequests.push(req4);
 
-  // 9.5 🔥 Special Leave (Approved & Linked to Grant)
+  // 9.5 Special Leave (Approved & Linked)
   const req5 = await prisma.leaveRequest.create({
-    data: {
-      employeeId: somchai.id, leaveTypeId: getTypeId('Special'),
+    data: { 
+      employeeId: somchai.id, leaveTypeId: getTypeId('Special'), 
       startDate: new Date('2026-06-01'), endDate: new Date('2026-06-02'), totalDaysRequested: 2,
-      startDuration: 'Full', endDuration: 'Full',
-      status: 'Approved',
+      startDuration: 'Full', endDuration: 'Full', 
+      status: 'Approved', 
       reason: 'Use special reward leave',
-      approvedByHrId: hr.id,
+      approvedByHrId: hr.id, 
       approvalDate: new Date(),
       isSpecialApproved: true,
-      specialGrantId: specialGrant.id // เชื่อมโยงไปที่ Grant
+      specialGrantId: specialGrant.id
     }
   });
-  createdRequests.push(req5);
 
   // ==========================================
   // 10. Audit Logs
   // ==========================================
-  // ✅ ใช้ ID จริงจากตัวแปรที่สร้างด้านบน แทนการ Hardcode เลข 1, 3
   const auditLogs = [
     { 
       action: 'LOGIN', modelName: 'Employee', recordId: hr.id, performedById: hr.id, 
@@ -260,20 +249,22 @@ async function main() {
       action: 'REJECT', modelName: 'LeaveRequest', recordId: req3.id, performedById: hr.id, 
       details: 'Rejected Personal leave for Vichai' 
     },
-    // สมมติว่าแก้ WorkConfig แรก
+    // Work Configuration
     { 
-        action: 'UPDATE', modelName: 'WorkConfiguration', recordId: 1, performedById: hr.id, 
-        details: 'Updated Worker start time' 
-    }, 
+      action: 'UPDATE', modelName: 'WorkConfiguration', recordId: 1, performedById: hr.id, 
+      details: 'Updated Worker start time' 
+    },
   ];
   await prisma.auditLog.createMany({ data: auditLogs });
 
+  // ==========================================
   // 11. System Config 2026
+  // ==========================================
   await prisma.systemConfig.create({
-    data: { year: 2026, isClosed: false }
+    data: { year: 2026, isClosed: false, maxConsecutiveDays: 0 }
   });
 
-  console.log('✅ SEEDING COMPLETED FOR 2026: Included Special Leave Grant!');
+  console.log('✅ SEEDING COMPLETED FOR 2026: Included i18n & Special Leave Grant!');
 }
 
 main()
