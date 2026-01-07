@@ -1,4 +1,3 @@
-// frontend/src/pages/yearEnd/hooks/useYearEndProcessing.js
 import React, {
   createContext,
   useContext,
@@ -17,18 +16,37 @@ import {
   getSystemConfigs,
   processCarryOver,
   reopenYear,
+  getLeaveTypes,
 } from "../../../api/leaveService";
+
+
 
 const Ctx = createContext(null);
 
 export function YearEndProcessingProvider({ children, carryOverLimitsRef }) {
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [leaveTypes, setLeaveTypes] = useState([]);
+
+  const fetchLeaveTypes = async () => {
+  try {
+    const data = await getLeaveTypes();
+    setLeaveTypes(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error("Fetch leave types error:", err);
+  }
+};
+
+
+
 
   const [targetYear, setTargetYear] = useState(
     new Date().getFullYear() + 1
   );
-  const lastYear = useMemo(() => Number(targetYear) - 1, [targetYear]);
+  const lastYear = useMemo(
+    () => Number(targetYear) - 1,
+    [targetYear]
+  );
 
   const [quotas, setQuotas] = useState({
     ANNUAL: 0,
@@ -41,18 +59,31 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef }) {
   const [maxConsecutive, setMaxConsecutive] = useState(0);
 
   const handleQuotaChange = (type, value) => {
-    setQuotas((prev) => ({ ...prev, [type]: Number(value) }));
+    setQuotas((prev) => ({
+      ...prev,
+      [type]: Number(value),
+    }));
   };
 
-  // ✅ FIX: ดึง configs จาก data.configs
+  // -----------------------------
+  // Fetch System Configs
+  // -----------------------------
   const fetchConfigs = async () => {
     try {
       const data = await getSystemConfigs();
 
-      // 👉 backend ส่ง { configs, serverYear, ... }
-      setConfigs(Array.isArray(data?.configs) ? data.configs : []);
+      /**
+       * backend ส่งรูปแบบ:
+       * {
+       *   configs: [...],
+       *   serverYear: ...
+       * }
+       */
+      setConfigs(
+        Array.isArray(data?.configs) ? data.configs : []
+      );
     } catch (error) {
-      console.error("Fetch error:", error);
+      console.error("Fetch configs error:", error);
       alertError(
         "Failed to Load Data",
         "Unable to retrieve system configuration."
@@ -60,34 +91,39 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef }) {
     }
   };
 
-  // โหลดครั้งแรก + socket
+  // -----------------------------
+  // Initial load + Socket
+  // -----------------------------
   useEffect(() => {
     fetchConfigs();
+      fetchLeaveTypes();
 
-    const protocol = window.location.protocol; // http: หรือ https:
-    const hostname = window.location.hostname; // localhost หรือ 192.168.x.x
-    const port = 8080; // Port ของ Backend (ปกติไม่ค่อยเปลี่ยน)
+    const API_URL = (
+      import.meta.env.VITE_API_URL ||
+      "http://localhost:8080"
+    ).replace(/\/$/, "");
 
-    // สร้าง URL แบบ Auto: "http://192.168.1.36:8080"
-    const socketUrl = `${protocol}//${hostname}:${port}`;
     
-    console.log("🔌 Auto-connecting Socket to:", socketUrl);
+    
 
-    const socket = io(socketUrl, {
+    const socket = io(API_URL, {
       withCredentials: true,
       transports: ["websocket", "polling"],
     });
 
     socket.on("notification_refresh", () => {
-      console.log("🔄 Socket received refresh signal");
+      console.log("🔄 System config refreshed");
       fetchConfigs();
     });
 
-    return () => {
-      socket.disconnect();
-    };
+    return () => socket.disconnect();
   }, []);
 
+  
+
+  // -----------------------------
+  // Confirm Dialog HTML
+  // -----------------------------
   const buildProcessConfirmHtml = () => {
     const co = carryOverLimitsRef?.current || {};
     const displayMaxConsecutive =
@@ -110,10 +146,10 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef }) {
           Year-End Processing Summary
         </div>
         <div style="font-size:13px; margin-bottom:12px;">
-          The system will process year-end for <b>${escapeHtml(
-            targetYear
-          )}</b>
-          and lock <b>${escapeHtml(lastYear)}</b>.
+          The system will process year-end for 
+          <b>${escapeHtml(targetYear)}</b>
+          and lock 
+          <b>${escapeHtml(lastYear)}</b>.
         </div>
 
         <div style="border:1px solid #e5e7eb; border-radius:14px; padding:12px 14px; background:#f9fafb;">
@@ -124,14 +160,16 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef }) {
         </div>
 
         <div style="margin-top:12px; font-size:13px; color:#4b5563;">
-          <b>Max Consecutive Days:</b> ${escapeHtml(
-            String(displayMaxConsecutive)
-          )}
+          <b>Max Consecutive Days:</b>
+          ${escapeHtml(String(displayMaxConsecutive))}
         </div>
       </div>
     `.trim();
   };
 
+  // -----------------------------
+  // Process Year End
+  // -----------------------------
   const handleProcess = async () => {
     if (loading) return;
 
@@ -153,21 +191,26 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef }) {
 
       await alertSuccess(
         "Processed Successfully",
-        res?.message || "Year-end processing completed successfully."
+        res?.message ||
+          "Year-end processing completed successfully."
       );
+
       await fetchConfigs();
     } catch (error) {
-      const errorMsg =
+      const msg =
         error?.response?.data?.error ||
         error?.response?.data?.message ||
         error?.message ||
-        "An error occurred during processing.";
-      alertError("Processing Failed", errorMsg);
+        "Processing failed";
+      alertError("Processing Failed", msg);
     } finally {
       setLoading(false);
     }
   };
 
+  // -----------------------------
+  // Reopen Year
+  // -----------------------------
   const handleReopen = async (year) => {
     const confirmed = await alertConfirm(
       "Confirm Unlock",
@@ -181,15 +224,18 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef }) {
     if (!confirmed) return;
 
     try {
-  await reopenYear({
-    year,
-    reason: "Admin reopen year",
-  });
+      // ❗ backend ต้องการ object
+      await reopenYear({
+        year,
+        reason: "Admin reopen year",
+      });
 
-  await alertSuccess("Unlocked", `Year ${year} has been unlocked.`);
-  fetchConfigs();
-} catch (error) {
-
+      await alertSuccess(
+        "Unlocked",
+        `Year ${year} has been unlocked successfully.`
+      );
+      fetchConfigs();
+    } catch (error) {
       const msg =
         error?.response?.data?.error ||
         error?.response?.data?.message ||
@@ -207,14 +253,20 @@ export function YearEndProcessingProvider({ children, carryOverLimitsRef }) {
     lastYear,
     quotas,
     handleQuotaChange,
+
     maxConsecutive,
     setMaxConsecutive,
+
     handleProcess,
     handleReopen,
     fetchConfigs,
+
+    leaveTypes,
+  fetchLeaveTypes,
+  
   };
 
-return React.createElement(Ctx.Provider, { value }, children);
+  return React.createElement(Ctx.Provider, { value }, children);
 
 }
 

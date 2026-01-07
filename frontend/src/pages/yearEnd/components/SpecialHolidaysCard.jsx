@@ -112,7 +112,7 @@ export default function SpecialHolidaysCard() {
     <>
       {formOpen && (
         <div className="mt-6 rounded-3xl border border-gray-200 bg-white overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+          <div className="px-6 py-4 border-b border-gray-100  flex items-center justify-between gap-3">
             <div>
               <div className="text-sm font-black text-slate-800 uppercase tracking-widest">
                 {t("specialHoliday.title")}
@@ -155,7 +155,7 @@ export default function SpecialHolidaysCard() {
                       }
                       placeholder={lang.key.toUpperCase()}
                       className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-          text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                       text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
                     />
                   ))}
                 </div>
@@ -215,16 +215,17 @@ export default function SpecialHolidaysCard() {
                 )}
 
                 <button
-  type="button"
-  onClick={upsertSpecialHoliday}
-  className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
-    uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100
-    inline-flex items-center gap-2"
->
-  <Plus size={16} />
-  {editId ? t("specialHoliday.form.update") : t("specialHoliday.form.add")}
-</button>
-
+                  type="button"
+                  onClick={upsertSpecialHoliday}
+                  className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
+                uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100
+                  inline-flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  {editId
+                    ? t("specialHoliday.form.update")
+                    : t("specialHoliday.form.add")}
+                </button>
               </div>
             </div>
           </div>

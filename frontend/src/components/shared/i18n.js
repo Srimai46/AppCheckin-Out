@@ -1,4 +1,5 @@
 //frontend/src/components/shared/i18n.js
+import { add } from "date-fns";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
@@ -44,6 +45,14 @@ i18n.use(initReactI18next).init({
           loading: "LOADING...",
           success: "Success",
           error: "Error",
+
+
+            yes: "Yes",
+            no: "No",
+            save: "Save",
+            cancel: "Cancel",
+            days: "Days",
+            unlimited: "Unlimited",
         },
 
         /* -------- QuotaCard -------- */
@@ -168,6 +177,41 @@ i18n.use(initReactI18next).init({
             delete: "Delete",
           },
         },
+        /* -------- Leave Type -------- */
+        leaveType: {
+          table: {
+            title: "Leave Types",
+            subtitle: "Manage leave types, paid status and limits",
+            name: "Leave Type",
+            paid: "Paid",
+            maxCarryOver: "Max Carry Over",
+            maxConsecutive: "Max Consecutive",
+            actions: "Actions",
+          },
+          action: {
+            add: "Add Leave Type",
+            edit: "Edit",
+            delete: "Delete",
+
+          },
+          form: {
+            typeName: "Type Name",
+            paid: "Paid",
+            labelTh: "Label (TH)",
+            labelEn: "Label (EN)",
+            maxCarryOver: "Max Carry Over (Days)",
+            maxConsecutive: "Max Consecutive Days",
+            cancelEdit: "Cancel",
+            editTitle: "Edit Leave Type",
+            addTitle: "Add Leave Type",
+            subtitle: "Add / Edit Leave Type and apply immediately",
+            add: "Add",
+            update: "update",
+            close: "close"
+          },
+    
+          
+        },
       },
     },
 
@@ -206,6 +250,14 @@ i18n.use(initReactI18next).init({
           loading: "กำลังโหลด...",
           success: "สำเร็จ",
           error: "เกิดข้อผิดพลาด",
+
+  yes: "ใช่",
+  no: "ไม่ใช่",
+  save: "บันทึก",
+  cancel: "ยกเลิก",
+  days: "วัน",
+  unlimited: "ไม่จำกัด",
+
         },
 
         /* -------- QuotaCard -------- */
@@ -330,6 +382,43 @@ i18n.use(initReactI18next).init({
             edit: "แก้ไข",
             delete: "ลบ",
           },
+        },
+        /* -------- Leave Type -------- */
+        leaveType: {
+          table: {
+            title: "ประเภทการลา",
+            subtitle: "จัดการประเภทการลา การจ่ายเงิน และข้อจำกัด",
+            name: "ประเภทการลา",
+            paid: "ได้รับค่าจ้าง",
+            maxCarryOver: "ทบต่อปีหน้าได้สูงสุด",
+            maxConsecutive: "ลาติดต่อกันสูงสุด",
+            actions: "การจัดการ",
+          },
+          action: {
+            add: "เพิ่มประเภทการลา",
+            edit: "แก้ไข",
+            delete: "ลบ",
+            
+          },
+          form: {
+            typeName: "ชื่อประเภทการลา",
+            paid: "ได้รับค่าจ้าง",
+            labelTh: "ชื่อ (ภาษาไทย)",
+            labelEn: "ชื่อ (ภาษาอังกฤษ)",
+            maxCarryOver: "ทบต่อไปปีหน้าได้ศูงสุด (วัน)",
+            maxConsecutive: "ลาติดต่อกันสูงสุด (วัน)",
+            cancelEdit: "ยกเลิกการแก้ไข",
+            editTitle: "แก้ไขประเภทวันลา",
+            addTitle: "เพิ่มประเภทวันลา",
+            subtitle: "เพิ่ม / แก้ไข ประเภทการลา และมีผลทันทีy",
+            add: "เพิ่ม",
+            update: "อัปเดต",
+            close: "ปิด"
+          },
+
+
+
+
         },
       },
     },
