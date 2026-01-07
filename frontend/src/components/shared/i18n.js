@@ -47,12 +47,21 @@ i18n.use(initReactI18next).init({
           error: "Error",
 
 
-            yes: "Yes",
-            no: "No",
-            save: "Save",
-            cancel: "Cancel",
-            days: "Days",
-            unlimited: "Unlimited",
+          yes: "Yes",
+          no: "No",
+          save: "Save",
+          cancel: "Cancel",
+          days: "Days",
+          unlimited: "Unlimited",
+
+          page: "page",
+          showing: "showing",
+          of: "of",
+
+          prev:"prev",
+          next:"next"
+            
+
         },
 
         /* -------- QuotaCard -------- */
@@ -251,12 +260,20 @@ i18n.use(initReactI18next).init({
           success: "สำเร็จ",
           error: "เกิดข้อผิดพลาด",
 
-  yes: "ใช่",
-  no: "ไม่ใช่",
-  save: "บันทึก",
-  cancel: "ยกเลิก",
-  days: "วัน",
-  unlimited: "ไม่จำกัด",
+          yes: "ใช่",
+          no: "ไม่ใช่",
+          save: "บันทึก",
+          cancel: "ยกเลิก",
+          days: "วัน",
+          unlimited: "ไม่จำกัด",
+
+
+          page: "หน้า",
+          showing: "แสดง",
+          of: "จาก",
+
+          prev:"ก่อนหน้า",
+          next:"ถัดไป"
 
         },
 

@@ -249,7 +249,7 @@ model Holiday {
   id        Int      @id @default(autoincrement())
   date      DateTime @unique // วันที่หยุด
   name      Json    // ชื่อวันหยุด หลายภาษา
-  isSubsidy Boolean  @default(false)
+  isSubsidy  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
