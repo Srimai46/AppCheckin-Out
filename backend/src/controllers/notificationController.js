@@ -1,29 +1,45 @@
-const prisma = require('../config/prisma');
+const prisma = require("../config/prisma");
 
 // 1. ดึงการแจ้งเตือนทั้งหมด
 exports.getMyNotifications = async (req, res) => {
-    try {
-        const [notifications, unreadCount] = await Promise.all([
-            prisma.notification.findMany({
-                where: { employeeId: req.user.id },
-                orderBy: { createdAt: 'desc' },
-                take: 30, // ดึงมา 30 รายการล่าสุด
-                include: {
-                    relatedRequest: {
-                        select: { id: true, status: true, startDate: true } 
-                    }
-                }
-            }),
-            prisma.notification.count({
-                where: { employeeId: req.user.id, isRead: false }
-            })
-        ]);
+  try {
+    const employeeId = req.user.id;
 
-        res.json({ notifications, unreadCount });
-    } catch (error) {
-        console.error("Get Notifications Error:", error);
-        res.status(500).json({ error: 'Retrieving notification data failed.' });
-    }
+    const [notifications, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where: { employeeId },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+
+        // ✅ ใช้ select เพื่อคุม field และส่ง relatedEmployeeId ไป FE ชัวร์ ๆ
+        select: {
+          id: true,
+          employeeId: true,
+          notificationType: true,
+          message: true,
+          relatedRequestId: true,
+          relatedEmployeeId: true,
+
+          isRead: true,
+          createdAt: true,
+
+          // ยังอยากได้ข้อมูลใบลาที่เกี่ยวข้องก็เอาไว้ได้
+          relatedRequest: {
+            select: { id: true, status: true, startDate: true },
+          },
+        },
+      }),
+
+      prisma.notification.count({
+        where: { employeeId, isRead: false },
+      }),
+    ]);
+
+    res.json({ notifications, unreadCount });
+  } catch (error) {
+    console.error("Get Notifications Error:", error);
+    res.status(500).json({ error: "Retrieving notification data failed." });
+  }
 };
 
 // 2. กดอ่านทีละรายการ
