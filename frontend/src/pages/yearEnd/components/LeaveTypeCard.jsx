@@ -10,9 +10,7 @@ import {
 
 const PAGE_SIZE = 5;
 
-/* =========================
-   Helpers
-========================= */
+/* ========================= Helpers ========================= */
 const getLeaveTypeLabel = (label, typeName, lang) => {
   if (label && typeof label === "object") {
     const key = lang?.split("-")[0];
@@ -32,9 +30,7 @@ export default function LeaveTypeCard() {
   const { t, i18n } = useTranslation();
   const { leaveTypes = [], fetchLeaveTypes } = useYearEndProcessing();
 
-  /* =========================
-     Form State
-  ========================= */
+  /* ========================= Form State ========================= */
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState(null);
 
@@ -99,183 +95,208 @@ export default function LeaveTypeCard() {
     await fetchLeaveTypes();
   };
 
-  /* =========================
-     Pagination
-  ========================= */
+  /* ========================= Pagination ========================= */
   const [page, setPage] = useState(1);
-  
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(leaveTypes.length / PAGE_SIZE)),
-    [leaveTypes]
-  );
+  const totalPages = useMemo(() => {
+    const total = leaveTypes?.length || 0;
+    return Math.max(1, Math.ceil(total / PAGE_SIZE));
+  }, [leaveTypes]);
+
+  // ถ้าจำนวนรายการเปลี่ยน (เพิ่ม/ลบ) แล้วหน้าเกิน ให้ดึงกลับ
+  React.useEffect(() => {
+    setPage((p) => Math.min(Math.max(1, p), totalPages));
+  }, [totalPages]);
 
   const pagedLeaveTypes = useMemo(() => {
+    const list = leaveTypes || [];
     const start = (page - 1) * PAGE_SIZE;
-    return leaveTypes.slice(start, start + PAGE_SIZE);
+    return list.slice(start, start + PAGE_SIZE);
   }, [leaveTypes, page]);
 
-  /* =========================
-     Render
-  ========================= */
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
+  const goPrev = () => canPrev && setPage((p) => p - 1);
+  const goNext = () => canNext && setPage((p) => p + 1);
+  const goTo = (n) => setPage(Math.min(Math.max(1, n), totalPages));
+
+  const pageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    const pages = [];
+
+    if (totalPages <= maxButtons) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+
+    let start = Math.max(1, page - 1);
+    let end = Math.min(totalPages, start + (maxButtons - 1));
+
+    start = Math.max(1, end - (maxButtons - 1));
+
+    if (start > 1) pages.push(1);
+    if (start > 2) pages.push("...");
+
+    for (let i = start; i <= end; i++) pages.push(i);
+
+    if (end < totalPages - 1) pages.push("...");
+    if (end < totalPages) pages.push(totalPages);
+
+    return pages;
+  }, [page, totalPages]);
+
+  /* ========================= Render ========================= */
   return (
     <>
-      {/* =========================
-          FORM CARD 
-      ========================= */}
+      {/* ========================= FORM CARD POPUP ========================= */}
       {formOpen && (
-        <div className="mt-6 rounded-3xl border border-gray-200 bg-white overflow-hidden">
-          {/* Form Header */}
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div>
-              <div className="text-sm font-black uppercase tracking-widest text-slate-800">
-                {editId
-                  ? t("leaveType.form.editTitle")
-                  : t("leaveType.form.addTitle")}
-              </div>
-              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                {t("leaveType.form.subtitle")}
-              </div>
-            </div>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            setFormOpen(false);
+            resetForm();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setFormOpen(false);
+              resetForm();
+            }
+          }}
+          tabIndex={-1}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
-            <button
-              onClick={() => {
-                setFormOpen(false);
-                resetForm();
-              }}
-              className="h-10 px-4 rounded-3xl border border-gray-200 bg-white text-slate-700
-                font-black text-[11px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95"
-            >
-              {t("leaveType.form.close")}
-            </button>
-          </div>
-
-          {/* Form Body */}
-          <div className="px-6 py-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-                {/* Label TH */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  {t("leaveType.form.labelTh")}
-                </label>
-                <input
-                  placeholder="TH"
-                  className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-                       text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                  value={label.th}
-                  onChange={(e) =>
-                    setLabel({ ...label, th: e.target.value })
-                  }
-                />
-              </div>
-              
-
-              
-
-              {/* Label EN */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                   {t("leaveType.form.labelEh")}
-                </label>
-                <input
-                    placeholder="EN"
-                    className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-                        text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                    value={label.en}
-                    onChange={(e) => {
-                        const value = e.target.value;
-
-                        // update label.en
-                        setLabel((prev) => ({
-                        ...prev,
-                        en: value,
-                        }));
-
-                        // sync ไปที่ typeName ด้วย
-                        setTypeName(value);
-                    }}
-                    />
+          {/* Modal */}
+          <div
+            className="relative w-full max-w-3xl rounded-3xl border border-gray-200 bg-white overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()} // กันคลิกทะลุไปปิด
+          >
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-black uppercase tracking-widest text-slate-800">
+                  {editId ? t("leaveType.form.editTitle") : t("leaveType.form.addTitle")}
+                </div>
+                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                  {t("leaveType.form.subtitle")}
+                </div>
               </div>
 
-              {/* Max Carry Over */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  {t("leaveType.form.maxCarryOver")}
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px]"
-                  value={maxCarryOver}
-                  onChange={(e) => setMaxCarryOver(e.target.value)}
-                />
-              </div>
-
-              {/* Max Consecutive */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  {t("leaveType.form.maxConsecutive")}
-                </label>
-                <input
-                  type="number"
-                  className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px]"
-                  value={maxConsecutiveDays}
-                  onChange={(e) =>
-                    setMaxConsecutiveDays(e.target.value)
-                  }
-                />
-              </div>
-
-              {/* Paid */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  {t("leaveType.form.paid")}
-                </label>
-                <select
-                  className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px]"
-                  value={isPaid ? "1" : "0"}
-                  onChange={(e) => setIsPaid(e.target.value === "1")}
-                >
-                  <option value="1">{t("common.yes")}</option>
-                  <option value="0">{t("common.no")}</option>
-                </select>
-              </div>
-
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2">
               <button
+                type="button"
                 onClick={() => {
                   setFormOpen(false);
                   resetForm();
                 }}
-                className="h-9 px-4 rounded-3xl border border-gray-200
-                  text-gray-500 font-black text-[10px] uppercase tracking-widest"
+                className="h-10 w-10 rounded-2xl border border-gray-200 bg-white text-slate-700
+                  font-black text-[11px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95
+                  inline-flex items-center justify-center"
+                aria-label="Close"
               >
-                {t("common.cancel")}
+                <X size={16} />
               </button>
+            </div>
 
-              <button
-                                type="button"
-                                onClick={handleSubmit}
-                                className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
-                              uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100
-                                inline-flex items-center gap-2"
-                              >
-                                <Plus size={16} />
-                                {editId
-                                  ? t("leaveType.form.update")
-                                  : t("leaveType.form.add")}
-                              </button>
+            {/* Body */}
+            <div className="px-6 py-6 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Label TH */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t("leaveType.form.labelTh")}
+                  </label>
+                  <input
+                    placeholder="TH"
+                    className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
+                      text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                    value={label.th}
+                    onChange={(e) => setLabel({ ...label, th: e.target.value })}
+                  />
+                </div>
+
+                {/* Label EN */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t("leaveType.form.labelEn")}
+                  </label>
+                  <input
+                    placeholder="EN"
+                    className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
+                      text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                    value={label.en}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setLabel((prev) => ({ ...prev, en: value }));
+                      setTypeName(value);
+                    }}
+                  />
+                </div>
+
+                {/* Max Carry Over */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t("leaveType.form.maxCarryOver")}
+                  </label>
+                  <input
+                    type="number"
+                    className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                    value={maxCarryOver}
+                    onChange={(e) => setMaxCarryOver(e.target.value)}
+                  />
+                </div>
+
+                {/* Max Consecutive */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t("leaveType.form.maxConsecutive")}
+                  </label>
+                  <input
+                    type="number"
+                    className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                    value={maxConsecutiveDays}
+                    onChange={(e) => setMaxConsecutiveDays(e.target.value)}
+                  />
+                </div>
+
+                {/* Paid */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t("leaveType.form.paid")}
+                  </label>
+                  <select
+                    className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                    value={isPaid ? "1" : "0"}
+                    onChange={(e) => setIsPaid(e.target.value === "1")}
+                  >
+                    <option value="1">{t("common.yes")}</option>
+                    <option value="0">{t("common.no")}</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Footer buttons */}
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
+                    uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100
+                    inline-flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  {editId ? t("leaveType.form.update") : t("leaveType.form.add")}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* =========================
-          TABLE CARD
-      ========================= */}
+      {/* ========================= TABLE CARD ========================= */}
       <div className="mt-6 rounded-3xl border border-gray-200 bg-white overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -367,73 +388,80 @@ export default function LeaveTypeCard() {
               ))}
             </tbody>
           </table>
+
           {/* Pagination */}
-{totalPages > 1 && (
-  <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-    {/* Info */}
-    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-      Page {page} of {totalPages}
-    </div>
+          {leaveTypes.length > 0 && (
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-col sm:flex-row">
+              <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                {t("common.page")} {page} / {totalPages} • {t("common.showing")}{" "}
+                <span className="text-slate-700">
+                  {Math.min((page - 1) * PAGE_SIZE + 1, leaveTypes.length)}-
+                  {Math.min(page * PAGE_SIZE, leaveTypes.length)}
+                </span>{" "}
+                {t("common.of")}{" "}
+                <span className="text-slate-700">{leaveTypes.length}</span>
+              </div>
 
-    {/* Controls */}
-    <div className="flex items-center gap-1">
-      {/* Prev */}
-      <button
-        disabled={page === 1}
-        onClick={() => setPage((p) => Math.max(1, p - 1))}
-        className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
-          ${
-            page === 1
-              ? "border-gray-100 text-gray-300 cursor-not-allowed"
-              : "border-gray-200 text-slate-700 hover:bg-gray-50"
-          }`}
-      >
-         <ChevronLeft size={14} />
-        Prev
-      </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={goPrev}
+                  disabled={!canPrev}
+                  className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
+                    ${
+                      canPrev
+                        ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                        : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                    }`}
+                >
+                  <ChevronLeft size={14} />
+                  {t("common.prev")}
+                </button>
 
-      {/* Page Numbers */}
-      {Array.from({ length: totalPages }).map((_, i) => {
-        const p = i + 1;
-        const active = p === page;
+                <div className="flex items-center gap-1">
+                  {pageNumbers.map((p, idx) =>
+                    p === "..." ? (
+                      <span
+                        key={`dots-${idx}`}
+                        className="px-2 text-gray-300 font-black text-[12px]"
+                      >
+                        ...
+                      </span>
+                    ) : (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => goTo(p)}
+                        className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
+                          ${
+                            p === page
+                              ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                              : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                          }`}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+                </div>
 
-        return (
-          <button
-            key={p}
-            onClick={() => setPage(p)}
-            className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
-              ${
-                active
-                     ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                            : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
-              }`}
-          >
-            {p}
-          </button>
-        );
-      })}
-
-      {/* Next */}
-      <button
-        disabled={page === totalPages}
-        onClick={() =>
-          setPage((p) => Math.min(totalPages, p + 1))
-        }
-        className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
-          ${
-            page === totalPages
-              ? "border-gray-100 text-gray-300 cursor-not-allowed"
-              : "border-gray-200 text-slate-700 hover:bg-gray-50"
-          }`}
-      >
-        Next
-       <ChevronRight size={14} /> 
-      </button>
-      
-    </div>
-  </div>
-)}
-
+                <button
+                  type="button"
+                  onClick={goNext}
+                  disabled={!canNext}
+                  className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
+                    ${
+                      canNext
+                        ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                        : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                    }`}
+                >
+                  {t("common.next")}
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
