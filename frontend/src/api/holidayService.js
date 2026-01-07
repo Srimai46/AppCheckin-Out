@@ -16,7 +16,7 @@ const getHeaders = () => {
 // Holiday CRUD
 // ---------------------------
 
-// 1. ดึงข้อมูลวันหยุด (Get)
+// Get holidays for a specific year [controller: holidayController]
 export const fetchHolidays = async (year) => {
   const response = await axios.get(`${API_BASE}/api/holidays`, {
     params: { year },
@@ -25,7 +25,7 @@ export const fetchHolidays = async (year) => {
   return response.data; // Array [{ id, date: "YYYY-MM-DD", name, ... }]
 };
 
-// 2. สร้างวันหยุดใหม่
+// Create a new holiday [controller: holidayController]
 export const createHoliday = async (holidayData) => {
   const response = await axios.post(`${API_BASE}/api/holidays`, holidayData, {
     headers: getHeaders(),
@@ -33,7 +33,7 @@ export const createHoliday = async (holidayData) => {
   return response.data;
 };
 
-// 3. แก้ไขวันหยุด
+// Update an existing holiday [controller: holidayController]
 export const updateHoliday = async (id, holidayData) => {
   const response = await axios.put(`${API_BASE}/api/holidays/${id}`, holidayData, {
     headers: getHeaders(),
@@ -41,7 +41,7 @@ export const updateHoliday = async (id, holidayData) => {
   return response.data;
 };
 
-// 4. ลบวันหยุด
+// Delete a holiday [controller: holidayController]
 export const deleteHoliday = async (id) => {
   const response = await axios.delete(`${API_BASE}/api/holidays/${id}`, {
     headers: getHeaders(),
@@ -53,6 +53,7 @@ export const deleteHoliday = async (id) => {
 // Working Days Policy
 // ---------------------------
 
+// Get Working Days Policy [controller: holidayPolicyController]
 export const fetchWorkingDaysPolicy = async () => {
   const response = await axios.get(`${API_BASE}/api/holidays/working-days`, {
     headers: getHeaders(),
@@ -60,6 +61,7 @@ export const fetchWorkingDaysPolicy = async () => {
   return response.data;
 };
 
+// Save Working Days Policy [controller: holidayPolicyController]
 export const saveWorkingDaysPolicy = async (workingDays) => {
   const response = await axios.put(
     `${API_BASE}/api/holidays/working-days`,
@@ -73,6 +75,7 @@ export const saveWorkingDaysPolicy = async (workingDays) => {
 // Max Consecutive Policy
 // ---------------------------
 
+// Get Max Consecutive Leave Days Policy [controller: holidayPolicyController]
 export const fetchMaxConsecutivePolicy = async () => {
   const response = await axios.get(`${API_BASE}/api/holidays/max-consecutive`, {
     headers: getHeaders(),
@@ -80,6 +83,7 @@ export const fetchMaxConsecutivePolicy = async () => {
   return response.data;
 };
 
+// Save Max Consecutive Leave Days Policy [controller: holidayPolicyController]
 export const saveMaxConsecutivePolicy = async (days) => {
   const response = await axios.put(
     `${API_BASE}/api/holidays/max-consecutive`,
@@ -107,6 +111,7 @@ const parseISO = (iso) => {
   return Number.isNaN(dt.getTime()) ? null : dt;
 };
 
+// Check if leave period overlaps with any holidays
 export const checkLeaveOverlapWithHoliday = async (startDate, endDate) => {
   const start = parseISO(startDate);
   const end = parseISO(endDate);

@@ -303,20 +303,51 @@ exports.getMyHistory = async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
+    
+    // ✅ รับ Query Params (เหมือน getStats)
+    const { year, month } = req.query; 
 
-    // 1. ดึงข้อมูลเกณฑ์เวลาปัจจุบันของ Role นี้มาเพื่อแสดงผลเปรียบเทียบ
+    // 1. ดึง Config
     const config = await prisma.workConfiguration.findUnique({
       where: { role: userRole },
     });
 
+    // ✅ 2. สร้างเงื่อนไขเวลา (Filter Logic)
+    let dateCondition = {};
+    
+    if (year) {
+      const targetYear = parseInt(year);
+      let startDate, endDate;
+
+      if (month && month !== 'All') {
+        const m = parseInt(month) - 1;
+        startDate = new Date(Date.UTC(targetYear, m, 1));
+        endDate = new Date(Date.UTC(targetYear, m + 1, 0, 23, 59, 59));
+      } else {
+        startDate = new Date(Date.UTC(targetYear, 0, 1));
+        endDate = new Date(Date.UTC(targetYear, 11, 31, 23, 59, 59));
+      }
+      
+      dateCondition = {
+        workDate: {
+          gte: startDate,
+          lte: endDate
+        }
+      };
+    }
+
+    // 3. Query โดยใส่เงื่อนไขวันที่เข้าไป
     const history = await prisma.timeRecord.findMany({
-      where: { employeeId: userId },
+      where: { 
+        employeeId: userId,
+        ...dateCondition // ✅ ใส่ Filter ตรงนี้
+      },
       orderBy: { workDate: "desc" },
     });
 
     const formattedHistory = history.map((item) => {
-      // คำนวณชั่วโมงทำงาน (ถ้ามีการ Check-out แล้ว)
-      let workingHours = "-";
+      // ... (Logic การจัด Format เดิมของคุณ ใช้ต่อได้เลย ไม่ต้องแก้) ...
+       let workingHours = "-";
       if (item.checkInTime && item.checkOutTime) {
         const diffInMs =
           new Date(item.checkOutTime) - new Date(item.checkInTime);
@@ -327,22 +358,18 @@ exports.getMyHistory = async (req, res) => {
 
       return {
         ...item,
-        dateDisplay: formatShortDate(item.workDate),
-        checkInTimeDisplay: formatThaiTime(item.checkInTime),
+        // (Helper function พวก formatShortDate ต้อง import มาให้ครบนะครับ)
+        dateDisplay: item.workDate.toISOString().split('T')[0], 
+        checkInTimeDisplay: item.checkInTime ? new Date(item.checkInTime).toLocaleTimeString('th-TH') : "-",
         checkOutTimeDisplay: item.checkOutTime
-          ? formatThaiTime(item.checkOutTime)
+          ? new Date(item.checkOutTime).toLocaleTimeString('th-TH')
           : "Not checked out yet",
         statusDisplay: item.isLate ? "Late" : "On time",
-        workingHours: workingHours, // เพิ่มชั่วโมงทำงาน
-        // ส่งเกณฑ์เวลา ณ ปัจจุบันไปด้วยเพื่อให้ Frontend รู้ว่าเกณฑ์คืออะไร
+        workingHours: workingHours,
         standardConfig: config
           ? {
-              start: `${String(config.startHour).padStart(2, "0")}:${String(
-                config.startMin
-              ).padStart(2, "0")}`,
-              end: `${String(config.endHour).padStart(2, "0")}:${String(
-                config.endMin
-              ).padStart(2, "0")}`,
+              start: `${String(config.startHour).padStart(2, "0")}:${String(config.startMin).padStart(2, "0")}`,
+              end: `${String(config.endHour).padStart(2, "0")}:${String(config.endMin).padStart(2, "0")}`,
             }
           : null,
         note: item.note || "-",

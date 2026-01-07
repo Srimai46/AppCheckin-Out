@@ -2,14 +2,13 @@
 import api from "./axios"; // ❗ ต้องเป็น default import
 
 
-// 1. ดึงรายการรออนุมัติ (สำหรับหน้า LeaveApproval ของ HR)
+// 1. ดึงรายการรออนุมัติ (สำหรับหน้า LeaveApproval ของ HR) [controller: leaveApprovalController]
 export const getPendingLeaves = async () => {
   const { data } = await api.get('/leaves/pending');
   return data;
 };
 
-// 2. อัปเดตสถานะ (Approve / Reject) 
-// ปรับปรุง: รองรับการส่ง ID เป็น Array หรือ Single ID เพื่อให้ใช้กับระบบติ๊กเลือกได้
+// 2. อัปเดตสถานะ (Approve / Reject) ของใบลา [controller: leaveApprovalController]
 export const updateLeaveStatus = async (idOrIds, status, rejectionReason = null) => {
   const payload = {
     id: idOrIds,
@@ -24,8 +23,7 @@ export const updateLeaveStatus = async (idOrIds, status, rejectionReason = null)
   return data;
 };
 
-// 3. อนุมัติกรณีพิเศษ (เพิ่มวันลาใหม่ + อนุมัติใบลา)
-// ใช้สำหรับปุ่ม "Bulk Special" ในหน้า LeaveApproval
+// 3. อนุมัติกรณีพิเศษ (เพิ่มวันลาใหม่ + อนุมัติใบลา) [controller: leaveApprovalController]
 export const grantSpecialLeave = async (payload) => {
   /**
    * payload: { 
@@ -37,7 +35,7 @@ export const grantSpecialLeave = async (payload) => {
   return data;
 };
 
-// 4. สร้างคำขอใบลาใหม่ (Multipart Form Data)
+// 4. สร้างคำขอใบลาใหม่ (Multipart Form Data) [controller: leaveController]
 export const createLeaveRequest = async (formData) => {
   const { data } = await api.post('/leaves', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -45,36 +43,36 @@ export const createLeaveRequest = async (formData) => {
   return data;
 };
 
-// 5. ดึงโควตาวันลาคงเหลือ (รองรับการกรองตามปี)
+// 5. ดึงโควตาวันลาคงเหลือ (รองรับการกรองตามปี) [controller: leaveController]
 export const getMyQuotas = async (year) => {
   const res = await api.get(`/leaves/my-quota?year=${year}`);
   return res.data;
 };
 
-// 6. ดึงประวัติการลาของตนเอง
+// 6. ดึงประวัติการลาของตนเอง [controller: leaveController]
 export const getMyLeaves = async () => {
   const { data } = await api.get('/leaves/my-history');
   return data;
 };
 
-// 7. ระบบจัดการสิ้นปี (Year-End Processing)
+// 7. ระบบจัดการสิ้นปี (Year-End Processing) [controller: leaveController]
 export const processCarryOver = async (payload) => {
   const { data } = await api.post('/leaves/process-carry-over', payload);
   return data;
 };
 
-// 8. ดึงประวัติและสถานะการปิดงวดปี (System Configuration)
+// 8. ดึงประวัติและสถานะการปิดงวดปี (System Configuration) [controller: leaveController]
 export const getSystemConfigs = async () => {
   const { data } = await api.get('/leaves/system-configs');
   return data;
 };
 
-// 9. ปลดล็อคปี (Reopen Year)
+// 9. ปลดล็อคปี (Reopen Year) [controller: leaveController]
 export const reopenYear = (data) =>
   api.post("/leaves/reopen-year", data);
 
 
-// 10. ดึงรายการลาทั้งหมด (Admin Overview)
+// 10. ดึงรายการลาทั้งหมด (Admin Overview) [controller: leaveController]
 export const getAllLeaves = async () => {
   const { data } = await api.get('/leaves');
   return data;
@@ -82,25 +80,25 @@ export const getAllLeaves = async () => {
 
 // 11. จัดการประเภทวันลา (Leave Type Management)
 
-// 11.1 ดึงประเภทวันลาทั้งหมด (ใช้ในหน้า Setting และ Dropdown ตอนลา)
+// 11.1 ดึงประเภทวันลาทั้งหมด (ใช้ในหน้า Setting และ Dropdown ตอนลา) [controller: leaveTypeController]
 export const getLeaveTypes = async () => {
   const { data } = await api.get('/leaves/types');
   return data;
 };
 
-// 11.2 สร้างประเภทวันลาใหม่ (HR)
+// 11.2 สร้างประเภทวันลาใหม่ (HR) [controller: leaveTypeController]
 export const createLeaveType = async (payload) => {
   const { data } = await api.post('/leaves/types', payload);
   return data;
 };
 
-// 11.3 แก้ไขประเภทวันลา (HR - แก้ไข Max Consecutive / Carry Over)
+// 11.3 แก้ไขประเภทวันลา (HR - แก้ไข Max Consecutive / Carry Over) [controller: leaveTypeController]
 export const updateLeaveType = async (id, payload) => {
   const { data } = await api.put(`/leaves/types/${id}`, payload);
   return data;
 };
 
-// 11.4 ลบประเภทวันลา (HR)
+// 11.4 ลบประเภทวันลา (HR) [controller: leaveTypeController]
 export const deleteLeaveType = async (id) => {
   const { data } = await api.delete(`/leaves/types/${id}`);
   return data;
@@ -108,7 +106,7 @@ export const deleteLeaveType = async (id) => {
 
 // 12. การจัดการใบลาเพิ่มเติม
 
-// 12.1 ยกเลิกใบลา (Cancel / Withdraw)
+// 12.1 ยกเลิกใบลา (Cancel / Withdraw) [controller: leaveController]
 export const cancelLeaveRequest = async (id, reason) => {
   const { data } = await api.post(`/leaves/cancel/${id}`, { cancelReason: reason });
   return data;
@@ -116,7 +114,7 @@ export const cancelLeaveRequest = async (id, reason) => {
 
 // 13. ตั้งค่าระบบ (System Configuration)
 
-// 13.1 อัปเดตการตั้งค่าระบบ (เช่น แก้ไข Global Max Consecutive Days)
+// 13.1 อัปเดตการตั้งค่าระบบ (เช่น แก้ไข Global Max Consecutive Days) [controller: leaveController]
 export const updateSystemConfig = (year, maxConsecutiveDays) => {
   return api.put("/leaves/system-configs", {
     year,
