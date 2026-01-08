@@ -261,7 +261,7 @@ export default function EmployeeList() {
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
               activeTab === "active"
                 ? "bg-white text-blue-600 shadow-md"
-                : "text-gray-400"
+                : "text-gray-400 hover:text-gray-600" // ✅ เพิ่ม hover effect
             }`}
           >
             <Users size={18} /> Active ({counts.active})
@@ -272,7 +272,7 @@ export default function EmployeeList() {
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
               activeTab === "inactive"
                 ? "bg-white text-rose-600 shadow-md"
-                : "text-gray-400"
+                : "text-gray-400 hover:text-gray-600" // ✅ เพิ่ม hover effect
             }`}
           >
             <UserMinus size={18} /> Resigned ({counts.inactive})
