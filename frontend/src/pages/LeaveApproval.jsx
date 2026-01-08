@@ -13,8 +13,8 @@ import {
   MessageCircle,
   Info,
   Clock,
-  FileX,     // ไอคอนสำหรับแท็บยกเลิก
-  FilePlus,  // ไอคอนสำหรับแท็บขอลาใหม่
+  FileX,    
+  FilePlus, 
 } from "lucide-react";
 import {
   alertConfirm,
@@ -31,7 +31,6 @@ export default function LeaveApproval() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // ✅ 1. เพิ่ม State สำหรับ Tab ('new' | 'cancel')
   const [activeTab, setActiveTab] = useState("new");
 
   const API_BASE = (
@@ -55,7 +54,6 @@ export default function LeaveApproval() {
     fetchRequests();
   }, []);
 
-  // ✅ 2. แยกข้อมูลตาม Status (ใช้ useMemo เพื่อไม่ให้คำนวณใหม่ทุกครั้งที่ render)
   const { newRequests, cancelRequests } = useMemo(() => {
     return {
       newRequests: requests.filter((r) => r.status === "Pending"),
@@ -63,7 +61,6 @@ export default function LeaveApproval() {
     };
   }, [requests]);
 
-  // ✅ 3. กำหนดข้อมูลที่จะแสดงผลตาม Tab ปัจจุบัน
   const currentList = activeTab === "new" ? newRequests : cancelRequests;
 
   const toggleSelect = (id) => {
@@ -72,7 +69,6 @@ export default function LeaveApproval() {
     );
   };
 
-  // ✅ 4. แก้ไข Select All ให้เลือกเฉพาะรายการใน Tab ปัจจุบัน
   const toggleSelectAll = () => {
     if (selectedIds.length === currentList.length && currentList.length > 0) {
       setSelectedIds([]);
@@ -84,7 +80,7 @@ export default function LeaveApproval() {
   const handleAction = async (mode, singleReq = null) => {
     const targets = singleReq
       ? [singleReq]
-      : requests.filter((r) => selectedIds.includes(r.id)); // Filter จาก requests ใหญ่ได้เลยเพราะ ID ไม่ซ้ำ
+      : requests.filter((r) => selectedIds.includes(r.id)); 
 
     if (targets.length === 0)
       return alertError(
@@ -92,10 +88,8 @@ export default function LeaveApproval() {
         t("leaveApproval.selectionEmptyText")
       );
 
-    // ปรับข้อความตาม Tab
     let actionText = "";
     if (activeTab === "cancel") {
-        // กรณีแท็บยกเลิก: Approve = อนุมัติให้ยกเลิก, Reject = ปฏิเสธการยกเลิก (คงสถานะลาไว้)
         actionText = mode === "Approved" 
             ? "Approve Cancellation (Void Leave)" 
             : "Reject Cancellation (Keep Leave)";
@@ -174,7 +168,7 @@ export default function LeaveApproval() {
           {t("leaveApproval.title")}
         </h1>
 
-        {/* Action Buttons (แสดงเฉพาะเมื่อมีการเลือก) */}
+        {/* Action Buttons */}
         {selectedIds.length > 0 && (
           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
             <span className="text-[10px] font-black text-slate-400 mr-2 uppercase bg-slate-100 px-3 py-1 rounded-full">
@@ -188,7 +182,6 @@ export default function LeaveApproval() {
               {activeTab === 'cancel' ? "Approve Cancel" : t("leaveApproval.bulkApprove")}
             </button>
 
-            {/* ปุ่ม Special แสดงเฉพาะ Tab New Request */}
             {activeTab === "new" && (
                 <button
                 onClick={() => handleAction("Special")}
@@ -209,48 +202,38 @@ export default function LeaveApproval() {
         )}
       </div>
 
-      {/* ✅ 5. Tabs Section */}
-      <div className="flex gap-4 border-b border-slate-100">
+      {/* ✅ 5. Tabs Section (Pill Style like EmployeeList) */}
+      <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
         <button
           onClick={() => { setActiveTab("new"); setSelectedIds([]); }}
-          className={`flex items-center gap-2 pb-3 px-2 text-sm font-bold border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
             activeTab === "new"
-              ? "border-blue-500 text-blue-600"
-              : "border-transparent text-slate-400 hover:text-slate-600"
+              ? "bg-white text-blue-600 shadow-md"
+              : "text-gray-400 hover:text-gray-600"
           }`}
         >
           <FilePlus size={18} />
-          {t("New Requests")} 
-          {newRequests.length > 0 && (
-            <span className="ml-1 px-2 py-0.5 bg-blue-100 text-blue-600 text-[10px] rounded-full">
-              {newRequests.length}
-            </span>
-          )}
+          {t("New Requests")} ({newRequests.length})
         </button>
 
         <button
           onClick={() => { setActiveTab("cancel"); setSelectedIds([]); }}
-          className={`flex items-center gap-2 pb-3 px-2 text-sm font-bold border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
             activeTab === "cancel"
-              ? "border-rose-500 text-rose-600"
-              : "border-transparent text-slate-400 hover:text-slate-600"
+              ? "bg-white text-rose-600 shadow-md"
+              : "text-gray-400 hover:text-gray-600"
           }`}
         >
           <FileX size={18} />
-          {t("Cancellation Requests")}
-          {cancelRequests.length > 0 && (
-            <span className="ml-1 px-2 py-0.5 bg-rose-100 text-rose-600 text-[10px] rounded-full">
-              {cancelRequests.length}
-            </span>
-          )}
+          {t("Cancellation Requests")} ({cancelRequests.length})
         </button>
       </div>
 
       {/* Table Section */}
-      <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50/80 border-b border-slate-100">
+            <thead className="bg-slate-50/50 border-b border-gray-100">
               <tr>
                 <th className="p-5 w-12 text-center">
                   <button
@@ -286,7 +269,7 @@ export default function LeaveApproval() {
               </tr>
             </thead>
 
-            {/* ✅ 6. Render currentList แทน requests */}
+            {/* Render List */}
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
@@ -345,11 +328,9 @@ export default function LeaveApproval() {
                       </span>
                     </td>
 
-                    {/* Reason / Cancel Reason */}
+                    {/* Reason */}
                     <td className="p-5 min-w-[200px]">
                       <div className="flex flex-col gap-1">
-                        
-                        {/* ถ้าเป็น Tab Cancel ให้โชว์เหตุผลการยกเลิกเป็นหลัก */}
                         {activeTab === 'cancel' && req.cancelReason && (
                              <div className="flex items-start gap-1 text-rose-600 text-[11px] leading-tight font-bold" title={`Cancel Reason: ${req.cancelReason}`}>
                                 <MessageCircle size={12} className="mt-0.5 shrink-0 text-rose-500" />
@@ -357,7 +338,6 @@ export default function LeaveApproval() {
                              </div>
                         )}
 
-                        {/* เหตุผลการลาปกติ */}
                         {req.reason && (
                           <div
                             className={`flex items-start gap-1 text-[11px] leading-tight ${activeTab === 'cancel' ? 'text-slate-400' : 'text-slate-500'}`}
@@ -368,7 +348,6 @@ export default function LeaveApproval() {
                           </div>
                         )}
 
-                        {/* Note */}
                         {req.note && (
                           <div className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight" title={`Note: ${req.note}`}>
                             <Info size={12} className="mt-0.5 shrink-0 text-amber-500" />
@@ -411,7 +390,7 @@ export default function LeaveApproval() {
                       )}
                     </td>
 
-                    {/* Action (ปุ่มในแถว) */}
+                    {/* Action */}
                     <td className="p-5 text-center">
                       <div className="flex justify-center gap-2">
                         <button
@@ -424,7 +403,6 @@ export default function LeaveApproval() {
                           </span>
                         </button>
 
-                        {/* ปุ่ม Special เฉพาะ Tab New */}
                         {activeTab === 'new' && (
                             <button
                             onClick={() => handleAction("Special", req)}
