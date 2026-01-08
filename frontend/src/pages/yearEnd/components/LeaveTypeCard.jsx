@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, X ,ChevronLeft ,ChevronRight} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useYearEndProcessing } from "../hooks/useYearEndProcessing";
+import { alertConfirm, alertSuccess, alertError } from "../../../utils/sweetAlert";
 import {
   createLeaveType,
   updateLeaveType,
@@ -67,6 +68,21 @@ export default function LeaveTypeCard() {
   };
 
   const handleSubmit = async () => {
+    // ===== Validate required fields =====
+    if (!label.th?.trim() || !label.en?.trim()) {
+      return alertError(
+        t("common.missingInfo"),
+        t("leaveType.form.requiredLabel")
+      );
+    }
+
+    if (Number(maxCarryOver) < 0 || Number(maxConsecutiveDays) < 0) {
+      return alertError(
+        t("common.invalidValue"),
+        t("leaveType.form.invalidNumber")
+      );
+    }
+
     const payload = {
       typeName,
       label,
@@ -74,6 +90,16 @@ export default function LeaveTypeCard() {
       maxCarryOver: Number(maxCarryOver),
       maxConsecutiveDays: Number(maxConsecutiveDays),
     };
+
+    // ===== Confirm before save =====
+    const confirmed = await alertConfirm(
+      editId ? t("leaveType.confirm.updateTitle") : t("leaveType.confirm.addTitle"),
+      editId
+        ? t("leaveType.confirm.updateMessage")
+        : t("leaveType.confirm.addMessage"),
+      t("common.save")
+    );
+    if (!confirmed) return;
 
     try {
       editId
@@ -85,18 +111,53 @@ export default function LeaveTypeCard() {
       await fetchLeaveTypes();
       window.dispatchEvent(new Event("leave-type-refresh"));
 
+      // ===== Success alert =====
+      await alertSuccess(
+        t("common.success"),
+        editId
+          ? t("leaveType.success.updated")
+          : t("leaveType.success.created")
+      );
     } catch (err) {
       console.error(err);
-      alert("Save failed");
+
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        t("common.systemError");
+
+      // ===== Error alert =====
+      alertError(t("common.saveFailed"), msg);
     }
   };
 
   const handleDelete = async (row) => {
-    if (!window.confirm(`Delete "${row.typeName}" ?`)) return;
-    await deleteLeaveType(row.id);
-    await fetchLeaveTypes();
-    window.dispatchEvent(new Event("leave-type-refresh"));
+    const confirmed = await alertConfirm(
+      t("leaveType.confirm.deleteTitle"),
+      t("leaveType.confirm.deleteMessage", { name: row.typeName }),
+      t("common.delete")
+    );
+    if (!confirmed) return;
 
+    try {
+      await deleteLeaveType(row.id);
+      await fetchLeaveTypes();
+      window.dispatchEvent(new Event("leave-type-refresh"));
+
+      await alertSuccess(
+        t("common.success"),
+        t("leaveType.success.deleted")
+      );
+    } catch (err) {
+      console.error(err);
+
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        t("common.systemError");
+
+      alertError(t("common.deleteFailed"), msg);
+    }
   };
 
   /* ========================= Pagination ========================= */

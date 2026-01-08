@@ -1,0 +1,226 @@
+/* Backdrop */
+.dgp-backdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 9999;
+}
+
+/* Modal */
+.dgp-modal{
+  width: min(920px, 100%);
+  background: #fff;
+  border: 1px solid #eef2f7;
+  border-radius: 28px;
+  box-shadow: 0 18px 60px rgba(15, 23, 42, 0.25);
+  overflow: hidden;
+}
+
+/* Header */
+.dgp-head{
+  padding: 18px 20px 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dgp-title{
+  font-weight: 900;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.dgp-preview{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dgp-preview-pill{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #eef2f7;
+  background: #f8fafc;
+  font-weight: 900;
+  letter-spacing: .12em;
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.dgp-preview-pill.is-all{
+  background: #eef2ff;
+  border-color: #e0e7ff;
+  color: #4338ca;
+}
+
+.dgp-all-toggle{
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #eef2f7;
+  background: #ffffff;
+  font-weight: 900;
+  letter-spacing: .12em;
+  font-size: 10px;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.dgp-all-toggle.is-on{
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+
+/* Panels */
+.dgp-panels{
+  padding: 14px 16px 18px 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 860px){
+  .dgp-panels{ grid-template-columns: 1fr; }
+}
+
+.dgp-panel{
+  border: 1px solid #eef2f7;
+  border-radius: 22px;
+  padding: 14px;
+  background: #fff;
+}
+
+.dgp-label{
+  font-weight: 900;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+/* Grids */
+.dgp-grid-wrap{
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 18px;
+  padding: 12px;
+}
+
+.dgp-scroll{
+  max-height: 240px;
+  overflow: auto;
+}
+
+/* Scrollbar (คล้ายรูป) */
+.dgp-scroll::-webkit-scrollbar{ width: 10px; }
+.dgp-scroll::-webkit-scrollbar-track{ background: transparent; }
+.dgp-scroll::-webkit-scrollbar-thumb{
+  background: #e2e8f0;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.dgp-grid{
+  display: grid;
+  gap: 10px;
+}
+
+.dgp-grid-3{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dgp-grid-4{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Chips */
+.dgp-chip{
+  height: 44px;
+  border-radius: 16px;
+  border: 1px solid #eef2f7;
+  background: #ffffff;
+  font-weight: 900;
+  letter-spacing: .12em;
+  font-size: 12px;
+  color: #0f172a;
+  cursor: pointer;
+  transition: transform .08s ease, background .15s ease, border-color .15s ease;
+}
+
+.dgp-chip:hover{
+  background: #f1f5f9;
+}
+
+.dgp-chip:active{
+  transform: scale(0.98);
+}
+
+.dgp-chip.is-active{
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #ffffff;
+}
+
+.dgp-chip:disabled{
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+/* Actions */
+.dgp-actions{
+  padding: 14px 16px 18px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dgp-actions-right{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dgp-btn{
+  height: 44px;
+  border-radius: 999px;
+  padding: 0 18px;
+  border: 1px solid #eef2f7;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  font-size: 11px;
+  cursor: pointer;
+  transition: transform .08s ease, background .15s ease, border-color .15s ease;
+}
+
+.dgp-btn:active{ transform: scale(0.98); }
+
+.dgp-btn.ghost{
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.dgp-btn.ghost:hover{
+  background: #f8fafc;
+}
+
+.dgp-btn.primary{
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+
+.dgp-btn.primary:hover{
+  background: #4338ca;
+  border-color: #4338ca;
+}

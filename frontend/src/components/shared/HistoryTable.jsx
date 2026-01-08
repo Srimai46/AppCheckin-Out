@@ -8,9 +8,14 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { openAttachment } from "../../utils/attachmentPreview";
+import DateGridPicker from "../shared/DateGridPicker";
 import api from "../../api/axios";
-import { alertConfirm, alertSuccess, alertError, alertCancelReason } from "../../utils/sweetAlert";
-import Swal from "sweetalert2";
+import {
+  alertConfirm,
+  alertSuccess,
+  alertError,
+  alertCancelReason,
+} from "../../utils/sweetAlert";
 
 const PAGE_SIZE = 5;
 
@@ -24,6 +29,17 @@ export default function HistoryTable({
 }) {
   const { t } = useTranslation();
 
+  const tt = (key, fallback) => {
+    try {
+      const v = t(key);
+      return v && v !== key ? v : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const pad2 = (n) => String(n).padStart(2, "0");
+
   const getStatusStyle = (status) => {
     switch (status) {
       case "Approved":
@@ -33,9 +49,59 @@ export default function HistoryTable({
       case "Cancelled":
         return "bg-slate-50 text-slate-600 border-slate-100";
       default:
-        return "bg-amber-50 text-amber-600 border-amber-100"; // Pending / Withdraw_Pending etc.
+        return "bg-amber-50 text-amber-600 border-amber-100";
     }
   };
+
+  // ===================== ✅ Date helpers (รองรับหลายรูปแบบ) =====================
+  const parseAnyDate = (value) => {
+    if (!value) return null;
+
+    if (value instanceof Date && !isNaN(value.getTime())) return value;
+
+    const s = String(value).trim();
+
+    const d1 = new Date(s);
+    if (!isNaN(d1.getTime())) return d1;
+
+    const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m1) {
+      const dd = Number(m1[1]);
+      const mm = Number(m1[2]);
+      const yyyy = Number(m1[3]);
+      const d2 = new Date(yyyy, mm - 1, dd);
+      if (!isNaN(d2.getTime())) return d2;
+    }
+
+    const m2 = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (m2) {
+      const yyyy = Number(m2[1]);
+      const mm = Number(m2[2]);
+      const dd = Number(m2[3]);
+      const d3 = new Date(yyyy, mm - 1, dd);
+      if (!isNaN(d3.getTime())) return d3;
+    }
+
+    return null;
+  };
+
+  const getRowDate = (row) => {
+    const raw =
+      row?.date ||
+      row?.dateDisplay ||
+      row?.createdAt ||
+      row?.checkInDate ||
+      row?.checkInAt ||
+      null;
+    return parseAnyDate(raw);
+  };
+
+  const getLeaveDate = (leave) => {
+    const raw =
+      leave?.startDate || leave?.createdAt || leave?.requestedAt || null;
+    return parseAnyDate(raw);
+  };
+  // ==========================================================================
 
   const [page, setPage] = useState(1);
 
@@ -43,14 +109,51 @@ export default function HistoryTable({
     setPage(1);
   }, [activeTab]);
 
-  const data = activeTab === "attendance" ? attendanceData : leaveData;
+  // ===================== ✅ Filter state (วัน/เดือน/ปี) =====================
+  const [filterYear, setFilterYear] = useState("all");
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterDay, setFilterDay] = useState("all");
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  // เปลี่ยน tab แล้ว reset filter
+  useEffect(() => {
+    setFilterYear("all");
+    setFilterMonth("all");
+    setFilterDay("all");
+  }, [activeTab]);
+
+  const rawData = activeTab === "attendance" ? attendanceData : leaveData;
+
+  const filteredData = useMemo(() => {
+    const y = filterYear === "all" ? null : Number(filterYear);
+    const m = filterMonth === "all" ? null : Number(filterMonth);
+    const d = filterDay === "all" ? null : Number(filterDay);
+
+    return (rawData || []).filter((item) => {
+      const dateObj =
+        activeTab === "attendance" ? getRowDate(item) : getLeaveDate(item);
+      if (!dateObj || isNaN(dateObj.getTime())) return true;
+
+      if (y != null && dateObj.getFullYear() !== y) return false;
+      if (m != null && dateObj.getMonth() + 1 !== m) return false;
+      if (d != null && dateObj.getDate() !== d) return false;
+
+      return true;
+    });
+  }, [rawData, activeTab, filterYear, filterMonth, filterDay]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterYear, filterMonth, filterDay]);
+  // ========================================================================
+
+  const data = filteredData;
 
   const totalPages = useMemo(() => {
     const total = data?.length || 0;
     return Math.max(1, Math.ceil(total / PAGE_SIZE));
   }, [data]);
 
-  // ถ้าจำนวนรายการเปลี่ยน แล้วหน้าเกิน ให้ดึงกลับ
   useEffect(() => {
     setPage((p) => Math.min(Math.max(1, p), totalPages));
   }, [totalPages]);
@@ -60,7 +163,7 @@ export default function HistoryTable({
     return (data || []).slice(start, start + PAGE_SIZE);
   }, [data, page]);
 
-  // ===================== ✅ page number style (เหมือนที่ทำให้) =====================
+  // ===================== ✅ page number style =====================
   const pageNumbers = useMemo(() => {
     const maxButtons = 5;
     const pages = [];
@@ -91,7 +194,7 @@ export default function HistoryTable({
   const onPrev = () => canPrev && setPage((p) => p - 1);
   const onNext = () => canNext && setPage((p) => p + 1);
   const goTo = (n) => setPage(Math.min(Math.max(1, n), totalPages));
-  // ==============================================================================
+  // ==================================================================
 
   const calcLeaveDays = (leave) => {
     const raw = leave?.totalDaysRequested ?? leave?.days ?? leave?.totalDays;
@@ -106,7 +209,7 @@ export default function HistoryTable({
     return Math.max(1, Math.round((e - s) / ms) + 1);
   };
 
-  // ===================== ✅ LATE (เชื่อ backend 100% ถ้ามี isLate) =====================
+  // ===================== ✅ LATE =====================
   const toMinutes = (value) => {
     if (!value) return null;
     if (value instanceof Date && !isNaN(value.getTime())) {
@@ -144,24 +247,24 @@ export default function HistoryTable({
 
     return inM > startM;
   };
-  // ==========================================================================
+  // ==================================================================
 
-  // ✅ Signed By (คนลงนาม)
   const getSignedBy = (leave) => {
     if (leave?.approverName) return leave.approverName;
 
     const a = leave?.approvedByHr;
-    if (a?.firstName || a?.lastName) return `${a.firstName || ""} ${a.lastName || ""}`.trim();
+    if (a?.firstName || a?.lastName)
+      return `${a.firstName || ""} ${a.lastName || ""}`.trim();
 
     if (typeof leave?.approvedBy === "string") return leave.approvedBy;
     if (typeof leave?.rejectedBy === "string") return leave.rejectedBy;
 
-    if (String(leave?.status || "").toLowerCase() === "pending") return "Waiting for HR";
+    if (String(leave?.status || "").toLowerCase() === "pending")
+      return "Waiting for HR";
 
     return "-";
   };
 
-  // ✅ Delete (ใช้ cancel endpoint)
   const handleDeleteLeave = async (leave) => {
     try {
       if (!leave?.id) return;
@@ -185,13 +288,16 @@ export default function HistoryTable({
     } catch (err) {
       alertError(
         "Delete failed",
-        err?.response?.data?.error || err?.response?.data?.message || err.message
+        err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          err.message
       );
     }
   };
 
   const isPending = (status) => String(status || "").toLowerCase() === "pending";
-  const isApproved = (status) => String(status || "").toLowerCase() === "approved";
+  const isApproved = (status) =>
+    String(status || "").toLowerCase() === "approved";
 
   const handleRequestCancelLeave = async (leave) => {
     try {
@@ -204,20 +310,36 @@ export default function HistoryTable({
         cancelReason: reason,
       });
 
-      // ✅ backend ส่งกลับมาแบบ { message, data: updatedRequest }
       const updated = res?.data?.data;
 
       await alertSuccess("Requested", "Cancellation request sent to HR.");
 
-      // ✅ ให้ parent เอาไป replace item ใน list (อัปเดต status/cancelReason ทันที)
-      onDeletedLeaveSuccess?.(updated || { ...leave, cancelReason: reason, status: "Withdraw_Pending" });
+      onDeletedLeaveSuccess?.(
+        updated || { ...leave, cancelReason: reason, status: "Withdraw_Pending" }
+      );
     } catch (err) {
       alertError(
         "Request failed",
-        err?.response?.data?.message || err?.response?.data?.error || err.message
+        err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          err.message
       );
     }
   };
+
+  const isAll = filterYear === "all" && filterMonth === "all" && filterDay === "all";
+
+  const displayDateText = useMemo(() => {
+    if (isAll) return "ALL";
+    // ถ้ายังเลือกไม่ครบ (เช่น all บางตัว) ก็โชว์เป็น ALL
+    if (filterYear === "all" || filterMonth === "all" || filterDay === "all") return "ALL";
+    return `${pad2(filterDay)}/${pad2(filterMonth)}/${filterYear}`;
+  }, [isAll, filterYear, filterMonth, filterDay]);
+
+  const pickerValue = useMemo(() => {
+    if (filterYear === "all" || filterMonth === "all" || filterDay === "all") return null;
+    return `${filterYear}-${pad2(filterMonth)}-${pad2(filterDay)}`;
+  }, [filterYear, filterMonth, filterDay]);
 
   return (
     <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
@@ -230,16 +352,73 @@ export default function HistoryTable({
             <FileText size={18} className="text-amber-500" />
           )}
           <h2 className="font-black text-slate-800 text-sm uppercase tracking-widest">
-            {activeTab === "attendance" ? t("history.attendanceLog") : t("history.leaveHistory")}
+            {activeTab === "attendance"
+              ? t("history.attendanceLog")
+              : t("history.leaveHistory")}
           </h2>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1">
+        {/* ✅ Date Filter (ซ้าย) + Tab Switch (ขวา) */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+          {/* Date filter pill */}
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl p-2 w-full sm:w-auto">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">
+              {tt("history.filter", "Filter")}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setDatePickerOpen(true)}
+              className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[11px] font-black text-slate-700 uppercase tracking-widest hover:bg-gray-50 transition active:scale-95"
+              title="Pick date"
+            >
+              {displayDateText}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFilterYear("all");
+                setFilterMonth("all");
+                setFilterDay("all");
+              }}
+              className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition active:scale-95"
+              title="Clear filter"
+            >
+              {tt("history.clear", "Clear")}
+            </button>
+          </div>
+
+          {/* DateGridPicker Modal */}
+          <DateGridPicker
+            open={datePickerOpen}
+            value={pickerValue}
+            onClose={() => setDatePickerOpen(false)}
+            onChange={(dateStr) => {
+              // dateStr === null => ALL
+              if (!dateStr) {
+                setFilterYear("all");
+                setFilterMonth("all");
+                setFilterDay("all");
+                return;
+              }
+              const [y, m, d] = String(dateStr).split("-");
+              setFilterYear(y);
+              setFilterMonth(m);
+              setFilterDay(d);
+            }}
+            title={tt("history.selectDate", "Select date")}
+            allowAll={true}
+          />
+
+          {/* Tab Switch */}
+          <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1 w-full sm:w-auto">
             <button
               onClick={() => setActiveTab("attendance")}
-              className={`px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-                activeTab === "attendance" ? "bg-white shadow-sm text-slate-800" : "text-gray-400"
+              className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
+                activeTab === "attendance"
+                  ? "bg-white shadow-sm text-slate-800"
+                  : "text-gray-400"
               }`}
             >
               {t("history.tabAttendance")}
@@ -247,8 +426,10 @@ export default function HistoryTable({
 
             <button
               onClick={() => setActiveTab("leave")}
-              className={`px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-                activeTab === "leave" ? "bg-white shadow-sm text-slate-800" : "text-gray-400"
+              className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
+                activeTab === "leave"
+                  ? "bg-white shadow-sm text-slate-800"
+                  : "text-gray-400"
               }`}
             >
               {t("history.tabLeave")}
@@ -326,11 +507,13 @@ export default function HistoryTable({
               pagedData.map((leave, i) => {
                 if (!leave) return null;
                 const days = calcLeaveDays(leave);
-                const note = leave.note || leave.reason ||  leave.remark ||
-                  // ผู้ใช้ขอถอนลา
+                const note =
+                  leave.note ||
+                  leave.reason ||
+                  leave.remark ||
                   (leave.cancelReason ? `Cancel: ${leave.cancelReason}` : null) ||
-                  // HR ตีกลับการถอนลา
-                  (leave.rejectionReason ? `Rejected: ${leave.rejectionReason}` : null) || "-";
+                  (leave.rejectionReason ? `Rejected: ${leave.rejectionReason}` : null) ||
+                  "-";
                 const signedBy = getSignedBy(leave);
 
                 return (
@@ -414,13 +597,14 @@ export default function HistoryTable({
           </tbody>
         </table>
 
-        {/* Pagination (เหมือนที่ทำให้: Prev/Next + เลขหน้า + ...) */}
+        {/* Pagination */}
         {((data?.length || 0) > 0) && (
           <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-col sm:flex-row">
             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               Page {page} / {totalPages} • Showing{" "}
               <span className="text-slate-700">
-                {Math.min((page - 1) * PAGE_SIZE + 1, data.length)}-{Math.min(page * PAGE_SIZE, data.length)}
+                {Math.min((page - 1) * PAGE_SIZE + 1, data.length)}-
+                {Math.min(page * PAGE_SIZE, data.length)}
               </span>{" "}
               of <span className="text-slate-700">{data.length}</span>
             </div>

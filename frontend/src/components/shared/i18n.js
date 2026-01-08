@@ -46,10 +46,10 @@ i18n.use(initReactI18next).init({
           success: "Success",
           error: "Error",
 
-
           yes: "Yes",
           no: "No",
           save: "Save",
+          delete: "Delete",
           cancel: "Cancel",
           days: "Days",
           unlimited: "Unlimited",
@@ -58,10 +58,15 @@ i18n.use(initReactI18next).init({
           showing: "showing",
           of: "of",
 
-          prev:"prev",
-          next:"next"
-            
+          prev: "prev",
+          next: "next",
 
+          // Alerts / Validation
+          missingInfo: "Missing information",
+          invalidValue: "Invalid value",
+          saveFailed: "Save failed",
+          deleteFailed: "Delete failed",
+          systemError: "System error occurred",
         },
 
         /* -------- QuotaCard -------- */
@@ -74,6 +79,7 @@ i18n.use(initReactI18next).init({
           usedTotal: "Used {{used}} / Total {{total}}",
           carriedDetail: "({{base}} base + {{carry}} carried)",
         },
+
         /* -------- history -------- */
         history: {
           attendanceLog: "Attendance Log",
@@ -99,6 +105,7 @@ i18n.use(initReactI18next).init({
 
           usedDays: "{{days}} Days",
         },
+
         /* -------- leaveApproveal -------- */
         leaveApproval: {
           title: "Pending Approvals",
@@ -145,6 +152,7 @@ i18n.use(initReactI18next).init({
             note: "Note",
           },
         },
+
         /* -------- Special Holidays -------- */
         specialHoliday: {
           title: "Special Holidays",
@@ -186,6 +194,7 @@ i18n.use(initReactI18next).init({
             delete: "Delete",
           },
         },
+
         /* -------- Leave Type -------- */
         leaveType: {
           table: {
@@ -201,7 +210,6 @@ i18n.use(initReactI18next).init({
             add: "Add Leave Type",
             edit: "Edit",
             delete: "Delete",
-
           },
           form: {
             typeName: "Type Name",
@@ -216,10 +224,29 @@ i18n.use(initReactI18next).init({
             subtitle: "Add / Edit Leave Type and apply immediately",
             add: "Add",
             update: "update",
-            close: "close"
+            close: "close",
+
+            // validation text
+            requiredLabel: "Both Thai and English labels are required.",
+            invalidNumber: "Values must be zero or greater.",
           },
-    
-          
+
+          // confirm popups
+          confirm: {
+            addTitle: "Confirm Add Leave Type",
+            addMessage: "Are you sure you want to create this leave type?",
+            updateTitle: "Confirm Update Leave Type",
+            updateMessage: "Are you sure you want to update this leave type?",
+            deleteTitle: "Confirm Delete Leave Type",
+            deleteMessage: 'Are you sure you want to delete "{{name}}" ?',
+          },
+
+          // success messages
+          success: {
+            created: "Leave type has been created successfully.",
+            updated: "Leave type has been updated successfully.",
+            deleted: "Leave type has been deleted successfully.",
+          },
         },
       },
     },
@@ -263,18 +290,24 @@ i18n.use(initReactI18next).init({
           yes: "ใช่",
           no: "ไม่ใช่",
           save: "บันทึก",
+          delete: "ลบ",
           cancel: "ยกเลิก",
           days: "วัน",
           unlimited: "ไม่จำกัด",
-
 
           page: "หน้า",
           showing: "แสดง",
           of: "จาก",
 
-          prev:"ก่อนหน้า",
-          next:"ถัดไป"
+          prev: "ก่อนหน้า",
+          next: "ถัดไป",
 
+          // Alerts / Validation
+          missingInfo: "ข้อมูลไม่ครบ",
+          invalidValue: "ค่าที่กรอกไม่ถูกต้อง",
+          saveFailed: "บันทึกไม่สำเร็จ",
+          deleteFailed: "ลบไม่สำเร็จ",
+          systemError: "เกิดข้อผิดพลาดของระบบ",
         },
 
         /* -------- QuotaCard -------- */
@@ -313,6 +346,7 @@ i18n.use(initReactI18next).init({
 
           usedDays: "{{days}} วัน",
         },
+
         /* -------- leaveApproveal -------- */
         leaveApproval: {
           title: "รายการรออนุมัติ",
@@ -359,6 +393,7 @@ i18n.use(initReactI18next).init({
             note: "หมายเหตุ",
           },
         },
+
         /* -------- Special Holidays -------- */
         specialHoliday: {
           title: "วันหยุดพิเศษ",
@@ -400,6 +435,7 @@ i18n.use(initReactI18next).init({
             delete: "ลบ",
           },
         },
+
         /* -------- Leave Type -------- */
         leaveType: {
           table: {
@@ -415,7 +451,6 @@ i18n.use(initReactI18next).init({
             add: "เพิ่มประเภทการลา",
             edit: "แก้ไข",
             delete: "ลบ",
-            
           },
           form: {
             typeName: "ชื่อประเภทการลา",
@@ -430,7 +465,28 @@ i18n.use(initReactI18next).init({
             subtitle: "เพิ่ม / แก้ไข ประเภทการลา และมีผลทันทีy",
             add: "เพิ่ม",
             update: "อัปเดต",
-            close: "ปิด"
+            close: "ปิด",
+
+            // validation text
+            requiredLabel: "ต้องกรอกชื่อภาษาไทยและภาษาอังกฤษ",
+            invalidNumber: "ค่าตัวเลขต้องมากกว่าหรือเท่ากับ 0",
+          },
+
+          // confirm popups
+          confirm: {
+            addTitle: "ยืนยันการเพิ่มประเภทการลา",
+            addMessage: "คุณต้องการเพิ่มประเภทการลานี้ใช่หรือไม่",
+            updateTitle: "ยืนยันการแก้ไขประเภทการลา",
+            updateMessage: "คุณต้องการบันทึกการแก้ไขใช่หรือไม่",
+            deleteTitle: "ยืนยันการลบประเภทการลา",
+            deleteMessage: 'คุณต้องการลบ "{{name}}" ใช่หรือไม่',
+          },
+
+          // success messages
+          success: {
+            created: "เพิ่มประเภทการลาเรียบร้อยแล้ว",
+            updated: "อัปเดตประเภทการลาเรียบร้อยแล้ว",
+            deleted: "ลบประเภทการลาเรียบร้อยแล้ว",
           },
         },
       },
