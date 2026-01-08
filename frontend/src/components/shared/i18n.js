@@ -280,12 +280,12 @@ i18n.use(initReactI18next).init({
         /* -------- QuotaCard -------- */
         quota: {
           noData: "ไม่พบข้อมูลโควต้าการลาในช่วงเวลานี้",
-          carryOver: "ยกมา",
+          carryOver: "ทบมา",
           used: "ใช้ไป",
           specialUsage: "การใช้วันลาพิเศษ",
           days: "วัน",
           usedTotal: "ใช้ไป {{used}} / ทั้งหมด {{total}}",
-          carriedDetail: "({{base}} สิทธิพื้นฐาน + {{carry}} ยกมา)",
+          carriedDetail: "({{base}} สิทธิพื้นฐาน + {{carry}} ทบมา)",
         },
 
         /* -------- history -------- */
@@ -432,10 +432,6 @@ i18n.use(initReactI18next).init({
             update: "อัปเดต",
             close: "ปิด"
           },
-
-
-
-
         },
       },
     },

@@ -99,8 +99,8 @@ export default function YearEndCard() {
                   type="button"
                   onClick={() => setTargetYearOpen((v) => !v)}
                   className={`w-full bg-white border border-gray-300 rounded-3xl px-4 py-2 text-sm font-black text-slate-700
-      flex items-center justify-between transition-all hover:bg-gray-50
-      ${targetYearOpen ? "ring-2 ring-blue-100" : ""}`}
+        flex items-center justify-between transition-all hover:bg-gray-50
+        ${targetYearOpen ? "ring-2 ring-blue-100" : ""}`}
                 >
                   <span>Year {targetYear}</span>
                   <svg
