@@ -1,13 +1,16 @@
 import Swal from "sweetalert2";
+import i18n from "../components/shared/i18n";
 
-export const alertConfirm = async (title, html, confirmText = "Confirm") => {
+
+
+export const alertConfirm = async (title, html, confirmText) => {
   const res = await Swal.fire({
     icon: "question",
     title,
     html,
     showCancelButton: true,
-    confirmButtonText: confirmText,
-    cancelButtonText: "Cancel",
+    confirmButtonText: confirmText || i18n.t("common.confirm"),
+    cancelButtonText: i18n.t("common.cancel"),
     reverseButtons: true,
     focusCancel: true,
     buttonsStyling: false,
@@ -22,6 +25,7 @@ export const alertConfirm = async (title, html, confirmText = "Confirm") => {
 
   return res.isConfirmed;
 };
+
 
 export const alertSuccess = async (title, text = "") => {
   return Swal.fire({
@@ -54,17 +58,19 @@ export const alertError = async (title, text = "") => {
 // ===== Reject Reason Popup =====
 export const alertRejectReason = async () => {
   const { value, isConfirmed } = await Swal.fire({
-    title: "Reject Leave Request",
+    title: i18n.t("sweetAlert.reject.title"),
     html: `
       <div class="swal-reject-wrapper">
-        <label class="swal-reject-label">Reason for rejection</label>
+        <label class="swal-reject-label">
+          ${i18n.t("sweetAlert.reject.label")}
+        </label>
         <textarea id="swal-reject-textarea" class="swal-reject-textarea"
-          placeholder="Please enter rejection reason..."></textarea>
+          placeholder="${i18n.t("sweetAlert.reject.placeholder")}"></textarea>
       </div>
     `,
     showCancelButton: true,
-    confirmButtonText: "Reject",
-    cancelButtonText: "Cancel",
+    confirmButtonText: i18n.t("sweetAlert.reject.confirm"),
+    cancelButtonText: i18n.t("common.cancel"),
     reverseButtons: true,
     buttonsStyling: false,
     customClass: {
@@ -76,15 +82,16 @@ export const alertRejectReason = async () => {
     preConfirm: () => {
       const v = document.getElementById("swal-reject-textarea").value.trim();
       if (!v) {
-        Swal.showValidationMessage("Rejection reason is required");
+        Swal.showValidationMessage(
+          i18n.t("sweetAlert.reject.required")
+        );
         return false;
       }
       return v;
     },
   });
 
-  if (!isConfirmed) return null;
-  return value;
+  return isConfirmed ? value : null;
 };
 
 // ===== Request Cancel Reason Popup =====

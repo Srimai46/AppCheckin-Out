@@ -213,7 +213,7 @@ export default function LeaveApproval() {
           }`}
         >
           <FilePlus size={18} />
-          {t("New Requests")} ({newRequests.length})
+          {t("leaveApproval.newrequest")} ({newRequests.length})
         </button>
 
         <button
@@ -225,7 +225,7 @@ export default function LeaveApproval() {
           }`}
         >
           <FileX size={18} />
-          {t("Cancellation Requests")} ({cancelRequests.length})
+          {t("leaveApproval.cancellationRequests")} ({cancelRequests.length})
         </button>
       </div>
 

@@ -50,6 +50,7 @@ i18n.use(initReactI18next).init({
           no: "No",
           save: "Save",
           delete: "Delete",
+          confirm: "Confirm",
           cancel: "Cancel",
           days: "Days",
           unlimited: "Unlimited",
@@ -151,6 +152,30 @@ i18n.use(initReactI18next).init({
             cancelReason: "Cancel Reason",
             note: "Note",
           },
+
+          cancellationRequests: "Cancellation Requests",
+          newrequest: "New Request",
+
+          selectionEmptyTitle: "No Selection",
+          selectionEmptyText: "Please select at least one request.",
+
+          confirmTitle: "Confirm {{action}}",
+          confirmText:
+            "Are you sure you want to {{action}} {{count}} request(s)?",
+
+          processed: "{{count}} request(s) processed successfully.",
+          actionFailed: "Action failed",
+
+          actionText: {
+            approve: "approve",
+            special: "special approve",
+            reject: "reject",
+          },
+
+          tabs: {
+            new: "New Requests",
+            cancel: "Cancellation Requests",
+          },
         },
 
         /* -------- Special Holidays -------- */
@@ -248,6 +273,15 @@ i18n.use(initReactI18next).init({
             deleted: "Leave type has been deleted successfully.",
           },
         },
+        sweetAlert: {
+  reject: {
+    title: "Reject Leave Request",
+    label: "Reason for rejection",
+    placeholder: "Please enter rejection reason...",
+    confirm: "Reject",
+    required: "Rejection reason is required",
+  },
+},
       },
     },
 
@@ -392,6 +426,29 @@ i18n.use(initReactI18next).init({
             cancelReason: "เหตุผลการยกเลิก",
             note: "หมายเหตุ",
           },
+
+          cancellationRequests: "คำขอยกเลิก",
+          newrequest: "คำขอใหม่",
+
+          selectionEmptyTitle: "ยังไม่ได้เลือกรายการ",
+          selectionEmptyText: "กรุณาเลือกรายการอย่างน้อย 1 รายการ",
+
+          confirmTitle: "ยืนยันการ{{action}}",
+          confirmText: "คุณต้องการ{{action}} {{count}} รายการ ใช่หรือไม่",
+
+          processed: "ดำเนินการเรียบร้อย {{count}} รายการ",
+          actionFailed: "ดำเนินการไม่สำเร็จ",
+
+          actionText: {
+            approve: "อนุมัติ",
+            special: "อนุมัติพิเศษ",
+            reject: "ปฏิเสธ",
+          },
+
+          tabs: {
+            new: "คำขอใหม่",
+            cancel: "คำขอยกเลิก",
+          },
         },
 
         /* -------- Special Holidays -------- */
@@ -487,6 +544,15 @@ i18n.use(initReactI18next).init({
             created: "เพิ่มประเภทการลาเรียบร้อยแล้ว",
             updated: "อัปเดตประเภทการลาเรียบร้อยแล้ว",
             deleted: "ลบประเภทการลาเรียบร้อยแล้ว",
+          },
+        },
+        sweetAlert: {
+          reject: {
+            title: "ปฏิเสธคำขอลา",
+            label: "เหตุผลในการปฏิเสธ",
+            placeholder: "กรุณาระบุเหตุผลในการปฏิเสธ...",
+            confirm: "ปฏิเสธ",
+            required: "กรุณาระบุเหตุผล",
           },
         },
       },
