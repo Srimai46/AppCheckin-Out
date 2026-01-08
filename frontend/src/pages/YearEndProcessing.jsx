@@ -9,7 +9,7 @@ import WorkTimeByRoleCard from "./yearEnd/components/WorkTimeByRoleCard";
 import MaxConsecutiveCard from "./yearEnd/components/MaxConsecutiveCard";
 import SpecialHolidaysCard from "./yearEnd/components/SpecialHolidaysCard";
 import CarryOverCard from "./yearEnd/components/CarryOverCard";
-import YearEndCard from "./yearEnd/components/YearEndCard";
+
 import LeaveTypeCard from "./yearEnd/components/LeaveTypeCard";
 
 export default function YearEndProcessing() {

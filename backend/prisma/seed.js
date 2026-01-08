@@ -29,7 +29,7 @@ async function main() {
   // 2. Work Configurations
   // ==========================================
   const configs = [
-    { role: 'Worker', startHour: 8, startMin: 0, endHour: 17, endMin: 0 },
+    { role: 'WORKER', startHour: 8, startMin: 0, endHour: 17, endMin: 0 },
     { role: 'HR', startHour: 9, startMin: 0, endHour: 18, endMin: 0 }
   ];
   for (const conf of configs) {
@@ -109,10 +109,10 @@ async function main() {
   const passwordHash = await bcrypt.hash('123456', 10);
   const employeeData = [
     { firstName: 'Somsri', lastName: 'HR Manager', email: 'hr@company.com', role: 'HR', joiningDate: new Date('2020-01-01') },
-    { firstName: 'Somchai', lastName: 'Senior Worker', email: 'Somchai@company.com', role: 'Worker', joiningDate: new Date('2023-01-15') },
-    { firstName: 'Suda', lastName: 'Junior Worker', email: 'worker2@company.com', role: 'Worker', joiningDate: new Date('2025-05-20') },
-    { firstName: 'Vichai', lastName: 'Technician', email: 'worker3@company.com', role: 'Worker', joiningDate: new Date('2026-01-10') },
-    { firstName: 'Mana', lastName: 'Security', email: 'worker4@company.com', role: 'Worker', joiningDate: new Date('2026-02-01') },
+    { firstName: 'Somchai', lastName: 'Senior Worker', email: 'Somchai@company.com', role: 'WORKER', joiningDate: new Date('2023-01-15') },
+    { firstName: 'Suda', lastName: 'Junior Worker', email: 'worker2@company.com', role: 'WORKER', joiningDate: new Date('2025-05-20') },
+    { firstName: 'Vichai', lastName: 'Technician', email: 'worker3@company.com', role: 'WORKER', joiningDate: new Date('2026-01-10') },
+    { firstName: 'Mana', lastName: 'Security', email: 'worker4@company.com', role: 'WORKER', joiningDate: new Date('2026-02-01') },
   ];
 
   const createdEmployees = [];

@@ -10,7 +10,7 @@ datasource db {
 }
 
 enum Role {
-  Worker
+  WORKER
   HR
 }
 
