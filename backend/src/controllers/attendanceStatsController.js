@@ -1,6 +1,6 @@
-const prisma = require("../config/prisma");
+// backend/src/controllers/timeRecordController.js
 
-// Helper Functions
+// Helper Functions (คงเดิม)
 const formatDateStr = (date) => date.toISOString().split('T')[0];
 const isWeekend = (date) => {
   const day = date.getDay();
@@ -8,7 +8,6 @@ const isWeekend = (date) => {
 };
 const isSameDay = (d1, d2) => formatDateStr(d1) === formatDateStr(d2);
 
-// ✅ จุดสำคัญ: ใช้ exports.getStats = ... (ห้ามใช้ const getStats = ...)
 exports.getStats = async (req, res) => {
   try {
     const { year, month, employeeId } = req.query;
@@ -37,7 +36,10 @@ exports.getStats = async (req, res) => {
     }
 
     const today = new Date();
-    const calculationEndDate = endDate > today ? today : endDate;
+    
+    // ✅ แก้จุดที่ 1: ให้ loop ถึงสิ้นเดือนเสมอ (เพื่อให้แสดงวันลาล่วงหน้าได้)
+    // ไม่ตัดจบแค่ today แล้ว
+    const loopEndDate = endDate; 
 
     // --- 3. Fetch Data ---
     const targetEmployee = await prisma.employee.findUnique({ 
@@ -50,20 +52,23 @@ exports.getStats = async (req, res) => {
     }
 
     const [timeRecords, leaves, holidays, realWorkConfig] = await Promise.all([
+      // ดึง Record ทั้งเดือน (อนาคตไม่มีอยู่แล้ว ไม่เป็นไร)
       prisma.timeRecord.findMany({
-        where: { employeeId: targetId, workDate: { gte: startDate, lte: calculationEndDate } }
+        where: { employeeId: targetId, workDate: { gte: startDate, lte: loopEndDate } }
       }),
+      // ดึงวันลาทั้งเดือน (รวมอนาคต)
       prisma.leaveRequest.findMany({
         where: { 
             employeeId: targetId, 
             status: 'Approved', 
-            startDate: { gte: startDate }, 
-            endDate: { lte: calculationEndDate } 
+            startDate: { lte: loopEndDate }, 
+            endDate: { gte: startDate }
         },
         include: { leaveType: true }
       }),
+      // ดึงวันหยุดทั้งเดือน (รวมอนาคต)
       prisma.holiday.findMany({
-        where: { date: { gte: startDate, lte: calculationEndDate } }
+        where: { date: { gte: startDate, lte: loopEndDate } }
       }),
       prisma.workConfiguration.findUnique({
         where: { role: targetEmployee.role }
@@ -97,17 +102,21 @@ exports.getStats = async (req, res) => {
     };
 
     // --- 5. Main Loop ---
-    for (let d = new Date(startDate); d <= calculationEndDate; d.setDate(d.getDate() + 1)) {
+    // วนลูปตั้งแต่วันแรก ถึง "สิ้นเดือน" (ไม่ใช่แค่วันนี้)
+    for (let d = new Date(startDate); d <= loopEndDate; d.setDate(d.getDate() + 1)) {
         const currentDateStr = formatDateStr(d);
         const isCurrentWeekend = isWeekend(d);
         const isCurrentHoliday = holidays.some(h => formatDateStr(h.date) === currentDateStr);
+        
+        // เช็คว่าเป็นวันในอนาคตหรือไม่?
+        // (d คือ 00:00 UTC, today คือเวลาปัจจุบัน)
+        // ถ้า d > today แปลว่าเป็นวันพรุ่งนี้เป็นต้นไป
+        const isFuture = d > today; 
 
-        if (isCurrentWeekend || isCurrentHoliday) continue;
-
-        stats.totalDaysExpected++; 
-
+        // ดึง Record เวลาทำงาน
         const record = timeRecords.find(r => formatDateStr(r.workDate) === currentDateStr);
         
+        // หาข้อมูลการลาในวันนั้น
         const leave = leaves.find(l => {
             const start = new Date(l.startDate);
             const end = new Date(l.endDate);
@@ -116,6 +125,33 @@ exports.getStats = async (req, res) => {
             const eTime = new Date(formatDateStr(end)).getTime();
             return dTime >= sTime && dTime <= eTime;
         });
+
+        // 1. เช็ควันลาก่อน (แสดงได้ทั้งอดีตและอนาคต)
+        if (leave) {
+            // นับสถิติวันลา (ไม่ว่าจะอดีตหรืออนาคต ก็นับว่าใช้โควตาแล้ว)
+            if (!isCurrentWeekend && !isCurrentHoliday) {
+                stats.leave++;
+                const typeName = leave.leaveType.typeName;
+                stats.leaveBreakdown[typeName] = (stats.leaveBreakdown[typeName] || 0) + 1;
+            }
+            // ใส่ลง Array เพื่อโชว์ในปฏิทิน
+            stats.leaveDates.push({
+                date: currentDateStr,
+                type: leave.leaveType.typeName
+            });
+            continue; // จบวัน
+        }
+
+        // 2. เช็ควันหยุด (แสดงได้ทั้งอดีตและอนาคต)
+        if (isCurrentWeekend || isCurrentHoliday) continue;
+
+        // ✅ แก้จุดที่ 2: ถ้าเป็น "วันในอนาคต" ให้หยุดแค่นี้ (ไม่เช็ค ขาด/ลา/มาสาย)
+        // เพราะเรายังไม่รู้อนาคตว่าจะมาทำงานไหม
+        if (isFuture) continue;
+
+        // --- ด้านล่างนี้คือ Logic สำหรับ "อดีตและปัจจุบัน" เท่านั้น ---
+        
+        stats.totalDaysExpected++; 
 
         if (record) {
             stats.present++;
@@ -139,15 +175,8 @@ exports.getStats = async (req, res) => {
                     stats.earlyLeaveMinutes += (endWorkMinutes - outMinutes);
                 }
             }
-        } else if (leave) {
-            stats.leave++;
-            const typeName = leave.leaveType.typeName;
-            stats.leaveBreakdown[typeName] = (stats.leaveBreakdown[typeName] || 0) + 1;
-            stats.leaveDates.push({
-                date: currentDateStr,
-                type: typeName
-            });
         } else {
+            // Logic เช็คขาดงาน (Absent)
             const isToday = isSameDay(d, today);
             let isPending = false;
             

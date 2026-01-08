@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getAttendanceStats } from "../api/attendanceService";
 import api from "../api/axios";
-import DateGridPicker from "../components/shared/DateGridPicker"; // ✅ ปรับ path ให้ตรงโปรเจกต์คุณ
+import DateGridPicker from "../components/shared/DateGridPicker";
 import {
   Calendar,
   Clock,
@@ -59,11 +59,15 @@ const AttendanceCalendar = ({ year, month, stats }) => {
     let statusLabel = null;
     let badgeClass = "bg-slate-100 text-slate-400";
 
+    // ✅ แก้ไข: ดึง Object วันลาออกมาเพื่อเอา Type มาโชว์
+    const leaveObj = stats.leaveDates?.find((l) => l.date === dateStr);
+
     if (stats.absentDates?.includes(dateStr)) {
       statusLabel = "Absent";
       badgeClass = "bg-rose-500 text-white shadow-rose-200 shadow-md";
-    } else if (stats.leaveDates?.some((l) => l.date === dateStr)) {
-      statusLabel = "Leave";
+    } else if (leaveObj) {
+      // ✅ แก้ไข: ใช้ชื่อประเภทการลา เช่น "Sick Leave" แทนคำว่า "Leave"
+      statusLabel = leaveObj.type || "Leave"; 
       badgeClass = "bg-blue-500 text-white shadow-blue-200 shadow-md";
     } else if (stats.lateDates?.includes(dateStr)) {
       statusLabel = "Late";
@@ -80,7 +84,7 @@ const AttendanceCalendar = ({ year, month, stats }) => {
       >
         <span className="text-sm font-bold text-slate-700">{d}</span>
         {statusLabel && (
-          <div className={`absolute bottom-2 right-2 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${badgeClass}`}>
+          <div className={`absolute bottom-2 right-2 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider truncate max-w-[90%] ${badgeClass}`}>
             {statusLabel}
           </div>
         )}
@@ -105,14 +109,13 @@ export default function AttendanceDashboard() {
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1); // number หรือ "All"
+  const [month, setMonth] = useState(now.getMonth() + 1);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
 
   const [stats, setStats] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ DateGridPicker modal
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const pad2 = (n) => String(n).padStart(2, "0");
@@ -147,7 +150,13 @@ export default function AttendanceDashboard() {
           employeeId: user.role === "HR" && selectedEmployeeId ? selectedEmployeeId : undefined,
         });
 
-        setStats(data.stats);
+        // ✅ แก้ไข: รวม employee info เข้าไปใน stats state
+        // เพราะ backend ส่งมาแยกกัน: { employee: {...}, stats: {...} }
+        setStats({
+            ...data.stats,
+            employeeName: data.employee?.name // เพิ่มชื่อพนักงานเข้าไป
+        });
+
       } catch (err) {
         console.error("Fetch Stats Error:", err);
       } finally {
@@ -197,6 +206,7 @@ export default function AttendanceDashboard() {
             <User size={16} />
             Viewing:{" "}
             <span className="text-slate-600">
+              {/* ✅ ตอนนี้ stats.employeeName จะมีค่าแล้ว */}
               {stats ? stats.employeeName || "My Dashboard" : "Loading..."}
             </span>
             <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -205,9 +215,8 @@ export default function AttendanceDashboard() {
           </p>
         </div>
 
-        {/* ✅ Filter Bar (ปี+เดือน ด้วย DateGridPicker) */}
+        {/* Filter Bar */}
         <div className="flex flex-wrap gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-          {/* Button เปิด Picker */}
           <button
             type="button"
             onClick={() => setDatePickerOpen(true)}
@@ -218,7 +227,6 @@ export default function AttendanceDashboard() {
             {filterLabel}
           </button>
 
-          {/* Clear */}
           <button
             type="button"
             onClick={() => {
@@ -231,37 +239,29 @@ export default function AttendanceDashboard() {
             CLEAR
           </button>
 
-          {/* Picker Modal (เลือกปี+เดือน) */}
           <DateGridPicker
             open={datePickerOpen}
             value={
               month === "All"
-                ? `${year}` // ให้ picker จำปีได้เวลาเป็น All
+                ? `${year}`
                 : `${year}-${pad2(month)}`
             }
-            granularity="month"     // ✅ ใช้แค่ปี+เดือน
+            granularity="month"
             allowAll={true}
             title="Select Year / Month"
             onClose={() => setDatePickerOpen(false)}
             onChange={(val) => {
-              // val: null | "YYYY-MM" | "YYYY"
               if (!val) {
-                // ALL
                 setMonth("All");
                 setYear(new Date().getFullYear());
                 return;
               }
-
               const s = String(val);
-
-              // ถ้าได้ "YYYY"
               if (/^\d{4}$/.test(s)) {
                 setYear(Number(s));
                 setMonth("All");
                 return;
               }
-
-              // ถ้าได้ "YYYY-MM"
               const m = s.match(/^(\d{4})-(\d{2})$/);
               if (m) {
                 setYear(Number(m[1]));
@@ -270,7 +270,6 @@ export default function AttendanceDashboard() {
             }}
           />
 
-          {/* HR employee filter เดิม */}
           {user.role === "HR" && (
             <div className="relative">
               <select
@@ -302,7 +301,6 @@ export default function AttendanceDashboard() {
             bgClass="bg-blue-50/50 hover:bg-blue-50"
             colorClass="bg-blue-500"
           />
-
           <StatCard
             title="Late Arrivals"
             value={stats.late}
@@ -311,7 +309,6 @@ export default function AttendanceDashboard() {
             bgClass="bg-amber-50/50 hover:bg-amber-50"
             colorClass="bg-amber-500"
           />
-
           <StatCard
             title="Early Leaves"
             value={stats.earlyLeave}
@@ -320,7 +317,6 @@ export default function AttendanceDashboard() {
             bgClass="bg-orange-50/50 hover:bg-orange-50"
             colorClass="bg-orange-500"
           />
-
           <StatCard
             title="Approved Leaves"
             value={stats.leave}
@@ -329,7 +325,6 @@ export default function AttendanceDashboard() {
             bgClass="bg-emerald-50/50 hover:bg-emerald-50"
             colorClass="bg-emerald-500"
           />
-
           <StatCard
             title="Absences"
             value={stats.absent}
@@ -344,7 +339,6 @@ export default function AttendanceDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* 3. Charts Section */}
         <div className="lg:col-span-1 space-y-6">
-          {/* Ratio Chart */}
           <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 h-80">
             <h3 className="font-black text-slate-800 mb-4 flex items-center gap-2">
               <PieChartIcon size={20} className="text-slate-400" /> Attendance Ratio
@@ -364,7 +358,6 @@ export default function AttendanceDashboard() {
             </div>
           </div>
 
-          {/* Leave Breakdown Chart */}
           {leaveBreakdownData.length > 0 && (
             <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 h-80">
               <h3 className="font-black text-slate-800 mb-4 flex items-center gap-2">
