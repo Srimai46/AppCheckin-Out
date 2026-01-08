@@ -2,7 +2,7 @@
 
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import Layout from "../components/Layout";
+import Layout from "../components/shared/Layout";
 import Login from "../pages/Login";
 import Dashboard from "../pages/Dashboard";
 import TeamCalendar from "../pages/TeamCalendar";

@@ -1,6 +1,7 @@
-// src/components/Layout.jsx
+// frontend/src/components/shared/Layout.jsx
+import { useEffect, useMemo } from "react";
 import { Outlet, NavLink } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 import {
   LayoutDashboard,
   LogOut,
@@ -9,17 +10,76 @@ import {
   CalendarDays,
   Menu,
   Settings2,
-  NotebookText
+  NotebookText,
 } from "lucide-react";
-import NotificationBell from "./NotificationBell";
+import NotificationBell from "../NotificationBell";
 import { useTranslation } from "react-i18next";
 
-
 export default function Layout() {
-  
   const { user, logout } = useAuth();
-  
+  const { t, i18n } = useTranslation();
 
+  // =========================
+  // ✅ Language Tabs (TH/EN) in Layout
+  // =========================
+  const languages = useMemo(
+    () => [
+      { key: "th", label: "TH" },
+      { key: "en", label: "EN" },
+      // ถ้าจะเพิ่มภาษาอื่นในอนาคต แค่เติมตรงนี้
+      // { key: "ja", label: "日本語" },
+    ],
+    []
+  );
+
+  const safeGetSavedLang = () => {
+    try {
+      if (typeof window === "undefined") return null;
+      return window.localStorage.getItem("app_lang");
+    } catch {
+      return null;
+    }
+  };
+
+  const safeSetSavedLang = (lang) => {
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem("app_lang", lang);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const saved = safeGetSavedLang();
+      const initial = saved || "th"; // ✅ เข้าหน้ามา default เป็นไทย
+      if (i18n?.changeLanguage && i18n.language !== initial) {
+        i18n.changeLanguage(initial);
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const currentLang = useMemo(() => {
+    const lang = i18n?.language || "th";
+    return String(lang).startsWith("en") ? "en" : "th";
+  }, [i18n?.language]);
+
+  const setLang = (lang) => {
+    safeSetSavedLang(lang);
+    try {
+      if (i18n?.changeLanguage) i18n.changeLanguage(lang);
+    } catch {
+      // ignore
+    }
+  };
+
+  // =========================
+  // Sidebar nav style
+  // =========================
   const navStyle = ({ isActive }) =>
     `flex items-center justify-center group-hover:justify-start gap-3
      px-3 group-hover:px-4 py-3 rounded-xl transition-all duration-200
@@ -28,8 +88,6 @@ export default function Layout() {
          ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
          : "text-blue-100 hover:bg-white/10 hover:text-white"
      }`;
-
-     const { t } = useTranslation();
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
@@ -115,18 +173,17 @@ export default function Layout() {
                 </span>
               </NavLink>
 
-              {/* เพิ่มเมนู Year-End Processing ตรงนี้ */}
               <NavLink to="/year-end-processing" className={navStyle}>
                 <Settings2 size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  {t("layout.yearEnd")} 
+                  {t("layout.yearEnd")}
                 </span>
               </NavLink>
 
               <NavLink to="/audit-log" className={navStyle}>
                 <NotebookText size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  {t("AuditLog")} 
+                  {t("AuditLog")}
                 </span>
               </NavLink>
             </>
@@ -144,7 +201,6 @@ export default function Layout() {
               rounded-xl
               font-black text-sm
               transition-all duration-200
-
               text-red-500
               hover:text-white
               hover:bg-red-600
@@ -166,7 +222,23 @@ export default function Layout() {
             <Menu size={20} className="md:hidden" />
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6">
+            <button
+              type="button"
+              onClick={() => setLang(currentLang === "th" ? "en" : "th")}
+              className="
+                text-[16px] font-extrabold tracking-wide
+                text-blue-600
+                transition-colors duration-200
+                hover:text-blue-800
+                active:scale-95
+              "
+              aria-label="Toggle language"
+              title="Toggle language"
+            >
+              {currentLang === "th" ? "TH" : "EN"}
+            </button>
+
             <NotificationBell />
           </div>
         </header>

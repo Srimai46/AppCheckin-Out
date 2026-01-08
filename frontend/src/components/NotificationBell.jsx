@@ -117,12 +117,7 @@ export default function NotificationBell() {
 
   return (
     <div className="flex items-center gap-3">
-      {/* Language Switch */}
-      <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl border border-gray-200">
-        <button onClick={() => i18n.changeLanguage("th")}>🇹🇭</button>
-        <button onClick={() => i18n.changeLanguage("en")}>🇬🇧</button>
-      </div>
-
+      
       {/* Bell + Dropdown */}
       <div className="relative">
         <button
