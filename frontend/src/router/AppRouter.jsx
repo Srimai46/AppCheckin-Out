@@ -1,3 +1,5 @@
+// frontend/src/router/AppRouter.jsx
+
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Layout from "../components/Layout";
@@ -9,7 +11,8 @@ import EmployeeList from "../pages/EmployeeList";
 import EmployeeDetail from "../pages/EmployeeDetail";
 import LeaveApproval from "../pages/LeaveApproval";
 import YearEndProcessing from "../pages/YearEndProcessing";
-import AuditLog from "../pages/AuditLog"
+import AuditLog from "../pages/AuditLog";
+import AttendanceDashboard from "../pages/AttendanceDashboard";
 
 // 🔒 ตัวป้องกัน Route (ProtectedRoute)
 const ProtectedRoute = ({ children }) => {
@@ -52,9 +55,9 @@ export default function AppRouter() {
         {/* จัดกลุ่มเมนู Admin */}
         <Route path="admin/leaves" element={<LeaveApproval />} />
         <Route path="year-end-processing" element={<YearEndProcessing />} />
-        <Route path="audit-log" element={<AuditLog />}
-        />{" "}
+        <Route path="audit-log" element={<AuditLog />} />{" "}
         {/* ปรับให้ตรงกับ Layout */}
+        <Route path="attendance-dashboard" element={<AttendanceDashboard />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

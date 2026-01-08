@@ -1,23 +1,21 @@
-// src/controllers/attendanceStatsController.js
 const prisma = require("../config/prisma");
 
-// Helper: Format วันที่ให้เป็น string (YYYY-MM-DD) เพื่อส่งให้ FE ใช้ง่ายๆ
+// Helper Functions
 const formatDateStr = (date) => date.toISOString().split('T')[0];
-
 const isWeekend = (date) => {
   const day = date.getDay();
   return day === 0 || day === 6;
 };
-
 const isSameDay = (d1, d2) => formatDateStr(d1) === formatDateStr(d2);
 
+// ✅ จุดสำคัญ: ใช้ exports.getStats = ... (ห้ามใช้ const getStats = ...)
 exports.getStats = async (req, res) => {
   try {
     const { year, month, employeeId } = req.query;
     const requesterId = req.user.id;
     const requesterRole = req.user.role;
 
-    // 1. Security Check
+    // --- 1. Security Check ---
     let targetId = requesterId;
     if (employeeId && requesterRole === 'HR') {
       targetId = parseInt(employeeId, 10);
@@ -25,7 +23,7 @@ exports.getStats = async (req, res) => {
       return res.status(403).json({ error: "Access denied." });
     }
 
-    // 2. Prepare Date Range
+    // --- 2. Prepare Date Range ---
     const targetYear = parseInt(year);
     let startDate, endDate;
     
@@ -39,14 +37,17 @@ exports.getStats = async (req, res) => {
     }
 
     const today = new Date();
-    // Loop ถึงแค่วันปัจจุบัน (ถ้าดูเดือนปัจจุบัน) หรือวันสุดท้ายของเดือน (ถ้าดูย้อนหลัง)
     const calculationEndDate = endDate > today ? today : endDate;
 
-    // 3. Fetch Data
+    // --- 3. Fetch Data ---
     const targetEmployee = await prisma.employee.findUnique({ 
         where: { id: targetId },
         select: { role: true, firstName: true, lastName: true } 
     });
+
+    if (!targetEmployee) {
+        return res.status(404).json({ error: "Employee not found" });
+    }
 
     const [timeRecords, leaves, holidays, realWorkConfig] = await Promise.all([
       prisma.timeRecord.findMany({
@@ -59,7 +60,7 @@ exports.getStats = async (req, res) => {
             startDate: { gte: startDate }, 
             endDate: { lte: calculationEndDate } 
         },
-        include: { leaveType: true } // ✅ ดึงประเภทวันลามาด้วย
+        include: { leaveType: true }
       }),
       prisma.holiday.findMany({
         where: { date: { gte: startDate, lte: calculationEndDate } }
@@ -69,63 +70,66 @@ exports.getStats = async (req, res) => {
       })
     ]);
 
+    // --- Config เวลาเข้า-ออกงาน ---
+    const startHour = realWorkConfig?.startHour || 9;
+    const startMin = realWorkConfig?.startMin || 0;
+    const startWorkMinutes = (startHour * 60) + startMin;
+
     const endHour = realWorkConfig?.endHour || 17;
     const endMin = realWorkConfig?.endMin || 0;
     const endWorkMinutes = (endHour * 60) + endMin;
 
-    // 4. Initialization (เตรียมตัวแปรเก็บผลลัพธ์)
+    // --- 4. Initialization ---
     const stats = {
       totalDaysExpected: 0,
       present: 0,
       late: 0,
-      lateMinutes: 0,       // ✅ เพิ่ม: นาทีสายรวม
-      lateDates: [],        // ✅ เพิ่ม: วันที่สาย
+      lateMinutes: 0,      
+      lateDates: [],       
       earlyLeave: 0,
-      earlyLeaveMinutes: 0, // ✅ เพิ่ม: นาทีออกก่อนรวม
-      earlyLeaveDates: [],  // ✅ เพิ่ม: วันที่ออกก่อน
+      earlyLeaveMinutes: 0, 
+      earlyLeaveDates: [],  
       leave: 0,
-      leaveBreakdown: {},   // ✅ เพิ่ม: แยกประเภทลา { "Sick": 1, "Business": 2 }
+      leaveBreakdown: {}, 
+      leaveDates: [],
       absent: 0,
-      absentDates: []       // ✅ เพิ่ม: วันที่ขาดงาน (สำคัญมากสำหรับ FE)
+      absentDates: []      
     };
 
-    // 5. Main Loop (วนลูปทีละวันเพื่อความแม่นยำสูงสุดในการระบุวันที่)
-    // การวนลูป 30-365 รอบใน Node.js ใช้เวลาไม่ถึง 1ms หายห่วงเรื่อง Performance
+    // --- 5. Main Loop ---
     for (let d = new Date(startDate); d <= calculationEndDate; d.setDate(d.getDate() + 1)) {
         const currentDateStr = formatDateStr(d);
         const isCurrentWeekend = isWeekend(d);
         const isCurrentHoliday = holidays.some(h => formatDateStr(h.date) === currentDateStr);
 
-        // ถ้าเป็นวันหยุด -> ข้าม (ไม่นับเป็นวันทำการ)
         if (isCurrentWeekend || isCurrentHoliday) continue;
 
-        stats.totalDaysExpected++; // นับเป็นวันทำการ
+        stats.totalDaysExpected++; 
 
-        // หา Record ของวันนี้
         const record = timeRecords.find(r => formatDateStr(r.workDate) === currentDateStr);
-        // หา Leave ของวันนี้
+        
         const leave = leaves.find(l => {
             const start = new Date(l.startDate);
             const end = new Date(l.endDate);
-            return d >= start && d <= end;
+            const dTime = d.getTime();
+            const sTime = new Date(formatDateStr(start)).getTime();
+            const eTime = new Date(formatDateStr(end)).getTime();
+            return dTime >= sTime && dTime <= eTime;
         });
 
         if (record) {
-            // --- กรณีมาทำงาน ---
             stats.present++;
-            
-            // เช็คสาย
             if (record.isLate) {
                 stats.late++;
                 stats.lateDates.push(currentDateStr);
-                // คำนวณนาทีที่สาย (ถ้าอยากละเอียด) - สมมติ Config เริ่ม 08:00
-                // const startWorkMinutes = (realWorkConfig.startHour * 60) + realWorkConfig.startMin;
-                // const checkInTime = new Date(record.checkInTime);
-                // const checkInMinutes = (checkInTime.getHours() * 60) + checkInTime.getMinutes();
-                // stats.lateMinutes += Math.max(0, checkInMinutes - startWorkMinutes);
+                if (record.checkInTime) {
+                    const inTime = new Date(record.checkInTime);
+                    const inMinutes = (inTime.getHours() * 60) + inTime.getMinutes();
+                    if (inMinutes > startWorkMinutes) {
+                         stats.lateMinutes += (inMinutes - startWorkMinutes);
+                    }
+                }
             }
-
-            // เช็คออกก่อน
             if (record.checkOutTime) {
                 const out = new Date(record.checkOutTime);
                 const outMinutes = (out.getHours() * 60) + out.getMinutes();
@@ -135,33 +139,29 @@ exports.getStats = async (req, res) => {
                     stats.earlyLeaveMinutes += (endWorkMinutes - outMinutes);
                 }
             }
-
         } else if (leave) {
-            // --- กรณีลา ---
-            // (นับเฉพาะวันลาที่ไม่ตรงกับวันหยุด - ซึ่งเรา filter weekend/holiday ด้านบนแล้ว)
             stats.leave++;
             const typeName = leave.leaveType.typeName;
             stats.leaveBreakdown[typeName] = (stats.leaveBreakdown[typeName] || 0) + 1;
-            
+            stats.leaveDates.push({
+                date: currentDateStr,
+                type: typeName
+            });
         } else {
-            // --- กรณีขาดงาน (Absent) ---
-            
-            // เช็คว่าเป็น "วันนี้" ที่ยังไม่จบวันหรือไม่?
             const isToday = isSameDay(d, today);
             let isPending = false;
             
             if (isToday) {
                 const nowMinutes = (today.getHours() * 60) + today.getMinutes();
                 if (nowMinutes < endWorkMinutes) {
-                    isPending = true; // ยังไม่จบวัน ยังไม่นับขาด
+                    isPending = true;
                 }
             }
 
             if (!isPending) {
                 stats.absent++;
-                stats.absentDates.push(currentDateStr); // ✅ ส่งวันที่ขาดกลับไป
+                stats.absentDates.push(currentDateStr);
             } else {
-                // ถ้าเป็น Pending ให้ลบออกจาก Total Expected ด้วย เพราะยังสรุปไม่ได้
                 stats.totalDaysExpected--;
             }
         }
@@ -174,7 +174,7 @@ exports.getStats = async (req, res) => {
         role: targetEmployee.role
       },
       period: { year: targetYear, month: month || 'All' },
-      stats: stats // ส่ง Object ที่มี Breakdown ครบๆ กลับไป
+      stats: stats
     });
 
   } catch (error) {

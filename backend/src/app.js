@@ -44,6 +44,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const employeeRoutes = require("./routes/employeeRoute");
 const auditRoutes = require("./routes/auditRoutes");
 const holidayRoutes = require("./routes/holidayRoutes");
+const attendanceStatsRoutes = require("./routes/attendanceRoutes"); 
 
 app.use("/api/auth", authRoutes);
 app.use("/api/attendance", timeRecordRoutes);
@@ -52,6 +53,9 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/activity-view", auditRoutes); // Cron Jobs
 app.use("/api/holidays", holidayRoutes);
+app.use("/api/dashboard", attendanceStatsRoutes);
+
+
 const { startCarryOverJob } = require("./jobs/carryOverJob");
 startCarryOverJob();
 

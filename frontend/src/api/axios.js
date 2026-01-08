@@ -1,10 +1,15 @@
-//frontend/src/api/axios.js
+// frontend/src/api/axios.js
 import axios from 'axios';
 
 const api = axios.create({
-
-  baseURL: '/api', 
+  // ✅ แก้ตรงนี้: ให้ดึงค่าจาก .env มาใช้
+  // ถ้า .env คือ http://192.168.1.36:8080 เราต้องต่อ /api เข้าไปให้ด้วย
+  baseURL: `${import.meta.env.VITE_API_URL}/api`, 
+  
   timeout: 10000,
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
 // Request Interceptor: แนบ Token อัตโนมัติ
