@@ -83,6 +83,8 @@ export default function LeaveTypeCard() {
       setFormOpen(false);
       resetForm();
       await fetchLeaveTypes();
+      window.dispatchEvent(new Event("leave-type-refresh"));
+
     } catch (err) {
       console.error(err);
       alert("Save failed");
@@ -93,6 +95,8 @@ export default function LeaveTypeCard() {
     if (!window.confirm(`Delete "${row.typeName}" ?`)) return;
     await deleteLeaveType(row.id);
     await fetchLeaveTypes();
+    window.dispatchEvent(new Event("leave-type-refresh"));
+
   };
 
   /* ========================= Pagination ========================= */

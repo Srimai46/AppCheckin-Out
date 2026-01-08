@@ -13,6 +13,8 @@ import {
   getLeaveTypes,
 } from "../../../api/leaveService";
 
+const LEAVE_TYPE_REFRESH_EVENT = "leave-type-refresh";
+
 export function useYearEndProcessing() {
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -39,17 +41,24 @@ export function useYearEndProcessing() {
       const list = Array.isArray(data) ? data : [];
       setLeaveTypes(list);
 
-      // init quotas + carryOvers จาก leaveTypes
-      const q = {};
-      const c = {};
-      list.forEach((lt) => {
-        const key = lt.typeName.toUpperCase();
-        q[key] = 0;
-        c[key] = 0;
+      // sync quotas + carryOvers ตาม leaveTypes ล่าสุด
+      setQuotas((prev) => {
+        const next = { ...prev };
+        list.forEach((lt) => {
+          const key = lt.typeName.toUpperCase();
+          if (next[key] === undefined) next[key] = 0;
+        });
+        return next;
       });
 
-      setQuotas(q);
-      setCarryOvers(c);
+      setCarryOvers((prev) => {
+        const next = { ...prev };
+        list.forEach((lt) => {
+          const key = lt.typeName.toUpperCase();
+          if (next[key] === undefined) next[key] = 0;
+        });
+        return next;
+      });
     } catch (err) {
       console.error("Fetch leave types error:", err);
     }
@@ -59,14 +68,14 @@ export function useYearEndProcessing() {
   const handleQuotaChange = (key, value) => {
     setQuotas((prev) => ({
       ...prev,
-      [key]: Number(value),
+      [key]: value === "" ? "" : Number(value),
     }));
   };
 
   const handleCarryOverChange = (key, value) => {
     setCarryOvers((prev) => ({
       ...prev,
-      [key]: Number(value),
+      [key]: value === "" ? "" : Number(value),
     }));
   };
 
@@ -104,7 +113,23 @@ export function useYearEndProcessing() {
       fetchConfigs();
     });
 
-    return () => socket.disconnect();
+    // 🔥 listen leave type refresh (จาก LeaveTypeCard)
+    const onLeaveTypeRefresh = () => {
+      fetchLeaveTypes();
+    };
+
+    window.addEventListener(
+      LEAVE_TYPE_REFRESH_EVENT,
+      onLeaveTypeRefresh
+    );
+
+    return () => {
+      socket.disconnect();
+      window.removeEventListener(
+        LEAVE_TYPE_REFRESH_EVENT,
+        onLeaveTypeRefresh
+      );
+    };
   }, []);
 
   /* ================= Confirm Dialog ================= */
@@ -202,7 +227,6 @@ export function useYearEndProcessing() {
     }
   };
 
-  /* ================= Public API ================= */
   return {
     loading,
     configs,
@@ -220,6 +244,7 @@ export function useYearEndProcessing() {
     maxConsecutive,
     setMaxConsecutive,
 
+    fetchLeaveTypes, // 👈 expose ไว้ใช้ได้
     handleProcess,
     handleReopen,
   };
