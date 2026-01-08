@@ -1,3 +1,4 @@
+// frontend/src/pages/EmployeeDetail.jsx
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
@@ -20,36 +21,39 @@ import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 // Shared Components
 import { QuotaCards, HistoryTable } from "../components/shared";
 
-
+// ✅ ใช้ popup เดียวกับ Dashboard
+import LeaveSummaryPopup from "../components/shared/LeaveSummaryPopup";
+// ✅ ดึง leave types ของจริง (/leaves/types) เหมือน Dashboard
+import { getLeaveTypes } from "../api/leaveService";
 
 export default function EmployeeDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-const [roleOpen, setRoleOpen] = useState(false);
 
-const [newPassword, setNewPassword] = useState("");
-const [confirmPassword, setConfirmPassword] = useState("");
+  const [roleOpen, setRoleOpen] = useState(false);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [data, setData] = useState(null);
+  const [leaveTypes, setLeaveTypes] = useState([]); // ✅ for popup labels (TH/EN)
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("attendance");
 
-  const [yearOpen, setYearOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const [showModal, setShowModal] = useState(false);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
+
   const [formData, setFormData] = useState({
-  firstName: "",
-  lastName: "",
-  email: "",
-  role: "",
-  joiningDate: "",
-});
-
-
+    firstName: "",
+    lastName: "",
+    email: "",
+    role: "",
+    joiningDate: "",
+  });
 
   const [quotaDraft, setQuotaDraft] = useState({
     SICK: 0,
@@ -62,11 +66,20 @@ const [confirmPassword, setConfirmPassword] = useState("");
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get(`/employees/${id}?year=${selectedYear}`);
+
+      const [res, types] = await Promise.all([
+        api.get(`/employees/${id}?year=${selectedYear}`),
+        getLeaveTypes(), // ✅ /leaves/types
+      ]);
+
       setData(res.data);
+
+      const list = Array.isArray(types) ? types : types?.data || [];
+      setLeaveTypes(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error(err);
       alertError("Request Failed", "Could not retrieve employee data.");
+      setLeaveTypes([]);
     } finally {
       setLoading(false);
     }
@@ -81,34 +94,22 @@ const [confirmPassword, setConfirmPassword] = useState("");
     if (!data) return [selectedYear];
 
     const currentYear = new Date().getFullYear();
-    const FUTURE_YEARS = 2; // ปรับได้ตามที่มี
+    const FUTURE_YEARS = 2;
 
     const dataYears = [
-      ...(data.attendance || []).map((r) =>
-        new Date(r.date || r.dateDisplay).getFullYear()
-      ),
+      ...(data.attendance || []).map((r) => new Date(r.date || r.dateDisplay).getFullYear()),
       ...(data.leaves || []).map((r) => new Date(r.startDate).getFullYear()),
     ].filter(Number.isFinite);
 
     const maxYear = Math.max(currentYear, ...dataYears);
+    const futureYears = Array.from({ length: FUTURE_YEARS }, (_, i) => maxYear + i + 1);
 
-    const futureYears = Array.from(
-      { length: FUTURE_YEARS },
-      (_, i) => maxYear + i + 1
-    );
-
-    return [...new Set([currentYear, ...dataYears, ...futureYears])].sort(
-      (a, b) => a - b
-    );
+    return [...new Set([currentYear, ...dataYears, ...futureYears])].sort((a, b) => a - b);
   }, [data, selectedYear]);
 
-  
   // ================= Quota Update =================
   const handleApplyQuota = async () => {
-    const confirmed = await alertConfirm(
-      "Confirm Quota Update",
-      "Update leave quotas for this year?"
-    );
+    const confirmed = await alertConfirm("Confirm Quota Update", "Update leave quotas for this year?");
     if (!confirmed) return;
 
     try {
@@ -126,7 +127,6 @@ const [confirmPassword, setConfirmPassword] = useState("");
       setQuotaLoading(false);
     }
   };
-  
 
   if (loading) {
     return (
@@ -136,12 +136,11 @@ const [confirmPassword, setConfirmPassword] = useState("");
     );
   }
 
-  
-
   const handleSaveAll = async (e) => {
     e.preventDefault();
-    if (newPassword && newPassword !== confirmPassword)
+    if (newPassword && newPassword !== confirmPassword) {
       return alertError("Error", "The passwords do not match.");
+    }
 
     const confirmed = await alertConfirm("Confirm Update", "Are you sure?");
     if (!confirmed) return;
@@ -149,16 +148,12 @@ const [confirmPassword, setConfirmPassword] = useState("");
     try {
       setUpdating(true);
       await api.put(`/employees/${id}`, formData);
-      if (newPassword)
-        await api.post(`/employees/${id}/reset-password`, { newPassword });
+      if (newPassword) await api.post(`/employees/${id}/reset-password`, { newPassword });
       await alertSuccess("Success", "Information updated.");
       setShowModal(false);
       fetchData();
     } catch (err) {
-      alertError(
-        "Request Failed",
-        err.response?.data?.error || "An error occurred"
-      );
+      alertError("Request Failed", err.response?.data?.error || "An error occurred");
     } finally {
       setUpdating(false);
     }
@@ -186,11 +181,9 @@ const [confirmPassword, setConfirmPassword] = useState("");
       setUpdating(false);
     }
   };
+
   // ================= UI =================
   return (
-
-    
-    
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <button
         onClick={() => navigate(-1)}
@@ -200,17 +193,15 @@ const [confirmPassword, setConfirmPassword] = useState("");
         BACK
       </button>
 
-
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-6 transition-all hover:shadow-md">
         <div className="flex flex-col md:flex-row items-center gap-8">
           <div className="h-28 w-28 rounded-[2rem] bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-5xl font-black shadow-xl shadow-blue-100 uppercase">
             {data.info.firstName?.charAt(0)}
           </div>
+
           <div className="space-y-2 text-center md:text-left">
             <div className="flex flex-col md:flex-row items-center gap-3">
-              <h1 className="text-4xl font-black text-slate-800 tracking-tight">
-                {data.info.fullName}
-              </h1>
+              <h1 className="text-4xl font-black text-slate-800 tracking-tight">{data.info.fullName}</h1>
               <span
                 className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 ${
                   data.info.isActive
@@ -221,9 +212,9 @@ const [confirmPassword, setConfirmPassword] = useState("");
                 {data.info.isActive ? "Working" : "Resigned"}
               </span>
             </div>
-            <p className="text-slate-400 font-bold text-lg italic">
-              {data.info.email}
-            </p>
+
+            <p className="text-slate-400 font-bold text-lg italic">{data.info.email}</p>
+
             <div className="flex flex-wrap justify-center md:justify-start gap-2 pt-2">
               <span className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl border border-blue-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                 <Briefcase size={14} /> {data.info.role}
@@ -234,6 +225,7 @@ const [confirmPassword, setConfirmPassword] = useState("");
             </div>
           </div>
         </div>
+
         <button
           onClick={() => {
             setFormData({
@@ -250,59 +242,26 @@ const [confirmPassword, setConfirmPassword] = useState("");
           <Edit3 size={18} /> Manage Info
         </button>
       </div>
+
       {/* ===== Leave Balance ===== */}
       <div className="space-y-4">
         <div className="flex justify-between items-center px-4">
           <div className="flex items-center gap-2 font-black text-slate-400 text-[11px] uppercase tracking-widest">
             <Settings2 size={14} /> Leave Balance
           </div>
-
-          {/* Year Dropdown */}
-          <div className="relative w-44">
-            <button
-              type="button"
-              onClick={() => setYearOpen((v) => !v)}
-              className={`w-full px-4 py-2.5 rounded-xl text-xs font-black bg-white border border-gray-100 shadow-sm
-                ${yearOpen ? "ring-2 ring-blue-100" : ""}
-              `}
-            >
-              <div className="flex justify-between items-center">
-                <span>Year {selectedYear}</span>
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform ${
-                    yearOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </div>
-            </button>
-
-            {yearOpen && (
-              <div className="absolute z-20 mt-1.5 w-full rounded-xl bg-white shadow-lg border border-gray-100 overflow-hidden">
-                {years.map((y) => (
-                  <button
-                    key={y}
-                    onClick={() => {
-                      setSelectedYear(y);
-                      setYearOpen(false);
-                    }}
-                    className={`w-full px-4 py-2.5 text-left text-xs font-black hover:bg-blue-50
-                      ${
-                        selectedYear === y
-                          ? "bg-blue-50 text-blue-700"
-                          : "text-slate-700"
-                      }
-                    `}
-                  >
-                    Year {y}
-                  </button>
-                ))}
-              </div>
-            )}
+          
+          <div className="w-44">
+            <LeaveSummaryPopup
+              selectedYear={selectedYear}
+              setSelectedYear={setSelectedYear}
+              years={years}
+              formatYear={(y) => y} // HR ใช้ ค.ศ. ปกติ (ถ้าจะทำ พ.ศ. ค่อยปรับ)
+              leaveTypes={leaveTypes}
+              quotas={data?.quotas || []}
+              leaves={data?.leaves || []}
+            />
           </div>
         </div>
-
-        <QuotaCards quotas={data.quotas || []} />
       </div>
 
       <HistoryTable
@@ -316,9 +275,7 @@ const [confirmPassword, setConfirmPassword] = useState("");
       {showQuotaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white w-full max-w-2xl rounded-3xl p-8 space-y-6">
-            <h2 className="text-xl font-black">
-              Adjust Quota ({selectedYear})
-            </h2>
+            <h2 className="text-xl font-black">Adjust Quota ({selectedYear})</h2>
 
             <div className="grid grid-cols-2 gap-4">
               {Object.keys(quotaDraft).map((t) => (
@@ -372,14 +329,13 @@ const [confirmPassword, setConfirmPassword] = useState("");
           </div>
         </div>
       )}
+
+      {/* ===== Manage Info Modal ===== */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
-            {/* Header */}
             <div className="flex items-center">
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-                Employee Information
-              </h2>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Employee Information</h2>
               <button
                 onClick={() => setShowModal(false)}
                 className="ml-auto text-gray-400 hover:text-rose-500 transition-colors"
@@ -389,41 +345,30 @@ const [confirmPassword, setConfirmPassword] = useState("");
             </div>
 
             <form onSubmit={handleSaveAll} className="space-y-4 text-left">
-              {/* Name Grid */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    Name
-                  </label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Name</label>
                   <input
                     required
                     value={formData.firstName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, firstName: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                     className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold border-none outline-none focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
+
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    Surname
-                  </label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Surname</label>
                   <input
                     required
                     value={formData.lastName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, lastName: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                     className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold border-none outline-none focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
               </div>
 
-              {/* Email */}
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  Email
-                </label>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Email</label>
                 <input
                   type="email"
                   value={formData.email}
@@ -432,14 +377,10 @@ const [confirmPassword, setConfirmPassword] = useState("");
                 />
               </div>
 
-              {/* Role */}
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  ROLE
-                </label>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">ROLE</label>
 
                 <div className="relative">
-                  {/* Trigger */}
                   <button
                     type="button"
                     onClick={() => setRoleOpen((v) => !v)}
@@ -460,36 +401,26 @@ const [confirmPassword, setConfirmPassword] = useState("");
                             }
                           `}
                         >
-                          {formData.role === "HR" ? (
-                            <ShieldCheck size={16} />
-                          ) : (
-                            <Briefcase size={16} />
-                          )}
+                          {formData.role === "HR" ? <ShieldCheck size={16} /> : <Briefcase size={16} />}
                         </span>
 
                         <div className="text-left">
                           <div className="text-slate-800">{formData.role}</div>
                           <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                            {formData.role === "HR"
-                              ? "Full Access"
-                              : "Standard Access"}
+                            {formData.role === "HR" ? "Full Access" : "Standard Access"}
                           </div>
                         </div>
                       </div>
 
                       <ChevronDown
                         size={18}
-                        className={`text-gray-400 transition-transform ${
-                          roleOpen ? "rotate-180" : ""
-                        }`}
+                        className={`text-gray-400 transition-transform ${roleOpen ? "rotate-180" : ""}`}
                       />
                     </div>
                   </button>
 
-                  {/* Dropdown */}
                   {roleOpen && (
                     <>
-                      {/* click outside */}
                       <button
                         type="button"
                         onClick={() => setRoleOpen(false)}
@@ -512,9 +443,7 @@ const [confirmPassword, setConfirmPassword] = useState("");
                             <Briefcase size={16} />
                           </span>
                           <div className="flex-1">
-                            <div className="font-black text-slate-800">
-                              Worker
-                            </div>
+                            <div className="font-black text-slate-800">Worker</div>
                             <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
                               Standard Access
                             </div>
@@ -563,13 +492,10 @@ const [confirmPassword, setConfirmPassword] = useState("");
                 </p>
               </div>
 
-              {/* Password Fields */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
                   <KeyRound size={12} /> New Password{" "}
-                  <span className="text-[10px] font-black text-gray-300 normal-case">
-                    (เว้นว่าง = ไม่เปลี่ยน)
-                  </span>
+                  <span className="text-[10px] font-black text-gray-300 normal-case">(เว้นว่าง = ไม่เปลี่ยน)</span>
                 </label>
                 <input
                   type="password"
@@ -581,9 +507,7 @@ const [confirmPassword, setConfirmPassword] = useState("");
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  Confirm Password
-                </label>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Confirm Password</label>
                 <input
                   type="password"
                   placeholder="พิมพ์ให้ตรงกับรหัสผ่านใหม่"
@@ -593,7 +517,6 @@ const [confirmPassword, setConfirmPassword] = useState("");
                 />
               </div>
 
-              {/* Action Buttons */}
               <div className="grid grid-cols-2 gap-3 pt-4">
                 <button
                   type="button"
@@ -604,11 +527,7 @@ const [confirmPassword, setConfirmPassword] = useState("");
                       : "bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100"
                   }`}
                 >
-                  {data.info.isActive ? (
-                    <UserMinus size={18} />
-                  ) : (
-                    <UserPlus size={18} />
-                  )}
+                  {data.info.isActive ? <UserMinus size={18} /> : <UserPlus size={18} />}
                   {data.info.isActive ? "Terminate" : "Reinstate"}
                 </button>
 
@@ -624,7 +543,6 @@ const [confirmPassword, setConfirmPassword] = useState("");
           </div>
         </div>
       )}
-
     </div>
   );
 }

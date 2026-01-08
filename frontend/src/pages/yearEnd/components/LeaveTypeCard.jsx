@@ -243,6 +243,7 @@ export default function LeaveTypeCard() {
                   </label>
                   <input
                     type="number"
+                    min={0}
                     className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
                     value={maxCarryOver}
                     onChange={(e) => setMaxCarryOver(e.target.value)}
@@ -256,6 +257,7 @@ export default function LeaveTypeCard() {
                   </label>
                   <input
                     type="number"
+                    min={0}
                     className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
                     value={maxConsecutiveDays}
                     onChange={(e) => setMaxConsecutiveDays(e.target.value)}

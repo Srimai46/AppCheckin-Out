@@ -1,13 +1,14 @@
+// frontend/src/pages/Dashboard.jsx
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { checkIn, checkOut, getMyHistory } from "../api/attendanceService";
-import { getMyQuotas, getMyLeaves } from "../api/leaveService";
-import { LogIn, LogOut, Calendar, ChevronDown, Loader2 } from "lucide-react";
+import { getMyQuotas, getMyLeaves, getLeaveTypes } from "../api/leaveService";
+import { LogIn, LogOut, Calendar, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 import { useTranslation } from "react-i18next";
-import { QuotaCards, HistoryTable } from "../components/shared";
-import api from "../api/axios";
+import { HistoryTable } from "../components/shared";
+import LeaveSummaryPopup from "../components/shared/LeaveSummaryPopup";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -15,17 +16,17 @@ export default function Dashboard() {
   const { t, i18n } = useTranslation();
 
   const [time, setTime] = useState(new Date());
-  const [data, setData] = useState({ att: [], quotas: [], leaves: [], leaveSummary: [] });
+  const [data, setData] = useState({ att: [], quotas: [], leaves: [] });
+  const [leaveTypes, setLeaveTypes] = useState([]);
+
   const [activeTab, setActiveTab] = useState("attendance");
   const [isProcessing, setIsProcessing] = useState(false);
-
-  const [yearOpen, setYearOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  /* -------------------- Year List Logic -------------------- */
   const currentYear = new Date().getFullYear();
   const FUTURE_YEARS = 2;
-  const formatYear = (year, lang) => (lang === "th" ? year + 543 : year);
+
+  const formatYear = (year, lang) => (String(lang || "").startsWith("th") ? year + 543 : year);
 
   const years = useMemo(() => {
     const yearsFromHistory = (data.att || [])
@@ -33,35 +34,62 @@ export default function Dashboard() {
       .filter(Boolean);
 
     const maxYear = Math.max(currentYear, ...(yearsFromHistory.length ? yearsFromHistory : [currentYear]));
-
     const futureYears = Array.from({ length: FUTURE_YEARS }, (_, i) => maxYear + 1 + i);
 
     return [...new Set([...yearsFromHistory, currentYear, ...futureYears])].sort((a, b) => a - b);
   }, [data.att, currentYear]);
 
-  /* --------------------------------------------------------- */
-
-  const buildFileUrl = (path) => {
-    if (!path) return "";
-    const BASE = (import.meta.env.VITE_API_URL || "").replace(/\/api\/?$/, "");
-    return `${BASE}${path.startsWith("/") ? path : `/${path}`}`;
-  };
+  const dateTimeText = useMemo(() => {
+    const locale = String(i18n.language || "").startsWith("th") ? "th-TH" : "en-US";
+    return new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    }).format(time);
+  }, [time, i18n.language]);
 
   const fetchData = useCallback(
     async (year) => {
       try {
-        const [h, q, l] = await Promise.all([getMyHistory(), getMyQuotas(year), getMyLeaves()]);
+        const [h, q, l, types] = await Promise.all([getMyHistory(), getMyQuotas(year), getMyLeaves(), getLeaveTypes()]);
 
-        setData({
-          att: Array.isArray(h) ? h : h?.data || [],
-          quotas: Array.isArray(q) ? q : q?.data || [],
-          leaves: l?.history || [],
-          leaveSummary: l?.summary || [],
-        });
+        const att = Array.isArray(h) ? h : h?.data || [];
+        const quotasRaw = Array.isArray(q) ? q : q?.data || [];
+        const leavesRaw = l?.history || [];
+
+        // ✅ กัน backend ignore year: กรองซ้ำใน FE ด้วย year (ถ้ามี field year)
+        const quotas =
+          Array.isArray(quotasRaw) && quotasRaw.some((x) => x?.year != null)
+            ? quotasRaw.filter((x) => Number(x?.year) === Number(year))
+            : quotasRaw;
+
+        console.log("DEBUG selectedYear =", year);
+        console.log("DEBUG quotasRaw =", quotasRaw);
+        console.log("DEBUG quotasFiltered =", quotas);
+
+        // leaves ของคุณ endpoint นี้ไม่รับ year → ถ้าต้องการให้ used ปีตรงจริงๆ เรากรองจาก startDate/endDate
+        const leaves =
+          Array.isArray(leavesRaw) && leavesRaw.some((x) => x?.startDate || x?.endDate)
+            ? leavesRaw.filter((x) => {
+                const d = x?.startDate || x?.endDate;
+                if (!d) return true;
+                return new Date(d).getFullYear() === Number(year);
+              })
+            : leavesRaw;
+
+        setData({ att, quotas, leaves });
+
+        const typeList = Array.isArray(types) ? types : types?.data || [];
+        setLeaveTypes(Array.isArray(typeList) ? typeList : []);
       } catch (err) {
         console.error(err);
         alertError(t("common.error"), t("dashboard.loadFail"));
-        setData({ att: [], quotas: [], leaves: [], leaveSummary: [] });
+        setData({ att: [], quotas: [], leaves: [] });
+        setLeaveTypes([]);
       }
     },
     [t]
@@ -93,105 +121,45 @@ export default function Dashboard() {
         action: type === "in" ? t("dashboard.checkIn") : t("dashboard.checkOut"),
       })
     );
-
     if (!confirmed) return;
 
     setIsProcessing(true);
-
     try {
       let location = null;
       try {
         location = await getCoordinates();
-      } catch (geoErr) {
-        console.warn("GPS Access Denied/Failed:", geoErr.message);
-      }
+      } catch {}
 
       const res = type === "in" ? await checkIn({ location }) : await checkOut({ location });
-
       await alertSuccess(t("common.success"), res?.message || "");
       fetchData(selectedYear);
     } catch (err) {
-      console.error(err);
-      const errorMsg =
-        err?.response?.data?.message || err?.response?.data?.error || err?.message || t("common.error");
-      alertError(t("common.error"), errorMsg);
+      const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || t("common.error");
+      alertError(t("common.error"), msg);
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const buildFileUrl = (path) => {
+    if (!path) return "";
+    const BASE = (import.meta.env.VITE_API_URL || "").replace(/\/api\/?$/, "");
+    return `${BASE}${path.startsWith("/") ? path : `/${path}`}`;
+  };
+
   if (authLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center text-blue-600 font-black">
-        {t("common.loading")}
-      </div>
-    );
+    return <div className="h-screen flex items-center justify-center text-blue-600 font-black">{t("common.loading")}</div>;
   }
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-8">
-      {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-black text-slate-800">{t("dashboard.title")}</h1>
-
-        <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest">
-          {t("dashboard.welcome", { firstName: user?.firstName, lastName: user?.lastName })}
-        </p>
-
-        <p className="text-xs text-blue-600 font-black mt-2">
-          {time.toLocaleString(i18n.language === "th" ? "th-TH" : "en-US")}
-        </p>
+        <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight">{t("dashboard.title")}</h1>
+        <p className="text-xl md:text-2xl text-blue-700 font-black mt-3">{dateTimeText}</p>
       </div>
 
-      {/* Year Dropdown */}
-      <div className="flex justify-center">
-        <div className="relative w-56">
-          <div className="mb-1 ml-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-            {t("dashboard.selectYear")}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setYearOpen((v) => !v)}
-            className={`w-full rounded-[1.8rem] px-6 py-3.5 font-black text-sm
-              bg-white border border-gray-100 shadow-sm transition-all
-              ${yearOpen ? "ring-2 ring-blue-100" : ""}
-            `}
-          >
-            <div className="flex justify-between items-center">
-              <span>
-                {t("dashboard.year")} {formatYear(selectedYear, i18n.language)}
-              </span>
-              <ChevronDown size={18} className={`transition-transform ${yearOpen ? "rotate-180" : ""}`} />
-            </div>
-          </button>
-
-          {yearOpen && (
-            <div className="absolute z-20 mt-2 w-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              {years.map((y) => (
-                <button
-                  key={y}
-                  onClick={() => {
-                    setSelectedYear(y);
-                    setYearOpen(false);
-                  }}
-                  className={`w-full px-6 py-3 text-left text-sm font-black
-                    hover:bg-blue-50 transition-all
-                    ${selectedYear === y ? "bg-blue-50 text-blue-700" : "text-slate-700"}
-                  `}
-                >
-                  {t("dashboard.year")} {formatYear(y, i18n.language)}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <QuotaCards quotas={data.quotas} />
-
-      {/* Action Buttons */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+      {/* 4 ปุ่ม บรรทัดเดียวกันบนจอ md+ */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-5xl mx-auto items-stretch">
         <button
           disabled={isProcessing}
           onClick={() => handleAction("in")}
@@ -218,6 +186,16 @@ export default function Dashboard() {
         >
           <Calendar size={20} /> {t("dashboard.leave")}
         </button>
+
+        <LeaveSummaryPopup
+          selectedYear={selectedYear}
+          setSelectedYear={setSelectedYear}
+          years={years}
+          formatYear={formatYear}
+          leaveTypes={leaveTypes}
+          quotas={data.quotas}
+          leaves={data.leaves}
+        />
       </div>
 
       <HistoryTable
@@ -226,29 +204,6 @@ export default function Dashboard() {
         attendanceData={data.att}
         leaveData={data.leaves}
         buildFileUrl={buildFileUrl}
-        onDeletedLeaveSuccess={(updatedLeave) => {
-          console.log("UPDATED =>", updatedLeave);
-          if (!updatedLeave?.id) return;
-
-          setData((prev) => {
-            const list = prev?.leaves || [];
-            const status = String(updatedLeave.status || "").toLowerCase();
-
-            // ✅ ถ้า Cancelled = ลบทิ้งจาก list
-            if (status === "cancelled") {
-              return {
-                ...prev,
-                leaves: list.filter((x) => x?.id !== updatedLeave.id),
-              };
-            }
-
-            // ✅ ถ้า Withdraw_Pending / อัปเดตอื่นๆ = replace item เดิมด้วยข้อมูลใหม่
-            return {
-              ...prev,
-              leaves: list.map((x) => (x?.id === updatedLeave.id ? { ...x, ...updatedLeave } : x)),
-            };
-          });
-        }}
       />
     </div>
   );
