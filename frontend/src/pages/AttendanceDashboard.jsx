@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
-// --- Components ย่อย ---
+// --- Components ย่อย: Card แสดงตัวเลข ---
 const StatCard = ({ title, value, subValue, icon: Icon, colorClass, bgClass }) => (
   <div className={`p-6 rounded-[2rem] border transition-all hover:shadow-lg ${bgClass} border-transparent`}>
     <div className="flex justify-between items-start">
@@ -33,6 +33,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, colorClass, bgClass }) =
   </div>
 );
 
+// --- Components ย่อย: ปฏิทิน ---
 const AttendanceCalendar = ({ year, month, stats }) => {
   if (month === "All") return (
     <div className="flex flex-col items-center justify-center h-64 text-slate-400">
@@ -49,45 +50,84 @@ const AttendanceCalendar = ({ year, month, stats }) => {
     return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   };
 
+  // ✅ Helper: แปลงค่าที่เป็น Object {en, th} ให้เป็น String เพื่อป้องกัน Error
+  const getStringLabel = (val) => {
+    if (!val) return "";
+    if (typeof val === "string") return val;
+    if (typeof val === "object") {
+      return val.en || val.th || ""; // เลือก Eng ก่อน ถ้าไม่มีเอา Thai
+    }
+    return String(val);
+  };
+
   const days = [];
+  // ช่องว่างสำหรับวันก่อนวันที่ 1
   for (let i = 0; i < firstDay; i++) {
     days.push(<div key={`empty-${i}`} className="h-24 md:h-32"></div>);
   }
 
+  // Loop วาดวันที่
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = getDateStr(d);
-    let statusLabel = null;
-    let badgeClass = "bg-slate-100 text-slate-400";
+    
+    // 🔥 เก็บรายการเหตุการณ์ทั้งหมดในวันนี้ (Array)
+    const events = [];
 
-    // ✅ แก้ไข: ดึง Object วันลาออกมาเพื่อเอา Type มาโชว์
+    // 1. วันหยุด (Priority สูงสุด)
+    const holidayObj = stats.holidayDates?.find(h => h.date === dateStr);
+    if (holidayObj) {
+      events.push({ 
+        label: getStringLabel(holidayObj.name), // ✅ ใช้ getStringLabel
+        color: "bg-purple-500 text-white shadow-purple-200" 
+      });
+    }
+
+    // 2. วันลา (Leave)
     const leaveObj = stats.leaveDates?.find((l) => l.date === dateStr);
+    if (leaveObj) {
+      events.push({ 
+        label: getStringLabel(leaveObj.type), // ✅ ใช้ getStringLabel
+        color: "bg-blue-500 text-white shadow-blue-200" 
+      });
+    }
 
-    if (stats.absentDates?.includes(dateStr)) {
-      statusLabel = "Absent";
-      badgeClass = "bg-rose-500 text-white shadow-rose-200 shadow-md";
-    } else if (leaveObj) {
-      // ✅ แก้ไข: ใช้ชื่อประเภทการลา เช่น "Sick Leave" แทนคำว่า "Leave"
-      statusLabel = leaveObj.type || "Leave"; 
-      badgeClass = "bg-blue-500 text-white shadow-blue-200 shadow-md";
-    } else if (stats.lateDates?.includes(dateStr)) {
-      statusLabel = "Late";
-      badgeClass = "bg-amber-400 text-white shadow-amber-200 shadow-md";
-    } else if (stats.earlyLeaveDates?.includes(dateStr)) {
-      statusLabel = "Early";
-      badgeClass = "bg-orange-400 text-white shadow-orange-200 shadow-md";
+    // 3. ขาดงาน (Absent)
+    const isAbsent = stats.absentDates?.some(a => a === dateStr || a.startsWith(dateStr));
+    if (isAbsent) {
+      events.push({ label: "Absent", color: "bg-rose-500 text-white shadow-rose-200" });
+    }
+
+    // 4. มาสาย (Late)
+    if (stats.lateDates?.includes(dateStr)) {
+      events.push({ label: "Late", color: "bg-amber-400 text-white shadow-amber-200" });
+    }
+
+    // 5. กลับก่อน (Early)
+    if (stats.earlyLeaveDates?.includes(dateStr)) {
+      events.push({ label: "Early", color: "bg-orange-400 text-white shadow-orange-200" });
     }
 
     days.push(
       <div
         key={d}
-        className="h-24 md:h-32 border border-slate-100 rounded-2xl p-2 relative group hover:border-blue-200 transition-all bg-white"
+        className="min-h-[6rem] md:min-h-[8rem] border border-slate-100 rounded-2xl p-2 relative group hover:border-blue-200 transition-all bg-white flex flex-col justify-between"
       >
-        <span className="text-sm font-bold text-slate-700">{d}</span>
-        {statusLabel && (
-          <div className={`absolute bottom-2 right-2 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider truncate max-w-[90%] ${badgeClass}`}>
-            {statusLabel}
-          </div>
-        )}
+        <span className={`text-sm font-bold block mb-1 ${holidayObj ? 'text-purple-600' : 'text-slate-700'}`}>
+            {d}
+        </span>
+
+        {/* พื้นที่แสดง Badges (รองรับหลายอัน) */}
+        <div className="flex flex-col gap-1 overflow-hidden">
+            {events.map((ev, idx) => (
+                <div 
+                    key={idx}
+                    className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider truncate w-full shadow-sm ${ev.color}`}
+                    title={ev.label}
+                >
+                    {ev.label}
+                </div>
+            ))}
+        </div>
       </div>
     );
   }
@@ -104,6 +144,7 @@ const AttendanceCalendar = ({ year, month, stats }) => {
   );
 };
 
+// --- Main Component ---
 export default function AttendanceDashboard() {
   const { user } = useAuth();
 
@@ -150,11 +191,10 @@ export default function AttendanceDashboard() {
           employeeId: user.role === "HR" && selectedEmployeeId ? selectedEmployeeId : undefined,
         });
 
-        // ✅ แก้ไข: รวม employee info เข้าไปใน stats state
-        // เพราะ backend ส่งมาแยกกัน: { employee: {...}, stats: {...} }
+        // ✅ Map Data ให้ตรงกับ Backend ใหม่
         setStats({
             ...data.stats,
-            employeeName: data.employee?.name // เพิ่มชื่อพนักงานเข้าไป
+            employeeName: data.employee?.name 
         });
 
       } catch (err) {
@@ -178,7 +218,7 @@ export default function AttendanceDashboard() {
 
   const leaveBreakdownData = useMemo(() => {
     if (!stats?.leaveBreakdown) return [];
-    const COLORS = ["#8B5CF6", "#F59E0B", "#6366F1", "#EC4899"];
+    const COLORS = ["#8B5CF6", "#F59E0B", "#6366F1", "#EC4899", "#14B8A6", "#F43F5E"];
     return Object.entries(stats.leaveBreakdown).map(([key, value], index) => ({
       name: key,
       value: value,
@@ -206,7 +246,6 @@ export default function AttendanceDashboard() {
             <User size={16} />
             Viewing:{" "}
             <span className="text-slate-600">
-              {/* ✅ ตอนนี้ stats.employeeName จะมีค่าแล้ว */}
               {stats ? stats.employeeName || "My Dashboard" : "Loading..."}
             </span>
             <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -391,7 +430,11 @@ export default function AttendanceDashboard() {
                   : `${new Date(0, month - 1).toLocaleString("en-US", { month: "long" })} Calendar`}
               </h3>
 
-              <div className="hidden sm:flex gap-3">
+              {/* Legend Summary */}
+              <div className="hidden sm:flex flex-wrap gap-2">
+                <span className="flex items-center gap-1 text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-lg">
+                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>Holiday
+                </span>
                 <span className="flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-lg">
                   <div className="w-2 h-2 rounded-full bg-rose-500"></div>Absent
                 </span>
