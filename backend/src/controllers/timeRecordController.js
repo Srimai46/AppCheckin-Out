@@ -333,18 +333,15 @@ exports.getMyHistory = async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
-    
-    // ✅ รับ Query Params (เหมือน getStats)
     const { year, month } = req.query; 
 
-    // 1. ดึง Config
+    // 1. ดึง Config (เอาไว้โชว์เฉยๆ)
     const config = await prisma.workConfiguration.findUnique({
       where: { role: userRole },
     });
 
-    // ✅ 2. สร้างเงื่อนไขเวลา (Filter Logic)
+    // 2. สร้างเงื่อนไขเวลา
     let dateCondition = {};
-    
     if (year) {
       const targetYear = parseInt(year);
       let startDate, endDate;
@@ -359,42 +356,42 @@ exports.getMyHistory = async (req, res) => {
       }
       
       dateCondition = {
-        workDate: {
-          gte: startDate,
-          lte: endDate
-        }
+        workDate: { gte: startDate, lte: endDate }
       };
     }
 
-    // 3. Query โดยใส่เงื่อนไขวันที่เข้าไป
+    // 3. Query
     const history = await prisma.timeRecord.findMany({
       where: { 
         employeeId: userId,
-        ...dateCondition // ✅ ใส่ Filter ตรงนี้
+        ...dateCondition 
       },
       orderBy: { workDate: "desc" },
     });
 
     const formattedHistory = history.map((item) => {
-      // ... (Logic การจัด Format เดิมของคุณ ใช้ต่อได้เลย ไม่ต้องแก้) ...
-       let workingHours = "-";
+      let workingHours = "-";
       if (item.checkInTime && item.checkOutTime) {
-        const diffInMs =
-          new Date(item.checkOutTime) - new Date(item.checkInTime);
+        const diffInMs = new Date(item.checkOutTime) - new Date(item.checkInTime);
         const hours = Math.floor(diffInMs / (1000 * 60 * 60));
         const minutes = Math.floor((diffInMs % (1000 * 60 * 60)) / (1000 * 60));
         workingHours = `${hours} Hours ${minutes} Min`;
       }
 
+      // ✅ อ่านจาก note เพื่อหาคำว่า "Half Day" (ถ้าเราบันทึก note ไว้ใน checkIn/Out)
+      // หรือถ้าไม่ได้บันทึก note ก็เชื่อ isLate จาก DB ได้เลย เพราะเราแก้ตอน Save แล้ว
+      
       return {
         ...item,
-        // (Helper function พวก formatShortDate ต้อง import มาให้ครบนะครับ)
         dateDisplay: item.workDate.toISOString().split('T')[0], 
         checkInTimeDisplay: item.checkInTime ? new Date(item.checkInTime).toLocaleTimeString('th-TH') : "-",
         checkOutTimeDisplay: item.checkOutTime
           ? new Date(item.checkOutTime).toLocaleTimeString('th-TH')
           : "Not checked out yet",
-        statusDisplay: item.isLate ? "Late" : "On time",
+        
+        // ✅ ใช้ค่าจาก DB ตรงๆ ได้เลย เพราะตอน CheckIn เราคำนวณมาถูกต้องแล้ว
+        statusDisplay: item.isLate ? "Late" : "On time", 
+        
         workingHours: workingHours,
         standardConfig: config
           ? {
@@ -429,7 +426,7 @@ exports.getAllAttendance = async (req, res) => {
       };
     }
 
-    // 1. ดึงข้อมูลบันทึกเวลา พร้อมข้อมูลพนักงานและ Role
+    // 1. ดึงข้อมูล
     const [records, configs] = await Promise.all([
       prisma.timeRecord.findMany({
         where: whereCondition,
@@ -445,29 +442,43 @@ exports.getAllAttendance = async (req, res) => {
         },
         orderBy: { workDate: "desc" },
       }),
-      prisma.workConfiguration.findMany(), // ดึงค่า Config ทั้งหมดมาไว้เทียบ
+      prisma.workConfiguration.findMany(), 
     ]);
 
     const formattedRecords = records.map((item) => {
-      // 2. ค้นหา Config ของ Role พนักงานคนนั้น
+      // 2. หา Config (เอาไว้โชว์เฉยๆ ถ้าจำเป็น)
       const userConfig = configs.find((c) => c.role === item.employee.role);
       const endHour = userConfig ? userConfig.endHour : 18;
       const endMin = userConfig ? userConfig.endMin : 0;
 
-      // 3. เช็คสถานะการเลิกงาน (Early Leave)
+      // 3. ✅ ปรับปรุง Logic การแสดงผลขาออก (Out Status)
       let outStatusDisplay = "-";
+      
       if (item.checkOutTime) {
-        const workEndTime = new Date(item.workDate);
+         // วิธีที่ถูกต้อง: เช็คจาก note หรือ Logic ที่เราเพิ่งทำไป
+         // ถ้าเราอยากรู้ว่า Early Leave จริงไหม ให้ดูเทียบกับเวลามาตรฐาน
+         // แต่ถ้าเขามีลาครึ่งบ่าย เราควรจะรู้
+         
+         const workEndTime = new Date(item.workDate);
+         workEndTime.setHours(endHour, endMin, 0, 0);
+         
+         // ลองเช็ค Note ดูว่ามีคำว่า Half Day ไหม (ถ้า checkOut บันทึก note ไว้)
+         const isHalfAfternoon = item.note && item.note.includes("Half Day (Afternoon)");
 
-        workEndTime.setHours(endHour, endMin, 0, 0);
-
-        outStatusDisplay =
-          new Date(item.checkOutTime) < workEndTime ? "Early Leave" : "On Time";
+         if (isHalfAfternoon) {
+             outStatusDisplay = "Half Day (PM)";
+         } else if (new Date(item.checkOutTime) < workEndTime) {
+             // ถ้าไม่ใช่ลาครึ่งบ่าย แล้วออกก่อน -> Early Leave
+             // (จริงๆ ควรเพิ่ม field isEarlyLeave ใน DB จะง่ายสุด แต่ถ้าไม่มีใช้แบบนี้ไปก่อน)
+             outStatusDisplay = "Early Leave";
+         } else {
+             outStatusDisplay = "On Time";
+         }
       } else {
         outStatusDisplay = "Still Working";
       }
 
-      // 4. คำนวณชั่วโมงทำงาน
+      // 4. ชั่วโมงทำงาน
       let workingHours = "-";
       if (item.checkInTime && item.checkOutTime) {
         const diffMs = new Date(item.checkOutTime) - new Date(item.checkInTime);
@@ -481,11 +492,14 @@ exports.getAllAttendance = async (req, res) => {
         employeeName: `${item.employee.firstName} ${item.employee.lastName}`,
         dateDisplay: formatShortDate(item.workDate),
         checkInDisplay: formatThaiTime(item.checkInTime),
-        checkOutDisplay: item.checkOutTime
-          ? formatThaiTime(item.checkOutTime)
-          : "-",
+        checkOutDisplay: item.checkOutTime ? formatThaiTime(item.checkOutTime) : "-",
+        
+        // ขาเข้าเชื่อ DB ได้เลย
         inStatus: item.isLate ? "Late" : "On Time",
+        
+        // ขาออกใช้ Logic ที่ปรับปรุงแล้ว
         outStatus: outStatusDisplay,
+        
         duration: workingHours,
         note: item.note || "-",
       };
@@ -504,9 +518,7 @@ exports.getUserHistory = async (req, res) => {
     const { id } = req.params;
     const employeeId = Number(id);
 
-    if (isNaN(employeeId)) {
-      return res.status(400).json({ error: "Invalid Employee ID" });
-    }
+    if (isNaN(employeeId)) return res.status(400).json({ error: "Invalid Employee ID" });
 
     // 1. ดึงข้อมูลประวัติ และข้อมูลพนักงานเพื่อหา Role
     const [history, employee] = await Promise.all([
@@ -520,11 +532,9 @@ exports.getUserHistory = async (req, res) => {
       })
     ]);
 
-    if (!employee) {
-      return res.status(404).json({ error: "Employee not found" });
-    }
+    if (!employee) return res.status(404).json({ error: "Employee not found" });
 
-    // 2. ดึง Config ของ Role นั้นมาเพื่อเทียบ Early Leave
+    // 2. ดึง Config
     const config = await prisma.workConfiguration.findUnique({
       where: { role: employee.role }
     });
@@ -542,12 +552,19 @@ exports.getUserHistory = async (req, res) => {
         workingHours = `${hrs}h ${mins}m`;
       }
 
-      // 4. เช็คสถานะการเลิกงาน
+      // 4. ✅ ปรับปรุง Logic สถานะการเลิกงาน (Out Status)
       let outStatusDisplay = "-";
       if (item.checkOutTime) {
-        const workEndTime = new Date(item.workDate);
-        workEndTime.setHours(endHour, endMin, 0, 0);
-        outStatusDisplay = new Date(item.checkOutTime) < workEndTime ? "Early Leave" : "On Time";
+        // เช็ค Note ว่ามีคำว่า Half Day ไหม (ถ้าไม่มีค่อยเช็คเวลา)
+        const isHalfAfternoon = item.note && item.note.includes("Half Day (Afternoon)");
+
+        if (isHalfAfternoon) {
+           outStatusDisplay = "Half Day (PM)";
+        } else {
+           const workEndTime = new Date(item.workDate);
+           workEndTime.setHours(endHour, endMin, 0, 0);
+           outStatusDisplay = new Date(item.checkOutTime) < workEndTime ? "Early Leave" : "On Time";
+        }
       } else {
         outStatusDisplay = "Still Working";
       }
@@ -557,8 +574,13 @@ exports.getUserHistory = async (req, res) => {
         dateDisplay: formatShortDate(item.workDate),
         checkInDisplay: formatThaiTime(item.checkInTime),
         checkOutDisplay: item.checkOutTime ? formatThaiTime(item.checkOutTime) : "-",
+        
+        // ขาเข้าเชื่อ DB ได้เลย
         inStatus: item.isLate ? "Late" : "On Time",
+        
+        // ขาออกใช้ Logic ใหม่
         outStatus: outStatusDisplay,
+        
         duration: workingHours,
         note: item.note || "-",
       };
@@ -576,7 +598,7 @@ exports.getTeamTodayAttendance = async (req, res) => {
   try {
     const todayStart = getThaiStartOfDay();
 
-    // 1) ดึงข้อมูลพร้อมกันเพื่อประสิทธิภาพ (Active employees + Today's records + Role configs)
+    // 1) ดึงข้อมูล
     const [employees, todayRecords, configs] = await Promise.all([
       prisma.employee.findMany({
         where: { isActive: true },
@@ -590,13 +612,13 @@ exports.getTeamTodayAttendance = async (req, res) => {
       prisma.workConfiguration.findMany()
     ]);
 
-    // 2) จัดการ Record ล่าสุดของแต่ละคน (กรณีมีบันทึกซ้ำ)
+    // 2) Map Record
     const recordMap = new Map();
     for (const r of todayRecords) {
       if (!recordMap.has(r.employeeId)) recordMap.set(r.employeeId, r);
     }
 
-    // 3) ผสมข้อมูล (Merge) และคำนวณสถานะละเอียด
+    // 3) ผสมข้อมูล
     const result = employees.map((emp) => {
       const r = recordMap.get(emp.id);
       const userConfig = configs.find(c => c.role === emp.role);
@@ -604,12 +626,18 @@ exports.getTeamTodayAttendance = async (req, res) => {
       const endHour = userConfig ? userConfig.endHour : 18;
       const endMin = userConfig ? userConfig.endMin : 0;
 
-      // คำนวณ Early Leave
+      // ✅ ปรับปรุง Logic Early Leave
       let outStatus = "-";
       if (r?.checkOutTime) {
-        const workEndTime = new Date(r.workDate);
-        workEndTime.setHours(endHour, endMin, 0, 0);
-        outStatus = new Date(r.checkOutTime) < workEndTime ? "Early Leave" : "On Time";
+         const isHalfAfternoon = r.note && r.note.includes("Half Day (Afternoon)");
+
+         if (isHalfAfternoon) {
+             outStatus = "Half Day (PM)";
+         } else {
+             const workEndTime = new Date(r.workDate);
+             workEndTime.setHours(endHour, endMin, 0, 0);
+             outStatus = new Date(r.checkOutTime) < workEndTime ? "Early Leave" : "On Time";
+         }
       }
 
       // คำนวณ Working Hours
@@ -631,11 +659,13 @@ exports.getTeamTodayAttendance = async (req, res) => {
         checkInTimeDisplay: r?.checkInTime ? formatThaiTime(r.checkInTime) : null,
         checkOutTimeDisplay: r?.checkOutTime ? formatThaiTime(r.checkOutTime) : null,
         
+        // ขาเข้าเชื่อ DB
         inStatus: r?.checkInTime ? (r.isLate ? "Late" : "On Time") : "Waiting",
-        outStatus: outStatus,
-        duration: duration,
         
-        // สถานะหลักสำหรับ Filter หรือทำสี UI: Absent, Working, Completed
+        // ขาออกใช้ Logic ใหม่
+        outStatus: outStatus,
+        
+        duration: duration,
         state: !r?.checkInTime ? "ABSENT" : !r?.checkOutTime ? "WORKING" : "COMPLETED",
         note: r?.note || null,
       };
@@ -921,29 +951,37 @@ exports.updateWorkConfig = async (req, res) => {
     const { role, startHour, startMin, endHour, endMin } = req.body;
     const hrId = req.user.id; 
 
-    // 1. ตรวจสอบความถูกต้องของข้อมูล
+    // 1. ตรวจสอบความถูกต้องของข้อมูล (เพิ่มเช็คนาที)
     if (startHour < 0 || startHour > 23 || endHour < 0 || endHour > 23) {
       return res.status(400).json({ error: "ชั่วโมงต้องอยู่ระหว่าง 0-23" });
     }
+    if (startMin < 0 || startMin > 59 || endMin < 0 || endMin > 59) {
+      return res.status(400).json({ error: "นาทีต้องอยู่ระหว่าง 0-59" });
+    }
 
-    // 2. อัปเดตลง Database 
-    const updatedConfig = await prisma.workConfiguration.upsert({
-      where: { role: role },
-      update: { startHour, startMin, endHour, endMin },
-      create: { role, startHour, startMin, endHour, endMin },
-    });
+    const detailsText = `HR แก้ไขเวลาทำงานของ Role: ${role} เป็น ${startHour}:${String(startMin).padStart(2, '0')} - ${endHour}:${String(endMin).padStart(2, '0')}`;
 
-    const detailsText = `HR แก้ไขเวลาทำงานของ Role: ${role} เป็น ${startHour}:${startMin} - ${endHour}:${endMin}`;
+    // 🚀 2. ใช้ Transaction (เพื่อให้ Log กับ Data ไปพร้อมกัน)
+    const updatedConfig = await prisma.$transaction(async (tx) => {
+        // อัปเดตลง Database 
+        const config = await tx.workConfiguration.upsert({
+            where: { role: role },
+            update: { startHour, startMin, endHour, endMin },
+            create: { role, startHour, startMin, endHour, endMin },
+        });
 
-    // 3. บันทึก Audit Log ลง Database
-    await auditLog(prisma, {
-      action: "UPDATE",
-      modelName: "WorkConfiguration",
-      recordId: updatedConfig.id,
-      userId: hrId,
-      details: detailsText,
-      newValue: updatedConfig,
-      req: req
+        // บันทึก Audit Log ลง Database (ใช้ tx)
+        await auditLog(tx, {
+            action: "UPDATE",
+            modelName: "WorkConfiguration",
+            recordId: config.id,
+            userId: hrId,
+            details: detailsText,
+            newValue: config,
+            req: req
+        });
+
+        return config;
     });
 
     // ✅ 4. เพิ่มส่วนส่ง Real-time (Socket.io)
@@ -953,13 +991,13 @@ exports.updateWorkConfig = async (req, res) => {
       io.emit("new-audit-log", {
         id: Date.now(),
         action: "UPDATE", // ใช้สีส้ม (Update)
-        modelName: "WorkConfig", // ชื่อย่อ หรือชื่อเต็มก็ได้
+        modelName: "WorkConfig",
         recordId: updatedConfig.id,
         performedBy: {
             firstName: req.user.firstName, 
             lastName: req.user.lastName
         },
-        details: detailsText, // ใช้ข้อความเดียวกับที่ลง DB
+        details: detailsText,
         createdAt: new Date()
       });
     }
@@ -978,7 +1016,9 @@ exports.updateWorkConfig = async (req, res) => {
 
 exports.getWorkConfigs = async (req, res) => {
   try {
-    const configs = await prisma.workConfiguration.findMany();
+    const configs = await prisma.workConfiguration.findMany({
+        orderBy: { role: 'asc' } // เรียงลำดับ Role ให้สวยงาม
+    });
     res.json({
       success: true,
       data: configs

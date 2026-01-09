@@ -1,6 +1,6 @@
 // backend/src/controllers/timeRecordController.js
 
-// Helper Functions (คงเดิม)
+// Helper Functions
 const formatDateStr = (date) => date.toISOString().split('T')[0];
 const isWeekend = (date) => {
   const day = date.getDay();
@@ -36,9 +36,7 @@ exports.getStats = async (req, res) => {
     }
 
     const today = new Date();
-    
-    // ✅ แก้จุดที่ 1: ให้ loop ถึงสิ้นเดือนเสมอ (เพื่อให้แสดงวันลาล่วงหน้าได้)
-    // ไม่ตัดจบแค่ today แล้ว
+    // ✅ Loop ถึงสิ้นเดือนเสมอ (เพื่อให้แสดงวันลาล่วงหน้าได้)
     const loopEndDate = endDate; 
 
     // --- 3. Fetch Data ---
@@ -47,16 +45,12 @@ exports.getStats = async (req, res) => {
         select: { role: true, firstName: true, lastName: true } 
     });
 
-    if (!targetEmployee) {
-        return res.status(404).json({ error: "Employee not found" });
-    }
+    if (!targetEmployee) return res.status(404).json({ error: "Employee not found" });
 
     const [timeRecords, leaves, holidays, realWorkConfig] = await Promise.all([
-      // ดึง Record ทั้งเดือน (อนาคตไม่มีอยู่แล้ว ไม่เป็นไร)
       prisma.timeRecord.findMany({
         where: { employeeId: targetId, workDate: { gte: startDate, lte: loopEndDate } }
       }),
-      // ดึงวันลาทั้งเดือน (รวมอนาคต)
       prisma.leaveRequest.findMany({
         where: { 
             employeeId: targetId, 
@@ -66,7 +60,6 @@ exports.getStats = async (req, res) => {
         },
         include: { leaveType: true }
       }),
-      // ดึงวันหยุดทั้งเดือน (รวมอนาคต)
       prisma.holiday.findMany({
         where: { date: { gte: startDate, lte: loopEndDate } }
       }),
@@ -89,34 +82,23 @@ exports.getStats = async (req, res) => {
       totalDaysExpected: 0,
       present: 0,
       late: 0,
-      lateMinutes: 0,      
-      lateDates: [],       
-      earlyLeave: 0,
-      earlyLeaveMinutes: 0, 
-      earlyLeaveDates: [],  
-      leave: 0,
-      leaveBreakdown: {}, 
-      leaveDates: [],
-      absent: 0,
-      absentDates: []      
+      lateMinutes: 0, lateDates: [],       
+      earlyLeave: 0, earlyLeaveMinutes: 0, earlyLeaveDates: [],  
+      leave: 0, leaveBreakdown: {}, leaveDates: [],
+      absent: 0, absentDates: []      
     };
 
     // --- 5. Main Loop ---
-    // วนลูปตั้งแต่วันแรก ถึง "สิ้นเดือน" (ไม่ใช่แค่วันนี้)
     for (let d = new Date(startDate); d <= loopEndDate; d.setDate(d.getDate() + 1)) {
         const currentDateStr = formatDateStr(d);
         const isCurrentWeekend = isWeekend(d);
         const isCurrentHoliday = holidays.some(h => formatDateStr(h.date) === currentDateStr);
         
         // เช็คว่าเป็นวันในอนาคตหรือไม่?
-        // (d คือ 00:00 UTC, today คือเวลาปัจจุบัน)
-        // ถ้า d > today แปลว่าเป็นวันพรุ่งนี้เป็นต้นไป
         const isFuture = d > today; 
 
-        // ดึง Record เวลาทำงาน
         const record = timeRecords.find(r => formatDateStr(r.workDate) === currentDateStr);
         
-        // หาข้อมูลการลาในวันนั้น
         const leave = leaves.find(l => {
             const start = new Date(l.startDate);
             const end = new Date(l.endDate);
@@ -126,36 +108,59 @@ exports.getStats = async (req, res) => {
             return dTime >= sTime && dTime <= eTime;
         });
 
-        // 1. เช็ควันลาก่อน (แสดงได้ทั้งอดีตและอนาคต)
+        // 🔥 Logic ตรวจสอบประเภทการลา (Full / Half)
+        let isHalfDayLeave = false;
+        let isMorningLeave = false;   // ลาเช้า (เข้าบ่าย)
+        let isAfternoonLeave = false; // ลาบ่าย (กลับเที่ยง)
+
         if (leave) {
-            // นับสถิติวันลา (ไม่ว่าจะอดีตหรืออนาคต ก็นับว่าใช้โควตาแล้ว)
-            if (!isCurrentWeekend && !isCurrentHoliday) {
-                stats.leave++;
-                const typeName = leave.leaveType.typeName;
-                stats.leaveBreakdown[typeName] = (stats.leaveBreakdown[typeName] || 0) + 1;
+            if (leave.startDuration === 'HalfMorning' || leave.endDuration === 'HalfMorning') {
+                isHalfDayLeave = true; isMorningLeave = true;
+            } else if (leave.startDuration === 'HalfAfternoon' || leave.endDuration === 'HalfAfternoon') {
+                isHalfDayLeave = true; isAfternoonLeave = true;
             }
-            // ใส่ลง Array เพื่อโชว์ในปฏิทิน
-            stats.leaveDates.push({
-                date: currentDateStr,
-                type: leave.leaveType.typeName
-            });
-            continue; // จบวัน
+
+            // Case 1: ลาเต็มวัน (Full Day)
+            if (!isHalfDayLeave) {
+                // ถ้ามี Record มาทำงาน -> ให้นับเป็น Present (ข้าม Logic Leave ไป)
+                if (!record) {
+                    if (!isCurrentWeekend && !isCurrentHoliday) {
+                        stats.leave++; // บวก 1 วัน
+                        const typeName = leave.leaveType.typeName;
+                        stats.leaveBreakdown[typeName] = (stats.leaveBreakdown[typeName] || 0) + 1;
+                    }
+                    stats.leaveDates.push({ date: currentDateStr, type: leave.leaveType.typeName });
+                    continue; // จบวัน (หยุดนับ)
+                }
+            }
+
+            // Case 2: ลาครึ่งวัน (Half Day)
+            if (isHalfDayLeave) {
+                if (!isCurrentWeekend && !isCurrentHoliday) {
+                    stats.leave += 0.5; // บวก 0.5 วัน
+                    const typeName = leave.leaveType.typeName;
+                    stats.leaveBreakdown[typeName] = (stats.leaveBreakdown[typeName] || 0) + 0.5;
+                }
+                stats.leaveDates.push({ date: currentDateStr, type: leave.leaveType.typeName + " (0.5)" });
+                // ไม่ continue เพราะต้องลงไปเช็ค Record ว่ามาสาย/กลับก่อนไหม
+            }
         }
 
-        // 2. เช็ควันหยุด (แสดงได้ทั้งอดีตและอนาคต)
-        if (isCurrentWeekend || isCurrentHoliday) continue;
+        // เช็ควันหยุด (ถ้าไม่ได้ลาเต็มวัน และเป็นวันหยุด ก็ข้าม)
+        if ((isCurrentWeekend || isCurrentHoliday) && !record) continue;
 
-        // ✅ แก้จุดที่ 2: ถ้าเป็น "วันในอนาคต" ให้หยุดแค่นี้ (ไม่เช็ค ขาด/ลา/มาสาย)
-        // เพราะเรายังไม่รู้อนาคตว่าจะมาทำงานไหม
+        // ถ้าเป็นอนาคต หยุดเช็คแค่นี้ (หลังจาก push leaveDates ไปแล้ว)
         if (isFuture) continue;
 
-        // --- ด้านล่างนี้คือ Logic สำหรับ "อดีตและปัจจุบัน" เท่านั้น ---
-        
+        // --- เริ่มนับสถิติการทำงาน ---
         stats.totalDaysExpected++; 
 
         if (record) {
             stats.present++;
-            if (record.isLate) {
+
+            // 1. เช็คสาย (Late)
+            // ✅ ถ้าลาครึ่งเช้า (isMorningLeave) -> ไม่นับสาย
+            if (record.isLate && !isMorningLeave) {
                 stats.late++;
                 stats.lateDates.push(currentDateStr);
                 if (record.checkInTime) {
@@ -166,32 +171,38 @@ exports.getStats = async (req, res) => {
                     }
                 }
             }
+
+            // 2. เช็คกลับก่อน (Early Leave)
             if (record.checkOutTime) {
                 const out = new Date(record.checkOutTime);
                 const outMinutes = (out.getHours() * 60) + out.getMinutes();
-                if (outMinutes < endWorkMinutes) {
+                // ✅ ถ้าลาครึ่งบ่าย (isAfternoonLeave) -> ไม่นับกลับก่อน
+                if (outMinutes < endWorkMinutes && !isAfternoonLeave) {
                     stats.earlyLeave++;
                     stats.earlyLeaveDates.push(currentDateStr);
                     stats.earlyLeaveMinutes += (endWorkMinutes - outMinutes);
                 }
             }
         } else {
-            // Logic เช็คขาดงาน (Absent)
-            const isToday = isSameDay(d, today);
-            let isPending = false;
-            
-            if (isToday) {
-                const nowMinutes = (today.getHours() * 60) + today.getMinutes();
-                if (nowMinutes < endWorkMinutes) {
-                    isPending = true;
-                }
-            }
-
-            if (!isPending) {
+            // ไม่มี Record
+            if (isHalfDayLeave) {
+                // ลาครึ่งวันแต่ไม่มาตอกบัตรเลย = ขาดงาน (หรือจะนับ 0.5 แล้วแต่นโยบาย ในที่นี้ให้นับขาด)
                 stats.absent++;
-                stats.absentDates.push(currentDateStr);
+                stats.absentDates.push(currentDateStr + " (No Check-in)");
             } else {
-                stats.totalDaysExpected--;
+                // ขาดงานปกติ
+                const isToday = isSameDay(d, today);
+                let isPending = false;
+                if (isToday) {
+                    const nowMinutes = (today.getHours() * 60) + today.getMinutes();
+                    if (nowMinutes < endWorkMinutes) isPending = true;
+                }
+                if (!isPending) {
+                    stats.absent++;
+                    stats.absentDates.push(currentDateStr);
+                } else {
+                    stats.totalDaysExpected--;
+                }
             }
         }
     }
