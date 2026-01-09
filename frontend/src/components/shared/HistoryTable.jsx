@@ -472,8 +472,8 @@ export default function HistoryTable({
               <tr>
                 <th className="px-6 py-4">{t("history.date")}</th>
                 <th className="px-6 py-4">{t("history.inOut")}</th>
-                <th className="px-6 py-4 text-center">Status In</th>
-                <th className="px-6 py-4 text-center">Status Out</th>
+                <th className="px-6 py-4 text-center">{t("history.statusIn")}</th>
+                <th className="px-6 py-4 text-center">{t("history.statusOut")}</th>
               </tr>
             ) : (
               <tr>
@@ -482,9 +482,9 @@ export default function HistoryTable({
                 <th className="px-6 py-4 text-center">{t("history.days")}</th>
                 <th className="px-6 py-4">{t("history.note")}</th>
                 <th className="px-6 py-4 text-center">{t("history.file")}</th>
-                <th className="px-6 py-4 text-center">Signed By</th>
+                <th className="px-6 py-4 text-center">{t("history.signedBy")}</th>
                 <th className="px-6 py-4 text-center">{t("history.status")}</th>
-                <th className="px-6 py-4 text-center">Actions</th>
+                <th className="px-6 py-4 text-center">{t("history.action")}</th>
               </tr>
             )}
           </thead>
@@ -705,10 +705,7 @@ export default function HistoryTable({
         )}
       </div>
 
-      {/* hint */}
-      <div className="px-6 pb-5 text-[11px] text-gray-400">
-        * Status แยกเข้า/ออก: ON_TIME, LATE, LEAVE, ABSENT / NORMAL, EARLY, LEAVE, NO_CHECKOUT
-      </div>
+
     </div>
   );
 }

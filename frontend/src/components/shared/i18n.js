@@ -23,6 +23,7 @@ i18n.use(initReactI18next).init({
 
           checkIn: "CHECK IN",
           checkOut: "CHECK OUT",
+          updatecheckOut: "UPDATE CHECK OUT",
           leave: "LEAVE",
 
           attendanceConfirmTitle: "Attendance Confirmation",
@@ -86,28 +87,40 @@ i18n.use(initReactI18next).init({
         history: {
           attendanceLog: "Attendance Log",
           leaveHistory: "Leave History",
-
           tabAttendance: "Attendance",
           tabLeave: "Leave",
-
           date: "Date",
           inOut: "In / Out",
           status: "Status",
-
+          statusIn: "Status In",
+          statusOut: "Status Out",
+          signedBy: "Signed By",
           type: "Type",
           period: "Period",
           days: "Days",
           note: "Note",
           file: "File",
-
           noData: "No Data",
+          filter: "Filter",
+          clear: "Clear",
+          selectDate: "Select Date",
 
+          // Status Badges
           late: "Late",
           onTime: "On Time",
+          absent: "Absent",
+          leave: "Leave",
+          early: "Early Leave",
+          normal: "Normal",
+          noCheckout: "No Check-out",
+          notCheckedOutYet: "NOT CHECKED OUT YET",
 
-          filter: "Filter", 
-          clear: "Clear", 
-          selectDate: "Select Date",
+          // Alerts
+          deleteTitle: "Delete leave request?",
+          deleteText:
+            "Are you sure you want to delete this request?<br/><b>{{type}}</b>",
+          deleteButton: "Delete",
+          requestCancelButton: "Request Cancel",
         },
 
         /* -------- leaveApproveal -------- */
@@ -277,89 +290,89 @@ i18n.use(initReactI18next).init({
           },
         },
         sweetAlert: {
-  reject: {
-    title: "Reject Leave Request",
-    label: "Reason for rejection",
-    placeholder: "Please enter rejection reason...",
-    confirm: "Reject",
-    required: "Rejection reason is required",
-  },
-},
-dateGridPicker: {
-  title: "Select date",
+          reject: {
+            title: "Reject Leave Request",
+            label: "Reason for rejection",
+            placeholder: "Please enter rejection reason...",
+            confirm: "Reject",
+            required: "Rejection reason is required",
+          },
+        },
+        dateGridPicker: {
+          title: "Select date",
 
-  all: "ALL",
-  allOn: "ALL ON",
-  allOff: "ALL OFF",
+          all: "ALL",
+          allOn: "ALL ON",
+          allOff: "ALL OFF",
 
-  year: "YEAR",
-  month: "MONTH",
-  day: "DAY",
+          year: "YEAR",
+          month: "MONTH",
+          day: "DAY",
 
-  reset: "RESET",
-  cancel: "CANCEL",
-  done: "DONE",
-},
-leaveRequest: {
-  type: "Leave Type",
-  none: "None",
+          reset: "RESET",
+          cancel: "CANCEL",
+          done: "DONE",
+        },
+        leaveRequest: {
+          type: "Leave Type",
+          none: "None",
 
-  fullDay: "Full Day",
-  halfMorning: "Half Day (Morning)",
-  halfAfternoon: "Half Day (Afternoon)",
+          fullDay: "Full Day",
+          halfMorning: "Half Day (Morning)",
+          halfAfternoon: "Half Day (Afternoon)",
 
-  errors: {
-    missingType: "Please select a leave type.",
-    missingDates: "Please specify both start and end dates.",
-    invalidDate: "End date must be after the start date."
-  },
+          errors: {
+            missingType: "Please select a leave type.",
+            missingDates: "Please specify both start and end dates.",
+            invalidDate: "End date must be after the start date.",
+          },
 
-  blockedTitle: "Leave Request Blocked",
-  blockedMessage: "You can’t request leave on holidays or non-working days.",
+          blockedTitle: "Leave Request Blocked",
+          blockedMessage:
+            "You can’t request leave on holidays or non-working days.",
 
-  submissionFailed: "Submission Failed",
+          submissionFailed: "Submission Failed",
 
-  headerTitle: "Leave Request",
-  headerSubtitle: "Employee Leave Management System",
+          headerTitle: "Leave Request",
+          headerSubtitle: "Employee Leave Management System",
 
-  step1: "1. Select Leave Type",
-  step2: "2. Select Dates & Duration",
-  step3: "3. Reason",
-  step4: "4. Attachment (Optional)",
+          step1: "1. Select Leave Type",
+          step2: "2. Select Dates & Duration",
+          step3: "3. Reason",
+          step4: "4. Attachment (Optional)",
 
-  start: "Start",
-  end: "End",
+          start: "Start",
+          end: "End",
 
-  chooseFile: "Choose File",
-  removeFile: "Remove File",
-  noFileSelected: "No file selected",
+          chooseFile: "Choose File",
+          removeFile: "Remove File",
+          noFileSelected: "No file selected",
 
-  attachNote: "You may attach supporting documents (e.g., medical certificate).",
+          attachNote:
+            "You may attach supporting documents (e.g., medical certificate).",
 
-  placeholderReason: "Please provide details...",
+          placeholderReason: "Please provide details...",
 
-  summaryTitle: "Leave Request Summary",
-  summaryReview: "Please review the details before confirming.",
-  summary: {
-    type: "Type",
-    period: "Period",
-    duration: "Duration",
-    attachment: "Attachment",
-    reason: "Reason"
-  },
+          summaryTitle: "Leave Request Summary",
+          summaryReview: "Please review the details before confirming.",
+          summary: {
+            type: "Type",
+            period: "Period",
+            duration: "Duration",
+            attachment: "Attachment",
+            reason: "Reason",
+          },
 
-  confirmTitle: "Confirm Leave Request",
-  confirmButton: "Submit Request",
+          confirmTitle: "Confirm Leave Request",
+          confirmButton: "Submit Request",
 
-  successTitle: "Request Submitted",
-  successMessage: "Your leave request has been submitted.",
+          successTitle: "Request Submitted",
+          successMessage: "Your leave request has been submitted.",
 
-  cancel: "Cancel",
-  submitting: "Submitting request...",
-  submit: "Submit Leave Request"
-}
-
-
+          cancel: "Cancel",
+          submitting: "Submitting request...",
+          submit: "Submit Leave Request",
+        },
       },
     },
 
@@ -376,6 +389,7 @@ leaveRequest: {
 
           checkIn: "เช็กอิน",
           checkOut: "เช็กเอาต์",
+          updatecheckOut: "เช็กเอาต์ใหม่",
           leave: "ลา",
 
           attendanceConfirmTitle: "ยืนยันการลงเวลา",
@@ -436,32 +450,39 @@ leaveRequest: {
 
         /* -------- history -------- */
         history: {
-          attendanceLog: "บันทึกเวลาเข้าออกงาน",
+          attendanceLog: "ประวัติการลงเวลา",
           leaveHistory: "ประวัติการลา",
-
-          tabAttendance: "เข้างาน",
-          tabLeave: "ลา",
-
+          tabAttendance: "การลงเวลา",
+          tabLeave: "การลา",
           date: "วันที่",
           inOut: "เข้า / ออก",
           status: "สถานะ",
-
+          statusIn: "สถานะเข้า",
+          statusOut: "สถานะออก",
+          signedBy: "ดำเนินการโดย",
           type: "ประเภท",
           period: "ช่วงเวลา",
-          days: "วัน",
+          days: "จำนวนวัน",
           note: "หมายเหตุ",
-          file: "ไฟล์",
-
+          file: "ไฟล์แนบ",
           noData: "ไม่พบข้อมูล",
+          filter: "ตัวกรอง",
+          clear: "ล้างค่า",
+          selectDate: "เลือกวันที่",
 
           late: "สาย",
           onTime: "ตรงเวลา",
+          absent: "ขาดงาน",
+          leave: "ลา",
+          early: "ออกก่อน",
+          normal: "ปกติ",
+          noCheckout: "ไม่ลงชื่อออก",
+          notCheckedOutYet: "ยังไม่ลงชื่อออก",
 
-          usedDays: "{{days}} วัน",
-
-          filter: "ตัวกรอง", 
-          clear: "ล้างค่า", 
-          selectDate: "เลือกวันที่",
+          deleteTitle: "ลบรายการลา?",
+          deleteText: "คุณแน่ใจหรือไม่ที่จะลบรายการนี้?<br/><b>{{type}}</b>",
+          deleteButton: "ลบรายการ",
+          requestCancelButton: "ขอยกเลิก",
         },
 
         /* -------- leaveApproveal -------- */
@@ -639,84 +660,81 @@ leaveRequest: {
           },
         },
         dateGridPicker: {
-  title: "เลือกวันที่",
+          title: "เลือกวันที่",
 
-  all: "ทั้งหมด",
-  allOn: "เลือกทั้งหมด",
-  allOff: "ไม่เลือกทั้งหมด",
+          all: "ทั้งหมด",
+          allOn: "เลือกทั้งหมด",
+          allOff: "ไม่เลือกทั้งหมด",
 
-  year: "ปี",
-  month: "เดือน",
-  day: "วัน",
+          year: "ปี",
+          month: "เดือน",
+          day: "วัน",
 
-  reset: "รีเซ็ต",
-  cancel: "ยกเลิก",
-  done: "ตกลง",
-},
-leaveRequest: {
-  type: "ประเภทการลา",
-  none: "ไม่มี",
+          reset: "รีเซ็ต",
+          cancel: "ยกเลิก",
+          done: "ตกลง",
+        },
+        leaveRequest: {
+          type: "ประเภทการลา",
+          none: "ไม่มี",
 
-  fullDay: "เต็มวัน",
-  halfMorning: "ครึ่งวัน (เช้า)",
-  halfAfternoon: "ครึ่งวัน (บ่าย)",
+          fullDay: "เต็มวัน",
+          halfMorning: "ครึ่งวัน (เช้า)",
+          halfAfternoon: "ครึ่งวัน (บ่าย)",
 
-  errors: {
-    missingType: "กรุณาเลือกประเภทการลา",
-    missingDates: "กรุณาระบุวันที่เริ่มและวันที่สิ้นสุด",
-    invalidDate: "วันที่สิ้นสุดต้องมากกว่าวันที่เริ่ม"
-  },
+          errors: {
+            missingType: "กรุณาเลือกประเภทการลา",
+            missingDates: "กรุณาระบุวันที่เริ่มและวันที่สิ้นสุด",
+            invalidDate: "วันที่สิ้นสุดต้องมากกว่าวันที่เริ่ม",
+          },
 
-  blockedTitle: "ไม่สามารถทำรายการได้",
-  blockedMessage: "ไม่สามารถขอลาในวันหยุดหรือวันที่ไม่ใช่วันทำงาน",
+          blockedTitle: "ไม่สามารถทำรายการได้",
+          blockedMessage: "ไม่สามารถขอลาในวันหยุดหรือวันที่ไม่ใช่วันทำงาน",
 
-  submissionFailed: "ส่งคำขอไม่สำเร็จ",
+          submissionFailed: "ส่งคำขอไม่สำเร็จ",
 
-  headerTitle: "ยื่นคำขอลา",
-  headerSubtitle: "ระบบจัดการการลาของพนักงาน",
+          headerTitle: "ยื่นคำขอลา",
+          headerSubtitle: "ระบบจัดการการลาของพนักงาน",
 
-  step1: "1. เลือกประเภทการลา",
-  step2: "2. เลือกวันที่และระยะเวลา",
-  step3: "3. เหตุผล",
-  step4: "4. ไฟล์แนบ (ถ้ามี)",
+          step1: "1. เลือกประเภทการลา",
+          step2: "2. เลือกวันที่และระยะเวลา",
+          step3: "3. เหตุผล",
+          step4: "4. ไฟล์แนบ (ถ้ามี)",
 
-  start: "เริ่มต้น",
-  end: "สิ้นสุด",
+          start: "เริ่มต้น",
+          end: "สิ้นสุด",
 
-  chooseFile: "เลือกไฟล์",
-  removeFile: "ลบไฟล์",
-  noFileSelected: "ยังไม่ได้เลือกไฟล์",
+          chooseFile: "เลือกไฟล์",
+          removeFile: "ลบไฟล์",
+          noFileSelected: "ยังไม่ได้เลือกไฟล์",
 
-  attachNote: "คุณสามารถแนบเอกสารประกอบได้ (เช่น ใบรับรองแพทย์)",
+          attachNote: "คุณสามารถแนบเอกสารประกอบได้ (เช่น ใบรับรองแพทย์)",
 
-  placeholderReason: "กรุณาระบุรายละเอียด...",
+          placeholderReason: "กรุณาระบุรายละเอียด...",
 
-  summaryTitle: "สรุปคำขอลา",
-  summaryReview: "กรุณาตรวจสอบข้อมูลก่อนยืนยัน",
-  summary: {
-    type: "ประเภท",
-    period: "ช่วงเวลา",
-    duration: "ระยะเวลา",
-    attachment: "ไฟล์แนบ",
-    reason: "เหตุผล"
-  },
+          summaryTitle: "สรุปคำขอลา",
+          summaryReview: "กรุณาตรวจสอบข้อมูลก่อนยืนยัน",
+          summary: {
+            type: "ประเภท",
+            period: "ช่วงเวลา",
+            duration: "ระยะเวลา",
+            attachment: "ไฟล์แนบ",
+            reason: "เหตุผล",
+          },
 
-  confirmTitle: "ยืนยันคำขอลา",
-  confirmButton: "ส่งคำขอ",
+          confirmTitle: "ยืนยันคำขอลา",
+          confirmButton: "ส่งคำขอ",
 
-  successTitle: "ส่งคำขอสำเร็จ",
-  successMessage: "ระบบได้รับคำขอลาของคุณแล้ว",
+          successTitle: "ส่งคำขอสำเร็จ",
+          successMessage: "ระบบได้รับคำขอลาของคุณแล้ว",
 
-  cancel: "ยกเลิก",
-  submitting: "กำลังส่งคำขอ...",
-  submit: "ส่งคำขอลา"
-}
-
-
+          cancel: "ยกเลิก",
+          submitting: "กำลังส่งคำขอ...",
+          submit: "ส่งคำขอลา",
+        },
       },
     },
   },
 });
 
 export default i18n;
- 
