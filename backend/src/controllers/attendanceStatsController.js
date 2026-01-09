@@ -1,4 +1,4 @@
-// backend/src/controllers/timeRecordController.js
+// backend/src/controllers/attendanceStatsController.js (หรือไฟล์ที่คุณเก็บ getStats)
 
 // Helper Functions
 const formatDateStr = (date) => date.toISOString().split('T')[0];
@@ -68,7 +68,7 @@ exports.getStats = async (req, res) => {
       })
     ]);
 
-    // --- Config เวลาเข้า-ออกงาน ---
+    // Config สำหรับคำนวณ "นาที" ที่สาย (ยังต้องใช้อยู่เพื่อหา Duration)
     const startHour = realWorkConfig?.startHour || 9;
     const startMin = realWorkConfig?.startMin || 0;
     const startWorkMinutes = (startHour * 60) + startMin;
@@ -94,7 +94,6 @@ exports.getStats = async (req, res) => {
         const isCurrentWeekend = isWeekend(d);
         const isCurrentHoliday = holidays.some(h => formatDateStr(h.date) === currentDateStr);
         
-        // เช็คว่าเป็นวันในอนาคตหรือไม่?
         const isFuture = d > today; 
 
         const record = timeRecords.find(r => formatDateStr(r.workDate) === currentDateStr);
@@ -108,61 +107,62 @@ exports.getStats = async (req, res) => {
             return dTime >= sTime && dTime <= eTime;
         });
 
-        // 🔥 Logic ตรวจสอบประเภทการลา (Full / Half)
+        // 🔥 1. Logic ตรวจสอบการลา (Full / Half)
         let isHalfDayLeave = false;
-        let isMorningLeave = false;   // ลาเช้า (เข้าบ่าย)
-        let isAfternoonLeave = false; // ลาบ่าย (กลับเที่ยง)
-
+        
         if (leave) {
-            if (leave.startDuration === 'HalfMorning' || leave.endDuration === 'HalfMorning') {
-                isHalfDayLeave = true; isMorningLeave = true;
-            } else if (leave.startDuration === 'HalfAfternoon' || leave.endDuration === 'HalfAfternoon') {
-                isHalfDayLeave = true; isAfternoonLeave = true;
+            if (leave.startDuration === 'HalfMorning' || leave.endDuration === 'HalfMorning' ||
+                leave.startDuration === 'HalfAfternoon' || leave.endDuration === 'HalfAfternoon') {
+                isHalfDayLeave = true;
             }
 
             // Case 1: ลาเต็มวัน (Full Day)
             if (!isHalfDayLeave) {
-                // ถ้ามี Record มาทำงาน -> ให้นับเป็น Present (ข้าม Logic Leave ไป)
+                // ถ้าไม่มาทำงาน -> นับลา แล้วข้าม (แต่ถ้ามาทำงาน ให้ลงไปนับ Present ข้างล่าง)
                 if (!record) {
                     if (!isCurrentWeekend && !isCurrentHoliday) {
-                        stats.leave++; // บวก 1 วัน
+                        stats.leave++; 
                         const typeName = leave.leaveType.typeName;
                         stats.leaveBreakdown[typeName] = (stats.leaveBreakdown[typeName] || 0) + 1;
                     }
                     stats.leaveDates.push({ date: currentDateStr, type: leave.leaveType.typeName });
-                    continue; // จบวัน (หยุดนับ)
+                    continue; // จบวัน
                 }
             }
 
             // Case 2: ลาครึ่งวัน (Half Day)
             if (isHalfDayLeave) {
                 if (!isCurrentWeekend && !isCurrentHoliday) {
-                    stats.leave += 0.5; // บวก 0.5 วัน
+                    stats.leave += 0.5; // ✅ บวกแค่ 0.5
                     const typeName = leave.leaveType.typeName;
                     stats.leaveBreakdown[typeName] = (stats.leaveBreakdown[typeName] || 0) + 0.5;
                 }
                 stats.leaveDates.push({ date: currentDateStr, type: leave.leaveType.typeName + " (0.5)" });
-                // ไม่ continue เพราะต้องลงไปเช็ค Record ว่ามาสาย/กลับก่อนไหม
+                // ไม่ continue เพราะต้องเช็ค Record ต่อ
             }
         }
 
-        // เช็ควันหยุด (ถ้าไม่ได้ลาเต็มวัน และเป็นวันหยุด ก็ข้าม)
         if ((isCurrentWeekend || isCurrentHoliday) && !record) continue;
-
-        // ถ้าเป็นอนาคต หยุดเช็คแค่นี้ (หลังจาก push leaveDates ไปแล้ว)
         if (isFuture) continue;
 
-        // --- เริ่มนับสถิติการทำงาน ---
         stats.totalDaysExpected++; 
 
+        // 🔥 2. Logic เช็คเวลาทำงาน (ใช้ Status จาก DB)
         if (record) {
             stats.present++;
 
-            // 1. เช็คสาย (Late)
-            // ✅ ถ้าลาครึ่งเช้า (isMorningLeave) -> ไม่นับสาย
-            if (record.isLate && !isMorningLeave) {
+            // --- เช็คสาย (LATE) ---
+            let isLate = false;
+            if (record.checkInStatus) {
+                isLate = (record.checkInStatus === 'LATE');
+            } else {
+                isLate = record.isLate; // Fallback
+            }
+
+            if (isLate) {
                 stats.late++;
                 stats.lateDates.push(currentDateStr);
+                // คำนวณนาทีที่สาย
                 if (record.checkInTime) {
                     const inTime = new Date(record.checkInTime);
                     const inMinutes = (inTime.getHours() * 60) + inTime.getMinutes();
@@ -172,21 +172,36 @@ exports.getStats = async (req, res) => {
                 }
             }
 
-            // 2. เช็คกลับก่อน (Early Leave)
-            if (record.checkOutTime) {
+            // --- เช็คกลับก่อน (EARLY) ---
+            let isEarly = false;
+            if (record.checkOutStatus) {
+                isEarly = (record.checkOutStatus === 'EARLY');
+            } else {
+                // Fallback (ถ้าไม่มี status ให้เช็คเวลา + ต้องไม่ใช่ลาครึ่งบ่าย)
+                if (record.checkOutTime) {
+                    const out = new Date(record.checkOutTime);
+                    const outMinutes = (out.getHours() * 60) + out.getMinutes();
+                    // ถ้าไม่มี Status ต้องเช็คเองว่าไม่ใช่ HalfAfternoon
+                    const isAfternoonLeave = leave && (leave.startDuration === 'HalfAfternoon' || leave.endDuration === 'HalfAfternoon');
+                    if (outMinutes < endWorkMinutes && !isAfternoonLeave) isEarly = true;
+                }
+            }
+
+            if (isEarly && record.checkOutTime) {
+                stats.earlyLeave++;
+                stats.earlyLeaveDates.push(currentDateStr);
+                
                 const out = new Date(record.checkOutTime);
                 const outMinutes = (out.getHours() * 60) + out.getMinutes();
-                // ✅ ถ้าลาครึ่งบ่าย (isAfternoonLeave) -> ไม่นับกลับก่อน
-                if (outMinutes < endWorkMinutes && !isAfternoonLeave) {
-                    stats.earlyLeave++;
-                    stats.earlyLeaveDates.push(currentDateStr);
+                if (outMinutes < endWorkMinutes) {
                     stats.earlyLeaveMinutes += (endWorkMinutes - outMinutes);
                 }
             }
+
         } else {
             // ไม่มี Record
             if (isHalfDayLeave) {
-                // ลาครึ่งวันแต่ไม่มาตอกบัตรเลย = ขาดงาน (หรือจะนับ 0.5 แล้วแต่นโยบาย ในที่นี้ให้นับขาด)
+                // ลาครึ่งวันแต่ไม่มาตอกบัตรเลย = ขาดงาน
                 stats.absent++;
                 stats.absentDates.push(currentDateStr + " (No Check-in)");
             } else {
