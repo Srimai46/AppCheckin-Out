@@ -1,6 +1,6 @@
 // backend/src/controllers/attendanceStatsController.js
 
-const prisma = require("../config/prisma"); // อย่าลืม import prisma ถ้ายังไม่มี
+const prisma = require("../config/prisma");
 
 // Helper Functions
 const formatDateStr = (date) => date.toISOString().split('T')[0];
@@ -24,10 +24,25 @@ exports.getStats = async (req, res) => {
       return res.status(403).json({ error: "Access denied." });
     }
 
-    // --- 2. Prepare Date Range ---
+    // --- 2. Fetch Employee Info First (เพื่อเอา joiningDate) ---
+    // ย้ายขึ้นมาก่อน เพื่อใช้ปรับ startDate
+    const targetEmployee = await prisma.employee.findUnique({ 
+        where: { id: targetId },
+        select: { 
+            role: true, 
+            firstName: true, 
+            lastName: true, 
+            joiningDate: true // ✅ 1. ดึงวันที่เริ่มงานมาด้วย
+        } 
+    });
+
+    if (!targetEmployee) return res.status(404).json({ error: "Employee not found" });
+
+    // --- 3. Prepare Date Range ---
     const targetYear = parseInt(year);
     let startDate, endDate;
     
+    // ตั้งค่าวันเริ่มต้น/สิ้นสุด ตามที่ User เลือก
     if (month && month !== 'All') {
       const m = parseInt(month) - 1; 
       startDate = new Date(Date.UTC(targetYear, m, 1));
@@ -37,17 +52,42 @@ exports.getStats = async (req, res) => {
       endDate = new Date(targetYear, 11, 31, 23, 59, 59);
     }
 
+    // ✅ 2. Logic ปรับ StartDate ตามวันเริ่มงาน
+    if (targetEmployee.joiningDate) {
+        // แปลง joiningDate เป็น Date Object (ตัดเวลาออกให้เหลือแค่เที่ยงคืนเพื่อการเปรียบเทียบที่แม่นยำ)
+        const joinDate = new Date(targetEmployee.joiningDate);
+        joinDate.setHours(0, 0, 0, 0);
+
+        // ถ้าวันที่เริ่มงาน มาทีหลัง วันที่เลือกดูรายงาน
+        // ให้เริ่มนับตั้งแต่วันเริ่มงานแทน
+        if (joinDate > startDate) {
+            startDate = joinDate;
+        }
+    }
+
+    // ป้องกันกรณี User เลือกดูปีเก่ากว่าที่พนักงานจะเข้าทำงาน (startDate อาจจะเกิน endDate)
+    // ถ้าเกิน endDate แสดงว่าช่วงเวลานั้นพนักงานยังไม่มา ให้ return stats เป็น 0 ไปเลย
+    if (startDate > endDate) {
+        return res.json({
+            employee: {
+                id: targetId,
+                name: `${targetEmployee.firstName} ${targetEmployee.lastName}`,
+                role: targetEmployee.role
+            },
+            period: { year: targetYear, month: month || 'All' },
+            stats: {
+                totalDaysExpected: 0,
+                present: 0, late: 0, earlyLeave: 0, leave: 0, absent: 0,
+                leaveBreakdown: {}, leaveDates: [], lateDates: [], earlyLeaveDates: [], absentDates: [], holidayDates: []
+            }
+        });
+    }
+
     const today = new Date();
     const loopEndDate = endDate; 
 
-    // --- 3. Fetch Data ---
-    const targetEmployee = await prisma.employee.findUnique({ 
-        where: { id: targetId },
-        select: { role: true, firstName: true, lastName: true } 
-    });
-
-    if (!targetEmployee) return res.status(404).json({ error: "Employee not found" });
-
+    // --- 4. Fetch Transaction Data ---
+    // ใช้ startDate ที่ปรับแล้ว เพื่อไม่ให้ดึงข้อมูลเกินความจำเป็น
     const [timeRecords, leaves, holidays, realWorkConfig] = await Promise.all([
       prisma.timeRecord.findMany({
         where: { employeeId: targetId, workDate: { gte: startDate, lte: loopEndDate } }
@@ -78,7 +118,7 @@ exports.getStats = async (req, res) => {
     const endMin = realWorkConfig?.endMin || 0;
     const endWorkMinutes = (endHour * 60) + endMin;
 
-    // --- 4. Initialization ---
+    // --- 5. Initialization ---
     const stats = {
       totalDaysExpected: 0,
       present: 0,
@@ -86,20 +126,19 @@ exports.getStats = async (req, res) => {
       earlyLeave: 0, earlyLeaveMinutes: 0, earlyLeaveDates: [],  
       leave: 0, leaveBreakdown: {}, leaveDates: [],
       absent: 0, absentDates: [],
-      // ✅ เพิ่ม: Array สำหรับเก็บวันหยุดส่งไป Frontend
       holidayDates: []      
     };
 
-    // --- 5. Main Loop ---
+    // --- 6. Main Loop ---
+    // Loop เริ่มต้นที่ startDate (ซึ่งถูกปรับให้เท่ากับ joiningDate แล้ว ถ้าจำเป็น)
     for (let d = new Date(startDate); d <= loopEndDate; d.setDate(d.getDate() + 1)) {
         const currentDateStr = formatDateStr(d);
         const isCurrentWeekend = isWeekend(d);
         const isFuture = d > today; 
 
-        // ✅ หาว่าเป็นวันหยุดบริษัทหรือไม่
+        // Check Holiday
         const currentHoliday = holidays.find(h => formatDateStr(h.date) === currentDateStr);
         if (currentHoliday) {
-            // บันทึกลง Stats เพื่อส่งไปแสดงในปฏิทิน (Show Badge)
             stats.holidayDates.push({ 
                 date: currentDateStr, 
                 name: currentHoliday.name 
@@ -117,7 +156,7 @@ exports.getStats = async (req, res) => {
             return dTime >= sTime && dTime <= eTime;
         });
 
-        // 🔥 1. Logic ตรวจสอบการลา (Full / Half)
+        // 🔥 1. Logic ตรวจสอบการลา
         let isHalfDayLeave = false;
         
         if (leave) {
@@ -129,7 +168,6 @@ exports.getStats = async (req, res) => {
             // Case 1: ลาเต็มวัน
             if (!isHalfDayLeave) {
                 if (!record) {
-                    // ลา + ไม่ใช่วันหยุด + ไม่ใช่เสาร์อาทิตย์ => นับวันลา
                     if (!isCurrentWeekend && !currentHoliday) {
                         stats.leave++; 
                         const typeName = leave.leaveType.typeName;
@@ -151,7 +189,6 @@ exports.getStats = async (req, res) => {
             }
         }
 
-        // ✅ Logic ข้ามวันหยุด: ถ้าเป็น (เสาร์อาทิตย์ หรือ วันหยุด) และ "ไม่ได้มาทำงาน" => ข้ามเลย ไม่นับ Absent
         if ((isCurrentWeekend || currentHoliday) && !record) {
             continue;
         }
@@ -164,7 +201,7 @@ exports.getStats = async (req, res) => {
         if (record) {
             stats.present++;
 
-            // --- เช็คสาย (LATE) ---
+            // Check Late
             let isLate = false;
             if (record.checkInStatus) {
                 isLate = (record.checkInStatus === 'LATE');
@@ -185,7 +222,7 @@ exports.getStats = async (req, res) => {
                 }
             }
 
-            // --- เช็คกลับก่อน (EARLY) ---
+            // Check Early Leave
             let isEarly = false;
             if (record.checkOutStatus) {
                 isEarly = (record.checkOutStatus === 'EARLY');
@@ -193,7 +230,6 @@ exports.getStats = async (req, res) => {
                 if (record.checkOutTime) {
                     const out = new Date(record.checkOutTime);
                     const outMinutes = (out.getHours() * 60) + out.getMinutes();
-                    // ถ้าไม่ใช่ลาครึ่งบ่าย และกลับก่อนเวลาเลิกงาน
                     const isAfternoonLeave = leave && (leave.startDuration === 'HalfAfternoon' || leave.endDuration === 'HalfAfternoon');
                     if (outMinutes < endWorkMinutes && !isAfternoonLeave) isEarly = true;
                 }
@@ -211,13 +247,11 @@ exports.getStats = async (req, res) => {
             }
 
         } else {
-            // ไม่มี Record (ขาดงาน)
+            // Absent Logic
             if (isHalfDayLeave) {
                 stats.absent++;
-                // ✅ เอา (No Check-in) ออก เพื่อให้ Frontend เช็คง่ายๆ
                 stats.absentDates.push(currentDateStr); 
             } else {
-                // ขาดงานปกติ
                 const isToday = isSameDay(d, today);
                 let isPending = false;
                 if (isToday) {
