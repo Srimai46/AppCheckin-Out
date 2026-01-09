@@ -360,82 +360,82 @@ export default function HistoryTable({
 
         {/* ✅ Date Filter (ซ้าย) + Tab Switch (ขวา) */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
-          {/* Date filter pill */}
-          <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl p-2 w-full sm:w-auto">
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">
-              {tt("history.filter", "Filter")}
-            </span>
+  {/* Date filter pill */}
+  <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl p-2 w-full sm:w-auto">
+    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">
+      {tt("history.filter", "Filter")}
+    </span>
 
-            <button
-              type="button"
-              onClick={() => setDatePickerOpen(true)}
-              className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[11px] font-black text-slate-700 uppercase tracking-widest hover:bg-gray-50 transition active:scale-95"
-              title="Pick date"
-            >
-              {displayDateText}
-            </button>
+    <button
+      type="button"
+      onClick={() => setDatePickerOpen(true)}
+      className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[11px] font-black text-slate-700 uppercase tracking-widest hover:bg-gray-50 transition active:scale-95"
+      title={t("history.selectDate")}
+    >
+      {displayDateText}
+    </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setFilterYear("all");
-                setFilterMonth("all");
-                setFilterDay("all");
-              }}
-              className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition active:scale-95"
-              title="Clear filter"
-            >
-              {tt("history.clear", "Clear")}
-            </button>
-          </div>
+    <button
+      type="button"
+      onClick={() => {
+        setFilterYear("all");
+        setFilterMonth("all");
+        setFilterDay("all");
+      }}
+      className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition active:scale-95"
+      title={t("history.clear")}
+    >
+      {tt("history.clear", "Clear")}
+    </button>
+  </div>
 
-          {/* DateGridPicker Modal */}
-          <DateGridPicker
-            open={datePickerOpen}
-            value={pickerValue}
-            onClose={() => setDatePickerOpen(false)}
-            onChange={(dateStr) => {
-              // dateStr === null => ALL
-              if (!dateStr) {
-                setFilterYear("all");
-                setFilterMonth("all");
-                setFilterDay("all");
-                return;
-              }
-              const [y, m, d] = String(dateStr).split("-");
-              setFilterYear(y);
-              setFilterMonth(m);
-              setFilterDay(d);
-            }}
-            title={tt("history.selectDate", "Select date")}
-            allowAll={true}
-          />
+  {/* DateGridPicker Modal */}
+  <DateGridPicker
+    open={datePickerOpen}
+    value={pickerValue}
+    onClose={() => setDatePickerOpen(false)}
+    onChange={(dateStr) => {
+      if (!dateStr) {
+        setFilterYear("all");
+        setFilterMonth("all");
+        setFilterDay("all");
+        return;
+      }
+      const [y, m, d] = String(dateStr).split("-");
+      setFilterYear(y);
+      setFilterMonth(m);
+      setFilterDay(d);
+    }}
+    title={tt("history.selectDate", "Select date")}
+    allowAll={true}
+  />
 
-          {/* Tab Switch */}
-          <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1 w-full sm:w-auto">
-            <button
-              onClick={() => setActiveTab("attendance")}
-              className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-                activeTab === "attendance"
-                  ? "bg-white shadow-sm text-slate-800"
-                  : "text-gray-400"
-              }`}
-            >
-              {t("history.tabAttendance")}
-            </button>
+  {/* Tab Switch */}
+  <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1 w-full sm:w-auto">
+    <button
+      onClick={() => setActiveTab("attendance")}
+      className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
+        activeTab === "attendance"
+          ? "bg-white shadow-sm text-slate-800"
+          : "text-gray-400"
+      }`}
+    >
+      {t("history.tabAttendance")}
+    </button>
 
-            <button
-              onClick={() => setActiveTab("leave")}
-              className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-                activeTab === "leave"
-                  ? "bg-white shadow-sm text-slate-800"
-                  : "text-gray-400"
-              }`}
-            >
-              {t("history.tabLeave")}
-            </button>
-          </div>
-        </div>
+    <button
+      onClick={() => setActiveTab("leave")}
+      className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
+        activeTab === "leave"
+          ? "bg-white shadow-sm text-slate-800"
+          : "text-gray-400"
+      }`}
+    >
+      {t("history.tabLeave")}
+    </button>
+  </div>
+</div>
+
       </div>
 
       <div className="overflow-x-auto">
