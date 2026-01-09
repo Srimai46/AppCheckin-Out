@@ -283,6 +283,22 @@ i18n.use(initReactI18next).init({
     required: "Rejection reason is required",
   },
 },
+dateGridPicker: {
+  title: "Select date",
+
+  all: "ALL",
+  allOn: "ALL ON",
+  allOff: "ALL OFF",
+
+  year: "YEAR",
+  month: "MONTH",
+  day: "DAY",
+
+  reset: "RESET",
+  cancel: "CANCEL",
+  done: "DONE",
+}
+
       },
     },
 
@@ -557,6 +573,22 @@ i18n.use(initReactI18next).init({
             required: "กรุณาระบุเหตุผล",
           },
         },
+        dateGridPicker: {
+  title: "เลือกวันที่",
+
+  all: "ทั้งหมด",
+  allOn: "เลือกทั้งหมด",
+  allOff: "ไม่เลือกทั้งหมด",
+
+  year: "ปี",
+  month: "เดือน",
+  day: "วัน",
+
+  reset: "รีเซ็ต",
+  cancel: "ยกเลิก",
+  done: "ตกลง",
+}
+
       },
     },
   },

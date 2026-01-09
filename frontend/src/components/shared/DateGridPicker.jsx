@@ -1,32 +1,19 @@
+//frontend/src/components/shared/DateGridPicker.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "../../styles/DateGridPicker.css";
+import { useTranslation } from "react-i18next";
 
-/**
- * DateGridPicker - Grid picker คล้ายตัวอย่าง (scroll + chips + RESET/DONE)
- *
- * Props:
- * - open: boolean
- * - value: string | null
- *    - null => ALL (ถ้า allowAll=true)
- *    - "YYYY" | "YYYY-MM" | "YYYY-MM-DD"
- * - onChange: (val: string | null) => void
- * - onClose: () => void
- * - title?: string
- * - allowAll?: boolean (default true)
- * - granularity?: "year" | "month" | "day" (default "day")
- *    - year  => เลือกแค่ปี (คืนค่า "YYYY")
- *    - month => เลือกปี+เดือน (คืนค่า "YYYY-MM")
- *    - day   => เลือกปี+เดือน+วัน (คืนค่า "YYYY-MM-DD")
- */
 export default function DateGridPicker({
   open,
   value,
   onChange,
   onClose,
-  title = "Select date",
+  title,
   allowAll = true,
   granularity = "day",
 }) {
+  const { t } = useTranslation();
+
   const pad2 = (n) => String(n).padStart(2, "0");
 
   const parseValue = (v) => {
@@ -42,40 +29,38 @@ export default function DateGridPicker({
 
     const s = String(v).trim();
 
-    // YYYY
     let m = s.match(/^(\d{4})$/);
     if (m) return { mode: "date", y: m[1], m: "01", d: "01" };
 
-    // YYYY-MM
     m = s.match(/^(\d{4})-(\d{2})$/);
     if (m) return { mode: "date", y: m[1], m: m[2], d: "01" };
 
-    // YYYY-MM-DD
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (m) return { mode: "date", y: m[1], m: m[2], d: m[3] };
 
     return fallback;
   };
 
-  const initialRef = useRef(parseValue(value));
+  // ⭐ รวม state ทั้งหมดเป็น object เดียว
+  const [state, setState] = useState(() => parseValue(value));
+  const initialRef = useRef(state);
 
-  const [mode, setMode] = useState(parseValue(value).mode); // "all" | "date"
-  const [yy, setYy] = useState(parseValue(value).y);
-  const [mm, setMm] = useState(parseValue(value).m);
-  const [dd, setDd] = useState(parseValue(value).d);
+  const { mode, y: yy, m: mm, d: dd } = state;
 
   useEffect(() => {
     if (!open) return;
     const p = parseValue(value);
     initialRef.current = p;
-    setMode(p.mode);
-    setYy(p.y);
-    setMm(p.m);
-    setDd(p.d);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    // ⭐ setState ครั้งเดียว → ไม่มี ESLint warning
+    setState({
+      mode: p.mode,
+      y: p.y,
+      m: p.m,
+      d: p.d,
+    });
   }, [open, value]);
 
-  // years list: ย้อนหลัง 10 ปี + ล่วงหน้า 2 ปี (ปรับได้)
   const yearOptions = useMemo(() => {
     const nowY = new Date().getFullYear();
     const start = nowY - 10;
@@ -113,8 +98,10 @@ export default function DateGridPicker({
 
   useEffect(() => {
     const n = Number(dd);
-    if (n > daysInMonth) setDd(pad2(daysInMonth));
-  }, [daysInMonth]); // eslint-disable-line
+    if (n > daysInMonth) {
+      setState((prev) => ({ ...prev, d: pad2(daysInMonth) }));
+    }
+  }, [daysInMonth]);
 
   const yearScrollRef = useRef(null);
 
@@ -148,17 +135,18 @@ export default function DateGridPicker({
       return;
     }
 
-    // day (default)
     onChange?.(`${yy}-${mm}-${dd}`);
     onClose?.();
   };
 
   const reset = () => {
     const p = initialRef.current;
-    setMode(p.mode);
-    setYy(p.y);
-    setMm(p.m);
-    setDd(p.d);
+    setState({
+      mode: p.mode,
+      y: p.y,
+      m: p.m,
+      d: p.d,
+    });
   };
 
   const onKeyDown = (e) => {
@@ -167,11 +155,11 @@ export default function DateGridPicker({
   };
 
   const previewText = useMemo(() => {
-    if (allowAll && mode === "all") return "ALL";
+    if (allowAll && mode === "all") return t("dateGridPicker.all");
     if (granularity === "year") return `${yy}`;
     if (granularity === "month") return `${mm}/${yy}`;
     return `${dd}/${mm}/${yy}`;
-  }, [allowAll, mode, granularity, yy, mm, dd]);
+  }, [allowAll, mode, granularity, yy, mm, dd, t]);
 
   const showYear = true;
   const showMonth = granularity !== "year";
@@ -190,7 +178,7 @@ export default function DateGridPicker({
         tabIndex={-1}
       >
         <div className="dgp-head">
-          <div className="dgp-title">{title}</div>
+          <div className="dgp-title">{title || t("dateGridPicker.title")}</div>
 
           <div className="dgp-preview">
             <span className={`dgp-preview-pill ${allowAll && mode === "all" ? "is-all" : ""}`}>
@@ -201,10 +189,17 @@ export default function DateGridPicker({
               <button
                 type="button"
                 className={`dgp-all-toggle ${mode === "all" ? "is-on" : ""}`}
-                onClick={() => setMode((m) => (m === "all" ? "date" : "all"))}
-                title="Toggle ALL"
+                onClick={() =>
+                  setState((prev) => ({
+                    ...prev,
+                    mode: prev.mode === "all" ? "date" : "all",
+                  }))
+                }
+                title={t("dateGridPicker.all")}
               >
-                {mode === "all" ? "ALL ON" : "ALL OFF"}
+                {mode === "all"
+                  ? t("dateGridPicker.allOn")
+                  : t("dateGridPicker.allOff")}
               </button>
             )}
           </div>
@@ -213,17 +208,17 @@ export default function DateGridPicker({
         <div
           className="dgp-panels"
           style={{
-            gridTemplateColumns: showYear && showMonth && showDay
-              ? "1fr 1fr 1fr"
-              : showYear && showMonth
-              ? "1fr 1fr"
-              : "1fr",
+            gridTemplateColumns:
+              showYear && showMonth && showDay
+                ? "1fr 1fr 1fr"
+                : showYear && showMonth
+                ? "1fr 1fr"
+                : "1fr",
           }}
         >
-          {/* YEAR */}
           {showYear && (
             <div className="dgp-panel">
-              <div className="dgp-label">YEAR</div>
+              <div className="dgp-label">{t("dateGridPicker.year")}</div>
               <div className="dgp-grid-wrap dgp-scroll" ref={yearScrollRef}>
                 <div className="dgp-grid dgp-grid-3">
                   {yearOptions.map((y) => (
@@ -232,10 +227,13 @@ export default function DateGridPicker({
                       type="button"
                       data-year={y}
                       className={`dgp-chip ${y === yy ? "is-active" : ""}`}
-                      onClick={() => {
-                        setMode("date");
-                        setYy(y);
-                      }}
+                      onClick={() =>
+                        setState((prev) => ({
+                          ...prev,
+                          mode: "date",
+                          y,
+                        }))
+                      }
                     >
                       {y}
                     </button>
@@ -245,10 +243,9 @@ export default function DateGridPicker({
             </div>
           )}
 
-          {/* MONTH */}
           {showMonth && (
             <div className="dgp-panel">
-              <div className="dgp-label">MONTH</div>
+              <div className="dgp-label">{t("dateGridPicker.month")}</div>
               <div className="dgp-grid-wrap">
                 <div className="dgp-grid dgp-grid-3">
                   {months.map((m) => (
@@ -256,10 +253,13 @@ export default function DateGridPicker({
                       key={m.value}
                       type="button"
                       className={`dgp-chip ${m.value === mm ? "is-active" : ""}`}
-                      onClick={() => {
-                        setMode("date");
-                        setMm(m.value);
-                      }}
+                      onClick={() =>
+                        setState((prev) => ({
+                          ...prev,
+                          mode: "date",
+                          m: m.value,
+                        }))
+                      }
                     >
                       {m.label}
                     </button>
@@ -269,10 +269,9 @@ export default function DateGridPicker({
             </div>
           )}
 
-          {/* DAY */}
           {showDay && (
             <div className="dgp-panel">
-              <div className="dgp-label">DAY</div>
+              <div className="dgp-label">{t("dateGridPicker.day")}</div>
               <div className="dgp-grid-wrap dgp-scroll">
                 <div className="dgp-grid dgp-grid-4">
                   {days.map((d) => (
@@ -280,10 +279,13 @@ export default function DateGridPicker({
                       key={d}
                       type="button"
                       className={`dgp-chip ${d === dd ? "is-active" : ""}`}
-                      onClick={() => {
-                        setMode("date");
-                        setDd(d);
-                      }}
+                      onClick={() =>
+                        setState((prev) => ({
+                          ...prev,
+                          mode: "date",
+                          d,
+                        }))
+                      }
                     >
                       {d}
                     </button>
@@ -296,15 +298,15 @@ export default function DateGridPicker({
 
         <div className="dgp-actions">
           <button type="button" className="dgp-btn ghost" onClick={reset}>
-            RESET
+            {t("dateGridPicker.reset")}
           </button>
 
           <div className="dgp-actions-right">
             <button type="button" className="dgp-btn ghost" onClick={onClose}>
-              CANCEL
+              {t("dateGridPicker.cancel")}
             </button>
             <button type="button" className="dgp-btn primary" onClick={commit}>
-              DONE
+              {t("dateGridPicker.done")}
             </button>
           </div>
         </div>

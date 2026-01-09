@@ -599,75 +599,77 @@ export default function HistoryTable({
 
         {/* Pagination */}
         {((data?.length || 0) > 0) && (
-          <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-col sm:flex-row">
-            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              Page {page} / {totalPages} • Showing{" "}
-              <span className="text-slate-700">
-                {Math.min((page - 1) * PAGE_SIZE + 1, data.length)}-
-                {Math.min(page * PAGE_SIZE, data.length)}
-              </span>{" "}
-              of <span className="text-slate-700">{data.length}</span>
-            </div>
+  <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-col sm:flex-row">
+    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+      {t("common.page")} {page} / {totalPages} • {t("common.showing")}{" "}
+      <span className="text-slate-700">
+        {Math.min((page - 1) * PAGE_SIZE + 1, data.length)}-
+        {Math.min(page * PAGE_SIZE, data.length)}
+      </span>{" "}
+      {t("common.of")}{" "}
+      <span className="text-slate-700">{data.length}</span>
+    </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onPrev}
-                disabled={!canPrev}
-                className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
-                  ${
-                    canPrev
-                      ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
-                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
-                  }`}
-                title="Prev"
-              >
-                <ChevronLeft size={14} />
-                Prev
-              </button>
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={onPrev}
+        disabled={!canPrev}
+        className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
+          ${
+            canPrev
+              ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+              : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+          }`}
+        title={t("common.prev")}
+      >
+        <ChevronLeft size={14} />
+        {t("common.prev")}
+      </button>
 
-              <div className="flex items-center gap-1">
-                {pageNumbers.map((p, idx) =>
-                  p === "..." ? (
-                    <span key={`dots-${idx}`} className="px-2 text-gray-300 font-black text-[12px]">
-                      ...
-                    </span>
-                  ) : (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => goTo(p)}
-                      className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
-                        ${
-                          p === page
-                            ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                            : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
-                        }`}
-                    >
-                      {p}
-                    </button>
-                  )
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={onNext}
-                disabled={!canNext}
-                className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
-                  ${
-                    canNext
-                      ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
-                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
-                  }`}
-                title="Next"
-              >
-                Next
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
+      <div className="flex items-center gap-1">
+        {pageNumbers.map((p, idx) =>
+          p === "..." ? (
+            <span key={`dots-${idx}`} className="px-2 text-gray-300 font-black text-[12px]">
+              ...
+            </span>
+          ) : (
+            <button
+              key={p}
+              type="button"
+              onClick={() => goTo(p)}
+              className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
+                ${
+                  p === page
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                }`}
+            >
+              {p}
+            </button>
+          )
         )}
+      </div>
+
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={!canNext}
+        className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
+          ${
+            canNext
+              ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+              : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+          }`}
+        title={t("common.next")}
+      >
+        {t("common.next")}
+        <ChevronRight size={14} />
+      </button>
+    </div>
+  </div>
+)}
+
       </div>
     </div>
   );
