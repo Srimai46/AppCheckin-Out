@@ -61,48 +61,46 @@ const AttendanceCalendar = ({ year, month, stats }) => {
   };
 
   const days = [];
-  // ช่องว่างสำหรับวันก่อนวันที่ 1
   for (let i = 0; i < firstDay; i++) {
     days.push(<div key={`empty-${i}`} className="h-24 md:h-32"></div>);
   }
 
-  // Loop วาดวันที่
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = getDateStr(d);
     
     // 🔥 เก็บรายการเหตุการณ์ทั้งหมดในวันนี้ (Array)
     const events = [];
 
-    // 1. วันหยุด (Priority สูงสุด)
+    // 1. วันหยุด
     const holidayObj = stats.holidayDates?.find(h => h.date === dateStr);
     if (holidayObj) {
       events.push({ 
-        label: getStringLabel(holidayObj.name), // ✅ ใช้ getStringLabel
+        label: getStringLabel(holidayObj.name),
         color: "bg-purple-500 text-white shadow-purple-200" 
       });
     }
 
-    // 2. วันลา (Leave)
+    // 2. วันลา
     const leaveObj = stats.leaveDates?.find((l) => l.date === dateStr);
     if (leaveObj) {
       events.push({ 
-        label: getStringLabel(leaveObj.type), // ✅ ใช้ getStringLabel
+        label: getStringLabel(leaveObj.type),
         color: "bg-blue-500 text-white shadow-blue-200" 
       });
     }
 
-    // 3. ขาดงาน (Absent)
+    // 3. ขาดงาน
     const isAbsent = stats.absentDates?.some(a => a === dateStr || a.startsWith(dateStr));
     if (isAbsent) {
       events.push({ label: "Absent", color: "bg-rose-500 text-white shadow-rose-200" });
     }
 
-    // 4. มาสาย (Late)
+    // 4. มาสาย
     if (stats.lateDates?.includes(dateStr)) {
       events.push({ label: "Late", color: "bg-amber-400 text-white shadow-amber-200" });
     }
 
-    // 5. กลับก่อน (Early)
+    // 5. กลับก่อน
     if (stats.earlyLeaveDates?.includes(dateStr)) {
       events.push({ label: "Early", color: "bg-orange-400 text-white shadow-orange-200" });
     }
@@ -116,7 +114,7 @@ const AttendanceCalendar = ({ year, month, stats }) => {
             {d}
         </span>
 
-        {/* พื้นที่แสดง Badges (รองรับหลายอัน) */}
+        {/* พื้นที่แสดง Badges */}
         <div className="flex flex-col gap-1 overflow-hidden">
             {events.map((ev, idx) => (
                 <div 
@@ -166,11 +164,11 @@ export default function AttendanceDashboard() {
     return `${pad2(month)}/${year}`;
   }, [month, year]);
 
-  // Fetch Employees (Only HR)
+  // ✅ Fetch Employees: ส่ง params เพื่อขอรายชื่อรวมคนลาออก (ถ้า Backend รองรับ)
   useEffect(() => {
     if (user?.role === "HR") {
       api
-        .get("/employees")
+        .get("/employees", { params: { includeInactive: true } }) // เพิ่ม params
         .then((res) => {
           const list = Array.isArray(res.data) ? res.data : res.data.employees || [];
           setEmployees(list);
@@ -191,10 +189,11 @@ export default function AttendanceDashboard() {
           employeeId: user.role === "HR" && selectedEmployeeId ? selectedEmployeeId : undefined,
         });
 
-        // ✅ Map Data ให้ตรงกับ Backend ใหม่
+        // ✅ Map Data: รับค่า isResigned จาก Backend มาเก็บไว้
         setStats({
             ...data.stats,
-            employeeName: data.employee?.name 
+            employeeName: data.employee?.name,
+            isResigned: data.employee?.isResigned // รับสถานะลาออก
         });
 
       } catch (err) {
@@ -245,10 +244,17 @@ export default function AttendanceDashboard() {
           <p className="text-slate-400 font-bold mt-2 flex items-center gap-2">
             <User size={16} />
             Viewing:{" "}
-            <span className="text-slate-600">
+            <span className="text-slate-600 flex items-center gap-2">
               {stats ? stats.employeeName || "My Dashboard" : "Loading..."}
+              
+              {/* ✅ แสดงป้าย Resigned ถ้าพนักงานลาออกแล้ว */}
+              {stats?.isResigned && (
+                <span className="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider border border-red-200">
+                  Resigned
+                </span>
+              )}
             </span>
-            <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">
+            <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ml-1">
               {user.role === "HR" && selectedEmployeeId ? "Employee View" : user.role}
             </span>
           </p>
@@ -318,8 +324,13 @@ export default function AttendanceDashboard() {
               >
                 <option value="">View My Stats</option>
                 {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.firstName} {emp.lastName}
+                  // ✅ แสดงพนักงานที่ลาออกด้วยสีแดง
+                  <option 
+                    key={emp.id} 
+                    value={emp.id} 
+                    className={!emp.isActive ? "text-red-500 bg-red-50" : "text-slate-700"}
+                  >
+                    {emp.firstName} {emp.lastName} {!emp.isActive ? "(Resigned)" : ""}
                   </option>
                 ))}
               </select>

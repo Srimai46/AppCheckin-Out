@@ -24,15 +24,16 @@ exports.getStats = async (req, res) => {
       return res.status(403).json({ error: "Access denied." });
     }
 
-    // --- 2. Fetch Employee Info First (เพื่อเอา joiningDate) ---
-    // ย้ายขึ้นมาก่อน เพื่อใช้ปรับ startDate
+    // --- 2. Fetch Employee Info First ---
+    // ดึง joiningDate และ resignationDate เพื่อใช้กำหนดช่วงเวลา
     const targetEmployee = await prisma.employee.findUnique({ 
         where: { id: targetId },
         select: { 
             role: true, 
             firstName: true, 
             lastName: true, 
-            joiningDate: true // ✅ 1. ดึงวันที่เริ่มงานมาด้วย
+            joiningDate: true,     // วันเริ่มงาน
+            resignationDate: true  // ✅ วันลาออก
         } 
     });
 
@@ -52,21 +53,27 @@ exports.getStats = async (req, res) => {
       endDate = new Date(targetYear, 11, 31, 23, 59, 59);
     }
 
-    // ✅ 2. Logic ปรับ StartDate ตามวันเริ่มงาน
+    // ✅ Logic A: ปรับ StartDate ตามวันเริ่มงาน (ถ้าเริ่มงานทีหลัง)
     if (targetEmployee.joiningDate) {
-        // แปลง joiningDate เป็น Date Object (ตัดเวลาออกให้เหลือแค่เที่ยงคืนเพื่อการเปรียบเทียบที่แม่นยำ)
         const joinDate = new Date(targetEmployee.joiningDate);
         joinDate.setHours(0, 0, 0, 0);
-
-        // ถ้าวันที่เริ่มงาน มาทีหลัง วันที่เลือกดูรายงาน
-        // ให้เริ่มนับตั้งแต่วันเริ่มงานแทน
         if (joinDate > startDate) {
             startDate = joinDate;
         }
     }
 
-    // ป้องกันกรณี User เลือกดูปีเก่ากว่าที่พนักงานจะเข้าทำงาน (startDate อาจจะเกิน endDate)
-    // ถ้าเกิน endDate แสดงว่าช่วงเวลานั้นพนักงานยังไม่มา ให้ return stats เป็น 0 ไปเลย
+    // ✅ Logic B: ปรับ EndDate ตามวันลาออก (ถ้าลาออกก่อนสิ้นเดือน)
+    if (targetEmployee.resignationDate) {
+        const resignDate = new Date(targetEmployee.resignationDate);
+        resignDate.setHours(23, 59, 59, 999); // จบวัน
+
+        // ถ้าวันลาออก เกิดขึ้นก่อนวันสิ้นสุดช่วงที่เลือกดู -> ให้จบการนับแค่วันลาออก
+        if (resignDate < endDate) {
+            endDate = resignDate;
+        }
+    }
+
+    // ตรวจสอบว่าช่วงเวลาถูกต้องหรือไม่ (เช่น ลาออกไปก่อนปีที่เลือกดู หรือ ยังไม่เริ่มงาน)
     if (startDate > endDate) {
         return res.json({
             employee: {
@@ -87,7 +94,7 @@ exports.getStats = async (req, res) => {
     const loopEndDate = endDate; 
 
     // --- 4. Fetch Transaction Data ---
-    // ใช้ startDate ที่ปรับแล้ว เพื่อไม่ให้ดึงข้อมูลเกินความจำเป็น
+    // ใช้ startDate/loopEndDate ที่ปรับแล้ว เพื่อประสิทธิภาพและความถูกต้อง
     const [timeRecords, leaves, holidays, realWorkConfig] = await Promise.all([
       prisma.timeRecord.findMany({
         where: { employeeId: targetId, workDate: { gte: startDate, lte: loopEndDate } }
@@ -130,7 +137,6 @@ exports.getStats = async (req, res) => {
     };
 
     // --- 6. Main Loop ---
-    // Loop เริ่มต้นที่ startDate (ซึ่งถูกปรับให้เท่ากับ joiningDate แล้ว ถ้าจำเป็น)
     for (let d = new Date(startDate); d <= loopEndDate; d.setDate(d.getDate() + 1)) {
         const currentDateStr = formatDateStr(d);
         const isCurrentWeekend = isWeekend(d);
@@ -189,6 +195,7 @@ exports.getStats = async (req, res) => {
             }
         }
 
+        // Logic ข้ามวันหยุด
         if ((isCurrentWeekend || currentHoliday) && !record) {
             continue;
         }
