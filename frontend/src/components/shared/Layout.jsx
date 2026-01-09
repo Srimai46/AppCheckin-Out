@@ -134,14 +134,14 @@ export default function Layout() {
           <NavLink to="/dashboard" className={navStyle}>
             <LayoutDashboard size={18} className="shrink-0" />
             <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-              {t("dashboard.title")}
+              {t("dashboard.attendance")}
             </span>
           </NavLink>
 
           <NavLink to="/attendance-dashboard" className={navStyle}>
             <CalendarDays size={18} className="shrink-0" />
             <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-              {t("layout.attendanceDashboard")}
+              {t("dashboard.title")}
             </span>
           </NavLink>
 

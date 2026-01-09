@@ -16,6 +16,7 @@ i18n.use(initReactI18next).init({
         /* -------- Dashboard -------- */
         dashboard: {
           title: "Dashboard",
+          attendance: "Attendance",
           welcome: "Welcome, {{firstName}} {{lastName}}",
           selectYear: "Select Year",
           year: "Year",
@@ -291,6 +292,7 @@ i18n.use(initReactI18next).init({
         /* -------- Dashboard -------- */
         dashboard: {
           title: "แดชบอร์ด",
+          attendance: "เช็คชื่อ",
           welcome: "ยินดีต้อนรับ {{firstName}} {{lastName}}",
           selectYear: "เลือกปี",
           year: "ปี",

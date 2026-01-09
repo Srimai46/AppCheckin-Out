@@ -154,7 +154,7 @@ export default function Dashboard() {
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-8">
       <div className="text-center">
-        <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight">{t("dashboard.title")}</h1>
+        <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight">{t("dashboard.attendance")}</h1>
         <p className="text-xl md:text-2xl text-blue-700 font-black mt-3">{dateTimeText}</p>
       </div>
 

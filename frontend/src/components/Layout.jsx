@@ -83,7 +83,7 @@ export default function Layout() {
           <NavLink to="/attendance-dashboard" className={navStyle}>
             <CalendarDays size={18} className="shrink-0" />
             <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-              {t("layout.attendanceDashboard")}
+              {t("layout.Dashboard")}
             </span>
           </NavLink>
 
