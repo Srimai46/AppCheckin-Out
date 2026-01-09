@@ -1,17 +1,17 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react"; // ✅ 1. เพิ่ม useEffect
 import { useNavigate } from "react-router-dom";
 import { Calendar as CalendarIcon, Paperclip, X } from "lucide-react";
-import { createLeaveRequest } from "../api/leaveService";
+// ✅ 2. เพิ่ม getLeaveTypes
+import { createLeaveRequest, getLeaveTypes } from "../api/leaveService"; 
 import {
   alertConfirm,
   alertSuccess,
-  alertPolicyBlocked,
   alertError,
 } from "../utils/sweetAlert";
 import { useTranslation } from "react-i18next";
 
 export default function LeaveRequest() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation(); // ✅ ดึง i18n มาเช็คภาษาปัจจุบัน (th/en)
   const navigate = useNavigate();
 
   const [selectedType, setSelectedType] = useState("");
@@ -22,23 +22,33 @@ export default function LeaveRequest() {
   const [attachment, setAttachment] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const leaveTypes = useMemo(
-    () => [
-      { id: "Sick", label: t("leaveRequest.type") + " - Sick" },
-      { id: "Personal", label: t("leaveRequest.type") + " - Personal" },
-      { id: "Annual", label: t("leaveRequest.type") + " - Annual" },
-      { id: "Emergency", label: t("leaveRequest.type") + " - Emergency" },
-      { id: "Other", label: t("leaveRequest.type") + " - Other" },
-    ],
-    [t]
-  );
+  // ✅ 3. เปลี่ยนจาก useMemo เป็น State
+  const [leaveTypes, setLeaveTypes] = useState([]);
 
-  const durationLabel =
-    duration === "Full"
-      ? t("leaveRequest.fullDay")
-      : duration === "HalfMorning"
-      ? t("leaveRequest.halfMorning")
-      : t("leaveRequest.halfAfternoon");
+  // ✅ 4. ดึงข้อมูลจาก API เมื่อหน้าเว็บโหลด
+  useEffect(() => {
+    const fetchTypes = async () => {
+      try {
+        const data = await getLeaveTypes();
+        setLeaveTypes(data);
+      } catch (error) {
+        console.error("Error fetching leave types:", error);
+        alertError(t("common.error"), "Failed to load leave types.");
+      }
+    };
+    fetchTypes();
+  }, [t]);
+
+  // ฟังก์ชันช่วยแสดงชื่อประเภทการลา (รองรับทั้ง String และ JSON {th, en})
+  const getLeaveLabel = (type) => {
+    if (!type.label) return type.typeName;
+    // ถ้า label เป็น object ให้เลือกภาษาตาม i18n
+    if (typeof type.label === 'object') {
+        const lang = i18n.language || 'en';
+        return type.label[lang] || type.label.en || type.label.th || type.typeName;
+    }
+    return type.label;
+  };
 
   const prettyFileSize = (bytes) => {
     if (!bytes && bytes !== 0) return "";
@@ -97,7 +107,8 @@ export default function LeaveRequest() {
       setIsLoading(true);
 
       const formData = new FormData();
-      formData.append("type", selectedType);
+      // ✅ ส่ง selectedType (ซึ่งคือ typeName จาก DB)
+      formData.append("type", selectedType); 
       formData.append("startDate", startDate);
       formData.append("endDate", endDate);
       formData.append("reason", reason || "");
@@ -115,7 +126,7 @@ export default function LeaveRequest() {
     } catch (error) {
       alertError(
         t("leaveRequest.submissionFailed"),
-        error?.response?.data?.message || t("common.systemError")
+        error?.response?.data?.error || t("common.systemError")
       );
     } finally {
       setIsLoading(false);
@@ -147,38 +158,48 @@ export default function LeaveRequest() {
               </label>
 
               <div className="grid grid-cols-1 gap-3">
+                {/* ✅ 5. แสดง Loading ระหว่างรอข้อมูล */}
+                {leaveTypes.length === 0 && (
+                    <div className="text-center p-4 text-gray-400 text-sm animate-pulse">
+                        Loading types...
+                    </div>
+                )}
+
+                {/* ✅ 6. วนลูปแสดงข้อมูลจริงจาก DB */}
                 {leaveTypes.map((type) => (
                   <div
                     key={type.id}
-                    onClick={() => setSelectedType(type.id)}
+                    // ใช้ typeName เป็น key ในการส่งกลับ Backend
+                    onClick={() => setSelectedType(type.typeName)} 
                     className={`flex items-center p-5 rounded-3xl border-2 cursor-pointer transition-all duration-300 ${
-                      selectedType === type.id
+                      selectedType === type.typeName
                         ? "border-blue-500 bg-blue-50/50 ring-4 ring-blue-50"
                         : "border-gray-50 hover:border-blue-200 hover:bg-gray-50"
                     }`}
                   >
                     <div
                       className={`w-5 h-5 rounded-full border-4 mr-4 ${
-                        selectedType === type.id
+                        selectedType === type.typeName
                           ? "border-blue-600 bg-white"
                           : "border-gray-200"
                       }`}
                     />
                     <span
                       className={`font-black text-sm ${
-                        selectedType === type.id
+                        selectedType === type.typeName
                           ? "text-blue-900"
                           : "text-slate-500"
                       }`}
                     >
-                      {type.label}
+                      {/* เรียกฟังก์ชันแสดงชื่อ (รองรับภาษาไทย/อังกฤษ) */}
+                      {getLeaveLabel(type)}
                     </span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Right */}
+            {/* Right Side (เหมือนเดิม) */}
             <div className="space-y-8">
               <div className="grid grid-cols-2 gap-4">
                 <input
