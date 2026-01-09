@@ -299,7 +299,66 @@ dateGridPicker: {
   reset: "RESET",
   cancel: "CANCEL",
   done: "DONE",
+},
+leaveRequest: {
+  type: "Leave Type",
+  none: "None",
+
+  fullDay: "Full Day",
+  halfMorning: "Half Day (Morning)",
+  halfAfternoon: "Half Day (Afternoon)",
+
+  errors: {
+    missingType: "Please select a leave type.",
+    missingDates: "Please specify both start and end dates.",
+    invalidDate: "End date must be after the start date."
+  },
+
+  blockedTitle: "Leave Request Blocked",
+  blockedMessage: "You can’t request leave on holidays or non-working days.",
+
+  submissionFailed: "Submission Failed",
+
+  headerTitle: "Leave Request",
+  headerSubtitle: "Employee Leave Management System",
+
+  step1: "1. Select Leave Type",
+  step2: "2. Select Dates & Duration",
+  step3: "3. Reason",
+  step4: "4. Attachment (Optional)",
+
+  start: "Start",
+  end: "End",
+
+  chooseFile: "Choose File",
+  removeFile: "Remove File",
+  noFileSelected: "No file selected",
+
+  attachNote: "You may attach supporting documents (e.g., medical certificate).",
+
+  placeholderReason: "Please provide details...",
+
+  summaryTitle: "Leave Request Summary",
+  summaryReview: "Please review the details before confirming.",
+  summary: {
+    type: "Type",
+    period: "Period",
+    duration: "Duration",
+    attachment: "Attachment",
+    reason: "Reason"
+  },
+
+  confirmTitle: "Confirm Leave Request",
+  confirmButton: "Submit Request",
+
+  successTitle: "Request Submitted",
+  successMessage: "Your leave request has been submitted.",
+
+  cancel: "Cancel",
+  submitting: "Submitting request...",
+  submit: "Submit Leave Request"
 }
+
 
       },
     },
@@ -593,7 +652,66 @@ dateGridPicker: {
   reset: "รีเซ็ต",
   cancel: "ยกเลิก",
   done: "ตกลง",
+},
+leaveRequest: {
+  type: "ประเภทการลา",
+  none: "ไม่มี",
+
+  fullDay: "เต็มวัน",
+  halfMorning: "ครึ่งวัน (เช้า)",
+  halfAfternoon: "ครึ่งวัน (บ่าย)",
+
+  errors: {
+    missingType: "กรุณาเลือกประเภทการลา",
+    missingDates: "กรุณาระบุวันที่เริ่มและวันที่สิ้นสุด",
+    invalidDate: "วันที่สิ้นสุดต้องมากกว่าวันที่เริ่ม"
+  },
+
+  blockedTitle: "ไม่สามารถทำรายการได้",
+  blockedMessage: "ไม่สามารถขอลาในวันหยุดหรือวันที่ไม่ใช่วันทำงาน",
+
+  submissionFailed: "ส่งคำขอไม่สำเร็จ",
+
+  headerTitle: "ยื่นคำขอลา",
+  headerSubtitle: "ระบบจัดการการลาของพนักงาน",
+
+  step1: "1. เลือกประเภทการลา",
+  step2: "2. เลือกวันที่และระยะเวลา",
+  step3: "3. เหตุผล",
+  step4: "4. ไฟล์แนบ (ถ้ามี)",
+
+  start: "เริ่มต้น",
+  end: "สิ้นสุด",
+
+  chooseFile: "เลือกไฟล์",
+  removeFile: "ลบไฟล์",
+  noFileSelected: "ยังไม่ได้เลือกไฟล์",
+
+  attachNote: "คุณสามารถแนบเอกสารประกอบได้ (เช่น ใบรับรองแพทย์)",
+
+  placeholderReason: "กรุณาระบุรายละเอียด...",
+
+  summaryTitle: "สรุปคำขอลา",
+  summaryReview: "กรุณาตรวจสอบข้อมูลก่อนยืนยัน",
+  summary: {
+    type: "ประเภท",
+    period: "ช่วงเวลา",
+    duration: "ระยะเวลา",
+    attachment: "ไฟล์แนบ",
+    reason: "เหตุผล"
+  },
+
+  confirmTitle: "ยืนยันคำขอลา",
+  confirmButton: "ส่งคำขอ",
+
+  successTitle: "ส่งคำขอสำเร็จ",
+  successMessage: "ระบบได้รับคำขอลาของคุณแล้ว",
+
+  cancel: "ยกเลิก",
+  submitting: "กำลังส่งคำขอ...",
+  submit: "ส่งคำขอลา"
 }
+
 
       },
     },
@@ -601,3 +719,4 @@ dateGridPicker: {
 });
 
 export default i18n;
+ 
