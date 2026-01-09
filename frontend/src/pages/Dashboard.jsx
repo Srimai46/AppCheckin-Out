@@ -236,40 +236,45 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-5xl mx-auto items-stretch">
         <button
-          disabled={isProcessing} 
-          onClick={() => handleAction("in")}
-          className={`flex items-center justify-center gap-3 text-white py-4 rounded-3xl font-black shadow-lg transition-all hover:-translate-y-1 
-            ${
-              isProcessing
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-emerald-500 hover:bg-emerald-600"
-            }`}
-        >
-          {isProcessing ? (
-            <Loader2 className="animate-spin" size={20} />
-          ) : (
-            <LogIn size={20} />
-          )}
-          {todayStatus.isCheckedIn ? "Check In" : t("dashboard.checkIn")}
-        </button>
+  disabled={isProcessing}
+  onClick={() => handleAction("in")}
+  className={`flex items-center justify-center gap-3 text-white py-4 rounded-3xl font-black shadow-lg transition-all hover:-translate-y-1 
+    ${
+      isProcessing
+        ? "bg-gray-400 cursor-not-allowed"
+        : "bg-emerald-500 hover:bg-emerald-600"
+    }`}
+>
+  {isProcessing ? (
+    <Loader2 className="animate-spin" size={20} />
+  ) : (
+    <LogIn size={20} />
+  )}
+  {t("dashboard.checkIn")}
+</button>
 
-        <button
-          disabled={isProcessing || !todayStatus.isCheckedIn} 
-          onClick={() => handleAction("out")}
-          className={`flex items-center justify-center gap-3 text-white py-4 rounded-3xl font-black shadow-lg transition-all hover:-translate-y-1 
-            ${
-              isProcessing || !todayStatus.isCheckedIn
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-rose-500 hover:bg-rose-600"
-            }`}
-        >
-          {isProcessing ? (
-            <Loader2 className="animate-spin" size={20} />
-          ) : (
-            <LogOut size={20} />
-          )}
-          {todayStatus.isCheckedOut ? "Update Check Out" : t("dashboard.checkOut")}
-        </button>
+
+       <button
+  disabled={isProcessing || !todayStatus.isCheckedIn}
+  onClick={() => handleAction("out")}
+  className={`flex items-center justify-center gap-3 text-white py-4 rounded-3xl font-black shadow-lg transition-all hover:-translate-y-1 
+    ${
+      isProcessing || !todayStatus.isCheckedIn
+        ? "bg-gray-400 cursor-not-allowed"
+        : "bg-rose-500 hover:bg-rose-600"
+    }`}
+>
+  {isProcessing ? (
+    <Loader2 className="animate-spin" size={20} />
+  ) : (
+    <LogOut size={20} />
+  )}
+
+  {todayStatus.isCheckedOut
+    ? t("dashboard.updatecheckOut")
+    : t("dashboard.checkOut")}
+</button>
+
 
         <button
           onClick={() => navigate("/leave-request")}
