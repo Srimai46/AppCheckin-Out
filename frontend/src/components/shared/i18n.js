@@ -105,7 +105,9 @@ i18n.use(initReactI18next).init({
           late: "Late",
           onTime: "On Time",
 
-          usedDays: "{{days}} Days",
+          filter: "Filter", 
+          clear: "Clear", 
+          selectDate: "Select Date",
         },
 
         /* -------- leaveApproveal -------- */
@@ -397,6 +399,10 @@ dateGridPicker: {
           onTime: "ตรงเวลา",
 
           usedDays: "{{days}} วัน",
+
+          filter: "ตัวกรอง", 
+          clear: "ล้างค่า", 
+          selectDate: "เลือกวันที่",
         },
 
         /* -------- leaveApproveal -------- */
