@@ -20,11 +20,11 @@ import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
 // Shared Components
 import { QuotaCards, HistoryTable } from "../components/shared";
-
-// ✅ ใช้ popup เดียวกับ Dashboard
 import LeaveSummaryPopup from "../components/shared/LeaveSummaryPopup";
-// ✅ ดึง leave types ของจริง (/leaves/types) เหมือน Dashboard
 import { getLeaveTypes } from "../api/leaveService";
+
+// ✅ 1. Import Dashboard Component ที่เพิ่งสร้าง
+import AttendanceDashboardComponent from "./yearEnd/components/AttendanceDashboard"; // ปรับ Path ตามที่คุณวางไฟล์จริง
 
 export default function EmployeeDetail() {
   const { id } = useParams();
@@ -36,7 +36,7 @@ export default function EmployeeDetail() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [data, setData] = useState(null);
-  const [leaveTypes, setLeaveTypes] = useState([]); // ✅ for popup labels (TH/EN)
+  const [leaveTypes, setLeaveTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("attendance");
 
@@ -69,7 +69,7 @@ export default function EmployeeDetail() {
 
       const [res, types] = await Promise.all([
         api.get(`/employees/${id}?year=${selectedYear}`),
-        getLeaveTypes(), // ✅ /leaves/types
+        getLeaveTypes(),
       ]);
 
       setData(res.data);
@@ -184,7 +184,7 @@ export default function EmployeeDetail() {
 
   // ================= UI =================
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-8">
       <button
         onClick={() => navigate(-1)}
         className="flex items-center text-gray-400 hover:text-blue-600 font-black text-sm"
@@ -193,6 +193,7 @@ export default function EmployeeDetail() {
         BACK
       </button>
 
+      {/* 1. Profile Header */}
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-6 transition-all hover:shadow-md">
         <div className="flex flex-col md:flex-row items-center gap-8">
           <div className="h-28 w-28 rounded-[2rem] bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-5xl font-black shadow-xl shadow-blue-100 uppercase">
@@ -243,7 +244,7 @@ export default function EmployeeDetail() {
         </button>
       </div>
 
-      {/* ===== Leave Balance ===== */}
+      {/* 2. Leave Balance Summary */}
       <div className="space-y-4">
         <div className="flex justify-between items-center px-4">
           <div className="flex items-center gap-2 font-black text-slate-400 text-[11px] uppercase tracking-widest">
@@ -255,7 +256,7 @@ export default function EmployeeDetail() {
               selectedYear={selectedYear}
               setSelectedYear={setSelectedYear}
               years={years}
-              formatYear={(y) => y} // HR ใช้ ค.ศ. ปกติ (ถ้าจะทำ พ.ศ. ค่อยปรับ)
+              formatYear={(y) => y}
               leaveTypes={leaveTypes}
               quotas={data?.quotas || []}
               leaves={data?.leaves || []}
@@ -264,6 +265,7 @@ export default function EmployeeDetail() {
         </div>
       </div>
 
+      {/* 4. Detailed History Table */}
       <HistoryTable
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -271,7 +273,18 @@ export default function EmployeeDetail() {
         leaveData={data.leaves || []}
       />
 
-      {/* ===== Adjust Quota Modal ===== */}
+      {/* ✅ 3. Attendance Dashboard Component */}
+<div className="bg-white p-6 rounded-[3rem] border border-gray-100 shadow-sm">
+   <AttendanceDashboardComponent 
+      propEmployeeId={id} // ดึง id จาก useParams() ของหน้า EmployeeDetail
+      hideTitle={false}    
+      targetEmployeeId={id}
+   />
+</div>
+
+
+
+      {/* ===== Modals (Quota & Edit Info) ===== */}
       {showQuotaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white w-full max-w-2xl rounded-3xl p-8 space-y-6">
@@ -330,7 +343,6 @@ export default function EmployeeDetail() {
         </div>
       )}
 
-      {/* ===== Manage Info Modal ===== */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
