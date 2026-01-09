@@ -1,6 +1,6 @@
-// pages/teamCalendar/utils.js
+// src/pages/teamCalendar/utils.js
 import { format } from "date-fns";
-import { SHIFT_START } from "./constants";
+import { SHIFT_START, SHIFT_END } from "./constants";
 
 // --------------------- Leave type matching ---------------------
 export const matchLeaveType = (leaveType, filter) => {
@@ -49,31 +49,38 @@ const nowMinutes = () => {
   return d.getHours() * 60 + d.getMinutes();
 };
 
-// ✅ ดึงเวลาเริ่มงานจาก backend ที่ HR ตั้ง (ถ้ามี)
-// รองรับหลายชื่อ field เผื่อ endpoint ต่างกัน
+// ✅ start/end จาก backend (ถ้ามี) + fallback constants
 const getStartFromRow = (row) => {
-  // 1) backend ส่งมาชัดสุด
   const fromStandard = row?.standardConfig?.start;
   if (fromStandard) return String(fromStandard).slice(0, 5);
 
-  // 2) เผื่อบางจุดใช้ชื่ออื่น
   const fromRoleConfig = row?.roleConfig?.start;
   if (fromRoleConfig) return String(fromRoleConfig).slice(0, 5);
 
   const fromWorkConfig = row?.workConfig?.start;
   if (fromWorkConfig) return String(fromWorkConfig).slice(0, 5);
 
-  // 3) fallback
   return SHIFT_START;
+};
+
+const getEndFromRow = (row) => {
+  const fromStandard = row?.standardConfig?.end;
+  if (fromStandard) return String(fromStandard).slice(0, 5);
+
+  const fromRoleConfig = row?.roleConfig?.end;
+  if (fromRoleConfig) return String(fromRoleConfig).slice(0, 5);
+
+  const fromWorkConfig = row?.workConfig?.end;
+  if (fromWorkConfig) return String(fromWorkConfig).slice(0, 5);
+
+  return SHIFT_END;
 };
 
 // late rule:
 // - ถ้า row.isLate เป็น boolean -> เชื่อ backend 100%
 // - NOT_IN = late เฉพาะ "วันนี้" (now > start)
 // - IN/OUT = late ถ้า check-in time > start
-// ✅ 09:00 = ตรงเวลา, 09:01 = สาย => ใช้ >
 export const isLate = (state, inTime, isForToday = true, row = null) => {
-  // ✅ 1) เชื่อ backend 100%
   if (typeof row?.isLate === "boolean") return row.isLate;
 
   const startStr = getStartFromRow(row);
@@ -99,6 +106,23 @@ export const labelByAttendance = (state) => {
   if (state === "NOT_IN") return "NOT CHECKED IN";
   if (state === "IN") return "CHECKED IN";
   return "CHECKED OUT";
+};
+
+// --------------------- NEW: Checkout status (แก้เรื่อง Normal/Early) ---------------------
+// ใช้ SHIFT_END / config.end เป็น 기준
+export const getCheckoutStatus = (checkOutTime, row = null) => {
+  if (!checkOutTime) return "NO_CHECKOUT";
+
+  const outTime = normalizeTime(checkOutTime);
+  const outM = toMinutes(outTime);
+  if (outM == null) return "NORMAL"; // แปลงไม่ได้ก็ให้ normal ไว้ก่อน
+
+  const endStr = getEndFromRow(row);
+  const endM = toMinutes(endStr);
+  if (endM == null) return "NORMAL";
+
+  // ออกก่อนเวลางาน -> EARLY, ออกตั้งแต่เวลาเลิกงานขึ้นไป -> NORMAL
+  return outM < endM ? "EARLY" : "NORMAL";
 };
 
 // --------------------- Leave UI helpers ---------------------
@@ -129,14 +153,12 @@ export const typeBadgeTheme = (type) => {
   return "bg-amber-100 text-amber-700";
 };
 
-// weekend bg
 export const weekendBgByDow = (dow) => {
   if (dow === 6) return "bg-violet-50/70"; // Saturday
   if (dow === 0) return "bg-rose-50/70"; // Sunday
   return "";
 };
 
-// --------------------- Modal helpers ---------------------
 export const buildRowName = (leaf) => {
   return (
     leaf?.name ||
@@ -152,3 +174,81 @@ export const buildDurationText = (leaf) => {
   const days = leaf?.totalDaysRequested != null ? `${leaf.totalDaysRequested} Days` : "";
   return { range: `${s} - ${e}`, days };
 };
+
+// ===================== ✅ NEW: Status In/Out =====================
+export const getInStatus = (row, isForToday = true) => {
+  const inRaw = row?.checkInTimeDisplay || row?.checkInTime || row?.checkIn || null;
+  const inTime = normalizeTime(inRaw);
+
+  const state = getAttendanceState({
+    checkInTime: inRaw,
+    checkOutTime: row?.checkOutTimeDisplay || row?.checkOutTime || row?.checkOut || null,
+  });
+
+  // ไม่ได้เช็คอิน
+  if (state === "NOT_IN") {
+    // วันนี้: ถ้าเลยเวลาเริ่มงานแล้ว -> ABSENT (หรือจะให้เป็น LATE ก็ได้ แต่คุณใช้ late rule แยกอยู่แล้ว)
+    if (isForToday) return "ABSENT";
+    return "-";
+  }
+
+  // เช็คอินแล้ว -> ON_TIME / LATE
+  const late = isLate(state, inTime, isForToday, row);
+  return late ? "LATE" : "ON_TIME";
+};
+
+export const getOutStatus = (row) => {
+  const inRaw = row?.checkInTimeDisplay || row?.checkInTime || row?.checkIn || null;
+  const outRaw = row?.checkOutTimeDisplay || row?.checkOutTime || row?.checkOut || null;
+
+  const hasIn = !!inRaw;
+  const outTime = normalizeTime(outRaw);
+
+  // ไม่มีเช็คอิน -> ไม่มีสถานะออก
+  if (!hasIn) return "-";
+
+  // มีเช็คอินแต่ยังไม่เช็คเอาต์
+  if (!outTime) return "NO_CHECKOUT";
+
+  // มีเวลาออกแล้ว -> EARLY / NORMAL เทียบกับเวลางานเลิก
+  const endStr =
+    String(row?.standardConfig?.end || row?.roleConfig?.end || row?.workConfig?.end || SHIFT_END).slice(0, 5);
+
+  const outM = toMinutes(outTime);
+  const endM = toMinutes(endStr);
+  if (outM == null || endM == null) return "NORMAL";
+
+  // ออกก่อนเวลาเลิกงาน -> EARLY
+  if (outM < endM) return "EARLY";
+
+  return "NORMAL";
+};
+
+export const labelByInStatus = (s) => {
+  if (s === "ON_TIME") return "ON TIME";
+  if (s === "LATE") return "LATE";
+  if (s === "ABSENT") return "ABSENT";
+  return "-";
+};
+
+export const labelByOutStatus = (s) => {
+  if (s === "NORMAL") return "NORMAL";
+  if (s === "EARLY") return "EARLY";
+  if (s === "NO_CHECKOUT") return "NO CHECKOUT";
+  return "-";
+};
+
+export const badgeByInStatus = (s) => {
+  if (s === "ON_TIME") return "bg-emerald-50 text-emerald-600 border-emerald-100";
+  if (s === "LATE") return "bg-rose-50 text-rose-600 border-rose-100";
+  if (s === "ABSENT") return "bg-gray-50 text-gray-500 border-gray-100";
+  return "bg-slate-50 text-slate-600 border-slate-100";
+};
+
+export const badgeByOutStatus = (s) => {
+  if (s === "NORMAL") return "bg-indigo-50 text-indigo-700 border-indigo-100";
+  if (s === "EARLY") return "bg-amber-50 text-amber-700 border-amber-100";
+  if (s === "NO_CHECKOUT") return "bg-rose-50 text-rose-600 border-rose-100";
+  return "bg-slate-50 text-slate-600 border-slate-100";
+};
+// ===============================================================

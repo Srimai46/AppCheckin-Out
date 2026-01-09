@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { isSameDay } from "date-fns";
 import { PAGE_SIZE } from "../constants";
-import {
-  normalizeTime,
-  getAttendanceState,
-  isLate,
-} from "../utils";
+import { normalizeTime, getAttendanceState, isLate } from "../utils";
 
 import {
   getTodayTeamAttendance,
@@ -123,7 +118,8 @@ export default function useTeamAttendanceToday() {
       if (state === "IN") checkedIn += 1;
       if (state === "OUT") checkedOut += 1;
 
-      if (isLate(state, inTime, true)) late += 1;
+      // ✅ สำคัญ: ส่ง row เข้าไปด้วย เพื่ออ่าน config.start ได้
+      if (isLate(state, inTime, true, r)) late += 1;
     });
 
     return { total, checkedIn, late, checkedOut };

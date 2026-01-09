@@ -278,7 +278,6 @@ export default function LeaveRequestsPopup({
                                 className="p-2 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-100 transition-all"
                                 title="View Attachment"
                               >
-                                {/* ใช้ icon อะไรก็ได้ */}
                                 <Star size={18} className="opacity-80" />
                               </button>
                             ) : (

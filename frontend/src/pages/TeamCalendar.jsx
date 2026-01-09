@@ -1,3 +1,4 @@
+// src/pages/TeamCalendar.jsx
 import React, { useState, useMemo, useEffect } from "react";
 import {
   format,
@@ -44,6 +45,14 @@ import {
   isLate,
   badgeByAttendance,
   labelByAttendance,
+
+  getInStatus,
+  getOutStatus,
+  badgeByInStatus,
+  badgeByOutStatus,
+  labelByInStatus,
+  labelByOutStatus,
+
   leaveTheme,
   typeBadgeTheme,
   buildRowName,
@@ -101,8 +110,7 @@ export default function TeamCalendar() {
 
   const [roleOpen, setRoleOpen] = useState(false);
 
-  // ===================== ✅ TEAM Pagination (เลขหน้า + ... + Prev/Next) =====================
-  // กันกรณี hook ส่ง totalTeamPages เป็น 0/undefined
+  // ===================== ✅ TEAM Pagination =====================
   const safeTotalTeamPages = useMemo(() => {
     const fromHook = Number(totalTeamPages);
     if (Number.isFinite(fromHook) && fromHook >= 1) return fromHook;
@@ -111,12 +119,10 @@ export default function TeamCalendar() {
     return Math.max(1, Math.ceil(len / PAGE_SIZE));
   }, [totalTeamPages, filteredTeamAttendance]);
 
-  // รีเซ็ตหน้าเมื่อเปลี่ยน filter/search
   useEffect(() => {
     setTeamPage(1);
   }, [roleFilter, searchTerm, setTeamPage]);
 
-  // กันหน้าเกิน
   useEffect(() => {
     if (teamPage > safeTotalTeamPages) setTeamPage(safeTotalTeamPages);
     if (teamPage < 1) setTeamPage(1);
@@ -284,7 +290,7 @@ export default function TeamCalendar() {
     const isForToday = isSameDay(selectedDate, new Date());
 
     let checkedIn = 0;
-    let late = 0;
+    let lateCount = 0;
     let absent = 0;
 
     const rows = modalActiveEmployees || [];
@@ -298,7 +304,7 @@ export default function TeamCalendar() {
       if (state === "IN" || state === "OUT") checkedIn += 1;
       if (state === "NOT_IN") absent += 1;
 
-      if (isLate(state, inTime, isForToday)) late += 1;
+      if (isLate(state, inTime, isForToday, r)) lateCount += 1;
     });
 
     const onLeave = modalOnLeaveEmployeeIds.size;
@@ -318,7 +324,7 @@ export default function TeamCalendar() {
       absent = Math.max(0, absent - leaveAndAbsent);
     }
 
-    return { checkedIn, late, absent, onLeave };
+    return { checkedIn, late: lateCount, absent, onLeave };
   }, [modalActiveEmployees, modalOnLeaveEmployeeIds, selectedDate]);
 
   // ===================== Modal Leave Actions =====================
@@ -618,7 +624,11 @@ export default function TeamCalendar() {
                     <th className="px-6 py-4">Role</th>
                     <th className="px-6 py-4">In</th>
                     <th className="px-6 py-4">Out</th>
-                    <th className="px-6 py-4 text-center">Status</th>
+
+                    {/* ✅ เปลี่ยนจาก Status เดียว -> Status In / Status Out */}
+                    <th className="px-6 py-4 text-center">Status In</th>
+                    <th className="px-6 py-4 text-center">Status Out</th>
+
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -626,19 +636,19 @@ export default function TeamCalendar() {
                 <tbody className="text-[11px] font-bold">
                   {attLoading ? (
                     <tr>
-                      <td colSpan="6" className="px-6 py-10 text-center text-gray-400">
+                      <td colSpan="7" className="px-6 py-10 text-center text-gray-400">
                         Loading attendance...
                       </td>
                     </tr>
                   ) : activeTeamAttendance.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="px-6 py-10 text-center text-gray-400 italic">
+                      <td colSpan="7" className="px-6 py-10 text-center text-gray-400 italic">
                         No active employee attendance data
                       </td>
                     </tr>
                   ) : filteredTeamAttendance.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="px-6 py-10 text-center text-gray-400 italic">
+                      <td colSpan="7" className="px-6 py-10 text-center text-gray-400 italic">
                         No matching employees
                       </td>
                     </tr>
@@ -657,12 +667,17 @@ export default function TeamCalendar() {
                       const inTime = normalizeTime(inRaw);
                       const outTime = normalizeTime(outRaw);
 
-                      const state = getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw });
                       const busy = actionLoading[employeeId];
 
-                      const lateFlag = isLate(state, inTime, true, row);
-                      const statusText = lateFlag ? "LATE" : labelByAttendance(state);
-                      const statusClass = lateFlag ? "bg-rose-50 text-rose-600 border-rose-100" : badgeByAttendance(state);
+                      // ✅ Status In/Out ตามเวลาที่ HR ตั้ง (start/end)
+                      const inStatus = getInStatus(row, true);
+                      const outStatus = getOutStatus(row, true);
+
+                      const inCls = badgeByInStatus(inStatus);
+                      const outCls = badgeByOutStatus(outStatus);
+
+                      const inText = labelByInStatus(inStatus);
+                      const outText = labelByOutStatus(outStatus);
 
                       return (
                         <tr key={employeeId} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
@@ -677,9 +692,17 @@ export default function TeamCalendar() {
                             <span className="text-rose-500">{outTime || "--:--"}</span>
                           </td>
 
+                          {/* ✅ Status In (Text only) */}
                           <td className="px-6 py-4 text-center">
-                            <span className={`px-3 py-1.5 rounded-xl border text-[10px] uppercase font-black tracking-widest ${statusClass}`}>
-                              {statusText}
+                            <span className={`px-3 py-1.5 rounded-xl border text-[10px] uppercase font-black tracking-widest ${inCls}`}>
+                              {inText}
+                            </span>
+                          </td>
+
+                          {/* ✅ Status Out (Text only) */}
+                          <td className="px-6 py-4 text-center">
+                            <span className={`px-3 py-1.5 rounded-xl border text-[10px] uppercase font-black tracking-widest ${outCls}`}>
+                              {outText}
                             </span>
                           </td>
 
@@ -687,10 +710,10 @@ export default function TeamCalendar() {
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => handleHRCheckIn(employeeId, name)}
-                                disabled={state !== "NOT_IN" || !!busy}
+                                disabled={getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw }) !== "NOT_IN" || !!busy}
                                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest border transition-all active:scale-95
                                   ${
-                                    state !== "NOT_IN" || busy
+                                    getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw }) !== "NOT_IN" || busy
                                       ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
                                       : "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100"
                                   }`}
@@ -701,10 +724,10 @@ export default function TeamCalendar() {
 
                               <button
                                 onClick={() => handleHRCheckOut(employeeId, name)}
-                                disabled={state !== "IN" || !!busy}
+                                disabled={getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw }) !== "IN" || !!busy}
                                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest border transition-all active:scale-95
                                   ${
-                                    state !== "IN" || busy
+                                    getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw }) !== "IN" || busy
                                       ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
                                       : "bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100"
                                   }`}
@@ -721,7 +744,7 @@ export default function TeamCalendar() {
                 </tbody>
               </table>
 
-              {/* ✅ Pagination (ใหม่) */}
+              {/* ✅ Pagination */}
               {!attLoading && filteredTeamAttendance.length > 0 && (
                 <div className="px-6 py-4 border-t border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">

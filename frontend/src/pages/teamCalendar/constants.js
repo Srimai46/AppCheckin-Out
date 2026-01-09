@@ -1,4 +1,5 @@
 export const SHIFT_START = "09:00"; // fallback เท่านั้น (กรณีไม่มี config)
+export const SHIFT_END = "18:00";
 export const PAGE_SIZE = 10;
 
 export const WEEK_HEADERS = [
