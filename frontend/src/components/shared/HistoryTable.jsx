@@ -1,3 +1,4 @@
+// frontend/src/components/shared/HistoryTable.jsx
 import React, { useState, useMemo, useEffect } from "react";
 import {
   History,
@@ -18,6 +19,46 @@ import {
 } from "../../utils/sweetAlert";
 
 const PAGE_SIZE = 5;
+
+// ===================== ✅ Status label/style (text only, no arrows) =====================
+const CHECKIN_BADGE = {
+  ON_TIME: { label: "ตรงเวลา", cls: "bg-emerald-50 text-emerald-600 border-emerald-100" },
+  LATE: { label: "สาย", cls: "bg-amber-50 text-amber-700 border-amber-100" },
+  LEAVE: { label: "ลา", cls: "bg-blue-50 text-blue-700 border-blue-100" },
+  ABSENT: { label: "ขาดงาน", cls: "bg-rose-50 text-rose-600 border-rose-100" },
+};
+
+const CHECKOUT_BADGE = {
+  NORMAL: { label: "ออก", cls: "bg-emerald-50 text-emerald-600 border-emerald-100" },
+  EARLY: { label: "ออกก่อนเวลา", cls: "bg-orange-50 text-orange-700 border-orange-100" },
+  LEAVE: { label: "ลา", cls: "bg-blue-50 text-blue-700 border-blue-100" },
+  NO_CHECKOUT: { label: "ไม่เช็คเอาต์", cls: "bg-rose-50 text-rose-600 border-rose-100" },
+};
+
+function StatusTextPill({ map, value }) {
+  const item = map?.[value] || { label: "-", cls: "bg-slate-50 text-slate-500 border-slate-100" };
+  return (
+    <span className={`inline-flex items-center justify-center px-3 py-1 rounded-2xl border text-[10px] font-black uppercase ${item.cls}`}>
+      {item.label}
+    </span>
+  );
+}
+
+const formatDateYMD = (dateLike) => {
+  if (!dateLike) return "-";
+  const d = new Date(dateLike);
+  if (isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("en-CA"); // YYYY-MM-DD
+};
+
+const formatTimeHMS = (dateLike) => {
+  if (!dateLike) return "--:--";
+  const d = new Date(dateLike);
+  if (isNaN(d.getTime())) return "--:--";
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+};
+
+// ======================================================================================
 
 export default function HistoryTable({
   activeTab,
@@ -56,7 +97,6 @@ export default function HistoryTable({
   // ===================== ✅ Date helpers (รองรับหลายรูปแบบ) =====================
   const parseAnyDate = (value) => {
     if (!value) return null;
-
     if (value instanceof Date && !isNaN(value.getTime())) return value;
 
     const s = String(value).trim();
@@ -89,25 +129,28 @@ export default function HistoryTable({
     const raw =
       row?.date ||
       row?.dateDisplay ||
+      row?.workDate ||
+      row?.work_date ||
       row?.createdAt ||
       row?.checkInDate ||
       row?.checkInAt ||
+      row?.checkInTime ||
+      row?.check_in_time ||
       null;
     return parseAnyDate(raw);
   };
 
   const getLeaveDate = (leave) => {
-    const raw =
-      leave?.startDate || leave?.createdAt || leave?.requestedAt || null;
+    const raw = leave?.startDate || leave?.createdAt || leave?.requestedAt || null;
     return parseAnyDate(raw);
   };
   // ==========================================================================
 
+  const tab = activeTab || "attendance";
+
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    setPage(1);
-  }, [activeTab]);
+  useEffect(() => setPage(1), [tab]);
 
   // ===================== ✅ Filter state (วัน/เดือน/ปี) =====================
   const [filterYear, setFilterYear] = useState("all");
@@ -115,14 +158,13 @@ export default function HistoryTable({
   const [filterDay, setFilterDay] = useState("all");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
-  // เปลี่ยน tab แล้ว reset filter
   useEffect(() => {
     setFilterYear("all");
     setFilterMonth("all");
     setFilterDay("all");
-  }, [activeTab]);
+  }, [tab]);
 
-  const rawData = activeTab === "attendance" ? attendanceData : leaveData;
+  const rawData = tab === "attendance" ? attendanceData : leaveData;
 
   const filteredData = useMemo(() => {
     const y = filterYear === "all" ? null : Number(filterYear);
@@ -130,8 +172,7 @@ export default function HistoryTable({
     const d = filterDay === "all" ? null : Number(filterDay);
 
     return (rawData || []).filter((item) => {
-      const dateObj =
-        activeTab === "attendance" ? getRowDate(item) : getLeaveDate(item);
+      const dateObj = tab === "attendance" ? getRowDate(item) : getLeaveDate(item);
       if (!dateObj || isNaN(dateObj.getTime())) return true;
 
       if (y != null && dateObj.getFullYear() !== y) return false;
@@ -140,11 +181,9 @@ export default function HistoryTable({
 
       return true;
     });
-  }, [rawData, activeTab, filterYear, filterMonth, filterDay]);
+  }, [rawData, tab, filterYear, filterMonth, filterDay]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [filterYear, filterMonth, filterDay]);
+  useEffect(() => setPage(1), [filterYear, filterMonth, filterDay]);
   // ========================================================================
 
   const data = filteredData;
@@ -209,46 +248,6 @@ export default function HistoryTable({
     return Math.max(1, Math.round((e - s) / ms) + 1);
   };
 
-  // ===================== ✅ LATE =====================
-  const toMinutes = (value) => {
-    if (!value) return null;
-    if (value instanceof Date && !isNaN(value.getTime())) {
-      return value.getHours() * 60 + value.getMinutes();
-    }
-
-    const s = String(value).trim();
-    if (s.includes("T")) {
-      const d = new Date(s);
-      if (!isNaN(d.getTime())) return d.getHours() * 60 + d.getMinutes();
-    }
-
-    const m = s.match(/(\d{1,2}):(\d{2})/);
-    if (!m) return null;
-    const h = Number(m[1]);
-    const mm = Number(m[2]);
-    if (Number.isNaN(h) || Number.isNaN(mm)) return null;
-    return h * 60 + mm;
-  };
-
-  const isLateByRow = (row) => {
-    if (typeof row?.isLate === "boolean") return row.isLate;
-
-    const start = row?.standardConfig?.start || "09:00";
-    const inRaw =
-      row?.checkInTimeDisplay ||
-      row?.checkInDisplay ||
-      row?.checkIn ||
-      row?.checkInTime ||
-      null;
-
-    const inM = toMinutes(inRaw);
-    const startM = toMinutes(start);
-    if (inM == null || startM == null) return false;
-
-    return inM > startM;
-  };
-  // ==================================================================
-
   const getSignedBy = (leave) => {
     if (leave?.approverName) return leave.approverName;
 
@@ -296,8 +295,7 @@ export default function HistoryTable({
   };
 
   const isPending = (status) => String(status || "").toLowerCase() === "pending";
-  const isApproved = (status) =>
-    String(status || "").toLowerCase() === "approved";
+  const isApproved = (status) => String(status || "").toLowerCase() === "approved";
 
   const handleRequestCancelLeave = async (leave) => {
     try {
@@ -327,32 +325,61 @@ export default function HistoryTable({
     }
   };
 
-  const isAll = filterYear === "all" && filterMonth === "all" && filterDay === "all";
+  const isAll =
+    filterYear === "all" && filterMonth === "all" && filterDay === "all";
 
   const displayDateText = useMemo(() => {
     if (isAll) return "ALL";
-    // ถ้ายังเลือกไม่ครบ (เช่น all บางตัว) ก็โชว์เป็น ALL
-    if (filterYear === "all" || filterMonth === "all" || filterDay === "all") return "ALL";
+    if (filterYear === "all" || filterMonth === "all" || filterDay === "all")
+      return "ALL";
     return `${pad2(filterDay)}/${pad2(filterMonth)}/${filterYear}`;
   }, [isAll, filterYear, filterMonth, filterDay]);
 
   const pickerValue = useMemo(() => {
-    if (filterYear === "all" || filterMonth === "all" || filterDay === "all") return null;
+    if (filterYear === "all" || filterMonth === "all" || filterDay === "all")
+      return null;
     return `${filterYear}-${pad2(filterMonth)}-${pad2(filterDay)}`;
   }, [filterYear, filterMonth, filterDay]);
 
+  // ===================== ✅ Attendance status compute (from TimeRecord) =====================
+  const computeCheckInStatus = (row) => {
+    // ถ้า backend ส่งมาแล้ว ใช้เลย
+    const s = row?.checkInStatus || row?.check_in_status;
+    if (s) return s;
+
+    // ถ้ายังไม่มี ให้เดาจาก isLate + มี checkInTime ไหม
+    const hasIn = Boolean(row?.checkInTime || row?.check_in_time || row?.checkIn || row?.checkInDisplay || row?.checkInTimeDisplay);
+    if (!hasIn) return "ABSENT";
+
+    if (typeof row?.isLate === "boolean") return row.isLate ? "LATE" : "ON_TIME";
+
+    // fallback สุดท้าย
+    return "ON_TIME";
+  };
+
+  const computeCheckOutStatus = (row) => {
+    const s = row?.checkOutStatus || row?.check_out_status;
+    if (s) return s;
+
+    const hasOut = Boolean(row?.checkOutTime || row?.check_out_time || row?.checkOut || row?.checkOutDisplay || row?.checkOutTimeDisplay);
+    if (!hasOut) return "NO_CHECKOUT";
+
+    return "NORMAL";
+  };
+  // ======================================================================
+
   return (
     <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-      {/* Header */}
+      {/* ✅ Header (คงแบบเดิมไว้) */}
       <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-2">
-          {activeTab === "attendance" ? (
+          {tab === "attendance" ? (
             <History size={18} className="text-blue-600" />
           ) : (
             <FileText size={18} className="text-amber-500" />
           )}
           <h2 className="font-black text-slate-800 text-sm uppercase tracking-widest">
-            {activeTab === "attendance"
+            {tab === "attendance"
               ? t("history.attendanceLog")
               : t("history.leaveHistory")}
           </h2>
@@ -360,92 +387,93 @@ export default function HistoryTable({
 
         {/* ✅ Date Filter (ซ้าย) + Tab Switch (ขวา) */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
-  {/* Date filter pill */}
-  <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl p-2 w-full sm:w-auto">
-    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">
-      {tt("history.filter", "Filter")}
-    </span>
+          {/* Date filter pill */}
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl p-2 w-full sm:w-auto">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">
+              {tt("history.filter", "Filter")}
+            </span>
 
-    <button
-      type="button"
-      onClick={() => setDatePickerOpen(true)}
-      className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[11px] font-black text-slate-700 uppercase tracking-widest hover:bg-gray-50 transition active:scale-95"
-      title={t("history.selectDate")}
-    >
-      {displayDateText}
-    </button>
+            <button
+              type="button"
+              onClick={() => setDatePickerOpen(true)}
+              className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[11px] font-black text-slate-700 uppercase tracking-widest hover:bg-gray-50 transition active:scale-95"
+              title={t("history.selectDate")}
+            >
+              {displayDateText}
+            </button>
 
-    <button
-      type="button"
-      onClick={() => {
-        setFilterYear("all");
-        setFilterMonth("all");
-        setFilterDay("all");
-      }}
-      className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition active:scale-95"
-      title={t("history.clear")}
-    >
-      {tt("history.clear", "Clear")}
-    </button>
-  </div>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterYear("all");
+                setFilterMonth("all");
+                setFilterDay("all");
+              }}
+              className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition active:scale-95"
+              title={t("history.clear")}
+            >
+              {tt("history.clear", "Clear")}
+            </button>
+          </div>
 
-  {/* DateGridPicker Modal */}
-  <DateGridPicker
-    open={datePickerOpen}
-    value={pickerValue}
-    onClose={() => setDatePickerOpen(false)}
-    onChange={(dateStr) => {
-      if (!dateStr) {
-        setFilterYear("all");
-        setFilterMonth("all");
-        setFilterDay("all");
-        return;
-      }
-      const [y, m, d] = String(dateStr).split("-");
-      setFilterYear(y);
-      setFilterMonth(m);
-      setFilterDay(d);
-    }}
-    title={tt("history.selectDate", "Select date")}
-    allowAll={true}
-  />
+          {/* DateGridPicker Modal */}
+          <DateGridPicker
+            open={datePickerOpen}
+            value={pickerValue}
+            onClose={() => setDatePickerOpen(false)}
+            onChange={(dateStr) => {
+              if (!dateStr) {
+                setFilterYear("all");
+                setFilterMonth("all");
+                setFilterDay("all");
+                return;
+              }
+              const [y, m, d] = String(dateStr).split("-");
+              setFilterYear(y);
+              setFilterMonth(m);
+              setFilterDay(d);
+            }}
+            title={tt("history.selectDate", "Select date")}
+            allowAll={true}
+          />
 
-  {/* Tab Switch */}
-  <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1 w-full sm:w-auto">
-    <button
-      onClick={() => setActiveTab("attendance")}
-      className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-        activeTab === "attendance"
-          ? "bg-white shadow-sm text-slate-800"
-          : "text-gray-400"
-      }`}
-    >
-      {t("history.tabAttendance")}
-    </button>
+          {/* Tab Switch */}
+          <div className="flex bg-gray-50 border border-gray-100 rounded-2xl p-1 w-full sm:w-auto">
+            <button
+              onClick={() => setActiveTab?.("attendance")}
+              className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
+                tab === "attendance"
+                  ? "bg-white shadow-sm text-slate-800"
+                  : "text-gray-400"
+              }`}
+            >
+              {t("history.tabAttendance")}
+            </button>
 
-    <button
-      onClick={() => setActiveTab("leave")}
-      className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-        activeTab === "leave"
-          ? "bg-white shadow-sm text-slate-800"
-          : "text-gray-400"
-      }`}
-    >
-      {t("history.tabLeave")}
-    </button>
-  </div>
-</div>
-
+            <button
+              onClick={() => setActiveTab?.("leave")}
+              className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
+                tab === "leave"
+                  ? "bg-white shadow-sm text-slate-800"
+                  : "text-gray-400"
+              }`}
+            >
+              {t("history.tabLeave")}
+            </button>
+          </div>
+        </div>
       </div>
 
+      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50">
-            {activeTab === "attendance" ? (
+            {tab === "attendance" ? (
               <tr>
                 <th className="px-6 py-4">{t("history.date")}</th>
                 <th className="px-6 py-4">{t("history.inOut")}</th>
-                <th className="px-6 py-4 text-center">{t("history.status")}</th>
+                <th className="px-6 py-4 text-center">Status In</th>
+                <th className="px-6 py-4 text-center">Status Out</th>
               </tr>
             ) : (
               <tr>
@@ -462,43 +490,49 @@ export default function HistoryTable({
           </thead>
 
           <tbody className="text-[11px] font-bold uppercase">
-            {activeTab === "attendance" ? (
+            {tab === "attendance" ? (
               pagedData.length > 0 ? (
                 pagedData.map((row, i) => {
-                  const late = isLateByRow(row);
+                  const workDate = getRowDate(row);
+                  const checkInTime = row?.checkInTime || row?.check_in_time || row?.checkInTimeDisplay || row?.checkInDisplay || row?.checkIn;
+                  const checkOutTime = row?.checkOutTime || row?.check_out_time || row?.checkOutTimeDisplay || row?.checkOutDisplay || row?.checkOut;
 
-                  const statusLabel = late ? t("history.late") : t("history.onTime");
-                  const statusClass = late
-                    ? "bg-rose-50 text-rose-600 border-rose-100"
-                    : "bg-emerald-50 text-emerald-600 border-emerald-100";
+                  const inTimeText = (checkInTime && String(checkInTime).includes(":") && !String(checkInTime).includes("T"))
+                    ? String(checkInTime)
+                    : formatTimeHMS(checkInTime);
+
+                  const outTimeText = (checkOutTime && String(checkOutTime).includes(":") && !String(checkOutTime).includes("T"))
+                    ? String(checkOutTime)
+                    : (checkOutTime ? formatTimeHMS(checkOutTime) : "NOT CHECKED OUT YET");
+
+                  const inStatus = computeCheckInStatus(row);
+                  const outStatus = computeCheckOutStatus(row);
 
                   return (
-                    <tr
-                      key={i}
-                      className="border-b border-gray-50 hover:bg-gray-50/30"
-                      title={row?.standardConfig?.start ? `Standard Start: ${row.standardConfig.start}` : ""}
-                    >
-                      <td className="px-6 py-4 text-slate-600">{row.date || row.dateDisplay}</td>
+                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
+                      <td className="px-6 py-4 text-slate-600">
+                        {row?.date || row?.dateDisplay || formatDateYMD(workDate)}
+                      </td>
 
                       <td className="px-6 py-4">
-                        <span className="text-emerald-600">
-                          {row.checkIn || row.checkInDisplay || row.checkInTimeDisplay || "--:--"}
-                        </span>
+                        <span className="text-emerald-600">{inTimeText || "--:--"}</span>
                         <span className="mx-2 text-gray-300">/</span>
-                        <span className="text-rose-500">
-                          {row.checkOut || row.checkOutDisplay || row.checkOutTimeDisplay || "--:--"}
-                        </span>
+                        <span className="text-rose-500">{outTimeText || "--:--"}</span>
                       </td>
 
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-3 py-1 rounded-lg border ${statusClass}`}>{statusLabel}</span>
+                        <StatusTextPill map={CHECKIN_BADGE} value={inStatus} />
+                      </td>
+
+                      <td className="px-6 py-4 text-center">
+                        <StatusTextPill map={CHECKOUT_BADGE} value={outStatus} />
                       </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={3} className="p-10 text-center text-gray-300 italic">
+                  <td colSpan={4} className="p-10 text-center text-gray-300 italic">
                     {t("history.noData")}
                   </td>
                 </tr>
@@ -525,8 +559,8 @@ export default function HistoryTable({
                     </td>
 
                     <td className="px-6 py-4 text-gray-500">
-                      {new Date(leave.startDate).toLocaleDateString("th-TH")} -{" "}
-                      {new Date(leave.endDate).toLocaleDateString("th-TH")}
+                      {leave?.startDate ? new Date(leave.startDate).toLocaleDateString("th-TH") : "-"} -{" "}
+                      {leave?.endDate ? new Date(leave.endDate).toLocaleDateString("th-TH") : "-"}
                     </td>
 
                     <td className="px-6 py-4 text-center text-slate-600 font-bold">{days}</td>
@@ -597,79 +631,83 @@ export default function HistoryTable({
           </tbody>
         </table>
 
-        {/* Pagination */}
-        {((data?.length || 0) > 0) && (
-  <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-col sm:flex-row">
-    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-      {t("common.page")} {page} / {totalPages} • {t("common.showing")}{" "}
-      <span className="text-slate-700">
-        {Math.min((page - 1) * PAGE_SIZE + 1, data.length)}-
-        {Math.min(page * PAGE_SIZE, data.length)}
-      </span>{" "}
-      {t("common.of")}{" "}
-      <span className="text-slate-700">{data.length}</span>
-    </div>
+        {/* Pagination (คงแบบเดิมไว้) */}
+        {(data?.length || 0) > 0 && (
+          <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-col sm:flex-row">
+            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              {t("common.page")} {page} / {totalPages} • {t("common.showing")}{" "}
+              <span className="text-slate-700">
+                {Math.min((page - 1) * PAGE_SIZE + 1, data.length)}-
+                {Math.min(page * PAGE_SIZE, data.length)}
+              </span>{" "}
+              {t("common.of")}{" "}
+              <span className="text-slate-700">{data.length}</span>
+            </div>
 
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={onPrev}
-        disabled={!canPrev}
-        className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
-          ${
-            canPrev
-              ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
-              : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
-          }`}
-        title={t("common.prev")}
-      >
-        <ChevronLeft size={14} />
-        {t("common.prev")}
-      </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onPrev}
+                disabled={!canPrev}
+                className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
+                  ${
+                    canPrev
+                      ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  }`}
+                title={t("common.prev")}
+              >
+                <ChevronLeft size={14} />
+                {t("common.prev")}
+              </button>
 
-      <div className="flex items-center gap-1">
-        {pageNumbers.map((p, idx) =>
-          p === "..." ? (
-            <span key={`dots-${idx}`} className="px-2 text-gray-300 font-black text-[12px]">
-              ...
-            </span>
-          ) : (
-            <button
-              key={p}
-              type="button"
-              onClick={() => goTo(p)}
-              className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
-                ${
-                  p === page
-                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                    : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
-                }`}
-            >
-              {p}
-            </button>
-          )
+              <div className="flex items-center gap-1">
+                {pageNumbers.map((p, idx) =>
+                  p === "..." ? (
+                    <span key={`dots-${idx}`} className="px-2 text-gray-300 font-black text-[12px]">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => goTo(p)}
+                      className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
+                        ${
+                          p === page
+                            ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                            : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                        }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={onNext}
+                disabled={!canNext}
+                className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
+                  ${
+                    canNext
+                      ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  }`}
+                title={t("common.next")}
+              >
+                {t("common.next")}
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={!canNext}
-        className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
-          ${
-            canNext
-              ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
-              : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
-          }`}
-        title={t("common.next")}
-      >
-        {t("common.next")}
-        <ChevronRight size={14} />
-      </button>
-    </div>
-  </div>
-)}
-
+      {/* hint */}
+      <div className="px-6 pb-5 text-[11px] text-gray-400">
+        * Status แยกเข้า/ออก: ON_TIME, LATE, LEAVE, ABSENT / NORMAL, EARLY, LEAVE, NO_CHECKOUT
       </div>
     </div>
   );

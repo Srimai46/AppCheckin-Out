@@ -28,9 +28,20 @@ export default function Dashboard() {
 
   const formatYear = (year, lang) => (String(lang || "").startsWith("th") ? year + 543 : year);
 
+  // ✅ FIX: รองรับ field ของ TimeRecord (workDate/work_date/checkInTime/check_in_time) ด้วย
   const years = useMemo(() => {
     const yearsFromHistory = (data.att || [])
-      .map((r) => new Date(r.date || r.dateDisplay).getFullYear())
+      .map((r) =>
+        new Date(
+          r.workDate ||
+            r.work_date ||
+            r.date ||
+            r.dateDisplay ||
+            r.checkInTime ||
+            r.check_in_time ||
+            0
+        ).getFullYear()
+      )
       .filter(Boolean);
 
     const maxYear = Math.max(currentYear, ...(yearsFromHistory.length ? yearsFromHistory : [currentYear]));
@@ -57,7 +68,7 @@ export default function Dashboard() {
       try {
         const [h, q, l, types] = await Promise.all([getMyHistory(), getMyQuotas(year), getMyLeaves(), getLeaveTypes()]);
 
-        const att = Array.isArray(h) ? h : h?.data || [];
+        const attRaw = Array.isArray(h) ? h : h?.data || [];
         const quotasRaw = Array.isArray(q) ? q : q?.data || [];
         const leavesRaw = l?.history || [];
 
@@ -80,6 +91,17 @@ export default function Dashboard() {
                 return new Date(d).getFullYear() === Number(year);
               })
             : leavesRaw;
+
+        // ✅ FIX: normalize attendance ให้มี checkOutStatus = NO_CHECKOUT ถ้ายังไม่มี checkout
+        const att = (Array.isArray(attRaw) ? attRaw : []).map((r) => {
+          const checkOutTime = r.checkOutTime || r.check_out_time;
+          const checkOutStatus = r.checkOutStatus || r.check_out_status;
+
+          return {
+            ...r,
+            checkOutStatus: checkOutStatus || (!checkOutTime ? "NO_CHECKOUT" : checkOutStatus),
+          };
+        });
 
         setData({ att, quotas, leaves });
 
