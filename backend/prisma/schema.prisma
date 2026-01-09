@@ -47,6 +47,20 @@ enum AuditAction {
   LOGIN
 }
 
+enum CheckInStatus {
+  ON_TIME
+  LATE
+  LEAVE
+  ABSENT
+}
+
+enum CheckOutStatus {
+  NORMAL
+  EARLY
+  LEAVE
+  NO_CHECKOUT
+}
+
 model AuditLog {
   id        Int         @id @default(autoincrement()) @map("log_id")
   action    AuditAction
@@ -136,6 +150,10 @@ model TimeRecord {
   isLate       Boolean   @default(false) @map("is_late")
   note         String?   @db.Text
 
+  // ✅ NEW: statuses (ทำเป็น optional ก่อน กัน migration พัง)
+  checkInStatus  CheckInStatus?  @map("check_in_status")
+  checkOutStatus CheckOutStatus? @map("check_out_status")
+
   checkInLat  Decimal? @map("check_in_lat") @db.Decimal(10, 8)
   checkInLng  Decimal? @map("check_in_lng") @db.Decimal(11, 8)
   checkOutLat Decimal? @map("check_out_lat") @db.Decimal(10, 8)
@@ -143,7 +161,7 @@ model TimeRecord {
 
   employee Employee @relation(fields: [employeeId], references: [id])
 
-  @@index([employeeId, workDate]) // เพิ่ม Index สำหรับการดึงประวัติการเข้างานรายคนตามช่วงเวลา
+  @@index([employeeId, workDate])
   @@map("time_records")
 }
 
