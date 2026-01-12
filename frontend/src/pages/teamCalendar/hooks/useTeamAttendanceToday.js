@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PAGE_SIZE } from "../constants";
-import { normalizeTime, getAttendanceState, isLate } from "../utils";
-
+// import { normalizeTime, getAttendanceState, isLate } from "../utils"; // ❌ ไม่ต้อง import isLate แล้ว
 import {
   getTodayTeamAttendance,
   hrCheckInEmployee,
@@ -10,21 +9,12 @@ import {
 
 import { alertConfirm, alertSuccess, alertError } from "../../../utils/sweetAlert";
 
-/**
- * useTeamAttendanceToday
- * - fetch today attendance
- * - active filter
- * - role/search filters
- * - pagination
- * - summary
- * - HR actions checkin/checkout
- */
 export default function useTeamAttendanceToday() {
   const [teamAttendance, setTeamAttendance] = useState([]);
   const [attLoading, setAttLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState({}); // { [employeeId]: "in" | "out" | null }
+  const [actionLoading, setActionLoading] = useState({}); 
 
-  const [roleFilter, setRoleFilter] = useState("ALL"); // ALL | HR | WORKER
+  const [roleFilter, setRoleFilter] = useState("ALL"); 
   const [searchTerm, setSearchTerm] = useState("");
   const [teamPage, setTeamPage] = useState(1);
 
@@ -33,6 +23,7 @@ export default function useTeamAttendanceToday() {
       setAttLoading(true);
 
       const res = await getTodayTeamAttendance();
+      // Logic การแกะ response เพื่อรองรับหลาย format
       const list =
         (Array.isArray(res) && res) ||
         (Array.isArray(res?.data) && res.data) ||
@@ -65,12 +56,14 @@ export default function useTeamAttendanceToday() {
     const term = String(searchTerm || "").trim().toLowerCase();
 
     return (activeTeamAttendance || []).filter((row) => {
+      // Role Filter
       const roleRaw = String(row?.role || row?.position || "").toUpperCase();
       if (roleFilter !== "ALL") {
         const want = roleFilter === "WORKER" ? "WORKER" : "HR";
         if (roleRaw !== want) return false;
       }
 
+      // Search Filter
       if (!term) return true;
 
       const id = String(row?.employeeId ?? row?.id ?? "").toLowerCase();
@@ -85,6 +78,7 @@ export default function useTeamAttendanceToday() {
     });
   }, [activeTeamAttendance, roleFilter, searchTerm]);
 
+  // Pagination
   const totalTeamPages = useMemo(() => {
     return Math.max(1, Math.ceil(filteredTeamAttendance.length / PAGE_SIZE));
   }, [filteredTeamAttendance.length]);
@@ -100,7 +94,7 @@ export default function useTeamAttendanceToday() {
 
   useEffect(() => setTeamPage(1), [roleFilter, searchTerm]);
 
-  // summary
+  // --- 🔥 จุดที่แก้: Summary Calculation ---
   const attendanceSummary = useMemo(() => {
     const total = activeTeamAttendance.length;
 
@@ -109,23 +103,30 @@ export default function useTeamAttendanceToday() {
     let checkedOut = 0;
 
     activeTeamAttendance.forEach((r) => {
-      const inRaw = r.checkInTimeDisplay || r.checkInTime || r.checkIn || null;
-      const outRaw = r.checkOutTimeDisplay || r.checkOutTime || r.checkOut || null;
+      // เช็คว่ามีการ Check-in หรือยัง (ดูจาก field ที่ API ส่งมา)
+      const hasCheckIn = !!(r.checkInTimeDisplay || r.checkInTime);
+      const hasCheckOut = !!(r.checkOutTimeDisplay || r.checkOutTime);
 
-      const inTime = normalizeTime(inRaw);
-      const state = getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw });
+      if (hasCheckIn) {
+        // นับจำนวนคนเข้างาน (Working + Completed)
+        checkedIn += 1; 
 
-      if (state === "IN") checkedIn += 1;
-      if (state === "OUT") checkedOut += 1;
+        // ✅ ใช้ค่า inStatus ที่ Backend ส่งมาตรงๆ (แม่นยำกว่าคำนวณใหม่)
+        if (r.inStatus === "Late") {
+            late += 1;
+        }
+      }
 
-      // ✅ สำคัญ: ส่ง row เข้าไปด้วย เพื่ออ่าน config.start ได้
-      if (isLate(state, inTime, true, r)) late += 1;
+      if (hasCheckOut) {
+        checkedOut += 1;
+      }
     });
 
     return { total, checkedIn, late, checkedOut };
   }, [activeTeamAttendance]);
 
-  // actions
+
+  // Actions (HR Check-in/out) เหมือนเดิม
   const handleHRCheckIn = useCallback(
     async (employeeId, employeeName = "") => {
       const busy = actionLoading[employeeId];
@@ -183,12 +184,9 @@ export default function useTeamAttendanceToday() {
   );
 
   return {
-    // data
     attLoading,
     actionLoading,
     activeTeamAttendance,
-
-    // filters + paging
     roleFilter,
     setRoleFilter,
     searchTerm,
@@ -198,14 +196,8 @@ export default function useTeamAttendanceToday() {
     totalTeamPages,
     filteredTeamAttendance,
     pagedTeamAttendance,
-
-    // summary
-    attendanceSummary,
-
-    // api
+    attendanceSummary, 
     fetchTeamAttendance,
-
-    // actions
     handleHRCheckIn,
     handleHRCheckOut,
   };
