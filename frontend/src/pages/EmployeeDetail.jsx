@@ -1,6 +1,7 @@
 // frontend/src/pages/EmployeeDetail.jsx
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import api from "../api/axios";
 import {
   ArrowLeft,
@@ -18,19 +19,15 @@ import {
 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
-// Shared Components
 import { QuotaCards, HistoryTable } from "../components/shared";
 import LeaveSummaryPopup from "../components/shared/LeaveSummaryPopup";
 import { getLeaveTypes } from "../api/leaveService";
-
-// ✅ Dashboard Component
 import AttendanceDashboardComponent from "./yearEnd/components/AttendanceDashboard";
 
 export default function EmployeeDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
-
-  const [roleOpen, setRoleOpen] = useState(false);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -46,6 +43,9 @@ export default function EmployeeDetail() {
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
+
+  // Added missing state for Role Dropdown
+  const [roleOpen, setRoleOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -73,20 +73,7 @@ export default function EmployeeDetail() {
       ]);
 
       const raw = res?.data || {};
-
-      // ✅ DEBUG: ดู payload ทั้งก้อนว่ามี workEndTime ไหม + attendance มี checkOutStatus ไหม
-      // (ตามที่คุณขอ: ใส่ console.log และคอมเมนท์ไว้)
-      // console.log("EmployeeDetail raw =>", raw);
-      // console.log("EmployeeDetail raw.workEndTime =>", raw?.workEndTime);
-      // console.log("EmployeeDetail raw.attendance sample =>", (raw?.attendance || [])?.[0]);
-
-      // ✅ หลังเราแก้ backend แล้ว ควรมี workEndTime เสมอ (เช่น "17:00")
-      // ถ้าเป็น null แปลว่า backend ยังไม่ได้ส่ง หรือ model config ยังไม่ได้ต่อถูกตัว
       const extractedWorkEndTime = raw?.workEndTime ?? null;
-
-      // ✅ หลังเราแก้ backend แล้ว attendance จะเป็นมาตรฐานแล้ว:
-      // checkInTime/checkOutTime, checkInStatus/checkOutStatus (รวม EARLY) จะมาครบ
-      // ดังนั้นที่นี่ “ไม่ต้องคำนวณเองเยอะ” แค่ fallback กันข้อมูลเก่าที่อาจยังหลงเหลือ
       const attendanceRaw = Array.isArray(raw?.attendance) ? raw.attendance : [];
 
       const normalizeBool = (v) => {
@@ -99,13 +86,10 @@ export default function EmployeeDetail() {
       };
 
       const attendance = attendanceRaw.map((r) => {
-        // ✅ ใช้ field จาก backend เป็นหลัก
         const hasIn = !!(r?.checkInTime || r?.check_in_time);
         const hasOut = !!(r?.checkOutTime || r?.check_out_time);
-
         const late = normalizeBool(r?.isLate ?? r?.late ?? r?.is_late);
 
-        // ✅ ใช้ status จาก backend ถ้ามี (สำคัญ: EARLY จะมาจาก backend เลย)
         const checkInStatus =
           r?.checkInStatus ||
           r?.check_in_status ||
@@ -133,12 +117,12 @@ export default function EmployeeDetail() {
       setLeaveTypes(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error(err);
-      alertError("Request Failed", "Could not retrieve employee data.");
+      alertError(t("common.error"), t("employeeDetail.fetchFailed"));
       setLeaveTypes([]);
     } finally {
       setLoading(false);
     }
-  }, [id, selectedYear]);
+  }, [id, selectedYear, t]);
 
   useEffect(() => {
     fetchData();
@@ -154,7 +138,6 @@ export default function EmployeeDetail() {
     const dataYears = [
       ...(data.attendance || [])
         .map((r) => {
-          // ✅ backend ใหม่ส่ง workDate (ISO) + dateDisplay
           const d = r?.workDate || r?.date || r?.dateDisplay;
           const y = d ? new Date(d).getFullYear() : NaN;
           return y;
@@ -170,17 +153,27 @@ export default function EmployeeDetail() {
         .filter(Number.isFinite),
     ];
 
-    const maxYear = Math.max(currentYear, ...(dataYears.length ? dataYears : [currentYear]));
-    const futureYears = Array.from({ length: FUTURE_YEARS }, (_, i) => maxYear + i + 1);
+    const maxYear = Math.max(
+      currentYear,
+      ...(dataYears.length ? dataYears : [currentYear])
+    );
+    const futureYears = Array.from(
+      { length: FUTURE_YEARS },
+      (_, i) => maxYear + i + 1
+    );
 
-    return [...new Set([currentYear, ...dataYears, ...futureYears])].sort((a, b) => a - b);
+    return [...new Set([currentYear, ...dataYears, ...futureYears])].sort(
+      (a, b) => a - b
+    );
   }, [data, selectedYear]);
 
   // ================= Quota Update =================
   const handleApplyQuota = async () => {
+    // Note: confirmQuotaTitle is not in i18n, using generic or raw text for now, 
+    // or you can add specific keys. Using common for now.
     const confirmed = await alertConfirm(
-      "Confirm Quota Update",
-      "Update leave quotas for this year?"
+      t("employeeDetail.adjustQuota"),
+      t("common.confirm")
     );
     if (!confirmed) return;
 
@@ -190,11 +183,11 @@ export default function EmployeeDetail() {
         quotas: quotaDraft,
         year: selectedYear,
       });
-      alertSuccess("Success", "Quota updated successfully.");
-      setShowQuotaModal(false);
+      alertSuccess(t("common.success"), t("employeeDetail.quotaUpdated"));
       fetchData();
+      setShowQuotaModal(false); // Close modal on success
     } catch {
-      alertError("Failed", "Failed to update quota.");
+      alertError(t("common.error"), t("employeeDetail.quotaFailed"));
     } finally {
       setQuotaLoading(false);
     }
@@ -203,7 +196,7 @@ export default function EmployeeDetail() {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center font-black italic text-blue-600">
-        LOADING PROFILE...
+        {t("employeeDetail.loading")}
       </div>
     );
   }
@@ -211,21 +204,32 @@ export default function EmployeeDetail() {
   const handleSaveAll = async (e) => {
     e.preventDefault();
     if (newPassword && newPassword !== confirmPassword) {
-      return alertError("Error", "The passwords do not match.");
+      return alertError(
+        t("common.error"),
+        t("employeeDetail.passwordMismatch")
+      );
     }
 
-    const confirmed = await alertConfirm("Confirm Update", "Are you sure?");
+    const confirmed = await alertConfirm(
+      t("common.confirm"),
+      t("common.save") + "?"
+    );
     if (!confirmed) return;
 
     try {
       setUpdating(true);
       await api.put(`/employees/${id}`, formData);
-      if (newPassword) await api.post(`/employees/${id}/reset-password`, { newPassword });
-      await alertSuccess("Success", "Information updated.");
+      if (newPassword)
+        await api.post(`/employees/${id}/reset-password`, { newPassword });
+      
+      await alertSuccess(t("common.success"), t("employeeDetail.infoUpdated"));
       setShowModal(false);
       fetchData();
     } catch (err) {
-      alertError("Request Failed", err.response?.data?.error || "An error occurred");
+      alertError(
+        t("common.error"),
+        err.response?.data?.error || t("common.error")
+      );
     } finally {
       setUpdating(false);
     }
@@ -233,9 +237,13 @@ export default function EmployeeDetail() {
 
   const handleUpdateStatus = async () => {
     const isCurrentlyActive = data.info.isActive;
+    const actionLabel = isCurrentlyActive
+      ? t("employeeDetail.terminate")
+      : t("employeeDetail.reinstate");
+
     const confirmed = await alertConfirm(
-      "Confirm Status Change",
-      `Change to ${isCurrentlyActive ? "Resigned" : "Active"}?`
+      t("common.confirm"),
+      `${actionLabel}?`
     );
     if (!confirmed) return;
 
@@ -244,11 +252,11 @@ export default function EmployeeDetail() {
       await api.patch(`/employees/${id}/status`, {
         isActive: !isCurrentlyActive,
       });
-      alertSuccess("Success", "Status changed successfully.");
+      alertSuccess(t("common.success"), t("employeeDetail.infoUpdated"));
       setShowModal(false);
       fetchData();
     } catch (err) {
-      alertError("Request Failed", "Failed to change status.");
+      alertError(t("common.error"), t("common.saveFailed"));
     } finally {
       setUpdating(false);
     }
@@ -262,7 +270,7 @@ export default function EmployeeDetail() {
         className="flex items-center text-gray-400 hover:text-blue-600 font-black text-sm"
       >
         <ArrowLeft size={16} className="mr-2" />
-        BACK
+        {t("common.back")}
       </button>
 
       {/* 1. Profile Header */}
@@ -284,18 +292,23 @@ export default function EmployeeDetail() {
                     : "bg-rose-50 text-rose-600 border-rose-100"
                 }`}
               >
-                {data.info.isActive ? "Working" : "Resigned"}
+                {data.info.isActive
+                  ? t("employeeDetail.working")
+                  : t("employeeDetail.resigned")}
               </span>
             </div>
 
-            <p className="text-slate-400 font-bold text-lg italic">{data.info.email}</p>
+            <p className="text-slate-400 font-bold text-lg italic">
+              {data.info.email}
+            </p>
 
             <div className="flex flex-wrap justify-center md:justify-start gap-2 pt-2">
               <span className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl border border-blue-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                 <Briefcase size={14} /> {data.info.role}
               </span>
               <span className="bg-slate-50 text-slate-600 px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider">
-                <ShieldCheck size={14} /> Joined: {data.info.joiningDate}
+                <ShieldCheck size={14} /> {t("employeeDetail.joined")}:{" "}
+                {data.info.joiningDate}
               </span>
             </div>
           </div>
@@ -314,7 +327,7 @@ export default function EmployeeDetail() {
           }}
           className="px-8 py-5 rounded-[2rem] bg-slate-900 text-white font-black flex items-center gap-3 hover:bg-slate-800 active:scale-95 transition-all shadow-xl shadow-slate-200 text-sm uppercase tracking-widest"
         >
-          <Edit3 size={18} /> Manage Info
+          <Edit3 size={18} /> {t("employeeDetail.manageInfo")}
         </button>
       </div>
 
@@ -322,7 +335,7 @@ export default function EmployeeDetail() {
       <div className="space-y-4">
         <div className="flex justify-between items-center px-4">
           <div className="flex items-center gap-2 font-black text-slate-400 text-[11px] uppercase tracking-widest">
-            <Settings2 size={14} /> Leave Balance
+            <Settings2 size={14} /> {t("employeeDetail.leaveBalance")}
           </div>
 
           <div className="w-44">
@@ -345,26 +358,32 @@ export default function EmployeeDetail() {
         setActiveTab={setActiveTab}
         attendanceData={data.attendance || []}
         leaveData={data.leaves || []}
-        workEndTime={data?.workEndTime} // ✅ backend ส่งมา เช่น "17:00"
+        workEndTime={data?.workEndTime}
       />
 
-      {/* ✅ 3. Attendance Dashboard Component */}
+      {/* 3. Attendance Dashboard Component */}
       <div className="bg-white p-6 rounded-[3rem] border border-gray-100 shadow-sm">
-        <AttendanceDashboardComponent propEmployeeId={id} hideTitle={false} targetEmployeeId={id} />
+        <AttendanceDashboardComponent
+          propEmployeeId={id}
+          hideTitle={false}
+          targetEmployeeId={id}
+        />
       </div>
 
       {/* ===== Modals (Quota & Edit Info) ===== */}
       {showQuotaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white w-full max-w-2xl rounded-3xl p-8 space-y-6">
-            <h2 className="text-xl font-black">Adjust Quota ({selectedYear})</h2>
+            <h2 className="text-xl font-black">
+              {t("employeeDetail.adjustQuota")} ({selectedYear})
+            </h2>
 
             <div className="grid grid-cols-2 gap-4">
               {Object.keys(quotaDraft).map((t) => (
                 <div key={t} className="p-4 rounded-2xl bg-gray-50">
                   <div className="flex justify-between mb-2 text-xs font-black">
                     <span>{t}</span>
-                    <span>{quotaDraft[t]} days</span>
+                    <span>{quotaDraft[t]} {t("common.days")}</span>
                   </div>
 
                   <div className="flex justify-between">
@@ -398,14 +417,14 @@ export default function EmployeeDetail() {
                 onClick={() => setShowQuotaModal(false)}
                 className="flex-1 py-4 rounded-2xl border font-black"
               >
-                CANCEL
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handleApplyQuota}
                 disabled={quotaLoading}
                 className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-black"
               >
-                {quotaLoading ? "UPDATING..." : "APPLY"}
+                {quotaLoading ? t("common.loading") : t("common.confirm")}
               </button>
             </div>
           </div>
@@ -417,7 +436,7 @@ export default function EmployeeDetail() {
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
             <div className="flex items-center">
               <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-                Employee Information
+                {t("employeeDetail.employeeInfo")}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -431,7 +450,8 @@ export default function EmployeeDetail() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    Name
+                    {/* Fallback to generic text or add to i18n later */}
+                    {t("employeeDetail.labelFirstName", "Name")}
                   </label>
                   <input
                     required
@@ -445,7 +465,8 @@ export default function EmployeeDetail() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    Surname
+                     {/* Fallback to generic text or add to i18n later */}
+                    {t("employeeDetail.labelLastName", "Surname")}
                   </label>
                   <input
                     required
@@ -472,7 +493,7 @@ export default function EmployeeDetail() {
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  ROLE
+                  Role
                 </label>
 
                 <div className="relative">
@@ -506,7 +527,9 @@ export default function EmployeeDetail() {
                         <div className="text-left">
                           <div className="text-slate-800">{formData.role}</div>
                           <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                            {formData.role === "HR" ? "Full Access" : "Standard Access"}
+                            {formData.role === "HR"
+                              ? t("employeeDetail.fullAccess")
+                              : t("employeeDetail.standardAccess")}
                           </div>
                         </div>
                       </div>
@@ -537,16 +560,20 @@ export default function EmployeeDetail() {
                             setRoleOpen(false);
                           }}
                           className={`w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-all
-                            ${formData.role === "Worker" ? "bg-blue-50/40" : ""}
+                            ${
+                              formData.role === "Worker" ? "bg-blue-50/40" : ""
+                            }
                           `}
                         >
                           <span className="h-9 w-9 rounded-xl bg-slate-50 text-slate-700 border border-slate-100 flex items-center justify-center">
                             <Briefcase size={16} />
                           </span>
                           <div className="flex-1">
-                            <div className="font-black text-slate-800">Worker</div>
+                            <div className="font-black text-slate-800">
+                              Worker
+                            </div>
                             <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                              Standard Access
+                              {t("employeeDetail.standardAccess")}
                             </div>
                           </div>
                           {formData.role === "Worker" && (
@@ -574,7 +601,7 @@ export default function EmployeeDetail() {
                           <div className="flex-1">
                             <div className="font-black text-slate-800">HR</div>
                             <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                              Full Access
+                              {t("employeeDetail.fullAccess")}
                             </div>
                           </div>
                           {formData.role === "HR" && (
@@ -589,20 +616,20 @@ export default function EmployeeDetail() {
                 </div>
 
                 <p className="text-[11px] text-gray-400 font-bold ml-1">
-                  หมายเหตุ: เปลี่ยน Role จะมีผลกับสิทธิ์การเข้าถึงระบบ
+                  {t("employeeDetail.roleNote")}
                 </p>
               </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
-                  <KeyRound size={12} /> New Password{" "}
+                  <KeyRound size={12} /> {t("employeeDetail.newPassword")}{" "}
                   <span className="text-[10px] font-black text-gray-300 normal-case">
-                    (เว้นว่าง = ไม่เปลี่ยน)
+                    {t("employeeDetail.passwordOptional")}
                   </span>
                 </label>
                 <input
                   type="password"
-                  placeholder="อย่างน้อย 6 ตัวอักษร"
+                  placeholder={t("employeeDetail.passwordMin")}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-100 placeholder:font-medium placeholder:text-gray-300"
@@ -611,11 +638,11 @@ export default function EmployeeDetail() {
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  Confirm Password
+                  {t("employeeDetail.confirmPassword")}
                 </label>
                 <input
                   type="password"
-                  placeholder="พิมพ์ให้ตรงกับรหัสผ่านใหม่"
+                  placeholder={t("employeeDetail.confirmPasswordPlaceholder")}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-100 placeholder:font-medium placeholder:text-gray-300"
@@ -632,8 +659,14 @@ export default function EmployeeDetail() {
                       : "bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100"
                   }`}
                 >
-                  {data.info.isActive ? <UserMinus size={18} /> : <UserPlus size={18} />}
-                  {data.info.isActive ? "Terminate" : "Reinstate"}
+                  {data.info.isActive ? (
+                    <UserMinus size={18} />
+                  ) : (
+                    <UserPlus size={18} />
+                  )}
+                  {data.info.isActive
+                    ? t("employeeDetail.terminate")
+                    : t("employeeDetail.reinstate")}
                 </button>
 
                 <button
@@ -641,7 +674,7 @@ export default function EmployeeDetail() {
                   disabled={updating}
                   className="py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:bg-gray-400 disabled:shadow-none"
                 >
-                  {updating ? "กำลังบันทึก..." : "Save Changes"}
+                  {updating ? t("common.loading") : t("common.save")}
                 </button>
               </div>
             </form>

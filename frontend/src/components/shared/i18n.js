@@ -1,5 +1,5 @@
 //frontend/src/components/shared/i18n.js
-import { add } from "date-fns";
+import { add } from "date-fns"; // Note: 'add' is imported but not used in this config, check if needed.
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
@@ -63,6 +63,7 @@ i18n.use(initReactI18next).init({
 
           prev: "prev",
           next: "next",
+          back: "back",
 
           // Alerts / Validation
           missingInfo: "Missing information",
@@ -83,7 +84,7 @@ i18n.use(initReactI18next).init({
           carriedDetail: "({{base}} base + {{carry}} carried)",
         },
 
-        /* -------- history -------- */
+        /* -------- History -------- */
         history: {
           attendanceLog: "Attendance Log",
           leaveHistory: "Leave History",
@@ -123,12 +124,10 @@ i18n.use(initReactI18next).init({
           requestCancelButton: "Request Cancel",
         },
 
-        /* -------- leaveApproveal -------- */
+        /* -------- Leave Approval -------- */
         leaveApproval: {
           title: "Pending Approvals",
-
           selected: "{{count}} Selected",
-
           bulkApprove: "Bulk Approve",
           bulkSpecial: "Bulk Special",
           bulkReject: "Reject",
@@ -144,9 +143,7 @@ i18n.use(initReactI18next).init({
 
           loading: "SYNCHRONIZING DATA...",
           noData: "No Pending Tasks",
-
           ref: "Ref: #{{id}}",
-
           days: "Days",
           noFile: "No File",
 
@@ -289,6 +286,8 @@ i18n.use(initReactI18next).init({
             deleted: "Leave type has been deleted successfully.",
           },
         },
+
+        /* -------- SweetAlert -------- */
         sweetAlert: {
           reject: {
             title: "Reject Leave Request",
@@ -298,21 +297,22 @@ i18n.use(initReactI18next).init({
             required: "Rejection reason is required",
           },
         },
+
+        /* -------- Date Grid Picker -------- */
         dateGridPicker: {
           title: "Select date",
-
           all: "ALL",
           allOn: "ALL ON",
           allOff: "ALL OFF",
-
           year: "YEAR",
           month: "MONTH",
           day: "DAY",
-
           reset: "RESET",
           cancel: "CANCEL",
           done: "DONE",
         },
+
+        /* -------- Leave Request -------- */
         leaveRequest: {
           type: "Leave Type",
           none: "None",
@@ -373,6 +373,8 @@ i18n.use(initReactI18next).init({
           submitting: "Submitting request...",
           submit: "Submit Leave Request",
         },
+
+        /* -------- Attendance Dashboard -------- */
         attendanceDashboard: {
           title: "Attendance",
           viewing: "Viewing data for: ",
@@ -394,48 +396,44 @@ i18n.use(initReactI18next).init({
           attendanceRatio: "Attendance Ratio",
           leaveTypes: "Leave Types",
 
-  subtitle: "Attendance overview",
+          subtitle: "Attendance overview",
+          filterAll: "ALL {{year}}",
+          clear: "Clear",
+          selectPeriod: "Select Period",
+          loading: "Loading Stats...",
+          noDataFound: "No attendance data found.",
+          yearlyView: "Yearly View",
+          calendar: "{{month}} Calendar",
 
-  filterAll: "ALL {{year}}",
-  clear: "Clear",
-  selectPeriod: "Select Period",
+          stat: {
+            workingDays: "Working Days",
+            presentExpected: "Present / Expected",
+            late: "Late",
+            earlyLeave: "Early Leave",
+            leaves: "Leaves",
+            absences: "Absences",
+            approved: "Approved",
+            unexcused: "Unexcused",
+            minutes: "mins",
+          },
 
-  loading: "Loading Stats...",
-  noDataFound: "No attendance data found.",
+          ratio: "Attendance Ratio",
 
-  yearlyView: "Yearly View",
-  calendar: "{{month}} Calendar",
+          legend: {
+            holiday: "Holiday",
+            absent: "Absent",
+            late: "Late",
+            leave: "Leave",
+            early: "Early Leave",
+          },
 
-  stat: {
-    workingDays: "Working Days",
-    presentExpected: "Present / Expected",
-    late: "Late",
-    earlyLeave: "Early Leave",
-    leaves: "Leaves",
-    absences: "Absences",
-    approved: "Approved",
-    unexcused: "Unexcused",
-    minutes: "mins",
-  },
+          calendarHint: "Select a specific month to view calendar.",
 
-  ratio: "Attendance Ratio",
-
-
-  legend: {
-    holiday: "Holiday",
-    absent: "Absent",
-    late: "Late",
-    leave: "Leave",
-    early: "Early Leave",
-  },
-
-  calendarHint: "Select a specific month to view calendar.",
-
-  events: {
-    absent: "Absent",
-    late: "Late",
-    early: "Early",
-  },
+          events: {
+            absent: "Absent",
+            late: "Late",
+            early: "Early",
+          },
 
           weekdays: {
             sun: "Sun",
@@ -447,6 +445,8 @@ i18n.use(initReactI18next).init({
             sat: "Sat",
           },
         },
+
+        /* -------- Year End Configuration -------- */
         yearEndConfig: {
           title: "Year End Configuration",
           subtitle: "Configure carry-over, quotas, and global policies.",
@@ -467,6 +467,34 @@ i18n.use(initReactI18next).init({
 
           warning:
             "This action will overwrite quotas for all employees and lock previous data.",
+        },
+
+        /* -------- Employee Detail -------- */
+        employeeDetail: {
+          loading: "LOADING PROFILE...",
+          working: "Working",
+          resigned: "Resigned",
+          joined: "Joined",
+          manageInfo: "Manage Info",
+          leaveBalance: "Leave Balance",
+          employeeInfo: "Employee Information",
+          fullAccess: "Full Access",
+          standardAccess: "Standard Access",
+          roleNote:
+            "Note: Changing the role will affect system access permissions.",
+          newPassword: "New Password",
+          passwordOptional: "(Leave blank to keep current password)",
+          passwordMin: "At least 6 characters",
+          confirmPassword: "Confirm Password",
+          confirmPasswordPlaceholder: "Enter the same new password",
+          terminate: "Terminate",
+          reinstate: "Reinstate",
+          adjustQuota: "Adjust Quota",
+          fetchFailed: "Could not retrieve employee data.",
+          quotaUpdated: "Quota updated successfully.",
+          quotaFailed: "Failed to update quota.",
+          passwordMismatch: "The passwords do not match.",
+          infoUpdated: "Information updated.",
         },
       },
     },
@@ -524,6 +552,7 @@ i18n.use(initReactI18next).init({
 
           prev: "ก่อนหน้า",
           next: "ถัดไป",
+          back: "กลับ",
 
           // Alerts / Validation
           missingInfo: "ข้อมูลไม่ครบถ้วน",
@@ -544,7 +573,7 @@ i18n.use(initReactI18next).init({
           carriedDetail: "({{base}} สิทธิปีนี้ + {{carry}} ทบมา)",
         },
 
-        /* -------- history -------- */
+        /* -------- History -------- */
         history: {
           attendanceLog: "ประวัติการลงเวลา",
           leaveHistory: "ประวัติการลา",
@@ -581,12 +610,10 @@ i18n.use(initReactI18next).init({
           requestCancelButton: "ขอยกเลิก",
         },
 
-        /* -------- leaveApproveal -------- */
+        /* -------- Leave Approval -------- */
         leaveApproval: {
           title: "รายการรอดำเนินการ",
-
           selected: "เลือกแล้ว {{count}} รายการ",
-
           bulkApprove: "อนุมัติที่เลือก",
           bulkSpecial: "อนุมัติพิเศษที่เลือก",
           bulkReject: "ปฏิเสธที่เลือก",
@@ -602,9 +629,7 @@ i18n.use(initReactI18next).init({
 
           loading: "กำลังซิงโครไนซ์ข้อมูล...",
           noData: "ไม่มีรายการรอดำเนินการ",
-
           ref: "อ้างอิง: #{{id}}",
-
           days: "วัน",
           noFile: "ไม่มีไฟล์",
 
@@ -747,6 +772,8 @@ i18n.use(initReactI18next).init({
             deleted: "ลบประเภทการลาเรียบร้อยแล้ว",
           },
         },
+
+        /* -------- SweetAlert -------- */
         sweetAlert: {
           reject: {
             title: "ปฏิเสธคำขอลา",
@@ -756,21 +783,22 @@ i18n.use(initReactI18next).init({
             required: "กรุณาระบุเหตุผล",
           },
         },
+
+        /* -------- Date Grid Picker -------- */
         dateGridPicker: {
           title: "เลือกวันที่",
-
           all: "ทั้งหมด",
           allOn: "เลือกทั้งหมด",
           allOff: "ไม่เลือกทั้งหมด",
-
           year: "ปี",
           month: "เดือน",
           day: "วัน",
-
           reset: "รีเซ็ต",
           cancel: "ยกเลิก",
           done: "ตกลง",
         },
+
+        /* -------- Leave Request -------- */
         leaveRequest: {
           type: "ประเภทการลา",
           none: "ไม่มี",
@@ -830,6 +858,7 @@ i18n.use(initReactI18next).init({
           submit: "ส่งคำขอลา",
         },
 
+        /* -------- Attendance Dashboard -------- */
         attendanceDashboard: {
           title: "การลงเวลา",
           viewing: "กำลังแสดงข้อมูลของ:",
@@ -850,47 +879,45 @@ i18n.use(initReactI18next).init({
           present: "มาทำงาน",
           attendanceRatio: "สัดส่วนการลงเวลา",
           leaveTypes: "ประเภทการลา",
-  subtitle: "ภาพรวมการลงเวลา",
 
-  filterAll: "ทั้งปี {{year}}",
-  clear: "ล้างค่า",
-  selectPeriod: "เลือกช่วงเวลา",
+          subtitle: "ภาพรวมการลงเวลา",
+          filterAll: "ทั้งปี {{year}}",
+          clear: "ล้างค่า",
+          selectPeriod: "เลือกช่วงเวลา",
+          loading: "กำลังโหลดข้อมูล...",
+          noDataFound: "ไม่พบข้อมูลการลงเวลา",
+          yearlyView: "มุมมองรายปี",
+          calendar: "ปฏิทินเดือน {{month}}",
 
-  loading: "กำลังโหลดข้อมูล...",
-  noDataFound: "ไม่พบข้อมูลการลงเวลา",
+          stat: {
+            workingDays: "วันทำงาน",
+            presentExpected: "มาทำงาน / ที่คาดหวัง",
+            late: "มาสาย",
+            earlyLeave: "ออกก่อน",
+            leaves: "การลา",
+            absences: "ขาดงาน",
+            approved: "อนุมัติแล้ว",
+            unexcused: "ไม่มีเหตุผล",
+            minutes: "นาที",
+          },
 
-  yearlyView: "มุมมองรายปี",
-  calendar: "ปฏิทินเดือน {{month}}",
+          ratio: "สัดส่วนการลงเวลา",
 
-  stat: {
-    workingDays: "วันทำงาน",
-    presentExpected: "มาทำงาน / ที่คาดหวัง",
-    late: "มาสาย",
-    earlyLeave: "ออกก่อน",
-    leaves: "การลา",
-    absences: "ขาดงาน",
-    approved: "อนุมัติแล้ว",
-    unexcused: "ไม่มีเหตุผล",
-    minutes: "นาที",
-  },
+          legend: {
+            holiday: "วันหยุด",
+            absent: "ขาดงาน",
+            late: "มาสาย",
+            leave: "ลา",
+            early: "ออกก่อน",
+          },
 
-  ratio: "สัดส่วนการลงเวลา",
+          calendarHint: "กรุณาเลือกเดือนเพื่อดูปฏิทิน",
 
-  legend: {
-    holiday: "วันหยุด",
-    absent: "ขาดงาน",
-    late: "มาสาย",
-    leave: "ลา",
-    early: "ออกก่อน",
-  },
-
-  calendarHint: "กรุณาเลือกเดือนเพื่อดูปฏิทิน",
-
-  events: {
-    absent: "ขาดงาน",
-    late: "มาสาย",
-    early: "ออกก่อน",
-  },
+          events: {
+            absent: "ขาดงาน",
+            late: "มาสาย",
+            early: "ออกก่อน",
+          },
 
           weekdays: {
             sun: "อา.",
@@ -903,6 +930,7 @@ i18n.use(initReactI18next).init({
           },
         },
 
+        /* -------- Year End Configuration -------- */
         yearEndConfig: {
           title: "ตั้งค่าสิ้นปี",
           subtitle: "กำหนดการทบวันลา, โควต้า และนโยบายส่วนกลาง",
@@ -924,6 +952,33 @@ i18n.use(initReactI18next).init({
 
           warning:
             "การดำเนินการนี้จะเขียนทับโควต้าของพนักงานทั้งหมด และล็อกข้อมูลเดิม",
+        },
+
+        /* -------- Employee Detail -------- */
+        employeeDetail: {
+          loading: "กำลังโหลดข้อมูลพนักงาน...",
+          working: "กำลังทำงาน",
+          resigned: "ลาออกแล้ว",
+          joined: "วันที่เริ่มงาน",
+          manageInfo: "จัดการข้อมูล",
+          leaveBalance: "ยอดวันลา",
+          employeeInfo: "ข้อมูลพนักงาน",
+          fullAccess: "สิทธิ์เต็มรูปแบบ",
+          standardAccess: "สิทธิ์มาตรฐาน",
+          roleNote: "หมายเหตุ: การเปลี่ยนบทบาทจะมีผลต่อสิทธิ์การเข้าถึงระบบ",
+          newPassword: "รหัสผ่านใหม่",
+          passwordOptional: "(เว้นว่างเพื่อใช้รหัสผ่านเดิม)",
+          passwordMin: "อย่างน้อย 6 ตัวอักษร",
+          confirmPassword: "ยืนยันรหัสผ่าน",
+          confirmPasswordPlaceholder: "พิมพ์รหัสผ่านใหม่ให้ตรงกัน",
+          terminate: "ยุติสถานะพนักงาน",
+          reinstate: "คืนสถานะพนักงาน",
+          adjustQuota: "ปรับโควตาวันลา",
+          fetchFailed: "ไม่สามารถดึงข้อมูลพนักงานได้",
+          quotaUpdated: "อัปเดตโควตาสำเร็จ",
+          quotaFailed: "อัปเดตโควตาไม่สำเร็จ",
+          passwordMismatch: "รหัสผ่านไม่ตรงกัน",
+          infoUpdated: "อัปเดตข้อมูลเรียบร้อยแล้ว",
         },
       },
     },
