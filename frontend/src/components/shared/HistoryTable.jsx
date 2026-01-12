@@ -20,48 +20,96 @@ import {
 
 const PAGE_SIZE = 5;
 
-// ===================== ✅ Status label/style =====================
+// ===================== ✅ Config Status & Badges =====================
+// ใช้ Key จาก i18n (history.onTime, history.late, etc.)
 const CHECKIN_BADGE = {
-  ON_TIME: { label: "ตรงเวลา", cls: "bg-emerald-50 text-emerald-600 border-emerald-100" },
-  LATE: { label: "สาย", cls: "bg-amber-50 text-amber-700 border-amber-100" },
-  LEAVE: { label: "ลา", cls: "bg-blue-50 text-blue-700 border-blue-100" },
-  ABSENT: { label: "ขาดงาน", cls: "bg-rose-50 text-rose-600 border-rose-100" },
+  ON_TIME: {
+    labelKey: "history.onTime",
+    cls: "bg-emerald-50 text-emerald-600 border-emerald-100",
+  },
+  LATE: {
+    labelKey: "history.late",
+    cls: "bg-amber-50 text-amber-700 border-amber-100",
+  },
+  LEAVE: {
+    labelKey: "history.leave",
+    cls: "bg-blue-50 text-blue-700 border-blue-100",
+  },
+  ABSENT: {
+    labelKey: "history.absent",
+    cls: "bg-rose-50 text-rose-600 border-rose-100",
+  },
 };
 
 const CHECKOUT_BADGE = {
-  NORMAL: { label: "ออก", cls: "bg-emerald-50 text-emerald-600 border-emerald-100" },
-  EARLY: { label: "ออกก่อนเวลา", cls: "bg-orange-50 text-orange-700 border-orange-100" },
-  LEAVE: { label: "ลา", cls: "bg-blue-50 text-blue-700 border-blue-100" },
-  NO_CHECKOUT: { label: "ไม่เช็คเอาต์", cls: "bg-rose-50 text-rose-600 border-rose-100" },
+  NORMAL: {
+    labelKey: "history.normal",
+    cls: "bg-emerald-50 text-emerald-600 border-emerald-100",
+  },
+  EARLY: {
+    labelKey: "history.early",
+    cls: "bg-orange-50 text-orange-700 border-orange-100",
+  },
+  LEAVE: {
+    labelKey: "history.leave",
+    cls: "bg-blue-50 text-blue-700 border-blue-100",
+  },
+  NO_CHECKOUT: {
+    labelKey: "history.noCheckout",
+    cls: "bg-rose-50 text-rose-600 border-rose-100",
+  },
+  NOT_YET: {
+    labelKey: "history.notCheckedOutYet",
+    cls: "bg-gray-50 text-gray-400 border-gray-100",
+  },
 };
 
+// Component ย่อยสำหรับแสดง Badge
 function StatusTextPill({ map, value }) {
-  const item = map?.[value] || { label: "-", cls: "bg-slate-50 text-slate-500 border-slate-100" };
+  const { t } = useTranslation();
+  const item = map?.[value] || map?.["NORMAL"]; // Fallback if unknown
+  
+  // ถ้าไม่มีค่า หรือหา key ไม่เจอ ให้แสดง -
+  if (!value || !map[value]) {
+    return <span className="text-gray-300">-</span>;
+  }
+
   return (
-    <span className={`inline-flex items-center justify-center px-3 py-1 rounded-2xl border text-[10px] font-black uppercase ${item.cls}`}>
-      {item.label}
+    <span
+      className={`inline-flex px-3 py-1 rounded-2xl border text-[10px] font-black uppercase ${
+        item.cls
+      }`}
+    >
+      {t(item.labelKey)}
     </span>
   );
 }
+
+// ===================== Helpers =====================
 
 const formatDateYMD = (dateLike) => {
   if (!dateLike) return "-";
   const d = new Date(dateLike);
   if (isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("en-CA");
+  // ใช้ en-CA เพื่อให้ได้ format YYYY-MM-DD เสมอ หรือจะใช้ th-TH ก็ได้ตามต้องการ
+  return d.toLocaleDateString("en-CA"); 
 };
 
 const formatTimeHMS = (dateLike) => {
   if (!dateLike) return "--:--";
   const d = new Date(dateLike);
   if (isNaN(d.getTime())) return "--:--";
-  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return d.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 };
 
-// ✅ แปลงเวลาเป็นนาทีในวัน (รองรับ "HH:mm", "HH:mm:ss", ISO, "YYYY-MM-DD HH:mm:ss")
 const timeToMinutes = (value) => {
   if (value == null) return null;
-  if (value instanceof Date && !isNaN(value.getTime())) return value.getHours() * 60 + value.getMinutes();
+  if (value instanceof Date && !isNaN(value.getTime()))
+    return value.getHours() * 60 + value.getMinutes();
 
   const s = String(value).trim();
   if (!s) return null;
@@ -82,36 +130,56 @@ export default function HistoryTable({
   leaveData = [],
   buildFileUrl,
   onDeletedLeaveSuccess,
-  // ✅ สำคัญ: เวลางานเลิก (เช่น "17:00")
-  workEndTime,
+  workEndTime, // e.g. "17:00"
 }) {
   const { t } = useTranslation();
 
+  // Helper เพื่อเรียก translate แบบปลอดภัย
   const tt = (key, fallback) => {
-    try {
-      const v = t(key);
-      return v && v !== key ? v : fallback;
-    } catch {
-      return fallback;
-    }
+    const v = t(key);
+    return v && v !== key ? v : fallback;
   };
 
   const pad2 = (n) => String(n).padStart(2, "0");
+  
 
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case "Approved":
-        return "bg-emerald-50 text-emerald-600 border-emerald-100";
-      case "Rejected":
-        return "bg-rose-50 text-rose-600 border-rose-100";
-      case "Cancelled":
-        return "bg-slate-50 text-slate-600 border-slate-100";
-      default:
-        return "bg-amber-50 text-amber-600 border-amber-100";
-    }
+
+   
+  // สีของ Status ใน Tab Leave
+  const getLeaveStatusStyle = (status) => {
+    const config = {
+      approved: { 
+        cls: "bg-emerald-50 text-emerald-600 border-emerald-100", 
+        label: t("leaveApproval.status.approved", "Approved") 
+      },
+      rejected: { 
+        cls: "bg-rose-50 text-rose-600 border-rose-100", 
+        label: t("leaveApproval.status.rejected", "Rejected") 
+      },
+      cancelled: { 
+        cls: "bg-slate-50 text-slate-600 border-slate-100", 
+        label: t("leaveApproval.status.cancelled", "Cancelled") 
+      },
+      withdraw: { 
+        cls: "bg-slate-50 text-slate-600 border-slate-100", 
+        label: t("leaveApproval.status.withdraw", "Withdraw") 
+      },
+      withdraw_pending: { 
+        cls: "bg-orange-50 text-orange-600 border-orange-100", 
+        label: t("leaveApproval.status.withdrawPending", "Withdraw Pending") 
+      },
+      pending: { 
+        cls: "bg-amber-50 text-amber-600 border-amber-100", 
+        label: t("leaveApproval.status.pending", "Pending") 
+      },
+    };
+
+    const s = String(status || "").toLowerCase();
+    // ถ้าไม่เจอสถานะที่ระบุ ให้ดึงค่าจาก pending มาใช้
+    return config[s] || config.pending;
   };
 
-  // ===================== Date helpers =====================
+  // ===================== Date Parsing =====================
   const parseAnyDate = (value) => {
     if (!value) return null;
     if (value instanceof Date && !isNaN(value.getTime())) return value;
@@ -120,24 +188,16 @@ export default function HistoryTable({
     const d1 = new Date(s);
     if (!isNaN(d1.getTime())) return d1;
 
+    // Try DD/MM/YYYY or DD-MM-YYYY
     const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (m1) {
-      const dd = Number(m1[1]);
-      const mm = Number(m1[2]);
-      const yyyy = Number(m1[3]);
-      const d2 = new Date(yyyy, mm - 1, dd);
-      if (!isNaN(d2.getTime())) return d2;
+      return new Date(Number(m1[3]), Number(m1[2]) - 1, Number(m1[1]));
     }
-
+    // Try YYYY/MM/DD
     const m2 = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
     if (m2) {
-      const yyyy = Number(m2[1]);
-      const mm = Number(m2[2]);
-      const dd = Number(m2[3]);
-      const d3 = new Date(yyyy, mm - 1, dd);
-      if (!isNaN(d3.getTime())) return d3;
+      return new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
     }
-
     return null;
   };
 
@@ -148,10 +208,7 @@ export default function HistoryTable({
       row?.workDate ||
       row?.work_date ||
       row?.createdAt ||
-      row?.checkInDate ||
-      row?.checkInAt ||
-      row?.checkInTime ||
-      row?.check_in_time ||
+      row?.checkIn ||
       null;
     return parseAnyDate(raw);
   };
@@ -160,19 +217,17 @@ export default function HistoryTable({
     const raw = leave?.startDate || leave?.createdAt || leave?.requestedAt || null;
     return parseAnyDate(raw);
   };
-  // =========================================================
 
+  // ===================== Pagination & Filter =====================
   const tab = activeTab || "attendance";
   const [page, setPage] = useState(1);
-  useEffect(() => setPage(1), [tab]);
-
-  // ===================== Filter =====================
   const [filterYear, setFilterYear] = useState("all");
   const [filterMonth, setFilterMonth] = useState("all");
   const [filterDay, setFilterDay] = useState("all");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
+    setPage(1);
     setFilterYear("all");
     setFilterMonth("all");
     setFilterDay("all");
@@ -187,7 +242,7 @@ export default function HistoryTable({
 
     return (rawData || []).filter((item) => {
       const dateObj = tab === "attendance" ? getRowDate(item) : getLeaveDate(item);
-      if (!dateObj || isNaN(dateObj.getTime())) return true;
+      if (!dateObj || isNaN(dateObj.getTime())) return true; // keep if invalid date to be safe
 
       if (y != null && dateObj.getFullYear() !== y) return false;
       if (m != null && dateObj.getMonth() + 1 !== m) return false;
@@ -198,24 +253,17 @@ export default function HistoryTable({
   }, [rawData, tab, filterYear, filterMonth, filterDay]);
 
   useEffect(() => setPage(1), [filterYear, filterMonth, filterDay]);
-  // =================================================
 
-  const data = filteredData;
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+  const pagedData = filteredData.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const totalPages = useMemo(() => {
-    const total = data?.length || 0;
-    return Math.max(1, Math.ceil(total / PAGE_SIZE));
-  }, [data]);
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+  const onPrev = () => canPrev && setPage((p) => p - 1);
+  const onNext = () => canNext && setPage((p) => p + 1);
+  const goTo = (n) => setPage(Math.min(Math.max(1, n), totalPages));
 
-  useEffect(() => {
-    setPage((p) => Math.min(Math.max(1, p), totalPages));
-  }, [totalPages]);
-
-  const pagedData = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return (data || []).slice(start, start + PAGE_SIZE);
-  }, [data, page]);
-
+  // Generate Page Numbers
   const pageNumbers = useMemo(() => {
     const maxButtons = 5;
     const pages = [];
@@ -234,13 +282,7 @@ export default function HistoryTable({
     return pages;
   }, [page, totalPages]);
 
-  const canPrev = page > 1;
-  const canNext = page < totalPages;
-  const onPrev = () => canPrev && setPage((p) => p - 1);
-  const onNext = () => canNext && setPage((p) => p + 1);
-  const goTo = (n) => setPage(Math.min(Math.max(1, n), totalPages));
-
-  // ===================== Helpers normalize =====================
+  // ===================== Logic Normalization =====================
   const normalizeBool = (v) => {
     if (v === true || v === false) return v;
     if (v === 1 || v === 0) return Boolean(v);
@@ -261,13 +303,14 @@ export default function HistoryTable({
       up === "-" ||
       up === "N/A" ||
       up === "NULL" ||
-      up === "NOT CHECKED OUT YET"
+      up === t("history.notCheckedOutYet")
     );
   };
 
   const normalizeInStatus = (s) => {
     const raw = String(s ?? "").trim();
     if (!raw) return "";
+    // Check Thai keywords just in case
     if (raw === "ตรงเวลา") return "ON_TIME";
     if (raw === "สาย") return "LATE";
     if (raw === "ลา") return "LEAVE";
@@ -289,63 +332,81 @@ export default function HistoryTable({
     return up;
   };
 
-  // ===================== ✅ สรุปสถานะเข้า/ออก (เวอร์ชันเดียว ไม่ซ้ำ) =====================
+  // ===================== Status Logic =====================
   const computeCheckInStatus = (row) => {
+    // 1. Check raw status from backend
     const sRaw = row?.checkInStatus || row?.check_in_status;
     const s = normalizeInStatus(sRaw);
-    if (s) return s;
+    if (s && CHECKIN_BADGE[s]) return s;
 
+    // 2. Check Logic
     const inTime =
       row?.checkInTime ||
       row?.check_in_time ||
       row?.checkIn ||
-      row?.checkInDisplay ||
-      row?.checkInTimeDisplay;
-
+      row?.checkInDisplay;
+    
     const hasIn = !isPlaceholderTime(inTime);
-    if (!hasIn) return "ABSENT";
 
+    // ถ้าไม่มีเวลาเข้า = Absent (ยกเว้นว่าเป็นวันลา)
+    if (!hasIn) {
+       // ถ้ามี flag ว่าลา
+       if(row?.isLeave || row?.is_leave) return "LEAVE";
+       return "ABSENT";
+    }
+
+    // ถ้ามี flag late
     const late = normalizeBool(row?.isLate ?? row?.late ?? row?.is_late);
-    if (late !== undefined) return late ? "LATE" : "ON_TIME";
+    if (late) return "LATE";
 
     return "ON_TIME";
   };
 
   const computeCheckOutStatus = (row) => {
-    // 1) ถ้า backend ส่งมา "EARLY" ให้ใช้เลย
+    // 1. Check raw status from backend
     const sRaw = row?.checkOutStatus || row?.check_out_status;
     const s = normalizeOutStatus(sRaw);
-    if (s && s !== "NORMAL") return s;
+    if (s && CHECKOUT_BADGE[s]) return s;
 
-    // 2) ถ้าไม่มีเวลาออกจริง -> NO_CHECKOUT
+    // 2. ถ้าเป็นวันลา
+    if (row?.isLeave || row?.is_leave) return "LEAVE";
+
+    // 3. เวลาออก
     const outTime =
       row?.checkOutTime ||
       row?.check_out_time ||
       row?.checkOut ||
-      row?.checkOutDisplay ||
-      row?.checkOutTimeDisplay;
+      row?.checkOutDisplay;
 
     const hasOut = !isPlaceholderTime(outTime);
-    if (!hasOut) return "NO_CHECKOUT";
+    
+    // ถ้าไม่มีเวลาออก
+    if (!hasOut) {
+      // ตรวจสอบว่าเป็นวันนี้หรือไม่? ถ้าเป็นวันนี้แล้วยังไม่ถึงเวลาเลิกงาน อาจจะยังไม่ checkout
+      // แต่นี่คือ History Table (อดีต) ดังนั้นเหมาว่าเป็น NO_CHECKOUT ได้เลย
+      // หรือถ้ายังไม่จบวัน อาจจะเป็น NOT_YET (optional)
+      return "NO_CHECKOUT";
+    }
 
-    // 3) ถ้า backend ไม่ส่ง EARLY มา -> คำนวณจาก endTime (row ก่อน แล้วค่อย prop)
+    // 4. Early Check Logic
     const expectedEnd =
       row?.workEndTime ||
       row?.endTime ||
-      row?.workPolicyEndTime ||
-      workEndTime ||
+      workEndTime || // Prop passed from parent
       null;
 
     const outMin = timeToMinutes(outTime);
     const endMin = timeToMinutes(expectedEnd);
 
-    if (outMin != null && endMin != null && outMin < endMin) return "EARLY";
+    if (outMin != null && endMin != null) {
+      // ถ้ายอมรับได้ +/- 1 นาที ให้ใช้ logic นี้ (optional)
+      if (outMin < endMin - 1) return "EARLY";
+    }
 
-    // 4) ค่าเริ่มต้น
     return "NORMAL";
   };
-  // ======================================================================
 
+  // ===================== Leave Logic =====================
   const calcLeaveDays = (leave) => {
     const raw = leave?.totalDaysRequested ?? leave?.days ?? leave?.totalDays;
     const n = Number(raw);
@@ -362,86 +423,91 @@ export default function HistoryTable({
   const getSignedBy = (leave) => {
     if (leave?.approverName) return leave.approverName;
     const a = leave?.approvedByHr;
-    if (a?.firstName || a?.lastName) return `${a.firstName || ""} ${a.lastName || ""}`.trim();
+    if (a?.firstName || a?.lastName)
+      return `${a.firstName || ""} ${a.lastName || ""}`.trim();
     if (typeof leave?.approvedBy === "string") return leave.approvedBy;
     if (typeof leave?.rejectedBy === "string") return leave.rejectedBy;
-    if (String(leave?.status || "").toLowerCase() === "pending") return "Waiting for HR";
+    if (String(leave?.status || "").toLowerCase() === "pending") return "-"; // Waiting
     return "-";
   };
 
+  // Actions
   const handleDeleteLeave = async (leave) => {
     try {
       if (!leave?.id) return;
       const ok = await alertConfirm(
-        "Delete leave request?",
-        `Are you sure you want to delete this request?<br/><b>${leave?.leaveType?.typeName || leave?.type || "-"}</b>`,
-        "Delete"
+        t("history.deleteTitle"),
+        t("history.deleteText", { type: leave.typeName || "Leave" }),
+        t("history.deleteButton")
       );
       if (!ok) return;
 
-      const res = await api.post(`/leaves/cancel/${leave.id}`, { cancelReason: "User deleted request" });
-      const updated = res?.data?.data || null;
-
-      await alertSuccess("Deleted", "Leave request deleted successfully.");
-      onDeletedLeaveSuccess?.(updated || leave);
+      // ปรับ API endpoint ตามจริง
+      const res = await api.delete(`/leaves/${leave.id}`);
+      
+      await alertSuccess(t("common.success"), t("leaveType.success.deleted"));
+      onDeletedLeaveSuccess?.(res?.data?.data || leave);
     } catch (err) {
-      alertError("Delete failed", err?.response?.data?.error || err?.response?.data?.message || err.message);
+      alertError(t("common.error"), err?.response?.data?.message || t("common.deleteFailed"));
     }
   };
-
-  const isPending = (status) => String(status || "").toLowerCase() === "pending";
-  const isApproved = (status) => String(status || "").toLowerCase() === "approved";
 
   const handleRequestCancelLeave = async (leave) => {
     try {
       if (!leave?.id) return;
-      const reason = await alertCancelReason();
+      const reason = await alertCancelReason(); // SweetAlert input
       if (!reason) return;
 
       const res = await api.post(`/leaves/cancel/${leave.id}`, { cancelReason: reason });
       const updated = res?.data?.data;
 
-      await alertSuccess("Requested", "Cancellation request sent to HR.");
-      onDeletedLeaveSuccess?.(updated || { ...leave, cancelReason: reason, status: "Withdraw_Pending" });
+      await alertSuccess(t("common.success"), t("leaveRequest.successTitle"));
+      onDeletedLeaveSuccess?.(
+        updated || { ...leave, cancelReason: reason, status: "Withdraw_Pending" }
+      );
     } catch (err) {
-      alertError("Request failed", err?.response?.data?.message || err?.response?.data?.error || err.message);
+      alertError(t("common.error"), err?.response?.data?.message || t("common.systemError"));
     }
   };
 
+  // UI Strings
   const isAll = filterYear === "all" && filterMonth === "all" && filterDay === "all";
-
   const displayDateText = useMemo(() => {
-    if (isAll) return "ALL";
-    if (filterYear === "all" || filterMonth === "all" || filterDay === "all") return "ALL";
+    if (isAll) return t("dateGridPicker.all");
     return `${pad2(filterDay)}/${pad2(filterMonth)}/${filterYear}`;
-  }, [isAll, filterYear, filterMonth, filterDay]);
+  }, [isAll, filterYear, filterMonth, filterDay, t]);
 
   const pickerValue = useMemo(() => {
-    if (filterYear === "all" || filterMonth === "all" || filterDay === "all") return null;
+    if (isAll) return null;
     return `${filterYear}-${pad2(filterMonth)}-${pad2(filterDay)}`;
-  }, [filterYear, filterMonth, filterDay]);
+  }, [filterYear, filterMonth, filterDay, isAll]);
 
   return (
     <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+      {/* Header */}
       <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-2">
-          {tab === "attendance" ? <History size={18} className="text-blue-600" /> : <FileText size={18} className="text-amber-500" />}
+          {tab === "attendance" ? (
+            <History size={18} className="text-blue-600" />
+          ) : (
+            <FileText size={18} className="text-amber-500" />
+          )}
           <h2 className="font-black text-slate-800 text-sm uppercase tracking-widest">
             {tab === "attendance" ? t("history.attendanceLog") : t("history.leaveHistory")}
           </h2>
         </div>
 
+        {/* Filter Controls */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl p-2 w-full sm:w-auto">
             <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">
-              {tt("history.filter", "Filter")}
+              {t("history.filter")}
             </span>
 
             <button
               type="button"
               onClick={() => setDatePickerOpen(true)}
               className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[11px] font-black text-slate-700 uppercase tracking-widest hover:bg-gray-50 transition active:scale-95"
-              title={t("history.selectDate")}
             >
               {displayDateText}
             </button>
@@ -454,9 +520,8 @@ export default function HistoryTable({
                 setFilterDay("all");
               }}
               className="h-9 px-4 rounded-2xl border border-gray-100 bg-white text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition active:scale-95"
-              title={t("history.clear")}
             >
-              {tt("history.clear", "Clear")}
+              {t("history.clear")}
             </button>
           </div>
 
@@ -476,7 +541,7 @@ export default function HistoryTable({
               setFilterMonth(m);
               setFilterDay(d);
             }}
-            title={tt("history.selectDate", "Select date")}
+            title={t("history.selectDate")}
             allowAll={true}
           />
 
@@ -484,7 +549,9 @@ export default function HistoryTable({
             <button
               onClick={() => setActiveTab?.("attendance")}
               className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-                tab === "attendance" ? "bg-white shadow-sm text-slate-800" : "text-gray-400"
+                tab === "attendance"
+                  ? "bg-white shadow-sm text-slate-800"
+                  : "text-gray-400"
               }`}
             >
               {t("history.tabAttendance")}
@@ -493,7 +560,9 @@ export default function HistoryTable({
             <button
               onClick={() => setActiveTab?.("leave")}
               className={`flex-1 sm:flex-none px-6 py-2 rounded-2xl text-[11px] font-black uppercase transition-all ${
-                tab === "leave" ? "bg-white shadow-sm text-slate-800" : "text-gray-400"
+                tab === "leave"
+                  ? "bg-white shadow-sm text-slate-800"
+                  : "text-gray-400"
               }`}
             >
               {t("history.tabLeave")}
@@ -502,6 +571,7 @@ export default function HistoryTable({
         </div>
       </div>
 
+      {/* Table Content */}
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50">
@@ -521,13 +591,14 @@ export default function HistoryTable({
                 <th className="px-6 py-4 text-center">{t("history.file")}</th>
                 <th className="px-6 py-4 text-center">{t("history.signedBy")}</th>
                 <th className="px-6 py-4 text-center">{t("history.status")}</th>
-                <th className="px-6 py-4 text-center">{t("history.action")}</th>
+                <th className="px-6 py-4 text-center">{t("leaveApproval.table.action")}</th>
               </tr>
             )}
           </thead>
 
           <tbody className="text-[11px] font-bold uppercase">
             {tab === "attendance" ? (
+              // ================= ATTENDANCE ROWS =================
               pagedData.length > 0 ? (
                 pagedData.map((row, i) => {
                   const workDate = getRowDate(row);
@@ -535,28 +606,28 @@ export default function HistoryTable({
                   const checkInTime =
                     row?.checkInTime ||
                     row?.check_in_time ||
-                    row?.checkInTimeDisplay ||
-                    row?.checkInDisplay ||
-                    row?.checkIn;
+                    row?.checkIn ||
+                    row?.checkInDisplay;
 
                   const checkOutTime =
                     row?.checkOutTime ||
                     row?.check_out_time ||
-                    row?.checkOutTimeDisplay ||
-                    row?.checkOutDisplay ||
-                    row?.checkOut;
+                    row?.checkOut ||
+                    row?.checkOutDisplay;
 
                   const inTimeText =
-                    checkInTime && String(checkInTime).includes(":") && !String(checkInTime).includes("T")
-                      ? String(checkInTime)
-                      : formatTimeHMS(checkInTime);
+                    checkInTime && !isPlaceholderTime(checkInTime)
+                      ? String(checkInTime).includes(":") && !String(checkInTime).includes("T")
+                        ? checkInTime
+                        : formatTimeHMS(checkInTime)
+                      : "--:--";
 
                   const outTimeText =
-                    checkOutTime && String(checkOutTime).includes(":") && !String(checkOutTime).includes("T")
-                      ? String(checkOutTime)
-                      : checkOutTime
-                      ? formatTimeHMS(checkOutTime)
-                      : "NOT CHECKED OUT YET";
+                    checkOutTime && !isPlaceholderTime(checkOutTime)
+                      ? String(checkOutTime).includes(":") && !String(checkOutTime).includes("T")
+                        ? checkOutTime
+                        : formatTimeHMS(checkOutTime)
+                      : t("history.notCheckedOutYet");
 
                   const inStatus = computeCheckInStatus(row);
                   const outStatus = computeCheckOutStatus(row);
@@ -564,13 +635,13 @@ export default function HistoryTable({
                   return (
                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
                       <td className="px-6 py-4 text-slate-600">
-                        {row?.date || row?.dateDisplay || formatDateYMD(workDate)}
+                        {formatDateYMD(workDate)}
                       </td>
 
                       <td className="px-6 py-4">
-                        <span className="text-emerald-600">{inTimeText || "--:--"}</span>
+                        <span className="text-emerald-600">{inTimeText}</span>
                         <span className="mx-2 text-gray-300">/</span>
-                        <span className="text-rose-500">{outTimeText || "--:--"}</span>
+                        <span className="text-rose-500">{outTimeText}</span>
                       </td>
 
                       <td className="px-6 py-4 text-center">
@@ -591,19 +662,20 @@ export default function HistoryTable({
                 </tr>
               )
             ) : (
-              // leave tab (ของเดิมคุณ) — คงไว้
+              // ================= LEAVE ROWS =================
               pagedData.length > 0 ? (
                 pagedData.map((leave, i) => {
                   if (!leave) return null;
                   const days = calcLeaveDays(leave);
                   const note =
-                    leave.note ||
                     leave.reason ||
+                    leave.note ||
                     leave.remark ||
-                    (leave.cancelReason ? `Cancel: ${leave.cancelReason}` : null) ||
+                    (leave.cancelReason ? `${t("leaveApproval.labels.cancelReason")}: ${leave.cancelReason}` : null) ||
                     (leave.rejectionReason ? `Rejected: ${leave.rejectionReason}` : null) ||
                     "-";
                   const signedBy = getSignedBy(leave);
+                  const statusStyle = getLeaveStatusStyle(leave.status);
 
                   return (
                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
@@ -614,20 +686,24 @@ export default function HistoryTable({
                       </td>
 
                       <td className="px-6 py-4 text-gray-500">
-                        {leave?.startDate ? new Date(leave.startDate).toLocaleDateString("th-TH") : "-"} -{" "}
-                        {leave?.endDate ? new Date(leave.endDate).toLocaleDateString("th-TH") : "-"}
+                        {leave?.startDate ? new Date(leave.startDate).toLocaleDateString("en-GB") : "-"} -{" "}
+                        {leave?.endDate ? new Date(leave.endDate).toLocaleDateString("en-GB") : "-"}
                       </td>
 
-                      <td className="px-6 py-4 text-center text-slate-600 font-bold">{days}</td>
+                      <td className="px-6 py-4 text-center text-slate-600 font-bold">
+                        {days}
+                      </td>
 
-                      <td className="px-6 py-4 text-gray-500 normal-case max-w-xs truncate">{note}</td>
+                      <td className="px-6 py-4 text-gray-500 normal-case max-w-xs truncate">
+                        {note}
+                      </td>
 
                       <td className="px-6 py-4 text-center">
                         {leave.attachmentUrl ? (
                           <button
                             onClick={() => openAttachment(buildFileUrl(leave.attachmentUrl))}
                             className="bg-indigo-100 text-indigo-700 p-2 rounded-xl active:scale-95 transition-all"
-                            title="View Attachment"
+                            title={t("leaveApproval.tooltips.viewAttachment")}
                           >
                             <ImageIcon size={16} />
                           </button>
@@ -643,10 +719,10 @@ export default function HistoryTable({
                       </td>
 
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-3 py-1.5 rounded-xl border-2 ${getStatusStyle(leave.status)}`}>
-                          {leave.status}
-                        </span>
-                      </td>
+  <span className={`px-3 py-1.5 rounded-xl border-2 ${statusStyle.cls}`}>
+    {statusStyle.label}
+  </span>
+</td>
 
                       <td className="px-6 py-4 text-center">
                         {String(leave.status || "").toLowerCase() === "pending" ? (
@@ -655,7 +731,7 @@ export default function HistoryTable({
                               onClick={() => handleDeleteLeave(leave)}
                               className="px-3 py-2 rounded-xl border border-rose-100 bg-rose-50 text-rose-700 text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition active:scale-95"
                             >
-                              Delete
+                              {t("common.delete")}
                             </button>
                           </div>
                         ) : String(leave.status || "").toLowerCase() === "approved" ? (
@@ -664,7 +740,7 @@ export default function HistoryTable({
                               onClick={() => handleRequestCancelLeave(leave)}
                               className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 transition active:scale-95"
                             >
-                              Request Cancel
+                              {t("history.requestCancelButton")}
                             </button>
                           </div>
                         ) : (
@@ -685,14 +761,16 @@ export default function HistoryTable({
           </tbody>
         </table>
 
-        {(data?.length || 0) > 0 && (
+        {/* Footer / Pagination */}
+        {(filteredData.length > 0) && (
           <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-col sm:flex-row">
             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               {t("common.page")} {page} / {totalPages} • {t("common.showing")}{" "}
               <span className="text-slate-700">
-                {Math.min((page - 1) * PAGE_SIZE + 1, data.length)}-{Math.min(page * PAGE_SIZE, data.length)}
+                {Math.min((page - 1) * PAGE_SIZE + 1, filteredData.length)}-
+                {Math.min(page * PAGE_SIZE, filteredData.length)}
               </span>{" "}
-              {t("common.of")} <span className="text-slate-700">{data.length}</span>
+              {t("common.of")} <span className="text-slate-700">{filteredData.length}</span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -701,7 +779,9 @@ export default function HistoryTable({
                 onClick={onPrev}
                 disabled={!canPrev}
                 className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95 ${
-                  canPrev ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  canPrev
+                    ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                    : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
                 }`}
                 title={t("common.prev")}
               >
@@ -721,7 +801,9 @@ export default function HistoryTable({
                       type="button"
                       onClick={() => goTo(p)}
                       className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 ${
-                        p === page ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                        p === page
+                          ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                          : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
                       }`}
                     >
                       {p}
@@ -735,7 +817,9 @@ export default function HistoryTable({
                 onClick={onNext}
                 disabled={!canNext}
                 className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95 ${
-                  canNext ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  canNext
+                    ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                    : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
                 }`}
                 title={t("common.next")}
               >

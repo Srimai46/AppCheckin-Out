@@ -375,7 +375,7 @@ i18n.use(initReactI18next).init({
         },
         attendanceDashboard: {
           title: "My Attendance",
-          viewing: "Viewing data for: {{name}}",
+          viewing: "Viewing data for: ",
           noData: "No attendance data available.",
           selectMonthHint: "Select a specific month to view calendar.",
           allYear: "ALL {{year}}",
@@ -441,7 +441,7 @@ i18n.use(initReactI18next).init({
 
           checkIn: "เช็กอิน",
           checkOut: "เช็กเอาต์",
-          updatecheckOut: "เช็กเอาต์ใหม่",
+          updatecheckOut: "อัปเดตเวลาออก",
           leave: "ลา",
 
           attendanceConfirmTitle: "ยืนยันการลงเวลา",
@@ -456,7 +456,7 @@ i18n.use(initReactI18next).init({
           approveLeave: "อนุมัติการลา",
           employees: "รายชื่อพนักงาน",
           calendar: "ปฏิทิน",
-          yearEnd: "ตั้งค่า",
+          yearEnd: "ตั้งค่าระบบ",
           logout: "ออกจากระบบ",
         },
 
@@ -470,6 +470,7 @@ i18n.use(initReactI18next).init({
           no: "ไม่ใช่",
           save: "บันทึก",
           delete: "ลบ",
+          confirm: "ยืนยัน",
           cancel: "ยกเลิก",
           days: "วัน",
           unlimited: "ไม่จำกัด",
@@ -482,7 +483,7 @@ i18n.use(initReactI18next).init({
           next: "ถัดไป",
 
           // Alerts / Validation
-          missingInfo: "ข้อมูลไม่ครบ",
+          missingInfo: "ข้อมูลไม่ครบถ้วน",
           invalidValue: "ค่าที่กรอกไม่ถูกต้อง",
           saveFailed: "บันทึกไม่สำเร็จ",
           deleteFailed: "ลบไม่สำเร็จ",
@@ -497,7 +498,7 @@ i18n.use(initReactI18next).init({
           specialUsage: "การใช้วันลาพิเศษ",
           days: "วัน",
           usedTotal: "ใช้ไป {{used}} / ทั้งหมด {{total}}",
-          carriedDetail: "({{base}} สิทธิพื้นฐาน + {{carry}} ทบมา)",
+          carriedDetail: "({{base}} สิทธิปีนี้ + {{carry}} ทบมา)",
         },
 
         /* -------- history -------- */
@@ -539,61 +540,62 @@ i18n.use(initReactI18next).init({
 
         /* -------- leaveApproveal -------- */
         leaveApproval: {
-          title: "รายการรออนุมัติ",
+          title: "รายการรอดำเนินการ",
 
           selected: "เลือกแล้ว {{count}} รายการ",
 
-          bulkApprove: "อนุมัติทั้งหมด",
-          bulkSpecial: "อนุมัติพิเศษ",
-          bulkReject: "ปฏิเสธ",
+          bulkApprove: "อนุมัติที่เลือก",
+          bulkSpecial: "อนุมัติพิเศษที่เลือก",
+          bulkReject: "ปฏิเสธที่เลือก",
 
           table: {
             employee: "พนักงาน",
             type: "ประเภท",
             reason: "หมายเหตุ / เหตุผล",
             duration: "ระยะเวลา",
-            evidence: "เอกสารแนบ",
-            action: "การดำเนินการ",
+            evidence: "หลักฐาน",
+            action: "ดำเนินการ",
           },
 
-          loading: "กำลังซิงค์ข้อมูล...",
-          noData: "ไม่มีรายการที่รออนุมัติ",
+          loading: "กำลังซิงโครไนซ์ข้อมูล...",
+          noData: "ไม่มีรายการรอดำเนินการ",
 
-          ref: "อ้างอิง #{{id}}",
+          ref: "อ้างอิง: #{{id}}",
 
           days: "วัน",
           noFile: "ไม่มีไฟล์",
 
           actions: {
-            approve: "อนุมัติ",
+            approve: "อนุมัติแล้ว",
             special: "อนุมัติพิเศษ",
-            reject: "ปฏิเสธ",
+            reject: "ปฏิเสธแล้ว",
           },
 
           tooltips: {
             viewAttachment: "ดูไฟล์แนบ",
             approve: "อนุมัติ",
-            special: "อนุมัติพิเศษ",
+            special: "อนุมัติเป็นกรณีพิเศษ",
             reject: "ปฏิเสธ",
           },
 
           labels: {
             reason: "เหตุผล",
-            cancelReason: "เหตุผลการยกเลิก",
+            cancelReason: "เหตุผลที่ยกเลิก",
             note: "หมายเหตุ",
           },
 
-          cancellationRequests: "คำขอยกเลิก",
+          cancellationRequests: "รายการขอยกเลิก",
           newrequest: "คำขอใหม่",
 
-          selectionEmptyTitle: "ยังไม่ได้เลือกรายการ",
-          selectionEmptyText: "กรุณาเลือกรายการอย่างน้อย 1 รายการ",
+          selectionEmptyTitle: "ไม่ได้เลือกรายการ",
+          selectionEmptyText: "กรุณาเลือกอย่างน้อยหนึ่งรายการ",
 
           confirmTitle: "ยืนยันการ{{action}}",
-          confirmText: "คุณต้องการ{{action}} {{count}} รายการ ใช่หรือไม่",
+          confirmText:
+            "คุณแน่ใจหรือไม่ว่าต้องการ{{action}}จำนวน {{count}} รายการ?",
 
-          processed: "ดำเนินการเรียบร้อย {{count}} รายการ",
-          actionFailed: "ดำเนินการไม่สำเร็จ",
+          processed: "ดำเนินการเรียบร้อยแล้ว {{count}} รายการ",
+          actionFailed: "การดำเนินการล้มเหลว",
 
           actionText: {
             approve: "อนุมัติ",
@@ -603,7 +605,7 @@ i18n.use(initReactI18next).init({
 
           tabs: {
             new: "คำขอใหม่",
-            cancel: "คำขอยกเลิก",
+            cancel: "คำขอที่ยกเลิก",
           },
         },
 
@@ -670,12 +672,12 @@ i18n.use(initReactI18next).init({
             paid: "ได้รับค่าจ้าง",
             labelTh: "ชื่อ (ภาษาไทย)",
             labelEn: "ชื่อ (ภาษาอังกฤษ)",
-            maxCarryOver: "ทบต่อไปปีหน้าได้ศูงสุด (วัน)",
+            maxCarryOver: "ทบต่อไปปีหน้าได้สูงสุด (วัน)",
             maxConsecutive: "ลาติดต่อกันสูงสุด (วัน)",
             cancelEdit: "ยกเลิกการแก้ไข",
             editTitle: "แก้ไขประเภทวันลา",
             addTitle: "เพิ่มประเภทวันลา",
-            subtitle: "เพิ่ม / แก้ไข ประเภทการลา และมีผลทันทีy",
+            subtitle: "เพิ่ม / แก้ไข ประเภทการลา และมีผลทันที",
             add: "เพิ่ม",
             update: "อัปเดต",
             close: "ปิด",
@@ -818,25 +820,27 @@ i18n.use(initReactI18next).init({
         },
 
         yearEndConfig: {
-    title: "ตั้งค่าสิ้นปี",
-    subtitle: "กำหนดการทบวันลา โควต้า และนโยบายส่วนกลาง",
+          title: "ตั้งค่าสิ้นปี",
+          subtitle: "กำหนดการทบวันลา, โควต้า และนโยบายส่วนกลาง",
 
-    carryOverTitle: "การทบวันลาต่อปี",
-    carryOverHint: "จำนวนวันที่ทบไปปีถัดไปได้สูงสุด (ต่อพนักงาน)",
+          carryOverTitle: "การทบวันลา (รายประเภท)",
+          carryOverHint:
+            "จำนวนวันสะสมสูงสุดที่ยกยอดไปปีถัดไปได้ (ต่อพนักงาน)",
 
-    quotaTitle: "ตั้งค่าโควต้า ปี {{year}}",
-    quotaHint: "จำนวนวันลาพื้นฐานต่อพนักงาน",
+          quotaTitle: "ตั้งค่าโควต้า ปี {{year}}",
+          quotaHint: "จำนวนวันลาพื้นฐานต่อพนักงาน",
 
-    maxConsecutiveTitle: "นโยบายกลาง: ลาติดต่อกันสูงสุด",
-    unlimitedHint: "0 = ไม่จำกัด",
+          maxConsecutiveTitle: "นโยบายกลาง: ลาติดต่อกันสูงสุด",
+          unlimitedHint: "0 = ไม่จำกัด",
 
-    targetYear: "ปีเป้าหมาย",
+          targetYear: "ปีเป้าหมาย",
 
-    process: "ยืนยันและประมวลผล",
-    processing: "กำลังประมวลผล...",
+          process: "ยืนยันและประมวลผล",
+          processing: "กำลังประมวลผล...",
 
-    warning:
-      "การดำเนินการนี้จะเขียนทับโควต้าของพนักงานทั้งหมด และล็อกข้อมูลเดิม",}
+          warning:
+            "การดำเนินการนี้จะเขียนทับโควต้าของพนักงานทั้งหมด และล็อกข้อมูลเดิม",
+        },
       },
     },
   },
