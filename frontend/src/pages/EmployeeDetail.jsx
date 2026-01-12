@@ -23,8 +23,8 @@ import { QuotaCards, HistoryTable } from "../components/shared";
 import LeaveSummaryPopup from "../components/shared/LeaveSummaryPopup";
 import { getLeaveTypes } from "../api/leaveService";
 
-// ✅ 1. Import Dashboard Component ที่เพิ่งสร้าง
-import AttendanceDashboardComponent from "./yearEnd/components/AttendanceDashboard"; // ปรับ Path ตามที่คุณวางไฟล์จริง
+// ✅ Dashboard Component
+import AttendanceDashboardComponent from "./yearEnd/components/AttendanceDashboard";
 
 export default function EmployeeDetail() {
   const { id } = useParams();
@@ -72,7 +72,62 @@ export default function EmployeeDetail() {
         getLeaveTypes(),
       ]);
 
-      setData(res.data);
+      const raw = res?.data || {};
+
+      // ✅ DEBUG: ดู payload ทั้งก้อนว่ามี workEndTime ไหม + attendance มี checkOutStatus ไหม
+      // (ตามที่คุณขอ: ใส่ console.log และคอมเมนท์ไว้)
+      // console.log("EmployeeDetail raw =>", raw);
+      // console.log("EmployeeDetail raw.workEndTime =>", raw?.workEndTime);
+      // console.log("EmployeeDetail raw.attendance sample =>", (raw?.attendance || [])?.[0]);
+
+      // ✅ หลังเราแก้ backend แล้ว ควรมี workEndTime เสมอ (เช่น "17:00")
+      // ถ้าเป็น null แปลว่า backend ยังไม่ได้ส่ง หรือ model config ยังไม่ได้ต่อถูกตัว
+      const extractedWorkEndTime = raw?.workEndTime ?? null;
+
+      // ✅ หลังเราแก้ backend แล้ว attendance จะเป็นมาตรฐานแล้ว:
+      // checkInTime/checkOutTime, checkInStatus/checkOutStatus (รวม EARLY) จะมาครบ
+      // ดังนั้นที่นี่ “ไม่ต้องคำนวณเองเยอะ” แค่ fallback กันข้อมูลเก่าที่อาจยังหลงเหลือ
+      const attendanceRaw = Array.isArray(raw?.attendance) ? raw.attendance : [];
+
+      const normalizeBool = (v) => {
+        if (v === true || v === false) return v;
+        if (v === 1 || v === 0) return Boolean(v);
+        const s = String(v ?? "").trim().toLowerCase();
+        if (s === "true" || s === "1") return true;
+        if (s === "false" || s === "0") return false;
+        return undefined;
+      };
+
+      const attendance = attendanceRaw.map((r) => {
+        // ✅ ใช้ field จาก backend เป็นหลัก
+        const hasIn = !!(r?.checkInTime || r?.check_in_time);
+        const hasOut = !!(r?.checkOutTime || r?.check_out_time);
+
+        const late = normalizeBool(r?.isLate ?? r?.late ?? r?.is_late);
+
+        // ✅ ใช้ status จาก backend ถ้ามี (สำคัญ: EARLY จะมาจาก backend เลย)
+        const checkInStatus =
+          r?.checkInStatus ||
+          r?.check_in_status ||
+          (hasIn ? (late ? "LATE" : "ON_TIME") : "ABSENT");
+
+        const checkOutStatus =
+          r?.checkOutStatus ||
+          r?.check_out_status ||
+          (!hasOut ? "NO_CHECKOUT" : "NORMAL");
+
+        return {
+          ...r,
+          checkInStatus,
+          checkOutStatus,
+        };
+      });
+
+      setData({
+        ...raw,
+        attendance,
+        workEndTime: extractedWorkEndTime,
+      });
 
       const list = Array.isArray(types) ? types : types?.data || [];
       setLeaveTypes(Array.isArray(list) ? list : []);
@@ -97,11 +152,25 @@ export default function EmployeeDetail() {
     const FUTURE_YEARS = 2;
 
     const dataYears = [
-      ...(data.attendance || []).map((r) => new Date(r.date || r.dateDisplay).getFullYear()),
-      ...(data.leaves || []).map((r) => new Date(r.startDate).getFullYear()),
-    ].filter(Number.isFinite);
+      ...(data.attendance || [])
+        .map((r) => {
+          // ✅ backend ใหม่ส่ง workDate (ISO) + dateDisplay
+          const d = r?.workDate || r?.date || r?.dateDisplay;
+          const y = d ? new Date(d).getFullYear() : NaN;
+          return y;
+        })
+        .filter(Number.isFinite),
 
-    const maxYear = Math.max(currentYear, ...dataYears);
+      ...(data.leaves || [])
+        .map((r) => {
+          const d = r?.startDate || r?.start;
+          const y = d ? new Date(d).getFullYear() : NaN;
+          return y;
+        })
+        .filter(Number.isFinite),
+    ];
+
+    const maxYear = Math.max(currentYear, ...(dataYears.length ? dataYears : [currentYear]));
     const futureYears = Array.from({ length: FUTURE_YEARS }, (_, i) => maxYear + i + 1);
 
     return [...new Set([currentYear, ...dataYears, ...futureYears])].sort((a, b) => a - b);
@@ -109,7 +178,10 @@ export default function EmployeeDetail() {
 
   // ================= Quota Update =================
   const handleApplyQuota = async () => {
-    const confirmed = await alertConfirm("Confirm Quota Update", "Update leave quotas for this year?");
+    const confirmed = await alertConfirm(
+      "Confirm Quota Update",
+      "Update leave quotas for this year?"
+    );
     if (!confirmed) return;
 
     try {
@@ -202,7 +274,9 @@ export default function EmployeeDetail() {
 
           <div className="space-y-2 text-center md:text-left">
             <div className="flex flex-col md:flex-row items-center gap-3">
-              <h1 className="text-4xl font-black text-slate-800 tracking-tight">{data.info.fullName}</h1>
+              <h1 className="text-4xl font-black text-slate-800 tracking-tight">
+                {data.info.fullName}
+              </h1>
               <span
                 className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 ${
                   data.info.isActive
@@ -250,7 +324,7 @@ export default function EmployeeDetail() {
           <div className="flex items-center gap-2 font-black text-slate-400 text-[11px] uppercase tracking-widest">
             <Settings2 size={14} /> Leave Balance
           </div>
-          
+
           <div className="w-44">
             <LeaveSummaryPopup
               selectedYear={selectedYear}
@@ -271,18 +345,13 @@ export default function EmployeeDetail() {
         setActiveTab={setActiveTab}
         attendanceData={data.attendance || []}
         leaveData={data.leaves || []}
+        workEndTime={data?.workEndTime} // ✅ backend ส่งมา เช่น "17:00"
       />
 
       {/* ✅ 3. Attendance Dashboard Component */}
-<div className="bg-white p-6 rounded-[3rem] border border-gray-100 shadow-sm">
-   <AttendanceDashboardComponent 
-      propEmployeeId={id} // ดึง id จาก useParams() ของหน้า EmployeeDetail
-      hideTitle={false}    
-      targetEmployeeId={id}
-   />
-</div>
-
-
+      <div className="bg-white p-6 rounded-[3rem] border border-gray-100 shadow-sm">
+        <AttendanceDashboardComponent propEmployeeId={id} hideTitle={false} targetEmployeeId={id} />
+      </div>
 
       {/* ===== Modals (Quota & Edit Info) ===== */}
       {showQuotaModal && (
@@ -347,7 +416,9 @@ export default function EmployeeDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
             <div className="flex items-center">
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Employee Information</h2>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                Employee Information
+              </h2>
               <button
                 onClick={() => setShowModal(false)}
                 className="ml-auto text-gray-400 hover:text-rose-500 transition-colors"
@@ -359,28 +430,38 @@ export default function EmployeeDetail() {
             <form onSubmit={handleSaveAll} className="space-y-4 text-left">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Name</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                    Name
+                  </label>
                   <input
                     required
                     value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, firstName: e.target.value })
+                    }
                     className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold border-none outline-none focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Surname</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                    Surname
+                  </label>
                   <input
                     required
                     value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, lastName: e.target.value })
+                    }
                     className="w-full rounded-2xl bg-gray-50 px-4 py-3 font-bold border-none outline-none focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Email</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                  Email
+                </label>
                 <input
                   type="email"
                   value={formData.email}
@@ -390,7 +471,9 @@ export default function EmployeeDetail() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">ROLE</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                  ROLE
+                </label>
 
                 <div className="relative">
                   <button
@@ -413,7 +496,11 @@ export default function EmployeeDetail() {
                             }
                           `}
                         >
-                          {formData.role === "HR" ? <ShieldCheck size={16} /> : <Briefcase size={16} />}
+                          {formData.role === "HR" ? (
+                            <ShieldCheck size={16} />
+                          ) : (
+                            <Briefcase size={16} />
+                          )}
                         </span>
 
                         <div className="text-left">
@@ -426,7 +513,9 @@ export default function EmployeeDetail() {
 
                       <ChevronDown
                         size={18}
-                        className={`text-gray-400 transition-transform ${roleOpen ? "rotate-180" : ""}`}
+                        className={`text-gray-400 transition-transform ${
+                          roleOpen ? "rotate-180" : ""
+                        }`}
                       />
                     </div>
                   </button>
@@ -507,7 +596,9 @@ export default function EmployeeDetail() {
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
                   <KeyRound size={12} /> New Password{" "}
-                  <span className="text-[10px] font-black text-gray-300 normal-case">(เว้นว่าง = ไม่เปลี่ยน)</span>
+                  <span className="text-[10px] font-black text-gray-300 normal-case">
+                    (เว้นว่าง = ไม่เปลี่ยน)
+                  </span>
                 </label>
                 <input
                   type="password"
@@ -519,7 +610,9 @@ export default function EmployeeDetail() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Confirm Password</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                  Confirm Password
+                </label>
                 <input
                   type="password"
                   placeholder="พิมพ์ให้ตรงกับรหัสผ่านใหม่"
