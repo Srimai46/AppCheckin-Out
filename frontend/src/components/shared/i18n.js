@@ -403,8 +403,28 @@ i18n.use(initReactI18next).init({
             fri: "Fri",
             sat: "Sat",
           },
-        }
+        },
+        yearEndConfig: {
+          title: "Year End Configuration",
+          subtitle: "Configure carry-over, quotas, and global policies.",
 
+          carryOverTitle: "Leave Type Carry Over",
+          carryOverHint: "Maximum carry over days to next year (per employee)",
+
+          quotaTitle: "Configure Quotas for {{year}}",
+          quotaHint: "Base leave quota per employee",
+
+          maxConsecutiveTitle: "Global Policy: Max Consecutive Holidays",
+          unlimitedHint: "0 = Unlimited",
+
+          targetYear: "Target Year",
+
+          process: "Confirm & Process",
+          processing: "Processing...",
+
+          warning:
+            "This action will overwrite quotas for all employees and lock previous data.",
+        },
       },
     },
 
@@ -766,37 +786,57 @@ i18n.use(initReactI18next).init({
         },
 
         attendanceDashboard: {
-  title: "การลงเวลาของฉัน",
-  viewing: "กำลังแสดงข้อมูลของ:",
-  noData: "ไม่พบข้อมูลการลงเวลา",
-  selectMonthHint: "กรุณาเลือกเดือนเพื่อดูปฏิทิน",
-  allYear: "ทั้งปี {{year}}",
+          title: "การลงเวลาของฉัน",
+          viewing: "กำลังแสดงข้อมูลของ:",
+          noData: "ไม่พบข้อมูลการลงเวลา",
+          selectMonthHint: "กรุณาเลือกเดือนเพื่อดูปฏิทิน",
+          allYear: "ทั้งปี {{year}}",
 
-  workingDays: "วันทำงาน",
-  presentExpected: "มาทำงาน / ที่คาดหวัง",
-  late: "มาสาย",
-  early: "ออกก่อนเวลา",
-  leave: "การลาที่อนุมัติ",
-  absent: "ขาดงาน",
-  daysTaken: "จำนวนวันที่ลา",
-  unexcused: "วันที่ไม่มีเหตุผล",
-  minutes: "นาที",
+          workingDays: "วันทำงาน",
+          presentExpected: "มาทำงาน / ที่คาดหวัง",
+          late: "มาสาย",
+          early: "ออกก่อนเวลา",
+          leave: "การลาที่อนุมัติ",
+          absent: "ขาดงาน",
+          daysTaken: "จำนวนวันที่ลา",
+          unexcused: "วันที่ไม่มีเหตุผล",
+          minutes: "นาที",
 
-  present: "มาทำงาน",
-  attendanceRatio: "สัดส่วนการลงเวลา",
-  leaveTypes: "ประเภทการลา",
+          present: "มาทำงาน",
+          attendanceRatio: "สัดส่วนการลงเวลา",
+          leaveTypes: "ประเภทการลา",
 
-  weekdays: {
-    sun: "อา.",
-    mon: "จ.",
-    tue: "อ.",
-    wed: "พ.",
-    thu: "พฤ.",
-    fri: "ศ.",
-    sat: "ส.",
-  },
-}
+          weekdays: {
+            sun: "อา.",
+            mon: "จ.",
+            tue: "อ.",
+            wed: "พ.",
+            thu: "พฤ.",
+            fri: "ศ.",
+            sat: "ส.",
+          },
+        },
 
+        yearEndConfig: {
+    title: "ตั้งค่าสิ้นปี",
+    subtitle: "กำหนดการทบวันลา โควต้า และนโยบายส่วนกลาง",
+
+    carryOverTitle: "การทบวันลาต่อปี",
+    carryOverHint: "จำนวนวันที่ทบไปปีถัดไปได้สูงสุด (ต่อพนักงาน)",
+
+    quotaTitle: "ตั้งค่าโควต้า ปี {{year}}",
+    quotaHint: "จำนวนวันลาพื้นฐานต่อพนักงาน",
+
+    maxConsecutiveTitle: "นโยบายกลาง: ลาติดต่อกันสูงสุด",
+    unlimitedHint: "0 = ไม่จำกัด",
+
+    targetYear: "ปีเป้าหมาย",
+
+    process: "ยืนยันและประมวลผล",
+    processing: "กำลังประมวลผล...",
+
+    warning:
+      "การดำเนินการนี้จะเขียนทับโควต้าของพนักงานทั้งหมด และล็อกข้อมูลเดิม",}
       },
     },
   },
