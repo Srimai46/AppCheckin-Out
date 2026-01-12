@@ -85,8 +85,7 @@ exports.checkIn = async (req, res) => {
       return res.status(400).json({ error: "You have already checked in for today." });
     }
 
-    // --- เช็คใบลา (แก้ไข: ประกาศตัวแปร todayEnd ก่อนใช้) ---
-    // ✅ ต้องประกาศ todayEnd ตรงนี้ ไม่งั้นโค้ดบรรทัดถัดไปจะ Error
+    // --- เช็คใบลา ---
     const todayEnd = new Date(todayStart);
     todayEnd.setHours(23, 59, 59, 999);
 
@@ -94,7 +93,6 @@ exports.checkIn = async (req, res) => {
       where: {
         employeeId: userId,
         status: "Approved",
-        // ✅ ใช้ Logic ช่วงเวลาของ "วันนี้"
         startDate: { lte: todayEnd },
         endDate: { gte: todayStart },
       },
@@ -124,7 +122,7 @@ exports.checkIn = async (req, res) => {
     standardStartTime.setHours(todayStart.getHours() + startHour);
     standardStartTime.setMinutes(startMin);
 
-    // เวลาเลิกงานมาตรฐาน (เพื่อหา Midpoint)
+    // เวลาเลิกงานมาตรฐาน
     const standardEndTime = new Date(todayStart);
     standardEndTime.setHours(todayStart.getHours() + endHour);
     standardEndTime.setMinutes(endMin);
@@ -132,9 +130,11 @@ exports.checkIn = async (req, res) => {
     // กำหนดเวลาที่ "ต้องมา" (Expected Check-in Time)
     let expectedCheckInTime = standardStartTime;
 
-    // 🔥 LOGIC: ถ้าลาครึ่งเช้า -> เวลาเข้างานคือ "กึ่งกลางวัน"
+    // --- 🔥 แก้ไข LOGIC ตรงนี้ (Fixed) ---
     if (isHalfMorningLeave) {
-      expectedCheckInTime = calculateMidpoint(standardStartTime, standardEndTime);
+        // กรณีลาเช้า ให้เวลาที่คาดหวังคือ "เวลาเริ่มงานช่วงบ่าย" เสมอ
+        // เพื่อให้การสแกนนิ้ว "ทุกช่วงเวลา" ก่อนบ่าย ถือว่าเป็นการมาก่อนเวลา (ไม่สาย)
+        expectedCheckInTime = calculateMidpoint(standardStartTime, standardEndTime);
     }
 
     // ✅ Logic กำหนด Status
@@ -144,33 +144,40 @@ exports.checkIn = async (req, res) => {
     if (isSpecialDay) {
       checkInStatusEnum = "ON_TIME";
     } else {
-      // เทียบเวลากับ expectedCheckInTime ที่ปรับแล้ว
+      // เทียบเวลากับ expectedCheckInTime
       if (now > expectedCheckInTime) {
         isLate = true;
         checkInStatusEnum = "LATE";
       } else {
         isLate = false;
+        // ✅ ถ้าไม่สาย ให้เป็น ON_TIME เสมอ
         checkInStatusEnum = "ON_TIME";
-      }
-
-      // กรณีลาครึ่งเช้า ให้สถานะสะท้อนการลา
-      if (isHalfMorningLeave) {
-        checkInStatusEnum = isLate ? "LATE" : "LEAVE";
       }
     }
 
-    const expectedTimeStr = formatThaiTime(expectedCheckInTime);
-    const statusText = isSpecialDay
-      ? isHoliday
-        ? `Holiday (${holidayName})`
-        : "Weekend Work"
-      : isHalfMorningLeave
-      ? isLate
-        ? `Half Day (Late > ${expectedTimeStr})`
-        : "Half Day (Morning Leave)"
-      : isLate
-      ? "Late"
-      : "On Time";
+    // สร้างข้อความอธิบาย Status
+    // const expectedTimeStr = formatThaiTime(expectedCheckInTime); // ไม่ได้ใช้ ลบออกได้
+    
+    let statusText = "On Time";
+    if (isSpecialDay) {
+        statusText = isHoliday ? `Holiday (${holidayName})` : "Weekend Work";
+    } else if (isLate) {
+        statusText = "Late";
+    } else {
+        // มาทันเวลา
+        if (isHalfMorningLeave) {
+             // เช็คเวลาเพื่อ Display ข้อความให้ถูกต้อง (แต่สถานะ Late คือ False แล้ว)
+             if (now < standardStartTime) {
+                 statusText = "Full Day (Worked on Morning Leave)"; // มาเช้ากว่า 09:00 ทั้งที่ลา
+             } else if (now < new Date(todayStart).setHours(12,0,0,0)) {
+                 statusText = "Early Arrival (Morning)"; // มา 09:23 จะเข้าเคสนี้ (ไม่สาย)
+             } else {
+                 statusText = "Half Day (Afternoon Shift)"; // มาบ่ายตามใบลาปกติ
+             }
+        } else {
+             statusText = "On Time";
+        }
+    }
 
     // 4. บันทึกข้อมูล
     const result = await prisma.$transaction(async (tx) => {
@@ -180,8 +187,8 @@ exports.checkIn = async (req, res) => {
           workDate: now,
           checkInTime: now,
           isLate: isLate,
-          checkInStatus: checkInStatusEnum,
-          note: isSpecialDay ? `[${statusText}] ${note || ""}` : note || null,
+          checkInStatus: checkInStatusEnum, 
+          note: isSpecialDay || isHalfMorningLeave ? `[${statusText}] ${note || ""}` : note || null,
           checkInLat: location?.lat ? parseFloat(location.lat) : null,
           checkInLng: location?.lng ? parseFloat(location.lng) : null,
         },
@@ -721,7 +728,6 @@ exports.getUserHistory = async (req, res) => {
 };
 
 // HR: TEAM TODAY ATTENDANCE (ACTIVE ONLY)
-// HR: TEAM TODAY ATTENDANCE (ACTIVE ONLY)
 exports.getTeamTodayAttendance = async (req, res) => {
   try {
     const todayStart = getThaiStartOfDay();
@@ -836,12 +842,17 @@ exports.hrCheckInEmployee = async (req, res) => {
     const hrId = req.user.id;
     const { note } = req.body;
     const now = new Date();
+    
+    // --- 1. เพิ่ม: ตรวจสอบวันหยุด (ให้เหมือน User Check-in) ---
+    const { isWeekend, isHoliday, holidayName } = await checkIsHolidayOrWeekend(now);
+    const isSpecialDay = isWeekend || isHoliday;
+    
     const todayStart = getThaiStartOfDay();
 
     if (!employeeId)
       return res.status(400).json({ error: "Invalid Employee ID" });
 
-    // 1) หาข้อมูลพนักงาน
+    // 2. หาข้อมูลพนักงาน
     const [employee, existingRecord] = await Promise.all([
       prisma.employee.findUnique({
         where: { id: employeeId },
@@ -858,14 +869,15 @@ exports.hrCheckInEmployee = async (req, res) => {
 
     if (!employee)
       return res.status(404).json({ error: "Employee not found." });
+    
+    // HR อาจจะต้องการแก้เวลาให้พนักงานที่ Check-in ไปแล้ว แต่ในที่นี้ Logic เดิมคือห้ามซ้ำ
     if (existingRecord?.checkInTime) {
       return res
         .status(400)
         .json({ error: "This employee has already clocked in for today." });
     }
 
-    // --- เช็คใบลา (แก้ไข: ใช้ Logic เดียวกับ User CheckIn) ---
-    // ✅ สร้างขอบเขตเวลา "สิ้นสุดวันนี้"
+    // --- เช็คใบลา ---
     const todayEnd = new Date(todayStart);
     todayEnd.setHours(23, 59, 59, 999);
 
@@ -873,7 +885,6 @@ exports.hrCheckInEmployee = async (req, res) => {
       where: {
         employeeId: employeeId,
         status: "Approved",
-        // ✅ เปลี่ยนจาก now เป็นการเช็คช่วงเวลาของ "วันนี้"
         startDate: { lte: todayEnd },
         endDate: { gte: todayStart },
       },
@@ -889,13 +900,13 @@ exports.hrCheckInEmployee = async (req, res) => {
       }
     }
 
-    // 2) คำนวณเวลาเข้างาน (ใช้ Logic Midpoint)
+    // 3. ดึง Config และคำนวณเวลาเข้างาน
     const config = await prisma.workConfiguration.findUnique({
       where: { role: employee.role },
     });
     const startHour = config ? config.startHour : 9;
     const startMin = config ? config.startMin : 0;
-    const endHour = config ? config.endHour : 18; // ต้องใช้ endHour หา Midpoint
+    const endHour = config ? config.endHour : 18;
     const endMin = config ? config.endMin : 0;
 
     const standardStartTime = new Date(todayStart);
@@ -906,47 +917,61 @@ exports.hrCheckInEmployee = async (req, res) => {
     standardEndTime.setHours(todayStart.getHours() + endHour);
     standardEndTime.setMinutes(endMin);
 
+    // กำหนดเวลาที่ "ต้องมา"
     let expectedCheckInTime = standardStartTime;
 
-    // 🔥 LOGIC: ถ้าลาครึ่งเช้า -> เวลาเข้างานคือ "กึ่งกลางวัน"
+    // --- 🔥 แก้ไข LOGIC ตรงนี้ (ให้เหมือน User Check-in) ---
+    // ไม่ต้องเช็ค now < noon แล้ว เพราะถ้าลาเช้า เป้าหมายคือเข้างานบ่าย
+    // การมาตอนเช้าคือกำไร (มาก่อนเวลา) ไม่ควรนับว่าสาย
     if (isHalfMorningLeave) {
-      expectedCheckInTime = calculateMidpoint(
-        standardStartTime,
-        standardEndTime
-      );
+       expectedCheckInTime = calculateMidpoint(standardStartTime, standardEndTime);
     }
 
+    // ✅ Logic กำหนด Status
     let isLate = false;
     let checkInStatusEnum = "ON_TIME";
 
-    if (now > expectedCheckInTime) {
-      isLate = true;
-      checkInStatusEnum = "LATE";
-    } else {
-      isLate = false;
+    if (isSpecialDay) {
+      // วันหยุด HR กดให้ = On Time เสมอ (หรือจะเป็น OT ก็แล้วแต่ Business Logic)
       checkInStatusEnum = "ON_TIME";
+    } else {
+      if (now > expectedCheckInTime) {
+        isLate = true;
+        checkInStatusEnum = "LATE";
+      } else {
+        isLate = false;
+        checkInStatusEnum = "ON_TIME";
+      }
     }
 
-    // กรณีลาครึ่งเช้า
-    if (isHalfMorningLeave) {
-      checkInStatusEnum = isLate ? "LATE" : "LEAVE";
+    // สร้างข้อความ Status Text
+    let statusText = "On Time";
+    if (isSpecialDay) {
+        statusText = isHoliday ? `Holiday (${holidayName})` : "Weekend Work";
+    } else if (isLate) {
+        statusText = "Late";
+    } else {
+        // กรณีไม่สาย
+        if (isHalfMorningLeave) {
+             if (now < standardStartTime) {
+                 statusText = "Full Day (Worked on Morning Leave)"; 
+             } else if (now < new Date(todayStart).setHours(12,0,0,0)) {
+                 statusText = "Early Arrival (Morning)";
+             } else {
+                 statusText = "Half Day (Afternoon Shift)";
+             }
+        } else {
+             statusText = "On Time";
+        }
     }
 
-    const expectedTimeStr = formatThaiTime(expectedCheckInTime);
-    const statusText = isHalfMorningLeave
-      ? isLate
-        ? `Half Day (Late > ${expectedTimeStr})`
-        : "Half Day (Morning)"
-      : isLate
-      ? "Late"
-      : "On Time";
-
-    // 3) Transaction
+    // 4. Transaction
     const result = await prisma.$transaction(async (tx) => {
       let record;
-      const logDetails =
-        note || `HR Clock-in for ${employee.firstName} ${employee.lastName}`;
+      // ใส่ Status Text ลงใน Note
+      const logDetails = note ? `[${statusText}] ${note}` : `HR Clock-in: ${statusText}`;
 
+      // (Logic create/update เดิมของคุณ)
       if (!existingRecord) {
         record = await tx.timeRecord.create({
           data: {
@@ -954,17 +979,18 @@ exports.hrCheckInEmployee = async (req, res) => {
             workDate: now,
             checkInTime: now,
             isLate: isLate,
-            checkInStatus: checkInStatusEnum, // ✅ Save Enum
+            checkInStatus: checkInStatusEnum,
             note: logDetails,
           },
         });
       } else {
+        // เผื่อเคสที่ update ได้ในอนาคต
         record = await tx.timeRecord.update({
           where: { id: existingRecord.id },
           data: {
             checkInTime: now,
             isLate: isLate,
-            checkInStatus: checkInStatusEnum, // ✅ Save Enum
+            checkInStatus: checkInStatusEnum,
             note: logDetails,
           },
         });
@@ -983,6 +1009,7 @@ exports.hrCheckInEmployee = async (req, res) => {
       return record;
     });
 
+    // Socket Emit
     const io = req.app.get("io");
     if (io) {
       io.emit("new-audit-log", {
@@ -1022,6 +1049,8 @@ exports.hrCheckOutEmployee = async (req, res) => {
   try {
     const employeeId = Number(req.params.employeeId);
     const hrId = req.user.id;
+    // รับ note จาก body เพิ่มเผื่อ HR อยากใส่เหตุผล
+    const { note } = req.body; 
 
     if (!employeeId)
       return res.status(400).json({ error: "Invalid Employee ID" });
@@ -1051,8 +1080,7 @@ exports.hrCheckOutEmployee = async (req, res) => {
     if (record.checkOutTime)
       return res.status(400).json({ error: "Already checked out." });
 
-    // --- เช็คใบลา (แก้ไข: ใช้ Logic เดียวกับ User CheckOut) ---
-    // ✅ สร้างขอบเขตเวลา "สิ้นสุดวันนี้"
+    // --- เช็คใบลา ---
     const todayEnd = new Date(todayStart);
     todayEnd.setHours(23, 59, 59, 999);
 
@@ -1060,7 +1088,6 @@ exports.hrCheckOutEmployee = async (req, res) => {
       where: {
         employeeId: employeeId,
         status: "Approved",
-        // ✅ เปลี่ยนจาก now เป็นการเช็คช่วงเวลาของ "วันนี้"
         startDate: { lte: todayEnd },
         endDate: { gte: todayStart },
       },
@@ -1076,7 +1103,7 @@ exports.hrCheckOutEmployee = async (req, res) => {
       }
     }
 
-    // 2) คำนวณเวลาออก (ใช้ Logic Midpoint)
+    // 2) คำนวณเวลาออก
     const config = await prisma.workConfiguration.findUnique({
       where: { role: employee.role },
     });
@@ -1115,16 +1142,14 @@ exports.hrCheckOutEmployee = async (req, res) => {
       checkOutStatusEnum = "NORMAL";
     }
 
-    // กรณีลาครึ่งบ่าย
-    if (isHalfAfternoonLeave) {
-      checkOutStatusEnum = isEarlyLeave ? "EARLY" : "LEAVE";
-    }
+    // ❌ เอา Logic เดิมที่บังคับ LEAVE ออก
+    // if (isHalfAfternoonLeave) { checkOutStatusEnum = isEarlyLeave ? "EARLY" : "LEAVE"; }
 
     const expectedTimeStr = formatThaiTime(expectedCheckOutTime);
     const statusText = isHalfAfternoonLeave
       ? isEarlyLeave
         ? `Half Day (Early < ${expectedTimeStr})`
-        : "Half Day (Afternoon)"
+        : "Half Day (Afternoon Leave)"
       : isEarlyLeave
       ? "Early Leave"
       : "Normal";
@@ -1135,10 +1160,10 @@ exports.hrCheckOutEmployee = async (req, res) => {
         where: { id: record.id },
         data: {
           checkOutTime: now,
-          checkOutStatus: checkOutStatusEnum, // ✅ Save Enum
+          checkOutStatus: checkOutStatusEnum, // ✅ NORMAL หรือ EARLY
           note: record.note
-            ? `${record.note} (Out by HR)`
-            : "Clocked out by HR",
+            ? `${record.note} (Out by HR: ${statusText})`
+            : `Clocked out by HR: ${statusText}`,
         },
       });
 
