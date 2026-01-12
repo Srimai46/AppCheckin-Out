@@ -374,7 +374,7 @@ i18n.use(initReactI18next).init({
           submit: "Submit Leave Request",
         },
         attendanceDashboard: {
-          title: "My Attendance",
+          title: "Attendance",
           viewing: "Viewing data for: ",
           noData: "No attendance data available.",
           selectMonthHint: "Select a specific month to view calendar.",
@@ -393,6 +393,49 @@ i18n.use(initReactI18next).init({
           present: "Present",
           attendanceRatio: "Attendance Ratio",
           leaveTypes: "Leave Types",
+
+  subtitle: "Attendance overview",
+
+  filterAll: "ALL {{year}}",
+  clear: "Clear",
+  selectPeriod: "Select Period",
+
+  loading: "Loading Stats...",
+  noDataFound: "No attendance data found.",
+
+  yearlyView: "Yearly View",
+  calendar: "{{month}} Calendar",
+
+  stat: {
+    workingDays: "Working Days",
+    presentExpected: "Present / Expected",
+    late: "Late",
+    earlyLeave: "Early Leave",
+    leaves: "Leaves",
+    absences: "Absences",
+    approved: "Approved",
+    unexcused: "Unexcused",
+    minutes: "mins",
+  },
+
+  ratio: "Attendance Ratio",
+
+
+  legend: {
+    holiday: "Holiday",
+    absent: "Absent",
+    late: "Late",
+    leave: "Leave",
+    early: "Early Leave",
+  },
+
+  calendarHint: "Select a specific month to view calendar.",
+
+  events: {
+    absent: "Absent",
+    late: "Late",
+    early: "Early",
+  },
 
           weekdays: {
             sun: "Sun",
@@ -788,7 +831,7 @@ i18n.use(initReactI18next).init({
         },
 
         attendanceDashboard: {
-          title: "การลงเวลาของฉัน",
+          title: "การลงเวลา",
           viewing: "กำลังแสดงข้อมูลของ:",
           noData: "ไม่พบข้อมูลการลงเวลา",
           selectMonthHint: "กรุณาเลือกเดือนเพื่อดูปฏิทิน",
@@ -807,6 +850,47 @@ i18n.use(initReactI18next).init({
           present: "มาทำงาน",
           attendanceRatio: "สัดส่วนการลงเวลา",
           leaveTypes: "ประเภทการลา",
+  subtitle: "ภาพรวมการลงเวลา",
+
+  filterAll: "ทั้งปี {{year}}",
+  clear: "ล้างค่า",
+  selectPeriod: "เลือกช่วงเวลา",
+
+  loading: "กำลังโหลดข้อมูล...",
+  noDataFound: "ไม่พบข้อมูลการลงเวลา",
+
+  yearlyView: "มุมมองรายปี",
+  calendar: "ปฏิทินเดือน {{month}}",
+
+  stat: {
+    workingDays: "วันทำงาน",
+    presentExpected: "มาทำงาน / ที่คาดหวัง",
+    late: "มาสาย",
+    earlyLeave: "ออกก่อน",
+    leaves: "การลา",
+    absences: "ขาดงาน",
+    approved: "อนุมัติแล้ว",
+    unexcused: "ไม่มีเหตุผล",
+    minutes: "นาที",
+  },
+
+  ratio: "สัดส่วนการลงเวลา",
+
+  legend: {
+    holiday: "วันหยุด",
+    absent: "ขาดงาน",
+    late: "มาสาย",
+    leave: "ลา",
+    early: "ออกก่อน",
+  },
+
+  calendarHint: "กรุณาเลือกเดือนเพื่อดูปฏิทิน",
+
+  events: {
+    absent: "ขาดงาน",
+    late: "มาสาย",
+    early: "ออกก่อน",
+  },
 
           weekdays: {
             sun: "อา.",

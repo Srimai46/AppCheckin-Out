@@ -300,7 +300,7 @@ export default function AttendanceDashboard() {
                 onClick={() => { setYear(new Date().getFullYear()); setMonth("All"); }}
                 className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-500 font-black py-2 px-4 rounded-xl transition-all text-[10px] uppercase tracking-widest active:scale-95"
             >
-                CLEAR
+                {t("history.clear")}
             </button>
         </div>
 
@@ -424,7 +424,7 @@ export default function AttendanceDashboard() {
                 </ResponsiveContainer>
               </div>
             </div>
-          )}
+          )} 
         </div>
 
         {/* ---------- Calendar ---------- */}
