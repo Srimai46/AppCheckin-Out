@@ -373,6 +373,38 @@ i18n.use(initReactI18next).init({
           submitting: "Submitting request...",
           submit: "Submit Leave Request",
         },
+        attendanceDashboard: {
+          title: "My Attendance",
+          viewing: "Viewing data for: {{name}}",
+          noData: "No attendance data available.",
+          selectMonthHint: "Select a specific month to view calendar.",
+          allYear: "ALL {{year}}",
+
+          workingDays: "Working Days",
+          presentExpected: "Present / Expected",
+          late: "Late Arrivals",
+          early: "Early Leaves",
+          leave: "Approved Leaves",
+          absent: "Absences",
+          daysTaken: "Days Taken",
+          unexcused: "Unexcused Days",
+          minutes: "mins",
+
+          present: "Present",
+          attendanceRatio: "Attendance Ratio",
+          leaveTypes: "Leave Types",
+
+          weekdays: {
+            sun: "Sun",
+            mon: "Mon",
+            tue: "Tue",
+            wed: "Wed",
+            thu: "Thu",
+            fri: "Fri",
+            sat: "Sat",
+          },
+        }
+
       },
     },
 
@@ -732,6 +764,39 @@ i18n.use(initReactI18next).init({
           submitting: "กำลังส่งคำขอ...",
           submit: "ส่งคำขอลา",
         },
+
+        attendanceDashboard: {
+  title: "การลงเวลาของฉัน",
+  viewing: "กำลังแสดงข้อมูลของ:",
+  noData: "ไม่พบข้อมูลการลงเวลา",
+  selectMonthHint: "กรุณาเลือกเดือนเพื่อดูปฏิทิน",
+  allYear: "ทั้งปี {{year}}",
+
+  workingDays: "วันทำงาน",
+  presentExpected: "มาทำงาน / ที่คาดหวัง",
+  late: "มาสาย",
+  early: "ออกก่อนเวลา",
+  leave: "การลาที่อนุมัติ",
+  absent: "ขาดงาน",
+  daysTaken: "จำนวนวันที่ลา",
+  unexcused: "วันที่ไม่มีเหตุผล",
+  minutes: "นาที",
+
+  present: "มาทำงาน",
+  attendanceRatio: "สัดส่วนการลงเวลา",
+  leaveTypes: "ประเภทการลา",
+
+  weekdays: {
+    sun: "อา.",
+    mon: "จ.",
+    tue: "อ.",
+    wed: "พ.",
+    thu: "พฤ.",
+    fri: "ศ.",
+    sat: "ส.",
+  },
+}
+
       },
     },
   },
