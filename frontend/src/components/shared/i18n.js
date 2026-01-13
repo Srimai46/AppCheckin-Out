@@ -496,6 +496,340 @@ i18n.use(initReactI18next).init({
           passwordMismatch: "The passwords do not match.",
           infoUpdated: "Information updated.",
         },
+        /* -------- Employee list -------- */
+        employeeList: {
+          title: "Employee Directory",
+          addNew: "Add New Employee",
+          leavePolicy: "Leave Policy",
+
+          activeTab: "Active",
+          resignedTab: "Resigned",
+
+          allRoles: "All Roles",
+          roleWorker: "Worker",
+          roleHR: "HR",
+
+          searchPlaceholder: "Search by name, email or ID",
+
+          colId: "ID",
+          colName: "Name",
+          colEmail: "Email",
+          colRole: "Role",
+          colStatus: "Status",
+
+          statusWorking: "Working",
+          statusResigned: "Resigned",
+
+          noEmployees: "No employees found",
+
+          page: "Page",
+          prev: "Prev",
+          next: "Next",
+        },
+
+        employeeCreate: {
+          title: "Employee Information",
+
+          firstName: "Name",
+          lastName: "Surname",
+          email: "Email",
+          emailPlaceholder: "Please enter email",
+
+          role: "Role",
+          workerAccess: "Standard Access",
+          hrAccess: "Full Access",
+          roleNote: "Note: Changing role affects system permissions.",
+
+          joinDate: "Join Date",
+
+          password: "Password",
+          passwordHint: "Minimum 6 characters",
+
+          cancel: "Cancel",
+          submit: "Register",
+          processing: "Processing...",
+        },
+        /* -------- working days -------- */
+        workingDays: {
+          title: "Working Days",
+          subtitle: "Select working days and save policy",
+
+          loading: "Loading working days policy...",
+
+          currently: "Currently:",
+
+          saveBtn: "Save",
+          savingBtn: "Saving...",
+          loadingBtn: "Loading...",
+
+          mon: "Mon",
+          tue: "Tue",
+          wed: "Wed",
+          thu: "Thu",
+          fri: "Fri",
+          sat: "Sat",
+          sun: "Sun",
+        },
+        /* -------- worktimeby role -------- */
+        workTimeByRole: {
+          title: "Work Time (By Role)",
+          subtitle: "Set check-in / check-out time for each role",
+
+          roleHR: "HR",
+          roleWorker: "Worker",
+
+          checkIn: "Check-in Time",
+          checkOut: "Check-out Time",
+
+          current: "Current:",
+
+          saveBtn: "Save Work Time",
+          savingBtn: "Saving...",
+        },
+        /* -------- YearEnd History -------- */
+        yearEndHistory: {
+          title: "Processing History",
+
+          year: "Year",
+          lockStatus: "Lock Status",
+          processedAt: "Processed At",
+          action: "Action",
+
+          closed: "Closed",
+          open: "Open",
+
+          unlock: "Unlock This Year",
+
+          empty: "No processing history available.",
+        },
+        /* -------- YearEnd Policy -------- */
+        yearEndPolicy: {
+          title: "Holiday Policy & Special Holidays",
+          subtitle: "Configure working days and manage special holidays.",
+        },
+        /* -------- YearEnd Process -------- */
+        yearEndProcess: {
+          title: "Year-End Processing & Quota Assignment",
+          subtitle:
+            "Carry over leave balances and assign new yearly quotas in one step.",
+        },
+        /* -------- Team Calendar -------- */
+        teamCalendar: {
+          title: "Team Calendar",
+          subtitle: "View team leaves and special holidays",
+
+          actions: {
+            todayOverview: "Today’s Overview ({{count}})",
+            today: "Today",
+            prevMonth: "Previous month",
+            nextMonth: "Next month",
+            openDay: "View details",
+            close: "Close",
+            refresh: "Refresh",
+            clear: "Clear",
+          },
+
+          filters: {
+            leaveTypesLabel: "Leave Types",
+            allTypes: "All",
+
+            // ✅ used by LeaveTypeFilters (labelKey)
+            leaveTypes: {
+              sick: "Sick Leave",
+              vacation: "Vacation Leave",
+              personal: "Personal Leave",
+            },
+
+            roleLabel: "Role",
+            allRoles: "All",
+            searchPlaceholder: "Search name / email...",
+          },
+
+          tabs: {
+            pending: "Pending",
+            approved: "Approved",
+            rejected: "Rejected",
+          },
+
+          week: {
+            sun: "Sun",
+            mon: "Mon",
+            tue: "Tue",
+            wed: "Wed",
+            thu: "Thu",
+            fri: "Fri",
+            sat: "Sat",
+          },
+
+          hints: {
+            lateRule:
+              "* Late rule: after {{time}}, if not checked-in it will be counted as “Late”.",
+          },
+
+          loading: {
+            calendar: "Loading calendar...",
+            modal: "Loading details...",
+            attendance: "Loading attendance...",
+          },
+
+          grid: {
+            loading: "Loading...",
+            moreTypes: "+{{count}} types",
+          },
+
+          status: {
+            pending: "Pending",
+            approved: "Approved",
+            rejected: "Rejected",
+            cancelled: "Cancelled",
+            withdrawn: "Withdrawn",
+          },
+
+          // ✅ TeamAttendancePanel uses this block
+          attendance: {
+            title: "Team Check-in / Check-out (Today)",
+            subtitle:
+              "Total {{total}} • Checked-in {{checkedIn}} • Late {{late}} • Checked-out {{checkedOut}}",
+
+            cards: {
+              checkedIn: "Checked In",
+              late: "Late",
+              checkedOut: "Checked Out",
+            },
+
+            searchPlaceholder: "Search name, email, ID...",
+
+            table: {
+              employee: "Employee",
+              role: "Role",
+              in: "In",
+              out: "Out",
+              statusIn: "Status In",
+              statusOut: "Status Out",
+              actions: "Actions",
+            },
+
+            loading: "Loading attendance...",
+            empty: {
+              activeNone: "No active employee attendance data",
+              noMatch: "No matching employees",
+            },
+
+            unknown: "Unknown",
+
+            buttons: {
+              saving: "Saving...",
+              checkIn: "Check In",
+              checkOut: "Check Out",
+            },
+
+            statusIn: {
+              onTime: "On Time",
+              late: "Late",
+              leave: "Leave",
+              waiting: "Waiting",
+              normal: "Normal",
+            },
+
+            statusOut: {
+              none: "-",
+              normal: "Normal",
+              earlyLeave: "Early Leave",
+              noCheckout: "No Check-out",
+              leave: "Leave",
+            },
+
+            pagination: {
+              label:
+                "Page {{page}} / {{totalPages}} • Showing {{start}}-{{end}} of {{total}}",
+            },
+          },
+
+          // ✅ DailyDetailsModal uses this block
+          modal: {
+            title: "Daily Details",
+
+            pills: {
+              checkedIn: "Checked In",
+              late: "Late",
+              absent: "Absent",
+              onLeave: "On Leave",
+            },
+
+            nav: {
+              prevDay: "Previous day",
+              nextDay: "Next day",
+              goToday: "Go to today",
+            },
+
+            tabs: {
+              pending: "Pending Approvals",
+              approved: "Approved",
+              rejected: "Rejected",
+            },
+
+            role: {
+              all: "All Roles",
+              worker: "Worker",
+              hr: "HR",
+            },
+
+            searchPlaceholder: "Search name, email, ID...",
+
+            table: {
+              employee: "Employee",
+              type: "Type",
+              noteReason: "Note / Reason",
+              duration: "Duration",
+              evidence: "Evidence",
+              action: "Action",
+              approvedBy: "Approved By",
+              rejectedBy: "Rejected By",
+            },
+
+            loading: "SYNCHRONIZING DATA...",
+            noData: "No Data",
+            noFile: "No File",
+            ref: "Ref: #{{id}}",
+
+            tooltips: {
+              viewAttachment: "View Attachment",
+              approve: "Approve",
+              special: "Special Approval",
+              reject: "Reject",
+            },
+
+            actions: {
+              approve: "Approved",
+              special: "Special",
+              reject: "Rejected",
+
+              approveFull: "Normal Approve",
+              specialFull: "Special Approval (Non-deductible)",
+              rejectFull: "Reject",
+            },
+
+            confirm: {
+              title: "Confirm {{action}}",
+              text: "Process request of <b>{{name}}</b> as <b>{{action}}</b>?",
+            },
+
+            toast: {
+              processedOne: "Processed 1 request.",
+              actionFailedTitle: "Action Failed",
+              unknownError: "Unknown error",
+            },
+
+            hrNameHint:
+              "* Approved/Rejected tab will show HR name if backend provides approvedBy/rejectedBy.",
+
+            specialReasonPrefix: "Special Case Approval",
+            noReason: "No reason",
+
+            reasonTitle: "Reason: {{reason}}",
+            noteTitle: "Note: {{note}}",
+          },
+        },
       },
     },
 
@@ -936,8 +1270,7 @@ i18n.use(initReactI18next).init({
           subtitle: "กำหนดการทบวันลา, โควต้า และนโยบายส่วนกลาง",
 
           carryOverTitle: "การทบวันลา (รายประเภท)",
-          carryOverHint:
-            "จำนวนวันสะสมสูงสุดที่ยกยอดไปปีถัดไปได้ (ต่อพนักงาน)",
+          carryOverHint: "จำนวนวันสะสมสูงสุดที่ยกยอดไปปีถัดไปได้ (ต่อพนักงาน)",
 
           quotaTitle: "ตั้งค่าโควต้า ปี {{year}}",
           quotaHint: "จำนวนวันลาพื้นฐานต่อพนักงาน",
@@ -979,6 +1312,338 @@ i18n.use(initReactI18next).init({
           quotaFailed: "อัปเดตโควตาไม่สำเร็จ",
           passwordMismatch: "รหัสผ่านไม่ตรงกัน",
           infoUpdated: "อัปเดตข้อมูลเรียบร้อยแล้ว",
+        },
+        /* -------- Employee list -------- */
+        employeeList: {
+          title: "รายชื่อพนักงาน",
+          addNew: "เพิ่มพนักงานใหม่",
+          leavePolicy: "นโยบายการลา",
+
+          activeTab: "กำลังทำงาน",
+          resignedTab: "ลาออกแล้ว",
+
+          allRoles: "ทุกตำแหน่ง",
+          roleWorker: "พนักงาน",
+          roleHR: "ฝ่ายบุคคล",
+
+          searchPlaceholder: "ค้นหาชื่อ อีเมล หรือรหัสพนักงาน",
+
+          colId: "รหัส",
+          colName: "ชื่อ",
+          colEmail: "อีเมล",
+          colRole: "ตำแหน่ง",
+          colStatus: "สถานะ",
+
+          statusWorking: "ทำงานอยู่",
+          statusResigned: "ลาออกแล้ว",
+
+          noEmployees: "ไม่พบข้อมูลพนักงาน",
+
+          page: "หน้า",
+          prev: "ก่อนหน้า",
+          next: "ถัดไป",
+        },
+
+        employeeCreate: {
+          title: "ข้อมูลพนักงาน",
+
+          firstName: "ชื่อ",
+          lastName: "นามสกุล",
+          email: "อีเมล",
+          emailPlaceholder: "กรุณากรอกอีเมล",
+
+          role: "ตำแหน่ง",
+          workerAccess: "สิทธิ์มาตรฐาน",
+          hrAccess: "สิทธิ์เต็มรูปแบบ",
+          roleNote: "หมายเหตุ: การเปลี่ยนตำแหน่งมีผลต่อสิทธิ์การใช้งานระบบ",
+
+          joinDate: "วันที่เริ่มงาน",
+
+          password: "รหัสผ่าน",
+          passwordHint: "อย่างน้อย 6 ตัวอักษร",
+
+          cancel: "ยกเลิก",
+          submit: "บันทึก",
+          processing: "กำลังดำเนินการ...",
+        },
+        /* -------- working days -------- */
+        workingDays: {
+          title: "วันทำงาน",
+          subtitle: "เลือกวันทำงานและบันทึกนโยบาย",
+
+          loading: "กำลังโหลดนโยบายวันทำงาน...",
+
+          currently: "ปัจจุบัน:",
+
+          saveBtn: "บันทึก",
+          savingBtn: "กำลังบันทึก...",
+          loadingBtn: "กำลังโหลด...",
+
+          mon: "จันทร์",
+          tue: "อังคาร",
+          wed: "พุธ",
+          thu: "พฤหัส",
+          fri: "ศุกร์",
+          sat: "เสาร์",
+          sun: "อาทิตย์",
+        },
+        /* -------- worktimeby role -------- */
+        workTimeByRole: {
+          title: "เวลาทำงาน (แยกตามตำแหน่ง)",
+          subtitle: "กำหนดเวลาเข้างาน / ออกงานสำหรับแต่ละตำแหน่ง",
+
+          roleHR: "ฝ่ายบุคคล",
+          roleWorker: "พนักงาน",
+
+          checkIn: "เวลาเข้างาน",
+          checkOut: "เวลาออกงาน",
+
+          current: "ปัจจุบัน:",
+
+          saveBtn: "บันทึกเวลาเข้างาน",
+          savingBtn: "กำลังบันทึก...",
+        },
+        /* -------- YearEnd History -------- */
+        yearEndHistory: {
+          title: "ประวัติการประมวลผล",
+
+          year: "ปี",
+          lockStatus: "สถานะการล็อก",
+          processedAt: "ประมวลผลเมื่อ",
+          action: "การทำงาน",
+
+          closed: "ปิดแล้ว",
+          open: "เปิดอยู่",
+
+          unlock: "ปลดล็อกปีนี้",
+
+          empty: "ไม่มีประวัติการประมวลผล",
+        },
+        /* -------- YearEnd Policy -------- */
+        yearEndPolicy: {
+          title: "นโยบายวันหยุดและวันหยุดพิเศษ",
+          subtitle: "ตั้งค่าวันทำงานและจัดการวันหยุดพิเศษ",
+        },
+        /* -------- YearEnd Process -------- */
+        yearEndProcess: {
+          title: "ประมวลผลสิ้นปีและกำหนดโควต้าการลา",
+          subtitle: "ยกยอดวันลาคงเหลือและกำหนดโควต้าประจำปีในขั้นตอนเดียว",
+        } /* -------- Team Calendar -------- */,
+        teamCalendar: {
+          title: "ปฏิทินทีม",
+          subtitle: "ดูวันลาของทีมและวันหยุดพิเศษ",
+
+          actions: {
+            todayOverview: "สรุปวันนี้ ({{count}})",
+            today: "วันนี้",
+            prevMonth: "เดือนก่อนหน้า",
+            nextMonth: "เดือนถัดไป",
+            openDay: "ดูรายละเอียด",
+            close: "ปิด",
+            refresh: "รีเฟรช",
+            clear: "ล้างค่า",
+          },
+
+          filters: {
+            leaveTypesLabel: "ประเภทการลา",
+            allTypes: "ทั้งหมด",
+
+            // ✅ ใช้กับ LeaveTypeFilters (labelKey)
+            leaveTypes: {
+              sick: "ลาป่วย",
+              vacation: "ลาพักร้อน",
+              personal: "ลากิจ",
+            },
+
+            roleLabel: "บทบาท",
+            allRoles: "ทั้งหมด",
+            searchPlaceholder: "ค้นหาชื่อ / อีเมล...",
+          },
+
+          tabs: {
+            pending: "รออนุมัติ",
+            approved: "อนุมัติแล้ว",
+            rejected: "ปฏิเสธแล้ว",
+          },
+
+          week: {
+            sun: "อา.",
+            mon: "จ.",
+            tue: "อ.",
+            wed: "พ.",
+            thu: "พฤ.",
+            fri: "ศ.",
+            sat: "ส.",
+          },
+
+          hints: {
+            lateRule:
+              "* กฎสาย: หลัง {{time}} ถ้ายังไม่เช็คอินจะถูกนับว่า “มาสาย”",
+          },
+
+          loading: {
+            calendar: "กำลังโหลดปฏิทิน...",
+            modal: "กำลังโหลดรายละเอียด...",
+            attendance: "กำลังโหลดข้อมูลการลงเวลา...",
+          },
+
+          grid: {
+            loading: "กำลังโหลด...",
+            moreTypes: "+{{count}} ประเภท",
+          },
+
+          status: {
+            pending: "รออนุมัติ",
+            approved: "อนุมัติแล้ว",
+            rejected: "ปฏิเสธแล้ว",
+            cancelled: "ยกเลิก",
+            withdrawn: "ถอนคำขอ",
+          },
+
+          // ✅ TeamAttendancePanel ใช้ชุดนี้
+          attendance: {
+            title: "เช็กอิน / เช็กเอาต์ของทีม (วันนี้)",
+            subtitle:
+              "ทั้งหมด {{total}} • เช็กอินแล้ว {{checkedIn}} • มาสาย {{late}} • เช็กเอาต์แล้ว {{checkedOut}}",
+
+            cards: {
+              checkedIn: "เช็กอิน",
+              late: "มาสาย",
+              checkedOut: "เช็กเอาต์",
+            },
+
+            searchPlaceholder: "ค้นหาชื่อ, อีเมล, รหัสพนักงาน...",
+
+            table: {
+              employee: "พนักงาน",
+              role: "บทบาท",
+              in: "เข้า",
+              out: "ออก",
+              statusIn: "สถานะเข้า",
+              statusOut: "สถานะออก",
+              actions: "การทำงาน",
+            },
+
+            loading: "กำลังโหลดข้อมูลการลงเวลา...",
+            empty: {
+              activeNone: "ไม่พบข้อมูลการลงเวลาของพนักงานที่กำลังทำงาน",
+              noMatch: "ไม่พบพนักงานที่ตรงกับเงื่อนไข",
+            },
+
+            unknown: "ไม่ทราบชื่อ",
+
+            buttons: {
+              saving: "กำลังบันทึก...",
+              checkIn: "เช็กอิน",
+              checkOut: "เช็กเอาต์",
+            },
+
+            statusIn: {
+              onTime: "ตรงเวลา",
+              late: "มาสาย",
+              leave: "ลา",
+              waiting: "รอเช็กอิน",
+              normal: "ปกติ",
+            },
+
+            statusOut: {
+              none: "-",
+              normal: "ปกติ",
+              earlyLeave: "ออกก่อนเวลา",
+              noCheckout: "ยังไม่เช็กเอาต์",
+              leave: "ลา",
+            },
+
+            pagination: {
+              label:
+                "หน้า {{page}} / {{totalPages}} • แสดง {{start}}-{{end}} จาก {{total}}",
+            },
+          },
+
+          // ✅ DailyDetailsModal ใช้ชุดนี้
+          modal: {
+            title: "รายละเอียดประจำวัน",
+
+            pills: {
+              checkedIn: "เช็คอินแล้ว",
+              late: "มาสาย",
+              absent: "ขาดงาน",
+              onLeave: "ลางาน",
+            },
+
+            nav: {
+              prevDay: "วันก่อนหน้า",
+              nextDay: "วันถัดไป",
+              goToday: "ไปวันนี้",
+            },
+
+            tabs: {
+              pending: "รออนุมัติ",
+              approved: "อนุมัติแล้ว",
+              rejected: "ปฏิเสธแล้ว",
+            },
+
+            role: {
+              all: "ทุกบทบาท",
+              worker: "พนักงาน",
+              hr: "ฝ่ายบุคคล",
+            },
+
+            searchPlaceholder: "ค้นหาชื่อ, อีเมล, รหัสพนักงาน...",
+
+            table: {
+              employee: "พนักงาน",
+              type: "ประเภท",
+              noteReason: "หมายเหตุ/เหตุผล",
+              duration: "ระยะเวลา",
+              evidence: "หลักฐาน",
+              action: "จัดการ",
+              approvedBy: "อนุมัติโดย",
+              rejectedBy: "ปฏิเสธโดย",
+            },
+
+            loading: "กำลังซิงโครไนซ์ข้อมูล...",
+            noData: "ไม่พบข้อมูล",
+            noFile: "ไม่มีไฟล์",
+            ref: "อ้างอิง: #{{id}}",
+
+            tooltips: {
+              viewAttachment: "ดูไฟล์แนบ",
+              approve: "อนุมัติ",
+              special: "อนุมัติพิเศษ",
+              reject: "ปฏิเสธ",
+            },
+
+            actions: {
+              approve: "อนุมัติ",
+              special: "พิเศษ",
+              reject: "ปฏิเสธ",
+
+              approveFull: "อนุมัติปกติ",
+              specialFull: "อนุมัติพิเศษ (ไม่ตัดสิทธิ์)",
+              rejectFull: "ปฏิเสธ",
+            },
+
+            confirm: {
+              title: "ยืนยันการ{{action}}",
+              text: "ต้องการดำเนินการกับ <b>{{name}}</b> เป็น <b>{{action}}</b> ใช่หรือไม่?",
+            },
+
+            toast: {
+              processedOne: "ดำเนินการสำเร็จ 1 รายการ",
+              actionFailedTitle: "ดำเนินการไม่สำเร็จ",
+              unknownError: "เกิดข้อผิดพลาดไม่ทราบสาเหตุ",
+            },
+
+            hrNameHint:
+              "* แท็บอนุมัติ/ปฏิเสธ จะแสดงชื่อ HR หาก backend ส่งค่า approvedBy / rejectedBy มาให้",
+
+            specialReasonPrefix: "อนุมัติพิเศษ",
+            noReason: "ไม่ระบุเหตุผล",
+
+            reasonTitle: "เหตุผล: {{reason}}",
+            noteTitle: "หมายเหตุ: {{note}}",
+          },
         },
       },
     },
