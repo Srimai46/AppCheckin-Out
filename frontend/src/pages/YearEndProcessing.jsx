@@ -1,5 +1,6 @@
 import React from "react";
 import { Calendar, ShieldCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { HolidayPolicyProvider } from "./yearEnd/hooks/useHolidayPolicy";
 import { CarryOverLimitsProvider } from "./yearEnd/hooks/useCarryOverLimits";
@@ -9,10 +10,11 @@ import WorkTimeByRoleCard from "./yearEnd/components/WorkTimeByRoleCard";
 import MaxConsecutiveCard from "./yearEnd/components/MaxConsecutiveCard";
 import SpecialHolidaysCard from "./yearEnd/components/SpecialHolidaysCard";
 import CarryOverCard from "./yearEnd/components/CarryOverCard";
-
 import LeaveTypeCard from "./yearEnd/components/LeaveTypeCard";
 
 export default function YearEndProcessing() {
+  const { t } = useTranslation();
+
   return (
     <HolidayPolicyProvider>
       <CarryOverLimitsProvider>
@@ -24,10 +26,10 @@ export default function YearEndProcessing() {
                 <div>
                   <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                     <ShieldCheck className="text-indigo-600" />
-                    Holiday Policy & Special Holidays
+                    {t("yearEndPolicy.title")}
                   </h1>
                   <p className="text-gray-500">
-                    Configure working days and manage special holidays.
+                    {t("yearEndPolicy.subtitle")}
                   </p>
                 </div>
               </header>
@@ -44,14 +46,13 @@ export default function YearEndProcessing() {
               <header className="mb-8">
                 <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                   <Calendar className="text-indigo-600" />
-                  Year-End Processing & Quota Assignment
+                  {t("yearEndProcess.title")}
                 </h1>
                 <p className="text-gray-500">
-                  Carry over leave balances and assign new yearly quotas in one step.
+                  {t("yearEndProcess.subtitle")}
                 </p>
               </header>
-              
-              {/* ถ้ายังต้องใช้ CarryOverCard แยก */}
+
               <CarryOverCard />
             </div>
           </div>
