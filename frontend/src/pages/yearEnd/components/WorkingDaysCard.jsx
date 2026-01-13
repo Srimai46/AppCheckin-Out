@@ -1,19 +1,27 @@
 import React from "react";
 import { RefreshCw, Save } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useHolidayPolicy } from "../hooks/useHolidayPolicy";
 
 export default function WorkingDaysCard() {
-  const { workingDays, toggleWorkingDay, policySaving, policyLoading, saveWorkingDaysPolicy } =
-    useHolidayPolicy();
+  const { t } = useTranslation();
+
+  const {
+    workingDays,
+    toggleWorkingDay,
+    policySaving,
+    policyLoading,
+    saveWorkingDaysPolicy,
+  } = useHolidayPolicy();
 
   const days = [
-    { k: "MON", label: "Mon" },
-    { k: "TUE", label: "Tue" },
-    { k: "WED", label: "Wed" },
-    { k: "THU", label: "Thu" },
-    { k: "FRI", label: "Fri" },
-    { k: "SAT", label: "Sat" },
-    { k: "SUN", label: "Sun" },
+    { k: "MON", label: t("workingDays.mon") },
+    { k: "TUE", label: t("workingDays.tue") },
+    { k: "WED", label: t("workingDays.wed") },
+    { k: "THU", label: t("workingDays.thu") },
+    { k: "FRI", label: t("workingDays.fri") },
+    { k: "SAT", label: t("workingDays.sat") },
+    { k: "SUN", label: t("workingDays.sun") },
   ];
 
   const disabledAll = policyLoading || policySaving;
@@ -21,16 +29,18 @@ export default function WorkingDaysCard() {
   return (
     <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
-        <div className="text-sm font-black text-slate-800 uppercase tracking-widest">Working Days</div>
+        <div className="text-sm font-black text-slate-800 uppercase tracking-widest">
+          {t("workingDays.title")}
+        </div>
         <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-          Select working days and save policy
+          {t("workingDays.subtitle")}
         </div>
       </div>
 
       <div className="p-6">
         {policyLoading ? (
           <div className="text-xs text-gray-400 font-bold uppercase tracking-widest">
-            Loading working days policy...
+            {t("workingDays.loading")}
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -78,9 +88,11 @@ export default function WorkingDaysCard() {
 
         <div className="mt-4 flex items-center justify-between gap-3 flex-col sm:flex-row">
           <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-            Currently:{" "}
+            {t("workingDays.currently")}{" "}
             <span className="text-slate-600">
-              {(workingDays || []).length ? (workingDays || []).map((x) => x.toLowerCase()).join(", ") : "-"}
+              {(workingDays || []).length
+                ? (workingDays || []).map((x) => x.toLowerCase()).join(", ")
+                : "-"}
             </span>
           </div>
 
@@ -92,8 +104,16 @@ export default function WorkingDaysCard() {
               uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
               shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none inline-flex items-center gap-2"
           >
-            {policySaving || policyLoading ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
-            {policyLoading ? "Loading..." : policySaving ? "Saving..." : "Save"}
+            {policySaving || policyLoading ? (
+              <RefreshCw className="animate-spin" size={18} />
+            ) : (
+              <Save size={18} />
+            )}
+            {policyLoading
+              ? t("workingDays.loadingBtn")
+              : policySaving
+              ? t("workingDays.savingBtn")
+              : t("workingDays.saveBtn")}
           </button>
         </div>
       </div>
