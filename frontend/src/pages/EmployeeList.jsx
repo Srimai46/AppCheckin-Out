@@ -239,13 +239,7 @@ export default function EmployeeList() {
         </h1>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowPolicyModal(true)}
-            className="bg-white text-slate-800 px-4 py-2.5 rounded-xl flex items-center gap-2 border border-gray-200 hover:bg-gray-50 shadow-sm transition-all active:scale-95 font-black text-xs uppercase tracking-widest"
-          >
-            <SlidersHorizontal size={18} className="text-blue-600" />
-            {t("employeeList.leavePolicy")} 
-          </button>
+
 
           <button
             onClick={handleOpenCreate}
