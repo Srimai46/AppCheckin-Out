@@ -1,13 +1,15 @@
 // src/pages/teamCalendar/components/TeamAttendancePanel.jsx
-import React from "react";
+import React, { useMemo } from "react";
 import { Users, LogIn, LogOut, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { PAGE_SIZE } from "../constants";
-// ✅ ลบ getInStatus, getOutStatus ออก หรือไม่ต้องใช้แล้ว เพราะเราจะเชื่อค่าจาก API
-import { normalizeTime, getAttendanceState, badgeByInStatus, badgeByOutStatus } from "../utils";
+import { normalizeTime, getAttendanceState, badgeByInStatus } from "../utils";
 import SummaryCard from "./SummaryCard";
 import RoleDropdown from "./RoleDropdown";
 
 export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTotalPages, pageNumbers }) {
+  const { t } = useTranslation();
+
   const {
     attLoading,
     actionLoading,
@@ -32,16 +34,56 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
   const goNext = () => canNext && setTeamPage((p) => p + 1);
   const goTo = (n) => setTeamPage(Math.min(Math.max(1, n), safeTotalPages));
 
-  // Helper เล็กๆ เพื่อแปลง String จาก API ให้เข้ากับ Badge Utility
-  // สมมติ API ส่งมา "Late" แต่ Badge ต้องการ "LATE"
-  const getBadgeKey = (statusStr) => {
-     if (!statusStr) return "WAITING";
-     if (statusStr === "On Time") return "ON_TIME";
-     if (statusStr === "On Time (Morning)") return "ON_TIME";
-     if (statusStr === "Late") return "LATE";
-     if (statusStr.includes("Leave")) return "LEAVE";
-     return "NORMAL"; // หรือ Default อื่นๆ
+  // ✅ map status text จาก API -> key สำหรับ badge + label แปล
+  const getInBadgeKey = (statusStr) => {
+    if (!statusStr) return "WAITING";
+    if (statusStr === "On Time") return "ON_TIME";
+    if (statusStr === "On Time (Morning)") return "ON_TIME";
+    if (statusStr === "Late") return "LATE";
+    if (String(statusStr).includes("Leave")) return "LEAVE";
+    if (statusStr === "Waiting") return "WAITING";
+    return "NORMAL";
   };
+
+  const translateInStatus = (statusStr) => {
+    const s = String(statusStr || "Waiting");
+    const key =
+      s === "On Time" || s === "On Time (Morning)" ? "onTime" :
+      s === "Late" ? "late" :
+      s.includes("Leave") ? "leave" :
+      s === "Waiting" ? "waiting" :
+      "normal";
+    return t(`teamCalendar.attendance.statusIn.${key}`);
+  };
+
+  const translateOutStatus = (statusStr) => {
+    const s = String(statusStr || "-");
+    if (s === "-" || s === "N/A") return t("teamCalendar.attendance.statusOut.none");
+    const key =
+      s === "Early Leave" ? "earlyLeave" :
+      s === "Normal" ? "normal" :
+      s === "No Check-out" ? "noCheckout" :
+      s.includes("Leave") ? "leave" :
+      "normal";
+    return t(`teamCalendar.attendance.statusOut.${key}`);
+  };
+
+  const outBadgeStyleByText = (outStatusText) => {
+    if (String(outStatusText) === "Early Leave") return "bg-amber-50 text-amber-600 border-amber-100";
+    if (String(outStatusText) === "No Check-out") return "bg-slate-50 text-slate-500 border-slate-100";
+    if (String(outStatusText).includes("Leave")) return "bg-sky-50 text-sky-700 border-sky-100";
+    if (String(outStatusText) === "-" || String(outStatusText) === "N/A") return "bg-gray-50 text-gray-500 border-gray-100";
+    return "bg-emerald-50 text-emerald-700 border-emerald-100";
+  };
+
+  const summaryLine = useMemo(() => {
+    const total = attendanceSummary?.total ?? 0;
+    const checkedIn = attendanceSummary?.checkedIn ?? 0;
+    const late = attendanceSummary?.late ?? 0;
+    const checkedOut = attendanceSummary?.checkedOut ?? 0;
+
+    return t("teamCalendar.attendance.subtitle", { total, checkedIn, late, checkedOut });
+  }, [attendanceSummary, t]);
 
   return (
     <div className="overflow-hidden mt-28">
@@ -53,20 +95,32 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
           </div>
           <div>
             <div className="text-4xl font-black uppercase tracking-widest text-slate-800">
-              Team Check-in / Check-out (Today)
+              {t("teamCalendar.attendance.title")}
             </div>
             <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-              Total {attendanceSummary.total} • Checked-in {attendanceSummary.checkedIn} • Late{" "}
-              {attendanceSummary.late} • Checked-out {attendanceSummary.checkedOut}
+              {summaryLine}
             </div>
           </div>
         </div>
       </div>
 
+      {/* Summary Cards */}
       <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <SummaryCard title="Checked In" value={attendanceSummary.checkedIn} icon={<LogIn size={18} className="text-emerald-600" />} />
-        <SummaryCard title="Late (มาสาย)" value={attendanceSummary.late} icon={<Clock size={18} className="text-rose-600" />} />
-        <SummaryCard title="Checked Out" value={attendanceSummary.checkedOut} icon={<LogOut size={18} className="text-slate-600" />} />
+        <SummaryCard
+          title={t("teamCalendar.attendance.cards.checkedIn")}
+          value={attendanceSummary?.checkedIn ?? 0}
+          icon={<LogIn size={18} className="text-emerald-600" />}
+        />
+        <SummaryCard
+          title={t("teamCalendar.attendance.cards.late")}
+          value={attendanceSummary?.late ?? 0}
+          icon={<Clock size={18} className="text-rose-600" />}
+        />
+        <SummaryCard
+          title={t("teamCalendar.attendance.cards.checkedOut")}
+          value={attendanceSummary?.checkedOut ?? 0}
+          icon={<LogOut size={18} className="text-slate-600" />}
+        />
       </div>
 
       {/* Filters */}
@@ -79,13 +133,14 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
             setOpen={setRoleOpen}
             widthClass="w-full sm:w-[220px]"
             size="md"
-            labels={{ ALL: "ALL ROLES", WORKER: "WORKER", HR: "HR" }}
+            // ✅ ไม่ส่ง labels อังกฤษ hardcode (ให้ RoleDropdown ใช้ i18n fallback ของมันเอง)
           />
+
           <div className="w-full sm:flex-1">
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search name, email, ID..."
+              placeholder={t("teamCalendar.attendance.searchPlaceholder")}
               className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200 shadow-sm text-slate-800 font-black text-[12px] placeholder:text-gray-400 placeholder:font-black outline-none focus:ring-2 focus:ring-blue-200"
             />
           </div>
@@ -97,27 +152,44 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
         <table className="w-full text-left">
           <thead className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50">
             <tr>
-              <th className="px-6 py-4">Employee</th>
-              <th className="px-6 py-4">Role</th>
-              <th className="px-6 py-4">In</th>
-              <th className="px-6 py-4">Out</th>
-              <th className="px-6 py-4 text-center">Status In</th>
-              <th className="px-6 py-4 text-center">Status Out</th>
-              <th className="px-6 py-4 text-right">Actions</th>
+              <th className="px-6 py-4">{t("teamCalendar.attendance.table.employee")}</th>
+              <th className="px-6 py-4">{t("teamCalendar.attendance.table.role")}</th>
+              <th className="px-6 py-4">{t("teamCalendar.attendance.table.in")}</th>
+              <th className="px-6 py-4">{t("teamCalendar.attendance.table.out")}</th>
+              <th className="px-6 py-4 text-center">{t("teamCalendar.attendance.table.statusIn")}</th>
+              <th className="px-6 py-4 text-center">{t("teamCalendar.attendance.table.statusOut")}</th>
+              <th className="px-6 py-4 text-right">{t("teamCalendar.attendance.table.actions")}</th>
             </tr>
           </thead>
 
           <tbody className="text-[11px] font-bold">
             {attLoading ? (
-              <tr><td colSpan="7" className="px-6 py-10 text-center text-gray-400">Loading attendance...</td></tr>
+              <tr>
+                <td colSpan="7" className="px-6 py-10 text-center text-gray-400">
+                  {t("teamCalendar.attendance.loading")}
+                </td>
+              </tr>
             ) : activeTeamAttendance.length === 0 ? (
-              <tr><td colSpan="7" className="px-6 py-10 text-center text-gray-400 italic">No active employee attendance data</td></tr>
+              <tr>
+                <td colSpan="7" className="px-6 py-10 text-center text-gray-400 italic">
+                  {t("teamCalendar.attendance.empty.activeNone")}
+                </td>
+              </tr>
             ) : filteredTeamAttendance.length === 0 ? (
-              <tr><td colSpan="7" className="px-6 py-10 text-center text-gray-400 italic">No matching employees</td></tr>
+              <tr>
+                <td colSpan="7" className="px-6 py-10 text-center text-gray-400 italic">
+                  {t("teamCalendar.attendance.empty.noMatch")}
+                </td>
+              </tr>
             ) : (
               pagedTeamAttendance.map((row, idx) => {
                 const employeeId = row.employeeId ?? row.id ?? idx;
-                const name = row.fullName || row.name || `${row.firstName || ""} ${row.lastName || ""}`.trim() || "Unknown";
+                const name =
+                  row.fullName ||
+                  row.name ||
+                  `${row.firstName || ""} ${row.lastName || ""}`.trim() ||
+                  t("teamCalendar.attendance.unknown");
+
                 const role = row.role || row.position || "-";
 
                 const inRaw = row.checkInTimeDisplay || row.checkInTime || row.checkIn || null;
@@ -126,37 +198,45 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
                 const outTime = normalizeTime(outRaw);
 
                 const busy = actionLoading[employeeId];
-                // ใช้ state เพื่อควบคุมปุ่ม Check-in/out
                 const state = getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw });
 
-                // ✅ Change 1: ใช้ค่าจาก API โดยตรง (row.inStatus) แทนการคำนวณใหม่
+                // ✅ ใช้ค่าจาก API ตรงๆ (แต่แปลตอนแสดงผล)
                 const inStatusText = row.inStatus || "Waiting";
                 const outStatusText = row.outStatus || "-";
-                
-                // ✅ Change 2: แปลง Text ให้เป็น Key สำหรับ Badge Style (ถ้าจำเป็น)
-                const inBadgeKey = getBadgeKey(inStatusText); 
-                // หรือถ้า badgeByInStatus รองรับ Text ตรงๆ ก็ใช้: badgeByInStatus(inStatusText)
-                
-                // (สมมติว่า badgeByOutStatus รองรับ string ทั่วไป)
-                const outBadgeStyle = row.outStatus === "Early Leave" ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-gray-50 text-gray-500 border-gray-100";
+
+                const inBadgeKey = getInBadgeKey(inStatusText);
+                const outBadgeStyle = outBadgeStyleByText(outStatusText);
 
                 return (
-                  <tr key={employeeId} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                  <tr
+                    key={employeeId}
+                    className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
+                  >
                     <td className="px-6 py-4 text-slate-800">{name}</td>
                     <td className="px-6 py-4 text-gray-500">{role}</td>
 
-                    <td className="px-6 py-4"><span className="text-emerald-600">{inTime || "--:--"}</span></td>
-                    <td className="px-6 py-4"><span className="text-rose-500">{outTime || "--:--"}</span></td>
+                    <td className="px-6 py-4">
+                      <span className="text-emerald-600">{inTime || "--:--"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-rose-500">{outTime || "--:--"}</span>
+                    </td>
 
                     <td className="px-6 py-4 text-center">
-                      <span className={`px-3 py-1.5 rounded-xl border text-[10px] uppercase font-black tracking-widest ${badgeByInStatus(inBadgeKey)}`}>
-                        {inStatusText}
+                      <span
+                        className={`px-3 py-1.5 rounded-xl border text-[10px] uppercase font-black tracking-widest ${badgeByInStatus(
+                          inBadgeKey
+                        )}`}
+                      >
+                        {translateInStatus(inStatusText)}
                       </span>
                     </td>
 
                     <td className="px-6 py-4 text-center">
-                      <span className={`px-3 py-1.5 rounded-xl border text-[10px] uppercase font-black tracking-widest ${outBadgeStyle}`}>
-                        {outStatusText}
+                      <span
+                        className={`px-3 py-1.5 rounded-xl border text-[10px] uppercase font-black tracking-widest ${outBadgeStyle}`}
+                      >
+                        {translateOutStatus(outStatusText)}
                       </span>
                     </td>
 
@@ -173,7 +253,7 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
                             }`}
                         >
                           <LogIn size={14} />
-                          {busy === "in" ? "Saving..." : "Check In"}
+                          {busy === "in" ? t("teamCalendar.attendance.buttons.saving") : t("teamCalendar.attendance.buttons.checkIn")}
                         </button>
 
                         <button
@@ -187,7 +267,7 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
                             }`}
                         >
                           <LogOut size={14} />
-                          {busy === "out" ? "Saving..." : "Check Out"}
+                          {busy === "out" ? t("teamCalendar.attendance.buttons.saving") : t("teamCalendar.attendance.buttons.checkOut")}
                         </button>
                       </div>
                     </td>
@@ -201,14 +281,14 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
         {/* Pagination */}
         {!attLoading && filteredTeamAttendance.length > 0 && (
           <div className="px-6 py-4 border-t border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-             {/* ... (Pagination Code เดิม ใช้ได้เลย) ... */}
-             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              Page {teamPage} / {safeTotalPages} • Showing{" "}
-              <span className="text-slate-700">
-                {Math.min((teamPage - 1) * PAGE_SIZE + 1, filteredTeamAttendance.length)}-
-                {Math.min(teamPage * PAGE_SIZE, filteredTeamAttendance.length)}
-              </span>{" "}
-              of <span className="text-slate-700">{filteredTeamAttendance.length}</span>
+            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              {t("teamCalendar.attendance.pagination.label", {
+                page: teamPage,
+                totalPages: safeTotalPages,
+                start: Math.min((teamPage - 1) * PAGE_SIZE + 1, filteredTeamAttendance.length),
+                end: Math.min(teamPage * PAGE_SIZE, filteredTeamAttendance.length),
+                total: filteredTeamAttendance.length,
+              })}
             </div>
 
             <div className="flex items-center gap-2">
@@ -217,22 +297,32 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
                 onClick={goPrev}
                 disabled={!canPrev}
                 className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
-                  ${canPrev ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"}`}
+                  ${
+                    canPrev
+                      ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  }`}
               >
-                <ChevronLeft size={14} /> Prev
+                <ChevronLeft size={14} /> {t("common.prev")}
               </button>
 
               <div className="flex items-center gap-1">
                 {pageNumbers.map((p, idx) =>
                   p === "..." ? (
-                    <span key={`dots-${idx}`} className="px-2 text-gray-300 font-black text-[12px]">...</span>
+                    <span key={`dots-${idx}`} className="px-2 text-gray-300 font-black text-[12px]">
+                      ...
+                    </span>
                   ) : (
                     <button
                       key={p}
                       type="button"
                       onClick={() => goTo(p)}
                       className={`h-9 min-w-[38px] px-3 rounded-3xl border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95
-                        ${p === teamPage ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"}`}
+                        ${
+                          p === teamPage
+                            ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                            : "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                        }`}
                     >
                       {p}
                     </button>
@@ -245,9 +335,13 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
                 onClick={goNext}
                 disabled={!canNext}
                 className={`h-9 px-4 rounded-3xl border font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 transition-all active:scale-95
-                  ${canNext ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"}`}
+                  ${
+                    canNext
+                      ? "border-gray-200 bg-white text-slate-700 hover:bg-gray-50"
+                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  }`}
               >
-                Next <ChevronRight size={14} />
+                {t("common.next")} <ChevronRight size={14} />
               </button>
             </div>
           </div>

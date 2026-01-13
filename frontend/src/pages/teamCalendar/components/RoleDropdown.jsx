@@ -1,4 +1,5 @@
-import React, { useRef } from "react";
+import React, { useRef, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import useOutsideClick from "../hooks/useOutsideClick";
 
 /**
@@ -11,7 +12,7 @@ import useOutsideClick from "../hooks/useOutsideClick";
  * - setOpen: (bool | (prev)=>bool) => void
  * - widthClass?: string  (default: "w-full")
  * - size?: "sm" | "md"   (default: "md")
- * - labels?: { ALL?: string, WORKER?: string, HR?: string }
+ * - labels?: { ALL?: string, WORKER?: string, HR?: string }  // optional override
  */
 export default function RoleDropdown({
   value,
@@ -22,15 +23,27 @@ export default function RoleDropdown({
   size = "md",
   labels,
 }) {
+  const { t } = useTranslation();
+
   const btnRef = useRef(null);
   const menuRef = useRef(null);
 
   useOutsideClick([btnRef, menuRef], () => setOpen(false));
 
+  // ✅ fallback label มาจาก i18n (ไม่ hardcode อังกฤษ)
+  const fallbackLabels = useMemo(
+    () => ({
+      ALL: t("teamCalendar.modal.role.all"),
+      WORKER: t("teamCalendar.modal.role.worker"),
+      HR: t("teamCalendar.modal.role.hr"),
+    }),
+    [t]
+  );
+
   const labelMap = {
-    ALL: labels?.ALL ?? "All Roles",
-    WORKER: labels?.WORKER ?? "Worker",
-    HR: labels?.HR ?? "HR",
+    ALL: labels?.ALL ?? fallbackLabels.ALL,
+    WORKER: labels?.WORKER ?? fallbackLabels.WORKER,
+    HR: labels?.HR ?? fallbackLabels.HR,
   };
 
   const buttonClass =
@@ -55,6 +68,9 @@ export default function RoleDropdown({
     { value: "HR", label: labelMap.HR },
   ];
 
+  const currentLabel =
+    value === "ALL" ? labelMap.ALL : value === "WORKER" ? labelMap.WORKER : labelMap.HR;
+
   return (
     <div className={`relative ${widthClass}`}>
       <button
@@ -62,21 +78,17 @@ export default function RoleDropdown({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={`w-full ${buttonClass}`}
+        aria-haspopup="listbox"
+        aria-expanded={open ? "true" : "false"}
       >
-        <span>
-          {value === "ALL"
-            ? labelMap.ALL
-            : value === "WORKER"
-            ? labelMap.WORKER
-            : labelMap.HR}
-        </span>
+        <span>{currentLabel}</span>
         <span className={`ml-3 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`}>
           ▾
         </span>
       </button>
 
       {open && (
-        <div ref={menuRef} className={menuClass}>
+        <div ref={menuRef} className={menuClass} role="listbox">
           {options.map((opt) => {
             const active = value === opt.value;
             return (
@@ -88,11 +100,9 @@ export default function RoleDropdown({
                   setOpen(false);
                 }}
                 className={`w-full text-left ${size === "sm" ? "px-4" : "px-5"} py-3 font-black transition-colors
-                  ${
-                    active
-                      ? "bg-blue-50 text-blue-700"
-                      : "bg-white text-slate-700 hover:bg-gray-50"
-                  }`}
+                  ${active ? "bg-blue-50 text-blue-700" : "bg-white text-slate-700 hover:bg-gray-50"}`}
+                role="option"
+                aria-selected={active ? "true" : "false"}
               >
                 {opt.label}
               </button>
