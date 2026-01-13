@@ -16,6 +16,8 @@ export default function Dashboard() {
 
   const [time, setTime] = useState(new Date());
   const [data, setData] = useState({ att: [], quotas: [], leaves: [] });
+  const [att, setAtt] = useState([]);
+  const [leaves, setLeaves] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
 
   const [activeTab, setActiveTab] = useState("attendance");
@@ -103,6 +105,8 @@ export default function Dashboard() {
         });
 
         setData({ att, quotas, leaves });
+        setAtt(att);
+        setLeaves(leaves);
 
         const typeList = Array.isArray(types) ? types : types?.data || [];
         setLeaveTypes(Array.isArray(typeList) ? typeList : []);
@@ -297,9 +301,12 @@ export default function Dashboard() {
       <HistoryTable
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        attendanceData={data.att}
-        leaveData={data.leaves}
+        attendanceData={att}
+        leaveData={leaves}
         buildFileUrl={buildFileUrl}
+        onDeletedLeaveSuccess={(deleted) => {
+          setLeaves((prev) => prev.filter((l) => l.id !== deleted.id));
+        }}
       />
     </div>
   );

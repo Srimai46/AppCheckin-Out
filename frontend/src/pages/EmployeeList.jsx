@@ -722,8 +722,8 @@ export default function EmployeeList() {
                   className="py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:bg-gray-400 disabled:shadow-none"
                 >
                   {isLoading
-  ? t("employeeCreate.processing")
-  : t("employeeCreate.submit")}
+                    ? t("employeeCreate.processing")
+                    : t("employeeCreate.submit")}
                 </button>
               </div>
             </form>

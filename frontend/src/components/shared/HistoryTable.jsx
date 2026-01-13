@@ -21,7 +21,6 @@ import {
 const PAGE_SIZE = 5;
 
 // ===================== ✅ Config Status & Badges =====================
-// ใช้ Key จาก i18n (history.onTime, history.late, etc.)
 const CHECKIN_BADGE = {
   ON_TIME: {
     labelKey: "history.onTime",
@@ -64,21 +63,15 @@ const CHECKOUT_BADGE = {
   },
 };
 
-// Component ย่อยสำหรับแสดง Badge
 function StatusTextPill({ map, value }) {
   const { t } = useTranslation();
-  const item = map?.[value] || map?.["NORMAL"]; // Fallback if unknown
-  
-  // ถ้าไม่มีค่า หรือหา key ไม่เจอ ให้แสดง -
-  if (!value || !map[value]) {
-    return <span className="text-gray-300">-</span>;
-  }
+  const item = map?.[value] || map?.["NORMAL"];
+
+  if (!value || !map[value]) return <span className="text-gray-300">-</span>;
 
   return (
     <span
-      className={`inline-flex px-3 py-1 rounded-2xl border text-[10px] font-black uppercase ${
-        item.cls
-      }`}
+      className={`inline-flex px-3 py-1 rounded-2xl border text-[10px] font-black uppercase ${item.cls}`}
     >
       {t(item.labelKey)}
     </span>
@@ -86,13 +79,11 @@ function StatusTextPill({ map, value }) {
 }
 
 // ===================== Helpers =====================
-
 const formatDateYMD = (dateLike) => {
   if (!dateLike) return "-";
   const d = new Date(dateLike);
   if (isNaN(d.getTime())) return "-";
-  // ใช้ en-CA เพื่อให้ได้ format YYYY-MM-DD เสมอ หรือจะใช้ th-TH ก็ได้ตามต้องการ
-  return d.toLocaleDateString("en-CA"); 
+  return d.toLocaleDateString("en-CA");
 };
 
 const formatTimeHMS = (dateLike) => {
@@ -130,52 +121,43 @@ export default function HistoryTable({
   leaveData = [],
   buildFileUrl,
   onDeletedLeaveSuccess,
-  workEndTime, // e.g. "17:00"
+  workEndTime,
 }) {
   const { t } = useTranslation();
 
-  // Helper เพื่อเรียก translate แบบปลอดภัย
-  const tt = (key, fallback) => {
-    const v = t(key);
-    return v && v !== key ? v : fallback;
-  };
-
   const pad2 = (n) => String(n).padStart(2, "0");
-  
 
-
-   
-  // สีของ Status ใน Tab Leave
+  // ===================== Leave Status Badge =====================
   const getLeaveStatusStyle = (status) => {
     const config = {
-      approved: { 
-        cls: "bg-emerald-50 text-emerald-600 border-emerald-100", 
-        label: t("leaveApproval.status.approved", "Approved") 
+      approved: {
+        cls: "bg-emerald-50 text-emerald-600 border-emerald-100",
+        label: t("leaveApproval.status.approved", "Approved"),
       },
-      rejected: { 
-        cls: "bg-rose-50 text-rose-600 border-rose-100", 
-        label: t("leaveApproval.status.rejected", "Rejected") 
+      rejected: {
+        cls: "bg-rose-50 text-rose-600 border-rose-100",
+        label: t("leaveApproval.status.rejected", "Rejected"),
       },
-      cancelled: { 
-        cls: "bg-slate-50 text-slate-600 border-slate-100", 
-        label: t("leaveApproval.status.cancelled", "Cancelled") 
+      cancelled: {
+        cls: "bg-slate-50 text-slate-600 border-slate-100",
+        label: t("leaveApproval.status.cancelled", "Cancelled"),
       },
-      withdraw: { 
-        cls: "bg-slate-50 text-slate-600 border-slate-100", 
-        label: t("leaveApproval.status.withdraw", "Withdraw") 
+      withdraw: {
+        cls: "bg-slate-50 text-slate-600 border-slate-100",
+        label: t("leaveApproval.status.withdraw", "Withdraw"),
       },
-      withdraw_pending: { 
-        cls: "bg-orange-50 text-orange-600 border-orange-100", 
-        label: t("leaveApproval.status.withdrawPending", "Withdraw Pending") 
+      // ✅ ให้ withdraw_pending แสดงเป็น withdraw ตาม requirement
+      withdraw_pending: {
+        cls: "bg-slate-50 text-slate-600 border-slate-100",
+        label: t("leaveApproval.status.withdraw", "Withdraw"),
       },
-      pending: { 
-        cls: "bg-amber-50 text-amber-600 border-amber-100", 
-        label: t("leaveApproval.status.pending", "Pending") 
+      pending: {
+        cls: "bg-amber-50 text-amber-600 border-amber-100",
+        label: t("leaveApproval.status.pending", "Pending"),
       },
     };
 
     const s = String(status || "").toLowerCase();
-    // ถ้าไม่เจอสถานะที่ระบุ ให้ดึงค่าจาก pending มาใช้
     return config[s] || config.pending;
   };
 
@@ -188,16 +170,12 @@ export default function HistoryTable({
     const d1 = new Date(s);
     if (!isNaN(d1.getTime())) return d1;
 
-    // Try DD/MM/YYYY or DD-MM-YYYY
     const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-    if (m1) {
-      return new Date(Number(m1[3]), Number(m1[2]) - 1, Number(m1[1]));
-    }
-    // Try YYYY/MM/DD
+    if (m1) return new Date(Number(m1[3]), Number(m1[2]) - 1, Number(m1[1]));
+
     const m2 = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-    if (m2) {
-      return new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
-    }
+    if (m2) return new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
+
     return null;
   };
 
@@ -242,7 +220,7 @@ export default function HistoryTable({
 
     return (rawData || []).filter((item) => {
       const dateObj = tab === "attendance" ? getRowDate(item) : getLeaveDate(item);
-      if (!dateObj || isNaN(dateObj.getTime())) return true; // keep if invalid date to be safe
+      if (!dateObj || isNaN(dateObj.getTime())) return true;
 
       if (y != null && dateObj.getFullYear() !== y) return false;
       if (m != null && dateObj.getMonth() + 1 !== m) return false;
@@ -263,7 +241,6 @@ export default function HistoryTable({
   const onNext = () => canNext && setPage((p) => p + 1);
   const goTo = (n) => setPage(Math.min(Math.max(1, n), totalPages));
 
-  // Generate Page Numbers
   const pageNumbers = useMemo(() => {
     const maxButtons = 5;
     const pages = [];
@@ -282,7 +259,7 @@ export default function HistoryTable({
     return pages;
   }, [page, totalPages]);
 
-  // ===================== Logic Normalization =====================
+  // ===================== Normalization =====================
   const normalizeBool = (v) => {
     if (v === true || v === false) return v;
     if (v === 1 || v === 0) return Boolean(v);
@@ -310,7 +287,6 @@ export default function HistoryTable({
   const normalizeInStatus = (s) => {
     const raw = String(s ?? "").trim();
     if (!raw) return "";
-    // Check Thai keywords just in case
     if (raw === "ตรงเวลา") return "ON_TIME";
     if (raw === "สาย") return "LATE";
     if (raw === "ลา") return "LEAVE";
@@ -334,28 +310,23 @@ export default function HistoryTable({
 
   // ===================== Status Logic =====================
   const computeCheckInStatus = (row) => {
-    // 1. Check raw status from backend
     const sRaw = row?.checkInStatus || row?.check_in_status;
     const s = normalizeInStatus(sRaw);
     if (s && CHECKIN_BADGE[s]) return s;
 
-    // 2. Check Logic
     const inTime =
       row?.checkInTime ||
       row?.check_in_time ||
       row?.checkIn ||
       row?.checkInDisplay;
-    
+
     const hasIn = !isPlaceholderTime(inTime);
 
-    // ถ้าไม่มีเวลาเข้า = Absent (ยกเว้นว่าเป็นวันลา)
     if (!hasIn) {
-       // ถ้ามี flag ว่าลา
-       if(row?.isLeave || row?.is_leave) return "LEAVE";
-       return "ABSENT";
+      if (row?.isLeave || row?.is_leave) return "LEAVE";
+      return "ABSENT";
     }
 
-    // ถ้ามี flag late
     const late = normalizeBool(row?.isLate ?? row?.late ?? row?.is_late);
     if (late) return "LATE";
 
@@ -363,15 +334,12 @@ export default function HistoryTable({
   };
 
   const computeCheckOutStatus = (row) => {
-    // 1. Check raw status from backend
     const sRaw = row?.checkOutStatus || row?.check_out_status;
     const s = normalizeOutStatus(sRaw);
     if (s && CHECKOUT_BADGE[s]) return s;
 
-    // 2. ถ้าเป็นวันลา
     if (row?.isLeave || row?.is_leave) return "LEAVE";
 
-    // 3. เวลาออก
     const outTime =
       row?.checkOutTime ||
       row?.check_out_time ||
@@ -379,34 +347,26 @@ export default function HistoryTable({
       row?.checkOutDisplay;
 
     const hasOut = !isPlaceholderTime(outTime);
-    
-    // ถ้าไม่มีเวลาออก
-    if (!hasOut) {
-      // ตรวจสอบว่าเป็นวันนี้หรือไม่? ถ้าเป็นวันนี้แล้วยังไม่ถึงเวลาเลิกงาน อาจจะยังไม่ checkout
-      // แต่นี่คือ History Table (อดีต) ดังนั้นเหมาว่าเป็น NO_CHECKOUT ได้เลย
-      // หรือถ้ายังไม่จบวัน อาจจะเป็น NOT_YET (optional)
-      return "NO_CHECKOUT";
-    }
 
-    // 4. Early Check Logic
+    if (!hasOut) return "NO_CHECKOUT";
+
     const expectedEnd =
       row?.workEndTime ||
       row?.endTime ||
-      workEndTime || // Prop passed from parent
+      workEndTime ||
       null;
 
     const outMin = timeToMinutes(outTime);
     const endMin = timeToMinutes(expectedEnd);
 
     if (outMin != null && endMin != null) {
-      // ถ้ายอมรับได้ +/- 1 นาที ให้ใช้ logic นี้ (optional)
       if (outMin < endMin - 1) return "EARLY";
     }
 
     return "NORMAL";
   };
 
-  // ===================== Leave Logic =====================
+  // ===================== Leave Helpers =====================
   const calcLeaveDays = (leave) => {
     const raw = leave?.totalDaysRequested ?? leave?.days ?? leave?.totalDays;
     const n = Number(raw);
@@ -427,14 +387,15 @@ export default function HistoryTable({
       return `${a.firstName || ""} ${a.lastName || ""}`.trim();
     if (typeof leave?.approvedBy === "string") return leave.approvedBy;
     if (typeof leave?.rejectedBy === "string") return leave.rejectedBy;
-    if (String(leave?.status || "").toLowerCase() === "pending") return "-"; // Waiting
+    if (String(leave?.status || "").toLowerCase() === "pending") return "-";
     return "-";
   };
 
-  // Actions
+  // ===================== Actions =====================
   const handleDeleteLeave = async (leave) => {
     try {
       if (!leave?.id) return;
+
       const ok = await alertConfirm(
         t("history.deleteTitle"),
         t("history.deleteText", { type: leave.typeName || "Leave" }),
@@ -442,23 +403,32 @@ export default function HistoryTable({
       );
       if (!ok) return;
 
-      // ปรับ API endpoint ตามจริง
+      // ✅ FIX: ต้องเป็น /leaves (พหูพจน์) ให้ตรง backend
       const res = await api.delete(`/leaves/${leave.id}`);
-      
+
       await alertSuccess(t("common.success"), t("leaveType.success.deleted"));
       onDeletedLeaveSuccess?.(res?.data?.data || leave);
     } catch (err) {
-      alertError(t("common.error"), err?.response?.data?.message || t("common.deleteFailed"));
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        t("common.deleteFailed");
+      alertError(t("common.error"), msg);
     }
   };
 
   const handleRequestCancelLeave = async (leave) => {
     try {
       if (!leave?.id) return;
-      const reason = await alertCancelReason(); // SweetAlert input
+
+      const reason = await alertCancelReason();
       if (!reason) return;
 
-      const res = await api.post(`/leaves/cancel/${leave.id}`, { cancelReason: reason });
+      // ✅ FIX: ต้องเป็น /leaves/cancel/:id ให้ตรง backend
+      const res = await api.post(`/leaves/cancel/${leave.id}`, {
+        cancelReason: reason,
+      });
+
       const updated = res?.data?.data;
 
       await alertSuccess(t("common.success"), t("leaveRequest.successTitle"));
@@ -466,11 +436,15 @@ export default function HistoryTable({
         updated || { ...leave, cancelReason: reason, status: "Withdraw_Pending" }
       );
     } catch (err) {
-      alertError(t("common.error"), err?.response?.data?.message || t("common.systemError"));
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        t("common.systemError");
+      alertError(t("common.error"), msg);
     }
   };
 
-  // UI Strings
+  // ===================== UI Strings =====================
   const isAll = filterYear === "all" && filterMonth === "all" && filterDay === "all";
   const displayDateText = useMemo(() => {
     if (isAll) return t("dateGridPicker.all");
@@ -598,7 +572,6 @@ export default function HistoryTable({
 
           <tbody className="text-[11px] font-bold uppercase">
             {tab === "attendance" ? (
-              // ================= ATTENDANCE ROWS =================
               pagedData.length > 0 ? (
                 pagedData.map((row, i) => {
                   const workDate = getRowDate(row);
@@ -634,9 +607,7 @@ export default function HistoryTable({
 
                   return (
                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
-                      <td className="px-6 py-4 text-slate-600">
-                        {formatDateYMD(workDate)}
-                      </td>
+                      <td className="px-6 py-4 text-slate-600">{formatDateYMD(workDate)}</td>
 
                       <td className="px-6 py-4">
                         <span className="text-emerald-600">{inTimeText}</span>
@@ -666,16 +637,25 @@ export default function HistoryTable({
               pagedData.length > 0 ? (
                 pagedData.map((leave, i) => {
                   if (!leave) return null;
+
                   const days = calcLeaveDays(leave);
+
                   const note =
                     leave.reason ||
                     leave.note ||
                     leave.remark ||
-                    (leave.cancelReason ? `${t("leaveApproval.labels.cancelReason")}: ${leave.cancelReason}` : null) ||
+                    (leave.cancelReason
+                      ? `${t("leaveApproval.labels.cancelReason")}: ${leave.cancelReason}`
+                      : null) ||
                     (leave.rejectionReason ? `Rejected: ${leave.rejectionReason}` : null) ||
                     "-";
+
                   const signedBy = getSignedBy(leave);
                   const statusStyle = getLeaveStatusStyle(leave.status);
+
+                  const statusLower = String(leave.status || "").trim().toLowerCase();
+                  const canDelete = statusLower === "pending";   // ✅ เฉพาะ pending เท่านั้น
+                  const canCancel = statusLower === "approved";  // ✅ เฉพาะ approved เท่านั้น
 
                   return (
                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
@@ -686,17 +666,18 @@ export default function HistoryTable({
                       </td>
 
                       <td className="px-6 py-4 text-gray-500">
-                        {leave?.startDate ? new Date(leave.startDate).toLocaleDateString("en-GB") : "-"} -{" "}
-                        {leave?.endDate ? new Date(leave.endDate).toLocaleDateString("en-GB") : "-"}
+                        {leave?.startDate
+                          ? new Date(leave.startDate).toLocaleDateString("en-GB")
+                          : "-"}{" "}
+                        -{" "}
+                        {leave?.endDate
+                          ? new Date(leave.endDate).toLocaleDateString("en-GB")
+                          : "-"}
                       </td>
 
-                      <td className="px-6 py-4 text-center text-slate-600 font-bold">
-                        {days}
-                      </td>
+                      <td className="px-6 py-4 text-center text-slate-600 font-bold">{days}</td>
 
-                      <td className="px-6 py-4 text-gray-500 normal-case max-w-xs truncate">
-                        {note}
-                      </td>
+                      <td className="px-6 py-4 text-gray-500 normal-case max-w-xs truncate">{note}</td>
 
                       <td className="px-6 py-4 text-center">
                         {leave.attachmentUrl ? (
@@ -719,13 +700,14 @@ export default function HistoryTable({
                       </td>
 
                       <td className="px-6 py-4 text-center">
-  <span className={`px-3 py-1.5 rounded-xl border-2 ${statusStyle.cls}`}>
-    {statusStyle.label}
-  </span>
-</td>
+                        <span className={`px-3 py-1.5 rounded-xl border-2 whitespace-nowrap ${statusStyle.cls}`}>
+                          {statusStyle.label}
+                        </span>
+                      </td>
 
+                      {/* ✅ ACTION: Pending=Delete, Approved=Request Cancel, อื่นๆ = '-' (รวม Withdraw) */}
                       <td className="px-6 py-4 text-center">
-                        {String(leave.status || "").toLowerCase() === "pending" ? (
+                        {canDelete ? (
                           <div className="inline-flex items-center justify-center">
                             <button
                               onClick={() => handleDeleteLeave(leave)}
@@ -734,7 +716,7 @@ export default function HistoryTable({
                               {t("common.delete")}
                             </button>
                           </div>
-                        ) : String(leave.status || "").toLowerCase() === "approved" ? (
+                        ) : canCancel ? (
                           <div className="inline-flex items-center justify-center">
                             <button
                               onClick={() => handleRequestCancelLeave(leave)}
@@ -762,7 +744,7 @@ export default function HistoryTable({
         </table>
 
         {/* Footer / Pagination */}
-        {(filteredData.length > 0) && (
+        {filteredData.length > 0 && (
           <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-col sm:flex-row">
             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               {t("common.page")} {page} / {totalPages} • {t("common.showing")}{" "}

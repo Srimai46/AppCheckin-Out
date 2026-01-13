@@ -55,6 +55,9 @@ router.post(
 // ยกเลิกใบลา
 router.post("/cancel/:id", protect, requestController.cancelLeaveRequest);
 
+// ลบคำขอ (เฉพาะตอน HR ยังไม่ทำอะไร / Pending เท่านั้น)
+router.delete("/:id", protect, requestController.deleteLeaveRequest);
+
 // ---------------- HR (ผู้ดูแลระบบ) ----------------
 
 // ดูรายการลาทั้งหมด (Filter ได้)

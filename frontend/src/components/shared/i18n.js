@@ -15,7 +15,7 @@ i18n.use(initReactI18next).init({
       translation: {
         /* -------- Dashboard -------- */
         dashboard: {
-          ay: "Dashboard",
+          title: "Dashboard",
           attendance: "Attendance",
           welcome: "Welcome, {{firstName}} {{lastName}}",
           selectYear: "Select Year",
@@ -364,6 +364,7 @@ i18n.use(initReactI18next).init({
           },
 
           confirmTitle: "Confirm Leave Request",
+          confirmText: "Do you want to submit this leave request?",
           confirmButton: "Submit Request",
 
           successTitle: "Request Submitted",
@@ -545,6 +546,8 @@ i18n.use(initReactI18next).init({
           password: "Password",
           passwordHint: "Minimum 6 characters",
 
+          confirmTitle: "Confirm Registration",
+          confirmButton: "Register",
           cancel: "Cancel",
           submit: "Register",
           processing: "Processing...",
@@ -1182,6 +1185,7 @@ i18n.use(initReactI18next).init({
           },
 
           confirmTitle: "ยืนยันคำขอลา",
+          confirmText: "คุณต้องการส่งคำขอลานี้ใช่หรือไม่",
           confirmButton: "ส่งคำขอ",
 
           successTitle: "ส่งคำขอสำเร็จ",
@@ -1362,6 +1366,8 @@ i18n.use(initReactI18next).init({
           password: "รหัสผ่าน",
           passwordHint: "อย่างน้อย 6 ตัวอักษร",
 
+          confirmTitle: "ยืนยันการเพิ่มพนักงาน",
+          confirmButton: "ลงทะเบียน",
           cancel: "ยกเลิก",
           submit: "บันทึก",
           processing: "กำลังดำเนินการ...",

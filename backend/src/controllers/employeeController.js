@@ -1,6 +1,29 @@
+// controllers/employeeController.js
 const prisma = require("../config/prisma");
 const bcrypt = require("bcryptjs");
 const { auditLog } = require("../utils/logger");
+
+// ==============================
+// ✅ Role helpers (FIX Worker vs WORKER)
+// ==============================
+const normalizeRole = (val) => {
+  const raw = String(val ?? "").trim();
+  const up = raw.toUpperCase();
+
+  if (up === "HR") return "HR";
+  if (up === "WORKER" || up === "WORK") return "WORKER";
+  // รองรับ FE ส่ง "Worker"
+  if (raw === "Worker") return "WORKER";
+
+  return null;
+};
+
+const presentRole = (val) => {
+  const up = String(val ?? "").trim().toUpperCase();
+  if (up === "WORKER") return "Worker";
+  if (up === "HR") return "HR";
+  return val;
+};
 
 // --- Helper Functions ---
 const formatShortDate = (date) => {
@@ -49,7 +72,6 @@ const hhmmToMinutes = (val) => {
 const normalizeEndTimeToHHmm = (val) => {
   if (!val) return null;
 
-  // ถ้ามาเป็น Date/DateTime
   if (val instanceof Date) {
     const hhmm = val.toLocaleTimeString("en-GB", {
       timeZone: "Asia/Bangkok",
@@ -60,7 +82,6 @@ const normalizeEndTimeToHHmm = (val) => {
     return hhmm || null;
   }
 
-  // ถ้ามาเป็น string: "17:00" หรือ "17:00:00"
   const s = String(val).trim();
   const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (!m) return null;
@@ -69,9 +90,8 @@ const normalizeEndTimeToHHmm = (val) => {
   return `${hh}:${mm}`;
 };
 
-// ✅ ดึงเวลาเลิกงานจากหลาย model/field แบบทนทาน
+// ✅ ดึงเวลาเลิกงานจากหลาย model/field แบบทนทาน (คงไว้ เผื่อใช้)
 const fetchWorkEndTime = async () => {
-  // รายชื่อ model ที่พบบ่อยในโปรเจค HR attendance
   const modelCandidates = [
     "systemConfig",
     "workConfiguration",
@@ -80,37 +100,19 @@ const fetchWorkEndTime = async () => {
     "config",
   ];
 
-  // field ที่พบบ่อย
   const fieldCandidates = ["endTime", "workEndTime", "end_time", "work_end_time"];
-
-  // ✅ DEBUG
-  // console.log("[getEmployeeById] === fetchWorkEndTime() start ===");
-  // console.log("[getEmployeeById] prisma models available =>", Object.keys(prisma || {}));
 
   for (const modelName of modelCandidates) {
     const model = prisma?.[modelName];
-    
-    // ✅ DEBUG
-    // console.log(`[getEmployeeById] try model => ${modelName}`, !!model);
-
     if (!model?.findFirst) continue;
 
-    // ลอง select field ทีละชื่อ (เพราะบาง schema ไม่มี field นั้น)
     for (const field of fieldCandidates) {
       try {
-        const row = await model.findFirst({
-          select: { [field]: true },
-          // ถ้าตารางไม่มี id จะไม่พัง เพราะ orderBy ไม่ได้ใส่
-        });
-
+        const row = await model.findFirst({ select: { [field]: true } });
         const rawVal = row?.[field];
         const hhmm = normalizeEndTimeToHHmm(rawVal);
-
-        if (hhmm) {
-          return { endTime: hhmm, source: `${modelName}.${field}` };
-        }
+        if (hhmm) return { endTime: hhmm, source: `${modelName}.${field}` };
       } catch (e) {
-        // ข้าม field ที่ select ไม่ได้
         continue;
       }
     }
@@ -134,14 +136,20 @@ exports.getAllEmployees = async (req, res) => {
       },
       orderBy: { id: "asc" },
     });
-    res.json(employees);
+
+    // ✅ FIX: ส่ง role ให้ FE เป็น Worker/HR เหมือนเดิม
+    res.json(
+      employees.map((e) => ({
+        ...e,
+        role: presentRole(e.role),
+      }))
+    );
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "There is something wrong with the server" });
   }
 };
 
-// 2. ดึงรายละเอียดพนักงานรายคน + โควตา + ประวัติ
 // 2. ดึงรายละเอียดพนักงานรายคน + โควตา + ประวัติ
 exports.getEmployeeById = async (req, res) => {
   try {
@@ -185,51 +193,21 @@ exports.getEmployeeById = async (req, res) => {
     // =========================================================
     // ✅ FIX: ดึงเวลาเลิกงานจาก WorkConfiguration (ตาม role)
     // =========================================================
-    const roleForConfig = employee.role; // Role enum: WORKER / HR
+    const roleForConfig = employee.role; // enum ใน DB: WORKER / HR
 
     const workCfg = await prisma.workConfiguration.findUnique({
       where: { role: roleForConfig },
       select: { endHour: true, endMin: true, startHour: true, startMin: true, role: true },
     });
 
-    // ✅ DEBUG (คอมเมนท์ไว้ตามที่ขอ)
-    // console.log("[getEmployeeById] employee.role =>", roleForConfig);
-    // console.log("[getEmployeeById] workConfiguration =>", workCfg);
-
-    // สร้าง "HH:mm" สำหรับ frontend ใช้งาน (เช่น "17:00")
     const workEndTime =
       workCfg && Number.isFinite(workCfg.endHour) && Number.isFinite(workCfg.endMin)
         ? `${String(workCfg.endHour).padStart(2, "0")}:${String(workCfg.endMin).padStart(2, "0")}`
         : null;
 
-    console.log("[getEmployeeById] computed workEndTime =>", workEndTime);
-
-    // ✅ helper: Bangkok minutes
-    const timeToMinutesBangkok = (dateObj) => {
-      if (!dateObj) return null;
-      const t = new Date(dateObj).toLocaleTimeString("en-GB", {
-        timeZone: "Asia/Bangkok",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-      const m = String(t).match(/^(\d{2}):(\d{2})$/);
-      if (!m) return null;
-      return Number(m[1]) * 60 + Number(m[2]);
-    };
-
-    const hhmmToMinutes = (val) => {
-      if (!val) return null;
-      const s = String(val).trim();
-      const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-      if (!m) return null;
-      return Number(m[1]) * 60 + Number(m[2]);
-    };
-
     const endMin = hhmmToMinutes(workEndTime);
 
     res.json({
-      // ✅ สำคัญ: ส่งให้ EmployeeDetail/HistoryTable ใช้คำนวณ "ออกก่อนเวลา"
       workEndTime, // "HH:mm" หรือ null
 
       info: {
@@ -238,7 +216,8 @@ exports.getEmployeeById = async (req, res) => {
         firstName: employee.firstName,
         lastName: employee.lastName,
         email: employee.email,
-        role: employee.role,
+        // ✅ FIX: ส่งให้ FE เป็น Worker/HR
+        role: presentRole(employee.role),
         joiningDate: formatShortDate(employee.joiningDate),
         isActive: employee.isActive,
       },
@@ -260,12 +239,15 @@ exports.getEmployeeById = async (req, res) => {
         };
       }),
 
-      // ✅ ส่ง field ให้ตรงกับ frontend: checkInTime/checkOutTime/checkInStatus/checkOutStatus
       attendance: employee.timeRecords.map((record) => {
         const outMin = timeToMinutesBangkok(record.checkOutTime);
         const isEarly = endMin != null && outMin != null ? outMin < endMin : false;
 
-        const checkOutStatus = !record.checkOutTime ? "NO_CHECKOUT" : isEarly ? "EARLY" : "NORMAL";
+        const checkOutStatus = !record.checkOutTime
+          ? "NO_CHECKOUT"
+          : isEarly
+          ? "EARLY"
+          : "NORMAL";
 
         return {
           id: record.id,
@@ -424,7 +406,9 @@ exports.createEmployee = async (req, res) => {
 
     const quotaMap = { Sick: 30, Personal: 6, Annual: 6, Emergency: 5 };
     const currentYear = new Date().getFullYear();
-    const assignedRole = role || "Worker";
+
+    // ✅ FIX: Role ให้ตรง enum ใน DB (WORKER/HR)
+    const assignedRole = normalizeRole(role) || "WORKER";
 
     const result = await prisma.$transaction(async (tx) => {
       const newEmployee = await tx.employee.create({
@@ -433,7 +417,7 @@ exports.createEmployee = async (req, res) => {
           lastName,
           email,
           passwordHash: hashedPassword,
-          role: assignedRole,
+          role: assignedRole, // ✅ WORKER/HR
           joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
           isActive: true,
         },
@@ -504,10 +488,17 @@ exports.createEmployee = async (req, res) => {
       });
     }
 
-    res.status(201).json({ message: "Add employee successful", employee: result.newEmployee });
+    res.status(201).json({
+      message: "Add employee successful",
+      employee: {
+        ...result.newEmployee,
+        role: presentRole(result.newEmployee.role),
+      },
+    });
   } catch (error) {
     console.error("createEmployee Error:", error);
-    res.status(500).json({ error: "Add employee fail" });
+    // ✅ FIX: ส่ง message จริงกลับไป จะได้รู้สาเหตุแท้จริง
+    res.status(500).json({ error: error?.message || "Add employee fail" });
   }
 };
 
@@ -535,10 +526,12 @@ exports.getAttendanceStats = async (req, res) => {
       checkedIn: records.length,
       late: records.filter((r) => r.isLate).length,
       absent: Math.max(0, totalEmployees - records.length),
-      lateDetails: records.filter((r) => r.isLate).map((r) => ({
-        name: `${r.employee.firstName} ${r.employee.lastName}`,
-        time: formatThaiTime(r.checkInTime),
-      })),
+      lateDetails: records
+        .filter((r) => r.isLate)
+        .map((r) => ({
+          name: `${r.employee.firstName} ${r.employee.lastName}`,
+          time: formatThaiTime(r.checkInTime),
+        })),
     });
   } catch (error) {
     res.status(500).json({ error: "Unable to retrieve statistical data." });
@@ -640,7 +633,7 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
-// 7. แก้ไขข้อมูลพนักงาน (ชื่อ-นามสกุล)
+// 7. แก้ไขข้อมูลพนักงาน (ชื่อ-นามสกุล/อีเมล/role) - PUT (Admin/HR)
 exports.updateEmployee = async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -652,21 +645,19 @@ exports.updateEmployee = async (req, res) => {
       select: { firstName: true, lastName: true },
     });
 
-    const allowedRoles = ["Worker", "HR"];
-    if (role !== undefined) {
-      const r = String(role).trim();
-      if (!allowedRoles.includes(r)) {
-        return res.status(400).json({
-          error: `Invalid role (allowed: ${allowedRoles.join(", ")})`,
-        });
-      }
-    }
-
     const dataToUpdate = {};
     if (firstName !== undefined) dataToUpdate.firstName = firstName;
     if (lastName !== undefined) dataToUpdate.lastName = lastName;
     if (email !== undefined) dataToUpdate.email = email;
-    if (role !== undefined) dataToUpdate.role = String(role).trim();
+
+    // ✅ FIX: normalize role ก่อน update (WORKER/HR)
+    if (role !== undefined) {
+      const normalized = normalizeRole(role);
+      if (!normalized) {
+        return res.status(400).json({ error: "Invalid role (allowed: Worker / HR)" });
+      }
+      dataToUpdate.role = normalized;
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const oldEmployee = await tx.employee.findUnique({
@@ -748,7 +739,13 @@ exports.updateEmployee = async (req, res) => {
       });
     }
 
-    return res.json({ message: "Employee updated", employee: result.updated });
+    return res.json({
+      message: "Employee updated",
+      employee: {
+        ...result.updated,
+        role: presentRole(result.updated.role),
+      },
+    });
   } catch (err) {
     console.error("UpdateEmployee Error:", err);
     if (err.code === "P2002") {

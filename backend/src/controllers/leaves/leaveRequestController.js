@@ -1033,3 +1033,44 @@ exports.grantSpecialLeave = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// ✅ DELETE: ลบคำขอได้เฉพาะตอน Pending และเป็นของตัวเอง
+exports.deleteLeaveRequest = async (req, res) => {
+  try {
+    const leaveId = parseInt(req.params.id, 10);
+    const userId = req.user.id;
+
+    if (!leaveId) return res.status(400).json({ error: "Invalid leave ID" });
+
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id: leaveId },
+      select: { id: true, employeeId: true, status: true, attachmentUrl: true },
+    });
+
+    if (!request) return res.status(404).json({ error: "Leave request not found." });
+    if (request.employeeId !== userId) return res.status(403).json({ error: "Unauthorized." });
+
+    // ✅ ลบได้เฉพาะ Pending เท่านั้น
+    if (request.status !== "Pending") {
+      return res.status(400).json({ error: `Cannot delete a request with status: ${request.status}` });
+    }
+
+    await prisma.leaveRequest.delete({ where: { id: leaveId } });
+
+    // ลบไฟล์แนบถ้ามี
+    if (request.attachmentUrl) {
+      const fileName = path.basename(request.attachmentUrl);
+      const fullPath = path.join(process.cwd(), "uploads", "leaves", fileName);
+      if (fs.existsSync(fullPath)) {
+        fs.unlink(fullPath, (err) => {
+          if (err) console.error("❌ Delete file error:", err);
+        });
+      }
+    }
+
+    return res.json({ message: "Leave request deleted successfully.", data: { id: leaveId } });
+  } catch (error) {
+    console.error("DeleteLeaveRequest Error:", error);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
