@@ -1,6 +1,7 @@
 // src/pages/teamCalendar/components/CalendarGrid.jsx
 import React, { useMemo } from "react";
 import { format } from "date-fns";
+import { useTranslation } from "react-i18next";
 import { leaveTheme, weekendBgByDow, matchLeaveType as defaultMatch } from "../utils";
 
 export default function CalendarGrid({
@@ -15,6 +16,8 @@ export default function CalendarGrid({
   isToday,
   matchLeaveType = defaultMatch,
 }) {
+  const { t } = useTranslation();
+
   const leavesByKey = useMemo(() => {
     const map = new Map();
     (leaves || []).forEach((leaf) => {
@@ -35,8 +38,8 @@ export default function CalendarGrid({
     });
 
     const typeCounts = dayLeaves.reduce((acc, leaf) => {
-      const t = String(leaf.type || "UNKNOWN").toUpperCase();
-      acc[t] = (acc[t] || 0) + 1;
+      const type = String(leaf.type || "UNKNOWN").toUpperCase();
+      acc[type] = (acc[type] || 0) + 1;
       return acc;
     }, {});
 
@@ -85,7 +88,9 @@ export default function CalendarGrid({
               </div>
 
               {loading ? (
-                <div className="mt-2 text-[10px] text-gray-300 font-bold">loading...</div>
+                <div className="mt-2 text-[10px] text-gray-300 font-bold">
+                  {t("teamCalendar.grid.loading")}
+                </div>
               ) : (
                 <div className="mt-2 space-y-1">
                   {typeBadges.map(([type, count]) => {
@@ -108,9 +113,10 @@ export default function CalendarGrid({
                       </div>
                     );
                   })}
+
                   {Object.keys(typeCounts).length > 3 && (
                     <div className="text-[10px] text-indigo-600 font-black pl-1 uppercase tracking-widest">
-                      +{Object.keys(typeCounts).length - 3} types
+                      {t("teamCalendar.grid.moreTypes", { count: Object.keys(typeCounts).length - 3 })}
                     </div>
                   )}
                 </div>

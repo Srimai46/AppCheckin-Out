@@ -1,6 +1,7 @@
 // src/pages/teamCalendar/components/DailyDetailsModal.jsx
 import React, { useCallback } from "react";
 import { format } from "date-fns";
+import { useTranslation } from "react-i18next";
 import {
   X,
   Clock,
@@ -13,12 +14,7 @@ import {
 } from "lucide-react";
 
 import { updateLeaveStatus, grantSpecialLeave } from "../../../api/leaveService";
-import {
-  alertConfirm,
-  alertSuccess,
-  alertError,
-  alertRejectReason,
-} from "../../../utils/sweetAlert";
+import { alertConfirm, alertSuccess, alertError, alertRejectReason } from "../../../utils/sweetAlert";
 import { openAttachment } from "../../../utils/attachmentPreview";
 
 import Pill from "./Pill";
@@ -52,6 +48,8 @@ export default function DailyDetailsModal({
 
   refetchLeaves,
 }) {
+  const { t } = useTranslation();
+
   const handleLeaveActionInModal = useCallback(
     async (mode, leaf) => {
       if (!leaf?.id) return;
@@ -61,26 +59,25 @@ export default function DailyDetailsModal({
 
       const actionText =
         mode === "Special"
-          ? "Special Approval (Non-deductible)"
+          ? t("teamCalendar.modal.actions.specialFull")
           : mode === "Approved"
-          ? "Normal Approve"
-          : "Reject";
+          ? t("teamCalendar.modal.actions.approveFull")
+          : t("teamCalendar.modal.actions.rejectFull");
 
       try {
         let rejectionReason = null;
 
         if (isReject) {
-          if (typeof alertRejectReason !== "function") {
-            throw new Error(
-              "alertRejectReason is not a function (check import from ../utils/sweetAlert)"
-            );
-          }
+          // alertRejectReason ปกติไปใช้ i18n ของ sweetAlert.reject.* อยู่แล้ว
           rejectionReason = await alertRejectReason();
-          if (!rejectionReason) return; // cancelled
+          if (!rejectionReason) return;
         } else {
           const ok = await alertConfirm(
-            `Confirm ${actionText}`,
-            `Process request of <b>${buildRowName(leaf)}</b> as <b>${actionText}</b>?`
+            t("teamCalendar.modal.confirm.title", { action: actionText }),
+            t("teamCalendar.modal.confirm.text", {
+              name: buildRowName(leaf),
+              action: actionText,
+            })
           );
           if (!ok) return;
         }
@@ -89,7 +86,9 @@ export default function DailyDetailsModal({
           await grantSpecialLeave({
             employeeId: leaf.employeeId ?? leaf.employee?.id,
             amount: leaf.totalDaysRequested ?? 1,
-            reason: `Special Case Approval for: ${leaf.reason || leaf.note || "No reason"}`,
+            reason: `${t("teamCalendar.modal.specialReasonPrefix")}: ${
+              leaf.reason || leaf.note || t("teamCalendar.modal.noReason")
+            }`,
             year: new Date(leaf.startDate).getFullYear(),
             leaveRequestId: leaf.id,
           });
@@ -98,14 +97,17 @@ export default function DailyDetailsModal({
           await updateLeaveStatus(leaf.id, finalStatus, isReject ? rejectionReason : null);
         }
 
-        await alertSuccess("Success", `Processed 1 request.`);
+        await alertSuccess(t("common.success"), t("teamCalendar.modal.toast.processedOne"));
         await refetchLeaves?.();
       } catch (err) {
-        alertError("Action Failed", err?.message || err?.response?.data?.message || "Unknown error");
+        alertError(
+          t("teamCalendar.modal.toast.actionFailedTitle"),
+          err?.message || err?.response?.data?.message || t("teamCalendar.modal.toast.unknownError")
+        );
         console.error(err);
       }
     },
-    [refetchLeaves]
+    [refetchLeaves, t]
   );
 
   if (!open) return null;
@@ -120,7 +122,7 @@ export default function DailyDetailsModal({
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-4xl sm:text-5xl font-black text-slate-900 leading-none">
-                Daily Details
+                {t("teamCalendar.modal.title")}
               </div>
               <div className="mt-2 text-[12px] font-black text-slate-500 uppercase tracking-[0.2em]">
                 {format(selectedDate, "dd MMMM yyyy")}
@@ -130,7 +132,8 @@ export default function DailyDetailsModal({
             <button
               onClick={onClose}
               className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 hover:bg-rose-50 hover:text-rose-600 transition flex items-center justify-center"
-              title="Close"
+              title={t("teamCalendar.actions.close")}
+              aria-label={t("teamCalendar.actions.close")}
             >
               <X size={22} />
             </button>
@@ -141,22 +144,22 @@ export default function DailyDetailsModal({
             <div className="flex flex-wrap items-center gap-2">
               <Pill
                 color="bg-emerald-100 text-emerald-700"
-                label="Checked In"
+                label={t("teamCalendar.modal.pills.checkedIn")}
                 value={modalSummary?.checkedIn ?? 0}
               />
               <Pill
                 color="bg-rose-100 text-rose-700"
-                label="Late"
+                label={t("teamCalendar.modal.pills.late")}
                 value={modalSummary?.late ?? 0}
               />
               <Pill
                 color="bg-slate-100 text-slate-700"
-                label="Absent"
+                label={t("teamCalendar.modal.pills.absent")}
                 value={modalSummary?.absent ?? 0}
               />
               <Pill
                 color="bg-sky-100 text-sky-700"
-                label="On Leave"
+                label={t("teamCalendar.modal.pills.onLeave")}
                 value={modalSummary?.onLeave ?? 0}
               />
             </div>
@@ -165,6 +168,8 @@ export default function DailyDetailsModal({
               <button
                 onClick={() => shiftDay?.(-1)}
                 className="w-11 h-11 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 transition font-black"
+                aria-label={t("teamCalendar.modal.nav.prevDay")}
+                title={t("teamCalendar.modal.nav.prevDay")}
               >
                 {"<"}
               </button>
@@ -172,13 +177,17 @@ export default function DailyDetailsModal({
               <button
                 onClick={() => goToday?.()}
                 className="h-11 px-5 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 transition font-black"
+                aria-label={t("teamCalendar.actions.today")}
+                title={t("teamCalendar.actions.today")}
               >
-                Today
+                {t("teamCalendar.actions.today")}
               </button>
 
               <button
                 onClick={() => shiftDay?.(1)}
                 className="w-11 h-11 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 transition font-black"
+                aria-label={t("teamCalendar.modal.nav.nextDay")}
+                title={t("teamCalendar.modal.nav.nextDay")}
               >
                 {">"}
               </button>
@@ -194,7 +203,7 @@ export default function DailyDetailsModal({
                   setTab?.("PENDING");
                   setRoleOpen?.(false);
                 }}
-                label="Pending Approvals"
+                label={t("teamCalendar.modal.tabs.pending")}
                 icon={<Clock size={14} />}
               />
               <TabButton
@@ -203,7 +212,7 @@ export default function DailyDetailsModal({
                   setTab?.("APPROVED");
                   setRoleOpen?.(false);
                 }}
-                label="Approved"
+                label={t("teamCalendar.modal.tabs.approved")}
                 icon={<CheckCircle2 size={14} />}
               />
               <TabButton
@@ -212,7 +221,7 @@ export default function DailyDetailsModal({
                   setTab?.("REJECTED");
                   setRoleOpen?.(false);
                 }}
-                label="Rejected"
+                label={t("teamCalendar.modal.tabs.rejected")}
                 icon={<XCircle size={14} />}
               />
             </div>
@@ -225,13 +234,17 @@ export default function DailyDetailsModal({
                 setOpen={setRoleOpen}
                 widthClass="w-full sm:w-[180px]"
                 size="sm"
-                labels={{ ALL: "All Roles", WORKER: "Worker", HR: "HR" }}
+                labels={{
+                  ALL: t("teamCalendar.modal.role.all"),
+                  WORKER: t("teamCalendar.modal.role.worker"),
+                  HR: t("teamCalendar.modal.role.hr"),
+                }}
               />
 
               <input
                 value={search || ""}
                 onChange={(e) => setSearch?.(e.target.value)}
-                placeholder="Search name, email, ID..."
+                placeholder={t("teamCalendar.modal.searchPlaceholder")}
                 className="w-full sm:w-[320px] h-11 px-4 rounded-2xl bg-white border border-slate-200
                           text-slate-800 font-black text-[11px]
                           placeholder:text-slate-300 placeholder:font-black
@@ -249,22 +262,26 @@ export default function DailyDetailsModal({
                 <thead className="bg-slate-50/80 border-b border-slate-100">
                   <tr>
                     <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
-                      Employee
+                      {t("teamCalendar.modal.table.employee")}
                     </th>
                     <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
-                      Type
+                      {t("teamCalendar.modal.table.type")}
                     </th>
                     <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
-                      Note/Reason
+                      {t("teamCalendar.modal.table.noteReason")}
                     </th>
                     <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
-                      Duration
+                      {t("teamCalendar.modal.table.duration")}
                     </th>
                     <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest text-center">
-                      Evidence
+                      {t("teamCalendar.modal.table.evidence")}
                     </th>
                     <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest text-center">
-                      {tab === "APPROVED" ? "Approved By" : tab === "REJECTED" ? "Rejected By" : "Action"}
+                      {tab === "APPROVED"
+                        ? t("teamCalendar.modal.table.approvedBy")
+                        : tab === "REJECTED"
+                        ? t("teamCalendar.modal.table.rejectedBy")
+                        : t("teamCalendar.modal.table.action")}
                     </th>
                   </tr>
                 </thead>
@@ -273,13 +290,13 @@ export default function DailyDetailsModal({
                   {loading ? (
                     <tr>
                       <td colSpan="6" className="p-16 text-center font-black italic text-blue-500 animate-pulse">
-                        SYNCHRONIZING DATA...
+                        {t("teamCalendar.modal.loading")}
                       </td>
                     </tr>
                   ) : (rows || []).length === 0 ? (
                     <tr>
                       <td colSpan="6" className="p-16 text-center text-slate-300 font-black uppercase text-sm">
-                        No Data
+                        {t("teamCalendar.modal.noData")}
                       </td>
                     </tr>
                   ) : (
@@ -297,15 +314,13 @@ export default function DailyDetailsModal({
 
                       return (
                         <tr key={leaf.id} className="hover:bg-slate-50/50 transition-all duration-200">
-                          {/* Employee */}
                           <td className="p-5 min-w-[200px]">
                             <div className="font-black text-slate-700 leading-none tracking-tight">{name}</div>
                             <div className="text-[9px] font-black text-slate-300 uppercase mt-1">
-                              Ref: #{leaf.id}
+                              {t("teamCalendar.modal.ref", { id: leaf.id })}
                             </div>
                           </td>
 
-                          {/* Type */}
                           <td className="p-5">
                             <span
                               className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${typeBadgeTheme(
@@ -316,13 +331,12 @@ export default function DailyDetailsModal({
                             </span>
                           </td>
 
-                          {/* Note/Reason */}
                           <td className="p-5 min-w-[260px]">
                             <div className="flex flex-col gap-1">
                               {leaf.reason && (
                                 <div
                                   className="flex items-start gap-1 text-slate-500 text-[11px] leading-tight"
-                                  title={`Reason: ${leaf.reason}`}
+                                  title={t("teamCalendar.modal.reasonTitle", { reason: leaf.reason })}
                                 >
                                   <MessageCircle size={12} className="mt-0.5 shrink-0 text-slate-400" />
                                   <span className="truncate max-w-[240px]">{leaf.reason}</span>
@@ -331,7 +345,7 @@ export default function DailyDetailsModal({
                               {leaf.note && (
                                 <div
                                   className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight"
-                                  title={`Note: ${leaf.note}`}
+                                  title={t("teamCalendar.modal.noteTitle", { note: leaf.note })}
                                 >
                                   <Info size={12} className="mt-0.5 shrink-0 text-amber-500" />
                                   <span className="truncate max-w-[240px]">{leaf.note}</span>
@@ -343,7 +357,6 @@ export default function DailyDetailsModal({
                             </div>
                           </td>
 
-                          {/* Duration */}
                           <td className="p-5 min-w-[220px]">
                             <div className="text-[11px] font-bold text-slate-500 italic whitespace-nowrap">
                               {dur.range}
@@ -353,50 +366,48 @@ export default function DailyDetailsModal({
                             </div>
                           </td>
 
-                          {/* Evidence */}
                           <td className="p-5 text-center">
                             {leaf.attachmentUrl ? (
                               <button
                                 onClick={() => openAttachment(leaf.attachmentUrl)}
                                 className="p-2 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-100 transition-all group"
-                                title="View Attachment"
+                                title={t("teamCalendar.modal.tooltips.viewAttachment")}
                               >
                                 <ImageIcon size={18} className="group-hover:scale-110 transition-transform" />
                               </button>
                             ) : (
                               <span className="text-[9px] font-black text-slate-200 uppercase tracking-widest italic">
-                                No File
+                                {t("teamCalendar.modal.noFile")}
                               </span>
                             )}
                           </td>
 
-                          {/* Action / HR Name */}
                           <td className="p-5 text-center min-w-[220px]">
                             {tab === "PENDING" ? (
                               <div className="flex justify-center gap-2">
                                 <button
                                   onClick={() => handleLeaveActionInModal("Approved", leaf)}
                                   className="flex items-center gap-2 px-3 py-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100"
-                                  title="Approve"
+                                  title={t("teamCalendar.modal.tooltips.approve")}
                                 >
-                                  <span className="text-sm font-medium">Approved</span>
+                                  <span className="text-sm font-medium">{t("teamCalendar.modal.actions.approve")}</span>
                                 </button>
 
                                 <button
                                   onClick={() => handleLeaveActionInModal("Special", leaf)}
                                   className="flex items-center gap-2 px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all border border-purple-100"
-                                  title="Special Approval"
+                                  title={t("teamCalendar.modal.tooltips.special")}
                                 >
                                   <Star size={16} />
-                                  <span className="text-sm font-medium">Special</span>
+                                  <span className="text-sm font-medium">{t("teamCalendar.modal.actions.special")}</span>
                                 </button>
 
                                 <button
                                   onClick={() => handleLeaveActionInModal("Rejected", leaf)}
                                   className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-slate-100"
-                                  title="Reject"
+                                  title={t("teamCalendar.modal.tooltips.reject")}
                                 >
-                                  <span className="text-sm font-medium">Rejected</span>
+                                  <span className="text-sm font-medium">{t("teamCalendar.modal.actions.reject")}</span>
                                 </button>
                               </div>
                             ) : (
@@ -415,7 +426,7 @@ export default function DailyDetailsModal({
           </div>
 
           <div className="pt-4 text-[10px] text-slate-300 font-black uppercase tracking-widest">
-            * Approved/Rejected tab will show HR name if backend provides approvedBy/rejectedBy.
+            {t("teamCalendar.modal.hrNameHint")}
           </div>
         </div>
       </div>

@@ -13,9 +13,10 @@ import {
   subMonths,
   addDays,
   subDays,
-  isSameDay,
 } from "date-fns";
+import { enUS, th as thLocale } from "date-fns/locale";
 import { Calendar as CalendarIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { LEAVE_TYPE_FILTERS, WEEK_HEADERS, SHIFT_START, PAGE_SIZE } from "./teamCalendar/constants";
 import { matchLeaveType } from "./teamCalendar/utils";
@@ -40,7 +41,12 @@ import TeamAttendancePanel from "./teamCalendar/components/TeamAttendancePanel";
 import DailyDetailsModal from "./teamCalendar/components/DailyDetailsModal";
 
 export default function TeamCalendar() {
+  const { t, i18n } = useTranslation();
+
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  // ✅ date-fns locale ตามภาษา
+  const dfLocale = useMemo(() => (i18n.language === "th" ? thLocale : enUS), [i18n.language]);
 
   // Leaves
   const { leaves, loading, refetchLeaves } = useLeaves();
@@ -131,10 +137,10 @@ export default function TeamCalendar() {
   );
 
   const goModalToday = useCallback(async () => {
-    const t = new Date();
-    setSelectedDate(t);
+    const today = new Date();
+    setSelectedDate(today);
     resetModalFilters();
-    await fetchModalAttendance(t);
+    await fetchModalAttendance(today);
   }, [fetchModalAttendance, resetModalFilters]);
 
   // Modal summary
@@ -173,10 +179,10 @@ export default function TeamCalendar() {
         <div className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
           <div className="flex items-start justify-between gap-4">
             <div className="text-4xl sm:text-6xl font-black text-slate-900 leading-none">
-              {format(currentDate, "MMMM")}
+              {format(currentDate, "MMMM", { locale: dfLocale })}
             </div>
             <div className="text-4xl sm:text-6xl font-black text-slate-900 leading-none">
-              {format(currentDate, "yyyy")}
+              {format(currentDate, "yyyy", { locale: dfLocale })}
             </div>
           </div>
         </div>
@@ -190,7 +196,7 @@ export default function TeamCalendar() {
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black shadow-lg shadow-indigo-200 transition-all active:scale-95"
               >
                 <CalendarIcon size={18} />
-                Today’s Overview ({todayCount})
+                {t("teamCalendar.actions.todayOverview", { count: todayCount })}
               </button>
 
               <LeaveTypeFilters
@@ -205,18 +211,24 @@ export default function TeamCalendar() {
                 <button
                   onClick={goPrev}
                   className="w-10 h-10 rounded-xl bg-white border border-gray-200 text-slate-800 font-black hover:bg-gray-50 transition active:scale-[0.98]"
+                  aria-label={t("common.prev")}
+                  title={t("common.prev")}
                 >
                   {"<"}
                 </button>
                 <button
                   onClick={goToday}
                   className="h-10 px-5 rounded-xl bg-white border border-gray-200 text-slate-800 font-black hover:bg-gray-50 transition active:scale-[0.98]"
+                  aria-label={t("common.today")}
+                  title={t("common.today")}
                 >
-                  Today
+                  {t("common.today")}
                 </button>
                 <button
                   onClick={goNext}
                   className="w-10 h-10 rounded-xl bg-white border border-gray-200 text-slate-800 font-black hover:bg-gray-50 transition active:scale-[0.98]"
+                  aria-label={t("common.next")}
+                  title={t("common.next")}
                 >
                   {">"}
                 </button>
@@ -249,7 +261,7 @@ export default function TeamCalendar() {
           />
 
           <div className="p-6 pt-4 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-            * Late rule: after {SHIFT_START}, NOT checked-in is counted as late.
+            {t("pages.teamCalendar.hints.lateRule", { time: SHIFT_START })}
           </div>
         </div>
       </div>
