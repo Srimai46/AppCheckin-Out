@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import LeavePolicyModal from "../components/LeavePolicyModal";
+import { useTranslation } from "react-i18next";
 import {
   Plus,
   User,
@@ -16,6 +17,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
+
 
 function PaginationBar({ page, totalPages, onPrev, onNext }) {
   return (
@@ -53,6 +55,7 @@ function PaginationBar({ page, totalPages, onPrev, onNext }) {
 
 export default function EmployeeList() {
   const [statusOpen, setStatusOpen] = useState(false);
+  const { t } = useTranslation();
 
   const navigate = useNavigate();
 
@@ -96,7 +99,7 @@ export default function EmployeeList() {
       setEmployees(list);
     } catch (err) {
       alertError(
-        "Failed to Load Data",
+        t("employeeCreate.failed")  ,
         err?.response?.data?.message ||
           "An error occurred while retrieving the information."
       );
@@ -183,7 +186,7 @@ export default function EmployeeList() {
     e.preventDefault();
 
     const confirmed = await alertConfirm(
-      "Confirm Employee Creation",
+      t("employeeCreate.confirmTitle") ,
       `
       <div style="text-align:left; line-height:1.7">
         <div style="font-weight:900; color:#0f172a; margin-bottom:6px">Please review the information below</div>
@@ -196,7 +199,7 @@ export default function EmployeeList() {
         </div>
       </div>
       `,
-      "Create Employee"
+      t("employeeCreate.confirmButton") 
     );
     if (!confirmed) return;
 
@@ -212,12 +215,12 @@ export default function EmployeeList() {
         joiningDate: formData.joiningDate,
       });
 
-      await alertSuccess("Success", "Added new employee successfully.");
+      await alertSuccess(t("employeeCreate.success") , "Added new employee successfully.");
       setShowModal(false);
       fetchEmployees();
     } catch (err) {
       alertError(
-        "Failed",
+      t("employeeCreate.failed") ,
         err?.response?.data?.error ||
           err?.response?.data?.message ||
           "An unexpected error occurred. Please try again."
@@ -232,7 +235,7 @@ export default function EmployeeList() {
       {/* Header */}
       <div className="flex justify-between items-center gap-4">
         <h1 className="text-2xl font-black text-gray-800 flex items-center gap-2">
-          <User className="text-blue-600" /> Employee Directory
+          <User className="text-blue-600" /> {t("employeeList.title")} 
         </h1>
 
         <div className="flex items-center gap-2">
@@ -241,14 +244,14 @@ export default function EmployeeList() {
             className="bg-white text-slate-800 px-4 py-2.5 rounded-xl flex items-center gap-2 border border-gray-200 hover:bg-gray-50 shadow-sm transition-all active:scale-95 font-black text-xs uppercase tracking-widest"
           >
             <SlidersHorizontal size={18} className="text-blue-600" />
-            Leave Policy
+            {t("employeeList.leavePolicy")} 
           </button>
 
           <button
             onClick={handleOpenCreate}
             className="bg-blue-600 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 font-bold text-sm"
           >
-            <Plus size={20} /> Add New Employee
+            <Plus size={20} /> {t("employeeList.addNew")} 
           </button>
         </div>
       </div>
@@ -264,7 +267,7 @@ export default function EmployeeList() {
                 : "text-gray-400 hover:text-gray-600" // ✅ เพิ่ม hover effect
             }`}
           >
-            <Users size={18} /> Active ({counts.active})
+            <Users size={18} /> {t("employeeList.activeTab")}  ({counts.active})
           </button>
 
           <button
@@ -275,7 +278,7 @@ export default function EmployeeList() {
                 : "text-gray-400 hover:text-gray-600" // ✅ เพิ่ม hover effect
             }`}
           >
-            <UserMinus size={18} /> Resigned ({counts.inactive})
+            <UserMinus size={18} /> {t("employeeList.resignedTab")}  ({counts.inactive})
           </button>
         </div>
 
@@ -296,10 +299,10 @@ export default function EmployeeList() {
             >
               <span>
                 {roleFilter === "all"
-                  ? "All Roles"
+                  ? t("employeeList.allRoles")   
                   : roleFilter === "HR"
-                  ? "HR"
-                  : "Worker"}
+                  ? t("employeeList.roleHR")  
+                  : t("employeeList.roleWorker") }
               </span>
 
               <ChevronDown
@@ -354,7 +357,7 @@ export default function EmployeeList() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, email, ID..."
+            placeholder={t("employeeList.searchPlaceholder")}
             className="w-full sm:w-64 bg-white border border-gray-200 rounded-xl
             px-4 py-2.5 text-xs font-bold text-slate-700
             placeholder:text-gray-400
@@ -368,11 +371,11 @@ export default function EmployeeList() {
         <table className="w-full text-left">
           <thead className="bg-gray-50/50 border-b border-gray-100 font-black text-[10px] text-gray-400 uppercase tracking-widest">
             <tr>
-              <th className="p-6">ID</th>
-              <th className="p-6">Name</th>
-              <th className="p-6">Email</th>
-              <th className="p-6 text-center">Role</th>
-              <th className="p-6 text-center">Status</th>
+              <th className="p-6">{t("employeeList.colId")}</th>
+              <th className="p-6">{t("employeeList.colName")}   </th>
+              <th className="p-6">{t("employeeList.colEmail")}</th>
+              <th className="p-6 text-center">{t("employeeList.colRole")}</th>
+              <th className="p-6 text-center">{t("employeeList.colStatus")} </th>
             </tr>
           </thead>
 
@@ -426,7 +429,9 @@ export default function EmployeeList() {
                             active ? "text-emerald-600" : "text-rose-600"
                           }`}
                         >
-                          {active ? "Working" : "Resigned"}
+                          {active
+  ? t("employeeList.statusWorking")
+  : t("employeeList.statusResigned")}
                         </span>
                       </div>
                     </td>
@@ -439,7 +444,7 @@ export default function EmployeeList() {
                   colSpan="5"
                   className="p-20 text-center text-gray-300 font-black text-xs uppercase"
                 >
-                  No employees found
+                  {t("employeeList.noEmployees")} 
                 </td>
               </tr>
             )}
@@ -448,6 +453,7 @@ export default function EmployeeList() {
 
         {totalPages > 1 && (
           <PaginationBar
+          
             page={page}
             totalPages={totalPages}
             onPrev={() => setPage((p) => Math.max(1, p - 1))}
@@ -469,7 +475,7 @@ export default function EmployeeList() {
             {/* Header */}
             <div className="flex items-center">
               <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-                Employee Information
+                {t("employeeCreate.title")}   
               </h2>
 
               <button
@@ -490,7 +496,7 @@ export default function EmployeeList() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    Name
+                    {t("employeeCreate.firstName")} 
                   </label>
                   <input
                     required
@@ -505,7 +511,7 @@ export default function EmployeeList() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    Surname
+                    {t("employeeCreate.lastName")}   
                   </label>
                   <input
                     required
@@ -522,12 +528,12 @@ export default function EmployeeList() {
               {/* Email */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  Email
+                  {t("employeeCreate.email")} 
                 </label>
                 <input
                   required
                   type="email"
-                  placeholder="Please enter email"
+                  placeholder={t("employeeCreate.emailPlaceholder")}
                   value={formData.email}
                   onChange={(e) =>
                     setFormData({ ...formData, email: e.target.value })
@@ -540,7 +546,7 @@ export default function EmployeeList() {
               {/* Role Dropdown (เหมือนภาพ) */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  ROLE
+                  {t("employeeCreate.role")}  
                 </label>
 
                 <div className="relative">
@@ -576,8 +582,8 @@ export default function EmployeeList() {
                           <div className="text-slate-800">{formData.role}</div>
                           <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
                             {formData.role === "HR"
-                              ? "Full Access"
-                              : "Standard Access"}
+  ? t("employeeCreate.hrAccess")
+  : t("employeeCreate.workerAccess")}
                           </div>
                         </div>
                       </div>
@@ -669,7 +675,7 @@ export default function EmployeeList() {
               {/* Join Date */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  Join Date
+                  {t("employeeCreate.joinDate")}  
                 </label>
                 <input
                   required
@@ -686,12 +692,12 @@ export default function EmployeeList() {
               {/* Password (create) */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
-                  <KeyRound size={12} /> Password
+                  <KeyRound size={12} /> {t("employeeCreate.password")} 
                 </label>
                 <input
                   required
                   type="password"
-                  placeholder="Minimum 6 characters"
+                  placeholder={t("employeeCreate.passwordHint")}
                   value={formData.password}
                   onChange={(e) =>
                     setFormData({ ...formData, password: e.target.value })
@@ -713,7 +719,7 @@ export default function EmployeeList() {
                   disabled={isLoading}
                   className="py-4 rounded-2xl font-black border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all active:scale-95 disabled:opacity-60"
                 >
-                  Cancel
+                  {t("employeeCreate.cancel")}    
                 </button>
 
                 <button
@@ -721,7 +727,9 @@ export default function EmployeeList() {
                   disabled={isLoading}
                   className="py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:bg-gray-400 disabled:shadow-none"
                 >
-                  {isLoading ? "PROCESSING..." : "REGISTER"}
+                  {isLoading
+  ? t("employeeCreate.processing")
+  : t("employeeCreate.submit")}
                 </button>
               </div>
             </form>
