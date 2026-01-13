@@ -15,7 +15,7 @@ i18n.use(initReactI18next).init({
       translation: {
         /* -------- Dashboard -------- */
         dashboard: {
-          title: "Dashboard",
+          ay: "Dashboard",
           attendance: "Attendance",
           welcome: "Welcome, {{firstName}} {{lastName}}",
           selectYear: "Select Year",
@@ -56,7 +56,7 @@ i18n.use(initReactI18next).init({
           cancel: "Cancel",
           days: "Days",
           unlimited: "Unlimited",
-
+          today: "Today",
           page: "page",
           showing: "showing",
           of: "of",
@@ -879,7 +879,7 @@ i18n.use(initReactI18next).init({
           cancel: "ยกเลิก",
           days: "วัน",
           unlimited: "ไม่จำกัด",
-
+          today: "วันนี้",
           page: "หน้า",
           showing: "แสดง",
           of: "จาก",
