@@ -1,10 +1,13 @@
 // frontend/src/pages/csv/csvforEmployee.jsx
 import { useMemo, useState } from "react";
 import { Download, Filter, X, Loader2, FileText } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import api from "../../api/axios";
 import DateGridPicker from "../../components/shared/DateGridPicker";
 
 export default function CsvForEmployee({ open, onClose, employee }) {
+  const { t } = useTranslation();
+
   // =========================
   // Period Filter
   // =========================
@@ -49,8 +52,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
   // =========================
   const pad = (n) => String(n).padStart(2, "0");
 
-  const toDateOnly = (d) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const toDateOnly = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
   const startOfMonth = (yyyyMm) => {
     if (!yyyyMm) return "";
@@ -314,15 +316,13 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     return [header.join(","), ...lines].join("\n");
   };
 
-  // ✅ เปลี่ยนเงื่อนไข validate ให้รองรับ "All"
+  // ✅ เปลี่ยน validate เป็น i18n
   const validateRange = () => {
-    if (!employee?.id) return "ไม่พบข้อมูลพนักงาน";
+    if (!employee?.id) return t("employeeExport.errors.noEmployee");
 
-    // daily/monthly: อนุญาตให้เป็น All ได้ (ค่าว่าง)
-    // yearly/quarter: อนุญาต All ได้เช่นกัน
     if (periodType === "custom") {
-      // custom ถ้าจะใช้ ต้องใส่ครบ (ถ้าต้องการให้ custom มี All ด้วย ให้ลบส่วนนี้)
-      if (!customFrom || !customTo) return "กรุณาเลือกวันเริ่มต้น-วันสิ้นสุด (Custom) ให้ครบ";
+      // custom ต้องเลือกครบ (ถ้าต้องการให้ custom = All ได้ ให้เอา if นี้ออก)
+      if (!customFrom || !customTo) return t("employeeExport.errors.customIncomplete");
     }
 
     return "";
@@ -350,7 +350,10 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       if (exportType === "attendance") {
         const rows = await fetchAttendanceRows({ empId, from, to });
         const csv = buildAttendanceCsv(rows);
-        downloadBlob(csv, `attendance_${safeName}_${from || "all"}_${to || "all"}_${stamp}.csv`);
+        downloadBlob(
+          csv,
+          `attendance_${safeName}_${from || "all"}_${to || "all"}_${stamp}.csv`
+        );
       } else {
         const rows = await fetchLeaveRows({ empId, from, to });
         const csv = buildLeaveCsv(rows);
@@ -361,11 +364,9 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     } catch (e) {
       const status = e?.response?.status;
       if (status === 404) {
-        setErrMsg(
-          "Export ไม่สำเร็จ: Backend ไม่มี endpoint ที่รองรับ (404). กรุณาเช็คเส้น API จริงใน backend แล้วปรับ paths ในไฟล์นี้"
-        );
+        setErrMsg(t("employeeExport.errors.endpoint404"));
       } else {
-        setErrMsg(e?.response?.data?.message || e?.message || "Export failed");
+        setErrMsg(e?.response?.data?.message || e?.message || t("employeeExport.errors.exportFailed"));
       }
     } finally {
       setLoading(false);
@@ -376,8 +377,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
 
   const fullName = `${employee?.firstName || ""} ${employee?.lastName || ""}`.trim();
 
-  // ====== UI helper field (กดแล้วเปิด picker)
-  const PickField = ({ label, valueText, placeholder = "All", onClick }) => (
+  const PickField = ({ label, valueText, placeholder, onClick }) => (
     <div className="space-y-1">
       <label className="text-xs font-bold text-slate-600">{label}</label>
       <button
@@ -398,6 +398,10 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     </div>
   );
 
+  const rangeLabel = `${range.from || t("employeeExport.common.all")} → ${
+    range.to || t("employeeExport.common.all")
+  }`;
+
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
@@ -409,7 +413,9 @@ export default function CsvForEmployee({ open, onClose, employee }) {
             <div className="flex items-center gap-2">
               <Filter size={18} className="text-slate-700" />
               <div>
-                <div className="text-lg font-black text-slate-800">Export CSV (Employee)</div>
+                <div className="text-lg font-black text-slate-800">
+                  {t("employeeExport.title")}
+                </div>
                 <div className="text-xs text-slate-500 font-bold">
                   {fullName} • #{employee?.id}
                 </div>
@@ -420,7 +426,8 @@ export default function CsvForEmployee({ open, onClose, employee }) {
               type="button"
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-slate-100 transition"
-              aria-label="Close"
+              aria-label={t("common.close")}
+              title={t("common.close")}
               disabled={loading}
             >
               <X size={18} />
@@ -431,11 +438,14 @@ export default function CsvForEmployee({ open, onClose, employee }) {
           <div className="px-6 py-5 space-y-5">
             {/* export type */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-slate-600">Export type</div>
+              <div className="text-xs font-bold text-slate-600">
+                {t("employeeExport.exportType.label")}
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: "attendance", label: "Attendance", icon: Download },
-                  { key: "leave", label: "Leave Requests", icon: FileText },
+                  { key: "attendance", label: t("employeeExport.exportType.attendance"), icon: Download },
+                  { key: "leave", label: t("employeeExport.exportType.leaveRequests"), icon: FileText },
                 ].map((x) => {
                   const active = exportType === x.key;
                   const Icon = x.icon;
@@ -462,15 +472,15 @@ export default function CsvForEmployee({ open, onClose, employee }) {
 
             {/* period */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-slate-600">Period</div>
+              <div className="text-xs font-bold text-slate-600">{t("employeeExport.period.label")}</div>
 
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: "daily", label: "Daily" },
-                  { key: "monthly", label: "Monthly" },
-                  { key: "yearly", label: "Yearly" },
-                  { key: "quarter", label: "Quarter" },
-                  { key: "custom", label: "Custom range" },
+                  { key: "daily", label: t("employeeExport.period.daily") },
+                  { key: "monthly", label: t("employeeExport.period.monthly") },
+                  { key: "yearly", label: t("employeeExport.period.yearly") },
+                  { key: "quarter", label: t("employeeExport.period.quarter") },
+                  { key: "custom", label: t("employeeExport.period.customRange") },
                 ].map((p) => {
                   const active = periodType === p.key;
                   return (
@@ -496,9 +506,9 @@ export default function CsvForEmployee({ open, onClose, employee }) {
                 {periodType === "daily" && (
                   <div className="md:col-span-2">
                     <PickField
-                      label="Select date"
+                      label={t("employeeExport.period.selectDate")}
                       valueText={dailyDate}
-                      placeholder="All"
+                      placeholder={t("employeeExport.common.all")}
                       onClick={() => setPickDailyOpen(true)}
                     />
                   </div>
@@ -507,9 +517,9 @@ export default function CsvForEmployee({ open, onClose, employee }) {
                 {periodType === "monthly" && (
                   <div className="md:col-span-2">
                     <PickField
-                      label="Select month"
+                      label={t("employeeExport.period.selectMonth")}
                       valueText={monthValue}
-                      placeholder="All"
+                      placeholder={t("employeeExport.common.all")}
                       onClick={() => setPickMonthOpen(true)}
                     />
                   </div>
@@ -518,9 +528,9 @@ export default function CsvForEmployee({ open, onClose, employee }) {
                 {periodType === "yearly" && (
                   <div className="md:col-span-2">
                     <PickField
-                      label="Select year"
+                      label={t("employeeExport.period.selectYear")}
                       valueText={yearValue}
-                      placeholder="All"
+                      placeholder={t("employeeExport.common.all")}
                       onClick={() => setPickYearOpen(true)}
                     />
                   </div>
@@ -530,25 +540,27 @@ export default function CsvForEmployee({ open, onClose, employee }) {
                   <>
                     <div className="md:col-span-2">
                       <PickField
-                        label="Year"
+                        label={t("employeeExport.quarter.year")}
                         valueText={quarterYear}
-                        placeholder="All"
+                        placeholder={t("employeeExport.common.all")}
                         onClick={() => setPickQuarterYearOpen(true)}
                       />
                     </div>
 
                     <div className="md:col-span-2 space-y-1">
-                      <label className="text-xs font-bold text-slate-600">Quarter</label>
+                      <label className="text-xs font-bold text-slate-600">
+                        {t("employeeExport.quarter.quarter")}
+                      </label>
                       <select
                         value={quarterValue}
                         onChange={(e) => setQuarterValue(e.target.value)}
                         className="w-full h-11 px-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
                         disabled={loading}
                       >
-                        <option value="Q1">Q1 (Jan–Mar)</option>
-                        <option value="Q2">Q2 (Apr–Jun)</option>
-                        <option value="Q3">Q3 (Jul–Sep)</option>
-                        <option value="Q4">Q4 (Oct–Dec)</option>
+                        <option value="Q1">{t("employeeExport.quarter.q1")}</option>
+                        <option value="Q2">{t("employeeExport.quarter.q2")}</option>
+                        <option value="Q3">{t("employeeExport.quarter.q3")}</option>
+                        <option value="Q4">{t("employeeExport.quarter.q4")}</option>
                       </select>
                     </div>
                   </>
@@ -557,15 +569,15 @@ export default function CsvForEmployee({ open, onClose, employee }) {
                 {periodType === "custom" && (
                   <>
                     <PickField
-                      label="Date from"
+                      label={t("employeeExport.custom.dateFrom")}
                       valueText={customFrom}
-                      placeholder="Pick date"
+                      placeholder={t("employeeExport.custom.pickDate")}
                       onClick={() => setPickCustomFromOpen(true)}
                     />
                     <PickField
-                      label="Date to"
+                      label={t("employeeExport.custom.dateTo")}
                       valueText={customTo}
-                      placeholder="Pick date"
+                      placeholder={t("employeeExport.custom.pickDate")}
                       onClick={() => setPickCustomToOpen(true)}
                     />
                   </>
@@ -573,10 +585,8 @@ export default function CsvForEmployee({ open, onClose, employee }) {
               </div>
 
               <div className="text-xs text-slate-500">
-                Range:{" "}
-                <span className="font-bold text-slate-700">
-                  {range.from || "all"} → {range.to || "all"}
-                </span>
+                {t("employeeExport.range.label")}{" "}
+                <span className="font-bold text-slate-700">{rangeLabel}</span>
               </div>
             </div>
 
@@ -595,7 +605,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
               className="h-10 px-4 rounded-full border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-60"
               disabled={loading}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
 
             <button
@@ -605,7 +615,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
               className="h-10 px-5 rounded-full bg-slate-900 text-white font-black hover:bg-slate-800 active:scale-[0.98] transition inline-flex items-center gap-2 disabled:opacity-60"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-              Export
+              {t("employeeExport.buttons.export")}
             </button>
           </div>
         </div>
@@ -618,7 +628,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       {/* DAILY */}
       <DateGridPicker
         open={pickDailyOpen}
-        title="Select date"
+        title={t("employeeExport.picker.selectDate")}
         allowAll={true}
         granularity="day"
         value={dailyDate || null}
@@ -629,7 +639,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       {/* MONTH */}
       <DateGridPicker
         open={pickMonthOpen}
-        title="Select month"
+        title={t("employeeExport.picker.selectMonth")}
         allowAll={true}
         granularity="month"
         value={monthValue || null}
@@ -640,7 +650,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       {/* YEAR */}
       <DateGridPicker
         open={pickYearOpen}
-        title="Select year"
+        title={t("employeeExport.picker.selectYear")}
         allowAll={true}
         granularity="year"
         value={yearValue || null}
@@ -651,7 +661,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       {/* QUARTER YEAR */}
       <DateGridPicker
         open={pickQuarterYearOpen}
-        title="Select year"
+        title={t("employeeExport.picker.selectYear")}
         allowAll={true}
         granularity="year"
         value={quarterYear || null}
@@ -662,7 +672,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       {/* CUSTOM FROM */}
       <DateGridPicker
         open={pickCustomFromOpen}
-        title="Date from"
+        title={t("employeeExport.picker.dateFrom")}
         allowAll={false}
         granularity="day"
         value={customFrom || null}
@@ -673,7 +683,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       {/* CUSTOM TO */}
       <DateGridPicker
         open={pickCustomToOpen}
-        title="Date to"
+        title={t("employeeExport.picker.dateTo")}
         allowAll={false}
         granularity="day"
         value={customTo || null}

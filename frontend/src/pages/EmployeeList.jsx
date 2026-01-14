@@ -25,11 +25,14 @@ import CsvForEmployeesAll from "./csv/csvforEmployeesAll";
 import XlsxForEmployeesWorkbook from "./csv/xlsxForEmployeesWorkbook";
 
 function PaginationBar({ page, totalPages, onPrev, onNext }) {
+  const { t } = useTranslation();
+
   return (
     <div className="flex items-center justify-between px-6 py-4 border-t border-gray-50">
       <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-        Page {page} / {totalPages}
+        {t("employeeList.pagination.label", { page, totalPages })}
       </div>
+
       <div className="flex items-center gap-2">
         <button
           onClick={onPrev}
@@ -40,8 +43,9 @@ function PaginationBar({ page, totalPages, onPrev, onNext }) {
               : "bg-white text-slate-800 border-gray-200 hover:bg-gray-50"
           }`}
         >
-          Prev
+          {t("common.prev")}
         </button>
+
         <button
           onClick={onNext}
           disabled={page >= totalPages}
@@ -51,7 +55,7 @@ function PaginationBar({ page, totalPages, onPrev, onNext }) {
               : "bg-white text-slate-800 border-gray-200 hover:bg-gray-50"
           }`}
         >
-          Next
+          {t("common.next")}
         </button>
       </div>
     </div>
@@ -59,6 +63,7 @@ function PaginationBar({ page, totalPages, onPrev, onNext }) {
 }
 
 function ExportAllChooser({ open, onClose, onPick }) {
+  const { t } = useTranslation();
   if (!open) return null;
 
   return (
@@ -68,12 +73,15 @@ function ExportAllChooser({ open, onClose, onPick }) {
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="w-full max-w-xl rounded-[1.5rem] bg-white border border-slate-200 shadow-xl overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-            <div className="text-lg font-black text-slate-800">Export All</div>
+            <div className="text-lg font-black text-slate-800">
+              {t("employeeList.exportAll.title")}
+            </div>
             <button
               type="button"
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-slate-100 transition"
-              aria-label="Close"
+              aria-label={t("common.close")}
+              title={t("common.close")}
             >
               <X size={18} />
             </button>
@@ -89,10 +97,10 @@ function ExportAllChooser({ open, onClose, onPick }) {
                 <FileSpreadsheet className="mt-0.5" />
                 <div>
                   <div className="font-black text-slate-800">
-                    (1) Export Workbook (.xlsx) — หลาย Sheet
+                    {t("employeeList.exportAll.workbook.title")}
                   </div>
                   <div className="text-sm text-slate-600 font-bold">
-                    สำหรับเลือกพนักงานหลายบุคคล (ไฟล์ .xlsx, 1 sheet ต่อ 1 employee)
+                    {t("employeeList.exportAll.workbook.desc")}
                   </div>
                 </div>
               </div>
@@ -107,17 +115,17 @@ function ExportAllChooser({ open, onClose, onPick }) {
                 <Download className="mt-0.5" />
                 <div>
                   <div className="font-black text-slate-800">
-                    (2) Export รายชื่อพนักงาน
+                    {t("employeeList.exportAll.employeesList.title")}
                   </div>
                   <div className="text-sm text-slate-600 font-bold">
-                    สำหรับเลือกพนักงานรายบุคคล (ไฟล์ .csv)
+                    {t("employeeList.exportAll.employeesList.desc")}
                   </div>
                 </div>
               </div>
             </button>
 
             <div className="text-xs text-slate-500 font-bold pt-2">
-              * หมายเหตุ: Workbook แบบหลายชีตต้องใช้ xlsx (CSV ทำหลายชีตไม่ได้)
+              {t("employeeList.exportAll.note")}
             </div>
           </div>
 
@@ -127,7 +135,7 @@ function ExportAllChooser({ open, onClose, onPick }) {
               onClick={onClose}
               className="h-10 px-4 rounded-full border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 transition"
             >
-              Close
+              {t("common.close")}
             </button>
           </div>
         </div>
@@ -191,7 +199,9 @@ export default function EmployeeList() {
       alertError(
         t("employeeCreate.failed"),
         err?.response?.data?.message ||
-          "An error occurred while retrieving the information."
+          t("employeeCreate.fetchErrorFallback", {
+            defaultValue: "An error occurred while retrieving the information.",
+          })
       );
     } finally {
       setLoading(false);
@@ -273,13 +283,15 @@ export default function EmployeeList() {
       t("employeeCreate.confirmTitle"),
       `
       <div style="text-align:left; line-height:1.7">
-        <div style="font-weight:900; color:#0f172a; margin-bottom:6px">Please review the information below</div>
+        <div style="font-weight:900; color:#0f172a; margin-bottom:6px">
+          ${t("employeeCreate.confirmReviewTitle")}
+        </div>
         <div style="color:#64748b; font-weight:800">
-          - First Name: ${formData.firstName || "-"}<br/>
-          - Last Name: ${formData.lastName || "-"}<br/>
-          - Email: ${formData.email || "-"}<br/>
-          - Role: ${formData.role || "-"}<br/>
-          - Start Date: ${formData.joiningDate || "-"}<br/>
+          - ${t("employeeCreate.firstName")}: ${formData.firstName || "-"}<br/>
+          - ${t("employeeCreate.lastName")}: ${formData.lastName || "-"}<br/>
+          - ${t("employeeCreate.email")}: ${formData.email || "-"}<br/>
+          - ${t("employeeCreate.role")}: ${formData.role || "-"}<br/>
+          - ${t("employeeCreate.joinDate")}: ${formData.joiningDate || "-"}<br/>
         </div>
       </div>
       `,
@@ -299,7 +311,7 @@ export default function EmployeeList() {
         joiningDate: formData.joiningDate,
       });
 
-      await alertSuccess(t("employeeCreate.success"), "Added new employee successfully.");
+      await alertSuccess(t("employeeCreate.success"), t("employeeCreate.successText"));
       setShowModal(false);
       fetchEmployees();
     } catch (err) {
@@ -307,7 +319,9 @@ export default function EmployeeList() {
         t("employeeCreate.failed"),
         err?.response?.data?.error ||
           err?.response?.data?.message ||
-          "An unexpected error occurred. Please try again."
+          t("employeeCreate.unexpectedErrorFallback", {
+            defaultValue: "An unexpected error occurred. Please try again.",
+          })
       );
     } finally {
       setIsLoading(false);
@@ -330,10 +344,10 @@ export default function EmployeeList() {
             className="h-11 px-4 rounded-xl border border-gray-200 bg-white text-slate-800
               inline-flex items-center gap-2 font-black text-sm
               hover:bg-gray-50 active:scale-95 transition"
-            title="Export All"
+            title={t("employeeList.exportAll.buttonTitle")}
           >
             <Download size={18} />
-            Export All
+            {t("employeeList.exportAll.button")}
           </button>
 
           <button
@@ -403,13 +417,14 @@ export default function EmployeeList() {
                   type="button"
                   className="fixed inset-0 z-10 cursor-default"
                   onClick={() => setRoleOpenFilter(false)}
-                  aria-label="Close role dropdown"
+                  aria-label={t("employeeList.aria.closeRoleDropdown")}
                 />
+
                 <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
                   {[
-                    { value: "all", label: "All Roles" },
-                    { value: "Worker", label: "Worker" },
-                    { value: "HR", label: "HR" },
+                    { value: "all", label: t("employeeList.allRoles") },
+                    { value: "Worker", label: t("employeeList.roleWorker") },
+                    { value: "HR", label: t("employeeList.roleHR") },
                   ].map((opt) => (
                     <button
                       key={opt.value}
@@ -456,7 +471,7 @@ export default function EmployeeList() {
               <th className="p-6">{t("employeeList.colEmail")}</th>
               <th className="p-6 text-center">{t("employeeList.colRole")}</th>
               <th className="p-6 text-center">{t("employeeList.colStatus")}</th>
-              <th className="p-6 text-center">EXPORT</th>
+              <th className="p-6 text-center">{t("employeeList.colExport")}</th>
             </tr>
           </thead>
 
@@ -532,7 +547,7 @@ export default function EmployeeList() {
                         className="h-10 w-10 rounded-xl inline-flex items-center justify-center
                           border border-gray-200 bg-white text-slate-700 hover:bg-gray-50
                           active:scale-95 transition"
-                        title="Export employee"
+                        title={t("employeeList.exportEmployee")}
                       >
                         <Download size={18} />
                       </button>
@@ -622,6 +637,8 @@ export default function EmployeeList() {
                   setShowModal(false);
                 }}
                 className="ml-auto text-gray-400 hover:text-rose-500 transition-colors"
+                aria-label={t("common.close")}
+                title={t("common.close")}
               >
                 <X size={24} />
               </button>
@@ -712,7 +729,11 @@ export default function EmployeeList() {
                         </span>
 
                         <div className="text-left">
-                          <div className="text-slate-800">{formData.role}</div>
+                          <div className="text-slate-800">
+                            {formData.role === "HR"
+                              ? t("employeeCreate.roleHR")
+                              : t("employeeCreate.roleWorker")}
+                          </div>
                           <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
                             {formData.role === "HR"
                               ? t("employeeCreate.hrAccess")
@@ -736,7 +757,7 @@ export default function EmployeeList() {
                         type="button"
                         onClick={() => setRoleOpen(false)}
                         className="fixed inset-0 z-[60] cursor-default"
-                        aria-label="Close role dropdown"
+                        aria-label={t("employeeList.aria.closeRoleDropdown")}
                       />
 
                       <div className="absolute z-[70] mt-2 w-full rounded-2xl border border-gray-100 bg-white shadow-xl overflow-hidden">
@@ -754,14 +775,16 @@ export default function EmployeeList() {
                             <Briefcase size={16} />
                           </span>
                           <div className="flex-1">
-                            <div className="font-black text-slate-800">Worker</div>
+                            <div className="font-black text-slate-800">
+                              {t("employeeCreate.roleWorker")}
+                            </div>
                             <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                              Standard Access
+                              {t("employeeCreate.workerAccess")}
                             </div>
                           </div>
                           {formData.role === "Worker" && (
                             <span className="text-[10px] font-black uppercase tracking-widest text-blue-700">
-                              Selected
+                              {t("employeeCreate.selected")}
                             </span>
                           )}
                         </button>
@@ -782,14 +805,16 @@ export default function EmployeeList() {
                             <ShieldCheck size={16} />
                           </span>
                           <div className="flex-1">
-                            <div className="font-black text-slate-800">HR</div>
+                            <div className="font-black text-slate-800">
+                              {t("employeeCreate.roleHR")}
+                            </div>
                             <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                              Full Access
+                              {t("employeeCreate.hrAccess")}
                             </div>
                           </div>
                           {formData.role === "HR" && (
                             <span className="text-[10px] font-black uppercase tracking-widest text-blue-700">
-                              Selected
+                              {t("employeeCreate.selected")}
                             </span>
                           )}
                         </button>
@@ -799,7 +824,7 @@ export default function EmployeeList() {
                 </div>
 
                 <p className="text-[11px] text-gray-400 font-bold ml-1">
-                  หมายเหตุ: เปลี่ยน Role จะมีผลกับสิทธิ์การเข้าถึงระบบ
+                  {t("employeeCreate.roleNote")}
                 </p>
               </div>
 

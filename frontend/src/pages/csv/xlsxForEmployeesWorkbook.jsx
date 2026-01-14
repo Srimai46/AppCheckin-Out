@@ -1,11 +1,21 @@
 // frontend/src/pages/csv/xlsxForEmployeesWorkbook.jsx
-import { useMemo, useState } from "react";
-import { Download, Filter, X, Loader2, FileSpreadsheet, CalendarDays } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import {
+  Download,
+  Filter,
+  X,
+  Loader2,
+  FileSpreadsheet,
+  CalendarDays,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
 import api from "../../api/axios";
 import * as XLSX from "xlsx";
 import DateGridPicker from "../../components/shared/DateGridPicker";
 
 export default function XlsxForEmployeesWorkbook({ open, onClose, employees = [] }) {
+  const { t } = useTranslation();
+
   // -------------------------
   // UI state
   // -------------------------
@@ -56,11 +66,20 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
   };
 
   // -------------------------
+  // Clean state when closing
+  // -------------------------
+  useEffect(() => {
+    if (open) return;
+    setErrMsg("");
+    setPickerOpen(false);
+    setPickerTarget(null);
+  }, [open]);
+
+  // -------------------------
   // Date helpers
   // -------------------------
   const pad = (n) => String(n).padStart(2, "0");
-  const toDateOnly = (d) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const toDateOnly = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
   const startOfMonth = (yyyyMm) => {
     if (!yyyyMm) return "";
@@ -100,16 +119,7 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
     }
 
     return { from: customFrom || "", to: customTo || "" };
-  }, [
-    periodType,
-    dailyDate,
-    monthValue,
-    yearValue,
-    quarterYear,
-    quarterValue,
-    customFrom,
-    customTo,
-  ]);
+  }, [periodType, dailyDate, monthValue, yearValue, quarterYear, quarterValue, customFrom, customTo]);
 
   // -------------------------
   // DateGridPicker value/granularity
@@ -133,12 +143,14 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
 
   const handlePickerChange = (v) => {
     const val = v ?? "";
+
     if (pickerTarget === "daily") setDailyDate(val);
     if (pickerTarget === "month") setMonthValue(val);
     if (pickerTarget === "year") setYearValue(val ? Number(val) : new Date().getFullYear());
     if (pickerTarget === "qyear") setQuarterYear(val ? Number(val) : new Date().getFullYear());
     if (pickerTarget === "from") setCustomFrom(val);
     if (pickerTarget === "to") setCustomTo(val);
+
     closePicker();
   };
 
@@ -167,13 +179,7 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
   };
 
   const fetchAttendanceRows = async ({ empId, from, to }) => {
-    const paths = [
-      "/attendance/records",
-      "/attendance/time-records",
-      "/time-records",
-      "/attendance/history",
-      "/attendance",
-    ];
+    const paths = ["/attendance/records", "/attendance/time-records", "/time-records", "/attendance/history", "/attendance"];
 
     const paramSets = [
       { employeeId: empId, from, to },
@@ -247,32 +253,26 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
       const empId = emp?.id;
       if (!empId) continue;
 
-      const fullName =
-        `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || `EMP_${empId}`;
+      const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || `EMP_${empId}`;
       const sheetName = safeSheetName(fullName);
 
       let rows = [];
-      if (exportType === "attendance") {
-        rows = await fetchAttendanceRows({ empId, from, to });
-      } else {
-        rows = await fetchLeaveRows({ empId, from, to });
-      }
+      if (exportType === "attendance") rows = await fetchAttendanceRows({ empId, from, to });
+      else rows = await fetchLeaveRows({ empId, from, to });
 
-      const normalized = (rows || []).map((r) => ({ ...r }));
-      const ws = XLSX.utils.json_to_sheet(normalized);
+      const ws = XLSX.utils.json_to_sheet((rows || []).map((r) => ({ ...r })));
       sheets.push({ ws, name: sheetName });
     }
     return sheets;
   };
 
   const validate = () => {
-    if (!employees || employees.length === 0) return "ไม่มีรายชื่อพนักงานสำหรับ Export";
+    if (!employees || employees.length === 0) return t("xlsxWorkbook.errors.noEmployees");
 
     if (workbookType === "perEmployeeData") {
-      if (periodType === "daily" && !dailyDate) return "กรุณาเลือกวัน (Daily)";
-      if (periodType === "monthly" && !monthValue) return "กรุณาเลือกเดือน (Monthly)";
-      if (periodType === "custom" && (!customFrom || !customTo))
-        return "กรุณาเลือกวันเริ่มต้น-วันสิ้นสุด (Custom) ให้ครบ";
+      if (periodType === "daily" && !dailyDate) return t("xlsxWorkbook.errors.pickDaily");
+      if (periodType === "monthly" && !monthValue) return t("xlsxWorkbook.errors.pickMonthly");
+      if (periodType === "custom" && (!customFrom || !customTo)) return t("xlsxWorkbook.errors.pickCustom");
     }
     return "";
   };
@@ -315,15 +315,12 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
         const perSheets = await buildPerEmployeeSheets({ from, to });
         perSheets.forEach((s) => XLSX.utils.book_append_sheet(wb, s.ws, s.name));
 
-        XLSX.writeFile(
-          wb,
-          `${exportType}_employees_${from || "na"}_${to || "na"}_${stamp}.xlsx`
-        );
+        XLSX.writeFile(wb, `${exportType}_employees_${from || "na"}_${to || "na"}_${stamp}.xlsx`);
       }
 
       onClose?.();
     } catch (e) {
-      setErrMsg(e?.response?.data?.message || e?.message || "Export workbook failed");
+      setErrMsg(e?.response?.data?.message || e?.message || t("xlsxWorkbook.errors.exportFailed"));
     } finally {
       setLoading(false);
     }
@@ -331,9 +328,37 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
 
   if (!open) return null;
 
+  const pickerTitle =
+    pickerTarget === "daily"
+      ? t("xlsxWorkbook.picker.selectDate")
+      : pickerTarget === "month"
+      ? t("xlsxWorkbook.picker.selectMonth")
+      : pickerTarget === "year" || pickerTarget === "qyear"
+      ? t("xlsxWorkbook.picker.selectYear")
+      : pickerTarget === "from"
+      ? t("xlsxWorkbook.picker.dateFrom")
+      : pickerTarget === "to"
+      ? t("xlsxWorkbook.picker.dateTo")
+      : t("xlsxWorkbook.picker.select");
+
+  const PickBtn = ({ label, value, placeholder, onClick }) => (
+    <div className="space-y-1">
+      <label className="text-xs font-bold text-slate-600">{label}</label>
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full h-10 px-3 rounded-xl border border-slate-200 text-left font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-between"
+        disabled={loading}
+      >
+        <span className={value ? "text-slate-800" : "text-slate-400"}>{value || placeholder}</span>
+        <CalendarDays size={18} className="text-slate-500" />
+      </button>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-[9999]">
-      {/* ✅ overlay: ใช้ onClick ไม่ใช้ onMouseDown (กันปิดก่อน click) */}
+      {/* overlay */}
       <div
         className="absolute inset-0 bg-black/30"
         onClick={() => {
@@ -353,9 +378,9 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
             <div className="flex items-center gap-2">
               <FileSpreadsheet size={18} className="text-slate-700" />
               <div>
-                <div className="text-lg font-black text-slate-800">Export Workbook (XLSX)</div>
+                <div className="text-lg font-black text-slate-800">{t("xlsxWorkbook.title")}</div>
                 <div className="text-xs text-slate-500 font-bold">
-                  Employees: {employees?.length || 0}
+                  {t("xlsxWorkbook.employeesCount")} {employees?.length || 0}
                 </div>
               </div>
             </div>
@@ -367,7 +392,8 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
                 onClose?.();
               }}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-slate-100 transition disabled:opacity-60"
-              aria-label="Close"
+              aria-label={t("common.close")}
+              title={t("common.close")}
               disabled={loading}
             >
               <X size={18} />
@@ -378,11 +404,11 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
           <div className="px-6 py-5 space-y-5">
             {/* workbook type */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-slate-600">Workbook type</div>
+              <div className="text-xs font-bold text-slate-600">{t("xlsxWorkbook.workbookType.label")}</div>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: "perEmployeeData", label: "Per Employee (many sheets)" },
-                  { key: "employeesList", label: "Employees List (one sheet)" },
+                  { key: "perEmployeeData", label: t("xlsxWorkbook.workbookType.perEmployee") },
+                  { key: "employeesList", label: t("xlsxWorkbook.workbookType.employeesList") },
                 ].map((x) => {
                   const active = workbookType === x.key;
                   return (
@@ -411,11 +437,11 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
               <>
                 {/* export type */}
                 <div className="space-y-2">
-                  <div className="text-xs font-bold text-slate-600">Data type</div>
+                  <div className="text-xs font-bold text-slate-600">{t("xlsxWorkbook.dataType.label")}</div>
                   <div className="flex flex-wrap gap-2">
                     {[
-                      { key: "attendance", label: "Attendance" },
-                      { key: "leave", label: "Leave Requests" },
+                      { key: "attendance", label: t("xlsxWorkbook.dataType.attendance") },
+                      { key: "leave", label: t("xlsxWorkbook.dataType.leave") },
                     ].map((x) => {
                       const active = exportType === x.key;
                       return (
@@ -440,15 +466,15 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
 
                 {/* period */}
                 <div className="space-y-2">
-                  <div className="text-xs font-bold text-slate-600">Period</div>
+                  <div className="text-xs font-bold text-slate-600">{t("xlsxWorkbook.period.label")}</div>
 
                   <div className="flex flex-wrap gap-2">
                     {[
-                      { key: "daily", label: "Daily" },
-                      { key: "monthly", label: "Monthly" },
-                      { key: "yearly", label: "Yearly" },
-                      { key: "quarter", label: "Quarter" },
-                      { key: "custom", label: "Custom range" },
+                      { key: "daily", label: t("xlsxWorkbook.period.daily") },
+                      { key: "monthly", label: t("xlsxWorkbook.period.monthly") },
+                      { key: "yearly", label: t("xlsxWorkbook.period.yearly") },
+                      { key: "quarter", label: t("xlsxWorkbook.period.quarter") },
+                      { key: "custom", label: t("xlsxWorkbook.period.custom") },
                     ].map((p) => {
                       const active = periodType === p.key;
                       return (
@@ -472,77 +498,61 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     {periodType === "daily" && (
-                      <div className="space-y-1 md:col-span-2">
-                        <label className="text-xs font-bold text-slate-600">Select date</label>
-                        <button
-                          type="button"
+                      <div className="md:col-span-2">
+                        <PickBtn
+                          label={t("xlsxWorkbook.fields.selectDate")}
+                          value={dailyDate}
+                          placeholder={t("xlsxWorkbook.placeholders.pickDate")}
                           onClick={() => openPicker("daily")}
-                          className="w-full h-10 px-3 rounded-xl border border-slate-200 text-left font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-between"
-                          disabled={loading}
-                        >
-                          <span>{dailyDate || "Pick a date"}</span>
-                          <CalendarDays size={18} className="text-slate-500" />
-                        </button>
+                        />
                       </div>
                     )}
 
                     {periodType === "monthly" && (
-                      <div className="space-y-1 md:col-span-2">
-                        <label className="text-xs font-bold text-slate-600">Select month</label>
-                        <button
-                          type="button"
+                      <div className="md:col-span-2">
+                        <PickBtn
+                          label={t("xlsxWorkbook.fields.selectMonth")}
+                          value={monthValue}
+                          placeholder={t("xlsxWorkbook.placeholders.pickMonth")}
                           onClick={() => openPicker("month")}
-                          className="w-full h-10 px-3 rounded-xl border border-slate-200 text-left font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-between"
-                          disabled={loading}
-                        >
-                          <span>{monthValue || "Pick a month"}</span>
-                          <CalendarDays size={18} className="text-slate-500" />
-                        </button>
+                        />
                       </div>
                     )}
 
                     {periodType === "yearly" && (
-                      <div className="space-y-1 md:col-span-2">
-                        <label className="text-xs font-bold text-slate-600">Select year</label>
-                        <button
-                          type="button"
+                      <div className="md:col-span-2">
+                        <PickBtn
+                          label={t("xlsxWorkbook.fields.selectYear")}
+                          value={String(yearValue || "")}
+                          placeholder={t("xlsxWorkbook.placeholders.pickYear")}
                           onClick={() => openPicker("year")}
-                          className="w-full h-10 px-3 rounded-xl border border-slate-200 text-left font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-between"
-                          disabled={loading}
-                        >
-                          <span>{yearValue || "Pick a year"}</span>
-                          <CalendarDays size={18} className="text-slate-500" />
-                        </button>
+                        />
                       </div>
                     )}
 
                     {periodType === "quarter" && (
                       <>
-                        <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-600">Year</label>
-                          <button
-                            type="button"
-                            onClick={() => openPicker("qyear")}
-                            className="w-full h-10 px-3 rounded-xl border border-slate-200 text-left font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-between"
-                            disabled={loading}
-                          >
-                            <span>{quarterYear}</span>
-                            <CalendarDays size={18} className="text-slate-500" />
-                          </button>
-                        </div>
+                        <PickBtn
+                          label={t("xlsxWorkbook.fields.year")}
+                          value={String(quarterYear || "")}
+                          placeholder={t("xlsxWorkbook.placeholders.pickYear")}
+                          onClick={() => openPicker("qyear")}
+                        />
 
                         <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-600">Quarter</label>
+                          <label className="text-xs font-bold text-slate-600">
+                            {t("xlsxWorkbook.fields.quarter")}
+                          </label>
                           <select
                             value={quarterValue}
                             onChange={(e) => setQuarterValue(e.target.value)}
                             className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
                             disabled={loading}
                           >
-                            <option value="Q1">Q1 (Jan–Mar)</option>
-                            <option value="Q2">Q2 (Apr–Jun)</option>
-                            <option value="Q3">Q3 (Jul–Sep)</option>
-                            <option value="Q4">Q4 (Oct–Dec)</option>
+                            <option value="Q1">{t("xlsxWorkbook.quarters.q1")}</option>
+                            <option value="Q2">{t("xlsxWorkbook.quarters.q2")}</option>
+                            <option value="Q3">{t("xlsxWorkbook.quarters.q3")}</option>
+                            <option value="Q4">{t("xlsxWorkbook.quarters.q4")}</option>
                           </select>
                         </div>
                       </>
@@ -550,37 +560,24 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
 
                     {periodType === "custom" && (
                       <>
-                        <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-600">Date from</label>
-                          <button
-                            type="button"
-                            onClick={() => openPicker("from")}
-                            className="w-full h-10 px-3 rounded-xl border border-slate-200 text-left font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-between"
-                            disabled={loading}
-                          >
-                            <span>{customFrom || "Pick start date"}</span>
-                            <CalendarDays size={18} className="text-slate-500" />
-                          </button>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-600">Date to</label>
-                          <button
-                            type="button"
-                            onClick={() => openPicker("to")}
-                            className="w-full h-10 px-3 rounded-xl border border-slate-200 text-left font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-between"
-                            disabled={loading}
-                          >
-                            <span>{customTo || "Pick end date"}</span>
-                            <CalendarDays size={18} className="text-slate-500" />
-                          </button>
-                        </div>
+                        <PickBtn
+                          label={t("xlsxWorkbook.fields.dateFrom")}
+                          value={customFrom}
+                          placeholder={t("xlsxWorkbook.placeholders.pickStart")}
+                          onClick={() => openPicker("from")}
+                        />
+                        <PickBtn
+                          label={t("xlsxWorkbook.fields.dateTo")}
+                          value={customTo}
+                          placeholder={t("xlsxWorkbook.placeholders.pickEnd")}
+                          onClick={() => openPicker("to")}
+                        />
                       </>
                     )}
                   </div>
 
                   <div className="text-xs text-slate-500">
-                    Range:{" "}
+                    {t("xlsxWorkbook.rangeLabel")}{" "}
                     <span className="font-bold text-slate-700">
                       {range.from || "-"} → {range.to || "-"}
                     </span>
@@ -607,17 +604,17 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
               className="h-10 px-4 rounded-full border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-60"
               disabled={loading}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
 
             <button
               type="button"
               onClick={handleExport}
               disabled={loading}
-              className="h-10 px-5 rounded-full bg-slate-900 text-white font-black hover:bg-slate-800 active:scale-[0_0_0_0.98] transition inline-flex items-center gap-2 disabled:opacity-60"
+              className="h-10 px-5 rounded-full bg-slate-900 text-white font-black hover:bg-slate-800 active:scale-[0.98] transition inline-flex items-center gap-2 disabled:opacity-60"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-              Export XLSX
+              {t("xlsxWorkbook.buttons.exportXlsx")}
             </button>
           </div>
         </div>
@@ -632,21 +629,7 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
           value={pickerValue}
           onChange={handlePickerChange}
           onClose={closePicker}
-          title={
-            pickerTarget === "daily"
-              ? "Select date"
-              : pickerTarget === "month"
-              ? "Select month"
-              : pickerTarget === "year"
-              ? "Select year"
-              : pickerTarget === "qyear"
-              ? "Select year"
-              : pickerTarget === "from"
-              ? "Date from"
-              : pickerTarget === "to"
-              ? "Date to"
-              : "Select"
-          }
+          title={pickerTitle}
         />
       </div>
     </div>

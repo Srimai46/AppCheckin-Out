@@ -1,6 +1,7 @@
 // frontend/src/pages/csv/csvforAuditLog.jsx
 import { useMemo, useState } from "react";
 import { Download, Filter, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import DateGridPicker from "../../components/shared/DateGridPicker";
 
 /**
@@ -10,6 +11,8 @@ import DateGridPicker from "../../components/shared/DateGridPicker";
  * - logs: audit log array (same shape as your current logs)
  */
 export default function CsvForAuditLog({ open, onClose, logs = [] }) {
+  const { t } = useTranslation();
+
   // -------------------------
   // Period Filter
   // -------------------------
@@ -120,8 +123,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   // -------------------------
   const pad = (n) => String(n).padStart(2, "0");
 
-  const toDateOnly = (d) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const toDateOnly = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
   const startOfMonth = (yyyyMm) => {
     if (!yyyyMm) return "";
@@ -172,9 +174,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   const normalize = (v) => (v ?? "").toString().trim().toLowerCase();
 
   const toggleAction = (act) => {
-    setFActions((prev) =>
-      prev.includes(act) ? prev.filter((x) => x !== act) : [...prev, act]
-    );
+    setFActions((prev) => (prev.includes(act) ? prev.filter((x) => x !== act) : [...prev, act]));
   };
 
   const resetAll = () => {
@@ -309,6 +309,15 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   const readonlyPickerInputClass =
     "w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 font-bold cursor-pointer focus:ring-2 focus:ring-slate-200 outline-none";
 
+  const pickerTitle = (() => {
+    if (pickerField === "daily") return t("auditLogExport.picker.selectDate");
+    if (pickerField === "month") return t("auditLogExport.picker.selectMonth");
+    if (pickerField === "year" || pickerField === "qYear") return t("auditLogExport.picker.selectYear");
+    if (pickerField === "from") return t("auditLogExport.picker.dateFrom");
+    if (pickerField === "to") return t("auditLogExport.picker.dateTo");
+    return t("auditLogExport.picker.selectDate");
+  })();
+
   return (
     <div className="fixed inset-0 z-50">
       {/* overlay */}
@@ -321,13 +330,17 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <Filter size={18} className="text-slate-700" />
-              <h2 className="text-lg font-black text-slate-800">Export CSV Filters</h2>
+              <h2 className="text-lg font-black text-slate-800">
+                {t("auditLogExport.title")}
+              </h2>
             </div>
+
             <button
               type="button"
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-slate-100 transition"
-              aria-label="Close"
+              aria-label={t("common.close")}
+              title={t("common.close")}
             >
               <X size={18} />
             </button>
@@ -337,15 +350,17 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
           <div className="px-6 py-5 space-y-5">
             {/* Period selector */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-slate-600">Period</div>
+              <div className="text-xs font-bold text-slate-600">
+                {t("auditLogExport.period.label")}
+              </div>
 
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: "daily", label: "Daily" },
-                  { key: "monthly", label: "Monthly" },
-                  { key: "yearly", label: "Yearly" },
-                  { key: "quarter", label: "Quarter" },
-                  { key: "custom", label: "Custom range" },
+                  { key: "daily", label: t("auditLogExport.period.daily") },
+                  { key: "monthly", label: t("auditLogExport.period.monthly") },
+                  { key: "yearly", label: t("auditLogExport.period.yearly") },
+                  { key: "quarter", label: t("auditLogExport.period.quarter") },
+                  { key: "custom", label: t("auditLogExport.period.customRange") },
                 ].map((p) => {
                   const active = periodType === p.key;
                   return (
@@ -370,12 +385,14 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                 {periodType === "daily" && (
                   <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-bold text-slate-600">Select date</label>
+                    <label className="text-xs font-bold text-slate-600">
+                      {t("auditLogExport.period.selectDate")}
+                    </label>
                     <input
                       readOnly
                       value={dailyDate}
                       onClick={() => openPicker("daily")}
-                      placeholder="YYYY-MM-DD"
+                      placeholder={t("auditLogExport.placeholders.date")}
                       className={readonlyPickerInputClass}
                     />
                   </div>
@@ -383,12 +400,14 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
 
                 {periodType === "monthly" && (
                   <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-bold text-slate-600">Select month</label>
+                    <label className="text-xs font-bold text-slate-600">
+                      {t("auditLogExport.period.selectMonth")}
+                    </label>
                     <input
                       readOnly
                       value={monthValue}
                       onClick={() => openPicker("month")}
-                      placeholder="YYYY-MM"
+                      placeholder={t("auditLogExport.placeholders.month")}
                       className={readonlyPickerInputClass}
                     />
                   </div>
@@ -396,12 +415,14 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
 
                 {periodType === "yearly" && (
                   <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-bold text-slate-600">Select year</label>
+                    <label className="text-xs font-bold text-slate-600">
+                      {t("auditLogExport.period.selectYear")}
+                    </label>
                     <input
                       readOnly
                       value={yearValue}
                       onClick={() => openPicker("year")}
-                      placeholder="YYYY"
+                      placeholder={t("auditLogExport.placeholders.year")}
                       className={readonlyPickerInputClass}
                     />
                   </div>
@@ -410,26 +431,32 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
                 {periodType === "quarter" && (
                   <>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600">Year</label>
+                      <label className="text-xs font-bold text-slate-600">
+                        {t("auditLogExport.quarter.year")}
+                      </label>
                       <input
                         readOnly
                         value={quarterYear}
                         onClick={() => openPicker("qYear")}
-                        placeholder="YYYY"
+                        placeholder={t("auditLogExport.placeholders.year")}
                         className={readonlyPickerInputClass}
                       />
                     </div>
+
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600">Quarter</label>
+                      <label className="text-xs font-bold text-slate-600">
+                        {t("auditLogExport.quarter.quarter")}
+                      </label>
+
                       <select
                         value={quarterValue}
                         onChange={(e) => setQuarterValue(e.target.value)}
                         className={inputClass}
                       >
-                        <option value="Q1">Q1 (Jan–Mar)</option>
-                        <option value="Q2">Q2 (Apr–Jun)</option>
-                        <option value="Q3">Q3 (Jul–Sep)</option>
-                        <option value="Q4">Q4 (Oct–Dec)</option>
+                        <option value="Q1">{t("auditLogExport.quarter.q1")}</option>
+                        <option value="Q2">{t("auditLogExport.quarter.q2")}</option>
+                        <option value="Q3">{t("auditLogExport.quarter.q3")}</option>
+                        <option value="Q4">{t("auditLogExport.quarter.q4")}</option>
                       </select>
                     </div>
                   </>
@@ -438,22 +465,27 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
                 {periodType === "custom" && (
                   <>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600">Date from</label>
+                      <label className="text-xs font-bold text-slate-600">
+                        {t("auditLogExport.custom.dateFrom")}
+                      </label>
                       <input
                         readOnly
                         value={customFrom}
                         onClick={() => openPicker("from")}
-                        placeholder="YYYY-MM-DD"
+                        placeholder={t("auditLogExport.placeholders.date")}
                         className={readonlyPickerInputClass}
                       />
                     </div>
+
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600">Date to</label>
+                      <label className="text-xs font-bold text-slate-600">
+                        {t("auditLogExport.custom.dateTo")}
+                      </label>
                       <input
                         readOnly
                         value={customTo}
                         onClick={() => openPicker("to")}
-                        placeholder="YYYY-MM-DD"
+                        placeholder={t("auditLogExport.placeholders.date")}
                         className={readonlyPickerInputClass}
                       />
                     </div>
@@ -462,9 +494,9 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
               </div>
 
               <div className="text-xs text-slate-500">
-                Range:{" "}
+                {t("auditLogExport.range.label")}{" "}
                 <span className="font-bold text-slate-700">
-                  {from || "-"} → {to || "-"}
+                  {from || "-"} {t("auditLogExport.range.to")} {to || "-"}
                 </span>
               </div>
             </div>
@@ -472,13 +504,15 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
             {/* Other filters */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600">Model</label>
+                <label className="text-xs font-bold text-slate-600">
+                  {t("auditLogExport.filters.model")}
+                </label>
                 <select
                   value={fModel}
                   onChange={(e) => setFModel(e.target.value)}
                   className={inputClass}
                 >
-                  <option value="all">All</option>
+                  <option value="all">{t("auditLogExport.common.all")}</option>
                   {modelOptions.map((m) => (
                     <option key={m} value={m}>
                       {m}
@@ -488,9 +522,15 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600">Performed by</label>
-                <select value={fUser} onChange={(e) => setFUser(e.target.value)} className={inputClass}>
-                  <option value="all">All</option>
+                <label className="text-xs font-bold text-slate-600">
+                  {t("auditLogExport.filters.performedBy")}
+                </label>
+                <select
+                  value={fUser}
+                  onChange={(e) => setFUser(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="all">{t("auditLogExport.common.all")}</option>
                   {userOptions.map((u) => (
                     <option key={u} value={u}>
                       {u}
@@ -500,21 +540,25 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
               </div>
 
               <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-bold text-slate-600">Keyword (details)</label>
+                <label className="text-xs font-bold text-slate-600">
+                  {t("auditLogExport.filters.keyword")}
+                </label>
                 <input
                   value={fKeyword}
                   onChange={(e) => setFKeyword(e.target.value)}
-                  placeholder='เช่น "Late", "Approved", "withdraw"...'
+                  placeholder={t("auditLogExport.placeholders.keyword")}
                   className={inputClass}
                 />
               </div>
 
               <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-bold text-slate-600">Record ID (optional)</label>
+                <label className="text-xs font-bold text-slate-600">
+                  {t("auditLogExport.filters.recordId")}
+                </label>
                 <input
                   value={fRecordId}
                   onChange={(e) => setFRecordId(e.target.value)}
-                  placeholder="เช่น 6 หรือ 10"
+                  placeholder={t("auditLogExport.placeholders.recordId")}
                   className={inputClass}
                 />
               </div>
@@ -523,19 +567,23 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
             {/* actions multi */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-600">Actions (multi-select)</label>
+                <label className="text-xs font-bold text-slate-600">
+                  {t("auditLogExport.filters.actions")}
+                </label>
                 <button
                   type="button"
                   onClick={() => setFActions([])}
                   className="text-xs font-bold text-slate-500 hover:text-slate-700"
                 >
-                  Clear actions
+                  {t("auditLogExport.actions.clearActions")}
                 </button>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 {actionOptions.length === 0 ? (
-                  <div className="text-sm text-slate-400 italic">No actions loaded yet</div>
+                  <div className="text-sm text-slate-400 italic">
+                    {t("auditLogExport.actions.noActions")}
+                  </div>
                 ) : (
                   actionOptions.map((act) => {
                     const active = fActions.includes(act);
@@ -562,14 +610,15 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
             {/* preview count */}
             <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
               <div className="text-sm text-slate-700">
-                Rows to export: <span className="font-black">{filteredRows.length}</span>
+                {t("auditLogExport.preview.rowsToExport")}{" "}
+                <span className="font-black">{filteredRows.length}</span>
               </div>
               <button
                 type="button"
                 onClick={resetAll}
                 className="text-sm font-bold text-slate-600 hover:text-slate-900"
               >
-                Reset
+                {t("auditLogExport.common.reset")}
               </button>
             </div>
           </div>
@@ -581,7 +630,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
               onClick={onClose}
               className="h-10 px-4 rounded-full border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 transition"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -589,7 +638,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
               className="h-10 px-5 rounded-full bg-slate-900 text-white font-black hover:bg-slate-800 active:scale-[0.98] transition inline-flex items-center gap-2"
             >
               <Download size={18} />
-              Export
+              {t("auditLogExport.buttons.export")}
             </button>
           </div>
         </div>
@@ -601,19 +650,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
         value={pickerValue}
         onChange={handlePickerChange}
         onClose={closePicker}
-        title={
-          pickerField === "daily"
-            ? "Select date"
-            : pickerField === "month"
-            ? "Select month"
-            : pickerField === "year" || pickerField === "qYear"
-            ? "Select year"
-            : pickerField === "from"
-            ? "Date from"
-            : pickerField === "to"
-            ? "Date to"
-            : "Select date"
-        }
+        title={pickerTitle}
         allowAll={false}
         granularity={pickerGranularity} // "day" | "month" | "year"
       />

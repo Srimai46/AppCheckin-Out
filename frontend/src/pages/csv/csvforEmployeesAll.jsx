@@ -1,13 +1,11 @@
 // frontend/src/pages/csv/csvforEmployeesAll.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Download, Filter, X, CheckSquare, Square } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
-export default function CsvForEmployeesAll({
-  open,
-  onClose,
-  employees = [],
-  initialFilters,
-}) {
+export default function CsvForEmployeesAll({ open, onClose, employees = [], initialFilters }) {
+  const { t } = useTranslation();
+
   // -------------------------
   // Filters (ควรมี)
   // -------------------------
@@ -57,7 +55,9 @@ export default function CsvForEmployeesAll({
 
       // keyword
       if (!kw) return true;
-      const hay = `${emp?.firstName || ""} ${emp?.lastName || ""} ${emp?.email || ""} ${emp?.role || ""} ${emp?.id || ""}`.toLowerCase();
+      const hay = `${emp?.firstName || ""} ${emp?.lastName || ""} ${emp?.email || ""} ${emp?.role || ""} ${
+        emp?.id || ""
+      }`.toLowerCase();
       return hay.includes(kw);
     });
   }, [employees, tab, role, status, keyword]);
@@ -76,7 +76,10 @@ export default function CsvForEmployeesAll({
       cols.lastName && { h: "lastName", v: emp?.lastName ?? "" },
       cols.email && { h: "email", v: emp?.email ?? "" },
       cols.role && { h: "role", v: emp?.role ?? "" },
-      cols.isActive && { h: "status", v: isActive ? "active" : "inactive" },
+      cols.isActive && {
+        h: "status",
+        v: isActive ? t("employeesAllExport.status.active") : t("employeesAllExport.status.inactive"),
+      },
       cols.joiningDate && { h: "joiningDate", v: emp?.joiningDate ?? "" },
     ].filter(Boolean);
 
@@ -119,9 +122,7 @@ export default function CsvForEmployeesAll({
     onClose?.();
   };
 
-  const toggleCol = (key) => {
-    setCols((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  const toggleCol = (key) => setCols((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const reset = () => {
     setRole(initialFilters?.roleFilter ?? "all");
@@ -176,9 +177,12 @@ export default function CsvForEmployeesAll({
             <div className="flex items-center gap-2">
               <Filter size={18} className="text-slate-700" />
               <div>
-                <div className="text-lg font-black text-slate-800">Export Employees (All)</div>
+                <div className="text-lg font-black text-slate-800">
+                  {t("employeesAllExport.title")}
+                </div>
                 <div className="text-xs text-slate-500 font-bold">
-                  Rows to export: <span className="text-slate-800">{filtered.length}</span>
+                  {t("employeesAllExport.rowsToExport")}{" "}
+                  <span className="text-slate-800">{filtered.length}</span>
                 </div>
               </div>
             </div>
@@ -187,7 +191,8 @@ export default function CsvForEmployeesAll({
               type="button"
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-slate-100 transition"
-              aria-label="Close"
+              aria-label={t("common.close")}
+              title={t("common.close")}
             >
               <X size={18} />
             </button>
@@ -197,42 +202,56 @@ export default function CsvForEmployeesAll({
           <div className="px-6 py-5 space-y-5">
             {/* quick filters */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-slate-600">Filters</div>
+              <div className="text-xs font-bold text-slate-600">{t("employeesAllExport.filters.label")}</div>
 
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => setTab("active")} className={pillBtn(tab === "active")}>
-                  Active tab
+                <button
+                  type="button"
+                  onClick={() => setTab("active")}
+                  className={pillBtn(tab === "active")}
+                >
+                  {t("employeesAllExport.filters.activeTab")}
                 </button>
-                <button type="button" onClick={() => setTab("inactive")} className={pillBtn(tab === "inactive")}>
-                  Resigned tab
+                <button
+                  type="button"
+                  onClick={() => setTab("inactive")}
+                  className={pillBtn(tab === "inactive")}
+                >
+                  {t("employeesAllExport.filters.resignedTab")}
                 </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600">Role</label>
+                  <label className="text-xs font-bold text-slate-600">
+                    {t("employeesAllExport.filters.role")}
+                  </label>
                   <select value={role} onChange={(e) => setRole(e.target.value)} className={inputClass}>
-                    <option value="all">All</option>
-                    <option value="Worker">Worker</option>
-                    <option value="HR">HR</option>
+                    <option value="all">{t("employeesAllExport.options.all")}</option>
+                    <option value="Worker">{t("employeesAllExport.options.worker")}</option>
+                    <option value="HR">{t("employeesAllExport.options.hr")}</option>
                   </select>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600">Status</label>
+                  <label className="text-xs font-bold text-slate-600">
+                    {t("employeesAllExport.filters.status")}
+                  </label>
                   <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass}>
-                    <option value="all">All</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
+                    <option value="all">{t("employeesAllExport.options.all")}</option>
+                    <option value="active">{t("employeesAllExport.status.active")}</option>
+                    <option value="inactive">{t("employeesAllExport.status.inactive")}</option>
                   </select>
                 </div>
 
                 <div className="space-y-1 md:col-span-2">
-                  <label className="text-xs font-bold text-slate-600">Keyword</label>
+                  <label className="text-xs font-bold text-slate-600">
+                    {t("employeesAllExport.filters.keyword")}
+                  </label>
                   <input
                     value={keyword}
                     onChange={(e) => setKeyword(e.target.value)}
-                    placeholder="Search by name, email, role, ID..."
+                    placeholder={t("employeesAllExport.filters.keywordPlaceholder")}
                     className={inputClass}
                   />
                 </div>
@@ -241,32 +260,31 @@ export default function CsvForEmployeesAll({
 
             {/* column selector */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-slate-600">Columns</div>
+              <div className="text-xs font-bold text-slate-600">{t("employeesAllExport.columns.label")}</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <ColRow k="id" label="Employee ID" />
-                <ColRow k="firstName" label="First name" />
-                <ColRow k="lastName" label="Last name" />
-                <ColRow k="email" label="Email" />
-                <ColRow k="role" label="Role" />
-                <ColRow k="isActive" label="Status (active/inactive)" />
-                <ColRow k="joiningDate" label="Joining date" />
+                <ColRow k="id" label={t("employeesAllExport.columns.employeeId")} />
+                <ColRow k="firstName" label={t("employeesAllExport.columns.firstName")} />
+                <ColRow k="lastName" label={t("employeesAllExport.columns.lastName")} />
+                <ColRow k="email" label={t("employeesAllExport.columns.email")} />
+                <ColRow k="role" label={t("employeesAllExport.columns.role")} />
+                <ColRow k="isActive" label={t("employeesAllExport.columns.status")} />
+                <ColRow k="joiningDate" label={t("employeesAllExport.columns.joiningDate")} />
               </div>
-              <div className="text-xs text-slate-500">
-                Tip: ปิดคอลัมน์ที่ไม่ต้องการ เพื่อลดขนาดไฟล์ export
-              </div>
+              <div className="text-xs text-slate-500">{t("employeesAllExport.columns.tip")}</div>
             </div>
 
             {/* preview */}
             <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
               <div className="text-sm text-slate-700">
-                Preview rows: <span className="font-black">{filtered.length}</span>
+                {t("employeesAllExport.previewRows")}{" "}
+                <span className="font-black">{filtered.length}</span>
               </div>
               <button
                 type="button"
                 onClick={reset}
                 className="text-sm font-bold text-slate-600 hover:text-slate-900"
               >
-                Reset
+                {t("common.reset")}
               </button>
             </div>
           </div>
@@ -278,7 +296,7 @@ export default function CsvForEmployeesAll({
               onClick={onClose}
               className="h-10 px-4 rounded-full border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 transition"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -287,7 +305,7 @@ export default function CsvForEmployeesAll({
               className="h-10 px-5 rounded-full bg-slate-900 text-white font-black hover:bg-slate-800 active:scale-[0.98] transition inline-flex items-center gap-2 disabled:opacity-60"
             >
               <Download size={18} />
-              Export CSV
+              {t("employeesAllExport.buttons.exportCsv")}
             </button>
           </div>
         </div>

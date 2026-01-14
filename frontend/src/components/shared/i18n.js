@@ -65,6 +65,8 @@ i18n.use(initReactI18next).init({
           next: "next",
           back: "back",
 
+          close: "Close",
+
           // Alerts / Validation
           missingInfo: "Missing information",
           invalidValue: "Invalid value",
@@ -526,6 +528,33 @@ i18n.use(initReactI18next).init({
           page: "Page",
           prev: "Prev",
           next: "Next",
+
+          colExport: "Export",
+          exportEmployee: "Export employee",
+
+          aria: {
+            closeRoleDropdown: "Close role dropdown",
+          },
+
+          pagination: {
+            label: "Page {{page}} / {{totalPages}}",
+          },
+
+          exportAll: {
+            button: "Export All",
+            buttonTitle: "Export All",
+            title: "Export All",
+
+            workbook: {
+              title: "(1) Export Workbook (.xlsx) — Multiple sheets",
+              desc: "For selecting multiple employees (xlsx, 1 sheet per employee)",
+            },
+            employeesList: {
+              title: "(2) Export employee list",
+              desc: "For exporting employee list (csv)",
+            },
+            note: "* Note: Multiple sheets require xlsx (CSV cannot contain multiple sheets).",
+          },
         },
 
         employeeCreate: {
@@ -551,6 +580,16 @@ i18n.use(initReactI18next).init({
           cancel: "Cancel",
           submit: "Register",
           processing: "Processing...",
+
+          roleWorker: "Worker",
+          roleHR: "HR",
+          selected: "Selected",
+
+          confirmReviewTitle: "Please review the information below",
+          successText: "Added new employee successfully.",
+
+          success: "Success",
+          failed: "Failed",
         },
         /* -------- working days -------- */
         workingDays: {
@@ -833,6 +872,249 @@ i18n.use(initReactI18next).init({
             noteTitle: "Note: {{note}}",
           },
         },
+
+        /* -------- Notification Bell -------- */
+        notificationBell: {
+          title: "Notifications",
+          readAll: "Read everything",
+          empty: "No new notifications",
+          view: "View",
+          tooltip: {
+            openEmployee: "Open employee details",
+            markRead: "Mark as read",
+          },
+          aria: {
+            toggle: "Toggle notifications",
+          },
+        },
+
+        // -------- Employee Export --------
+        employeeExport: {
+          title: "Export CSV (Employee)",
+          exportType: {
+            label: "Export type",
+            attendance: "Attendance",
+            leaveRequests: "Leave Requests",
+          },
+          period: {
+            label: "Period",
+            daily: "Daily",
+            monthly: "Monthly",
+            yearly: "Yearly",
+            quarter: "Quarter",
+            customRange: "Custom range",
+            selectDate: "Select date",
+            selectMonth: "Select month",
+            selectYear: "Select year",
+          },
+          quarter: {
+            year: "Year",
+            quarter: "Quarter",
+            q1: "Q1 (Jan–Mar)",
+            q2: "Q2 (Apr–Jun)",
+            q3: "Q3 (Jul–Sep)",
+            q4: "Q4 (Oct–Dec)",
+          },
+          custom: {
+            dateFrom: "Date from",
+            dateTo: "Date to",
+            pickDate: "Pick date",
+          },
+          range: {
+            label: "Range:",
+          },
+          buttons: {
+            export: "Export",
+          },
+          common: {
+            all: "All",
+          },
+          picker: {
+            selectDate: "Select date",
+            selectMonth: "Select month",
+            selectYear: "Select year",
+            dateFrom: "Date from",
+            dateTo: "Date to",
+          },
+          errors: {
+            noEmployee: "Employee not found.",
+            customIncomplete: "Please select both start and end dates for Custom range.",
+            endpoint404:
+              "Export failed: Backend endpoint not found (404). Please check backend API routes and update paths in this file.",
+            exportFailed: "Export failed",
+          },
+        },
+
+        // -------- Employees All Export --------
+        employeesAllExport: {
+          title: "Export Employees (All)",
+          rowsToExport: "Rows to export:",
+          previewRows: "Preview rows:",
+          buttons: {
+            exportCsv: "Export CSV",
+          },
+          filters: {
+            label: "Filters",
+            activeTab: "Active tab",
+            resignedTab: "Resigned tab",
+            role: "Role",
+            status: "Status",
+            keyword: "Keyword",
+            keywordPlaceholder: "Search by name, email, role, ID...",
+          },
+          options: {
+            all: "All",
+            worker: "Worker",
+            hr: "HR",
+          },
+          status: {
+            active: "Active",
+            inactive: "Inactive",
+          },
+          columns: {
+            label: "Columns",
+            employeeId: "Employee ID",
+            firstName: "First name",
+            lastName: "Last name",
+            email: "Email",
+            role: "Role",
+            status: "Status (active/inactive)",
+            joiningDate: "Joining date",
+            tip: "Tip: Turn off columns you don't need to reduce file size.",
+          },
+        },
+
+        // -------- XLSX Workbook Export --------
+        xlsxWorkbook: {
+          title: "Export Workbook (XLSX)",
+          employeesCount: "Employees:",
+          workbookType: {
+            label: "Workbook type",
+            perEmployee: "Per Employee (many sheets)",
+            employeesList: "Employees List (one sheet)",
+          },
+          dataType: {
+            label: "Data type",
+            attendance: "Attendance",
+            leave: "Leave Requests",
+          },
+          period: {
+            label: "Period",
+            daily: "Daily",
+            monthly: "Monthly",
+            yearly: "Yearly",
+            quarter: "Quarter",
+            custom: "Custom range",
+          },
+          fields: {
+            selectDate: "Select date",
+            selectMonth: "Select month",
+            selectYear: "Select year",
+            year: "Year",
+            quarter: "Quarter",
+            dateFrom: "Date from",
+            dateTo: "Date to",
+          },
+          placeholders: {
+            pickDate: "Pick a date",
+            pickMonth: "Pick a month",
+            pickYear: "Pick a year",
+            pickStart: "Pick start date",
+            pickEnd: "Pick end date",
+          },
+          rangeLabel: "Range:",
+          buttons: {
+            exportXlsx: "Export XLSX",
+          },
+          quarters: {
+            q1: "Q1 (Jan–Mar)",
+            q2: "Q2 (Apr–Jun)",
+            q3: "Q3 (Jul–Sep)",
+            q4: "Q4 (Oct–Dec)",
+          },
+          picker: {
+            select: "Select",
+            selectDate: "Select date",
+            selectMonth: "Select month",
+            selectYear: "Select year",
+            dateFrom: "Date from",
+            dateTo: "Date to",
+          },
+          errors: {
+            noEmployees: "No employees to export.",
+            pickDaily: "Please select a date (Daily).",
+            pickMonthly: "Please select a month (Monthly).",
+            pickCustom: "Please select both start and end date (Custom).",
+            exportFailed: "Export workbook failed.",
+          },
+        },
+
+        /* -------- Audit Log Export -------- */
+        auditLogExport: {
+          title: "Export CSV Filters",
+          period: {
+            label: "Period",
+            daily: "Daily",
+            monthly: "Monthly",
+            yearly: "Yearly",
+            quarter: "Quarter",
+            customRange: "Custom range",
+            selectDate: "Select date",
+            selectMonth: "Select month",
+            selectYear: "Select year",
+          },
+          quarter: {
+            year: "Year",
+            quarter: "Quarter",
+            q1: "Q1 (Jan–Mar)",
+            q2: "Q2 (Apr–Jun)",
+            q3: "Q3 (Jul–Sep)",
+            q4: "Q4 (Oct–Dec)",
+          },
+          custom: {
+            dateFrom: "Date from",
+            dateTo: "Date to",
+          },
+          range: {
+            label: "Range:",
+            to: "→",
+          },
+          filters: {
+            model: "Model",
+            performedBy: "Performed by",
+            keyword: "Keyword (details)",
+            recordId: "Record ID (optional)",
+            actions: "Actions (multi-select)",
+          },
+          actions: {
+            clearActions: "Clear actions",
+            noActions: "No actions loaded yet",
+          },
+          preview: {
+            rowsToExport: "Rows to export:",
+          },
+          buttons: {
+            export: "Export",
+          },
+          common: {
+            all: "All",
+            reset: "Reset",
+          },
+          placeholders: {
+            date: "YYYY-MM-DD",
+            month: "YYYY-MM",
+            year: "YYYY",
+            keyword: 'e.g. "Late", "Approved", "withdraw"...',
+            recordId: "e.g. 6 or 10",
+          },
+          picker: {
+            selectDate: "Select date",
+            selectMonth: "Select month",
+            selectYear: "Select year",
+            dateFrom: "Date from",
+            dateTo: "Date to",
+          },
+        },
       },
     },
 
@@ -890,6 +1172,8 @@ i18n.use(initReactI18next).init({
           prev: "ก่อนหน้า",
           next: "ถัดไป",
           back: "กลับ",
+
+          close: "ปิด",
 
           // Alerts / Validation
           missingInfo: "ข้อมูลไม่ครบถ้วน",
@@ -1346,6 +1630,33 @@ i18n.use(initReactI18next).init({
           page: "หน้า",
           prev: "ก่อนหน้า",
           next: "ถัดไป",
+
+          colExport: "ส่งออก",
+          exportEmployee: "ส่งออกข้อมูลพนักงาน",
+
+          aria: {
+            closeRoleDropdown: "ปิดตัวเลือกบทบาท",
+          },
+
+          pagination: {
+            label: "หน้า {{page}} / {{totalPages}}",
+          },
+
+          exportAll: {
+            button: "ส่งออกทั้งหมด",
+            buttonTitle: "ส่งออกทั้งหมด",
+            title: "ส่งออกทั้งหมด",
+
+            workbook: {
+              title: "(1) ส่งออก Workbook (.xlsx) — หลายชีต",
+              desc: "สำหรับเลือกพนักงานหลายคน (ไฟล์ .xlsx, 1 ชีตต่อ 1 พนักงาน)",
+            },
+            employeesList: {
+              title: "(2) ส่งออกรายชื่อพนักงาน",
+              desc: "สำหรับส่งออกรายชื่อพนักงาน (ไฟล์ .csv)",
+            },
+            note: "* หมายเหตุ: Workbook แบบหลายชีตต้องใช้ xlsx (CSV ทำหลายชีตไม่ได้)",
+          },
         },
 
         employeeCreate: {
@@ -1371,6 +1682,16 @@ i18n.use(initReactI18next).init({
           cancel: "ยกเลิก",
           submit: "บันทึก",
           processing: "กำลังดำเนินการ...",
+
+          roleWorker: "พนักงาน",
+          roleHR: "ฝ่ายบุคคล",
+          selected: "เลือกอยู่",
+
+          confirmReviewTitle: "กรุณาตรวจสอบข้อมูลด้านล่าง",
+          successText: "เพิ่มพนักงานใหม่เรียบร้อยแล้ว",
+
+          success: "สำเร็จ",
+          failed: "ไม่สำเร็จ",
         },
         /* -------- working days -------- */
         workingDays: {
@@ -1651,6 +1972,250 @@ i18n.use(initReactI18next).init({
             noteTitle: "หมายเหตุ: {{note}}",
           },
         },
+
+        /* -------- Notification Bell -------- */
+        notificationBell: {
+          title: "การแจ้งเตือน",
+          readAll: "อ่านทั้งหมด",
+          empty: "ไม่มีการแจ้งเตือนใหม่",
+          view: "ดู",
+          tooltip: {
+            openEmployee: "เปิดรายละเอียดพนักงาน",
+            markRead: "ทำเครื่องหมายว่าอ่านแล้ว",
+          },
+          aria: {
+            toggle: "เปิด/ปิดการแจ้งเตือน",
+          },
+        },
+
+        // -------- Employee Export --------
+        employeeExport: {
+          title: "Export CSV (รายบุคคล)",
+          exportType: {
+            label: "ประเภทการ Export",
+            attendance: "การเข้างาน",
+            leaveRequests: "คำขอลา",
+          },
+          period: {
+            label: "ช่วงเวลา",
+            daily: "รายวัน",
+            monthly: "รายเดือน",
+            yearly: "รายปี",
+            quarter: "รายไตรมาส",
+            customRange: "กำหนดเอง",
+            selectDate: "เลือกวันที่",
+            selectMonth: "เลือกเดือน",
+            selectYear: "เลือกปี",
+          },
+          quarter: {
+            year: "ปี",
+            quarter: "ไตรมาส",
+            q1: "ไตรมาส 1 (ม.ค.–มี.ค.)",
+            q2: "ไตรมาส 2 (เม.ย.–มิ.ย.)",
+            q3: "ไตรมาส 3 (ก.ค.–ก.ย.)",
+            q4: "ไตรมาส 4 (ต.ค.–ธ.ค.)",
+          },
+          custom: {
+            dateFrom: "วันที่เริ่ม",
+            dateTo: "วันที่สิ้นสุด",
+            pickDate: "เลือกวันที่",
+          },
+          range: {
+            label: "ช่วง:",
+          },
+          buttons: {
+            export: "Export",
+          },
+          common: {
+            all: "ทั้งหมด",
+          },
+          picker: {
+            selectDate: "เลือกวันที่",
+            selectMonth: "เลือกเดือน",
+            selectYear: "เลือกปี",
+            dateFrom: "วันที่เริ่ม",
+            dateTo: "วันที่สิ้นสุด",
+          },
+          errors: {
+            noEmployee: "ไม่พบข้อมูลพนักงาน",
+            customIncomplete: "กรุณาเลือกวันเริ่มต้น-วันสิ้นสุด (Custom) ให้ครบ",
+            endpoint404:
+              "Export ไม่สำเร็จ: Backend ไม่มี endpoint ที่รองรับ (404) กรุณาเช็คเส้น API จริงใน backend แล้วปรับ paths ในไฟล์นี้",
+            exportFailed: "Export ไม่สำเร็จ",
+          },
+        },
+
+        // -------- Employees All Export --------
+        employeesAllExport: {
+          title: "Export รายชื่อพนักงาน (ทั้งหมด)",
+          rowsToExport: "จำนวนแถวที่จะ Export:",
+          previewRows: "ตัวอย่างแถว:",
+          buttons: {
+            exportCsv: "Export CSV",
+          },
+          filters: {
+            label: "ตัวกรอง",
+            activeTab: "แท็บพนักงานปัจจุบัน",
+            resignedTab: "แท็บพนักงานลาออก",
+            role: "ตำแหน่ง",
+            status: "สถานะ",
+            keyword: "คำค้นหา",
+            keywordPlaceholder: "ค้นหาจากชื่อ, อีเมล, ตำแหน่ง, ID...",
+          },
+          options: {
+            all: "ทั้งหมด",
+            worker: "Worker",
+            hr: "HR",
+          },
+          status: {
+            active: "ทำงานอยู่",
+            inactive: "ลาออกแล้ว",
+          },
+          columns: {
+            label: "คอลัมน์",
+            employeeId: "รหัสพนักงาน",
+            firstName: "ชื่อ",
+            lastName: "นามสกุล",
+            email: "อีเมล",
+            role: "ตำแหน่ง",
+            status: "สถานะ (ทำงานอยู่/ลาออกแล้ว)",
+            joiningDate: "วันที่เริ่มงาน",
+            tip: "Tip: ปิดคอลัมน์ที่ไม่ต้องการ เพื่อลดขนาดไฟล์ export",
+          },
+        },
+
+        // -------- XLSX Workbook Export --------
+        xlsxWorkbook: {
+          title: "Export Workbook (XLSX)",
+          employeesCount: "จำนวนพนักงาน:",
+          workbookType: {
+            label: "รูปแบบ Workbook",
+            perEmployee: "แยกตามพนักงาน (หลายชีต)",
+            employeesList: "รายชื่อพนักงาน (ชีตเดียว)",
+          },
+          dataType: {
+            label: "ประเภทข้อมูล",
+            attendance: "การเข้างาน (Attendance)",
+            leave: "คำขอลา (Leave Requests)",
+          },
+          period: {
+            label: "ช่วงเวลา",
+            daily: "รายวัน",
+            monthly: "รายเดือน",
+            yearly: "รายปี",
+            quarter: "รายไตรมาส",
+            custom: "กำหนดเอง",
+          },
+          fields: {
+            selectDate: "เลือกวัน",
+            selectMonth: "เลือกเดือน",
+            selectYear: "เลือกปี",
+            year: "ปี",
+            quarter: "ไตรมาส",
+            dateFrom: "วันที่เริ่มต้น",
+            dateTo: "วันที่สิ้นสุด",
+          },
+          placeholders: {
+            pickDate: "เลือกวัน",
+            pickMonth: "เลือกเดือน",
+            pickYear: "เลือกปี",
+            pickStart: "เลือกวันเริ่มต้น",
+            pickEnd: "เลือกวันสิ้นสุด",
+          },
+          rangeLabel: "ช่วง:",
+          buttons: {
+            exportXlsx: "Export XLSX",
+          },
+          quarters: {
+            q1: "Q1 (ม.ค.–มี.ค.)",
+            q2: "Q2 (เม.ย.–มิ.ย.)",
+            q3: "Q3 (ก.ค.–ก.ย.)",
+            q4: "Q4 (ต.ค.–ธ.ค.)",
+          },
+          picker: {
+            select: "เลือก",
+            selectDate: "เลือกวัน",
+            selectMonth: "เลือกเดือน",
+            selectYear: "เลือกปี",
+            dateFrom: "วันที่เริ่มต้น",
+            dateTo: "วันที่สิ้นสุด",
+          },
+          errors: {
+            noEmployees: "ไม่มีรายชื่อพนักงานสำหรับ Export",
+            pickDaily: "กรุณาเลือกวัน (รายวัน)",
+            pickMonthly: "กรุณาเลือกเดือน (รายเดือน)",
+            pickCustom: "กรุณาเลือกวันเริ่มต้น-วันสิ้นสุด (กำหนดเอง) ให้ครบ",
+            exportFailed: "Export workbook ไม่สำเร็จ",
+          },
+        },
+
+        /* -------- Audit Log Export -------- */
+        auditLogExport: {
+          title: "ตัวกรองการ Export CSV",
+          period: {
+            label: "ช่วงเวลา",
+            daily: "รายวัน",
+            monthly: "รายเดือน",
+            yearly: "รายปี",
+            quarter: "รายไตรมาส",
+            customRange: "กำหนดเอง",
+            selectDate: "เลือกวันที่",
+            selectMonth: "เลือกเดือน",
+            selectYear: "เลือกปี",
+          },
+          quarter: {
+            year: "ปี",
+            quarter: "ไตรมาส",
+            q1: "ไตรมาส 1 (ม.ค.–มี.ค.)",
+            q2: "ไตรมาส 2 (เม.ย.–มิ.ย.)",
+            q3: "ไตรมาส 3 (ก.ค.–ก.ย.)",
+            q4: "ไตรมาส 4 (ต.ค.–ธ.ค.)",
+          },
+          custom: {
+            dateFrom: "วันที่เริ่ม",
+            dateTo: "วันที่สิ้นสุด",
+          },
+          range: {
+            label: "ช่วง:",
+            to: "→",
+          },
+          filters: {
+            model: "โมเดล",
+            performedBy: "ดำเนินการโดย",
+            keyword: "คำค้น (รายละเอียด)",
+            recordId: "รหัสรายการ (ถ้ามี)",
+            actions: "Actions (เลือกได้หลายค่า)",
+          },
+          actions: {
+            clearActions: "ล้าง actions",
+            noActions: "ยังไม่มี actions",
+          },
+          preview: {
+            rowsToExport: "จำนวนแถวที่จะ export:",
+          },
+          buttons: {
+            export: "Export",
+          },
+          common: {
+            all: "ทั้งหมด",
+            reset: "รีเซ็ต",
+          },
+          placeholders: {
+            date: "YYYY-MM-DD",
+            month: "YYYY-MM",
+            year: "YYYY",
+            keyword: 'เช่น "Late", "Approved", "withdraw"...',
+            recordId: "เช่น 6 หรือ 10",
+          },
+          picker: {
+            selectDate: "เลือกวันที่",
+            selectMonth: "เลือกเดือน",
+            selectYear: "เลือกปี",
+            dateFrom: "วันที่เริ่ม",
+            dateTo: "วันที่สิ้นสุด",
+          },
+        },
+
       },
     },
   },

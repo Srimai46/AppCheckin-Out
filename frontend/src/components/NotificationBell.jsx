@@ -14,7 +14,7 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
 
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 
   // ✅ กัน fetch ถี่เกิน (เวลา backend ยิง refresh รัวๆ)
@@ -156,6 +156,8 @@ export default function NotificationBell() {
         <button
           onClick={() => setIsOpen((v) => !v)}
           className="relative p-2 text-gray-500 hover:text-blue-600 transition-all active:scale-95"
+          aria-label={t("notificationBell.aria.toggle")}
+          title={t("notificationBell.aria.toggle")}
         >
           <Bell size={24} />
           {unreadCount > 0 && (
@@ -172,14 +174,15 @@ export default function NotificationBell() {
             <div className="absolute right-0 top-full mt-3 w-80 rounded-[1.5rem] border border-gray-100 bg-white shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
               <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  Notifications
+                  {t("notificationBell.title")}
                 </h3>
+
                 {unreadCount > 0 && (
                   <button
                     onClick={handleMarkAllRead}
                     className="text-[10px] font-black text-blue-600 hover:underline flex items-center gap-1"
                   >
-                    <CheckCheck size={12} /> Read everything
+                    <CheckCheck size={12} /> {t("notificationBell.readAll")}
                   </button>
                 )}
               </div>
@@ -187,7 +190,7 @@ export default function NotificationBell() {
               <div className="max-h-[400px] overflow-y-auto scrollbar-hide">
                 {notifications.length === 0 ? (
                   <div className="p-10 text-center text-gray-300 font-bold text-sm italic">
-                    No new notifications
+                    {t("notificationBell.empty")}
                   </div>
                 ) : (
                   notifications.map((n) => {
@@ -202,7 +205,11 @@ export default function NotificationBell() {
                             ? "bg-blue-50/40 border-l-4 border-l-blue-500"
                             : "hover:bg-gray-50"
                         }`}
-                        title={canGoEmployee ? "Open employee details" : "Mark as read"}
+                        title={
+                          canGoEmployee
+                            ? t("notificationBell.tooltip.openEmployee")
+                            : t("notificationBell.tooltip.markRead")
+                        }
                       >
                         <p
                           className={`text-[12px] leading-relaxed ${
@@ -229,7 +236,7 @@ export default function NotificationBell() {
 
                           {canGoEmployee && (
                             <span className="text-[10px] font-black text-blue-600">
-                              View
+                              {t("notificationBell.view")}
                             </span>
                           )}
                         </div>
