@@ -41,7 +41,6 @@ export default function DateGridPicker({
     return fallback;
   };
 
-  // ⭐ รวม state ทั้งหมดเป็น object เดียว
   const [state, setState] = useState(() => parseValue(value));
   const initialRef = useRef(state);
 
@@ -52,7 +51,6 @@ export default function DateGridPicker({
     const p = parseValue(value);
     initialRef.current = p;
 
-    // ⭐ setState ครั้งเดียว → ไม่มี ESLint warning
     setState({
       mode: p.mode,
       y: p.y,
@@ -66,7 +64,7 @@ export default function DateGridPicker({
     const start = nowY - 10;
     const end = nowY + 2;
     const arr = [];
-    for (let y = end; y >= start; y--) arr.push(String(y));
+    for (let y = end; y >= start; y--) arr.push(String(y)); // new -> old
     return arr;
   }, []);
 
@@ -104,16 +102,37 @@ export default function DateGridPicker({
   }, [daysInMonth]);
 
   const yearScrollRef = useRef(null);
+  const didAutoScrollRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
+    didAutoScrollRef.current = false;
+  }, [open]);
+
+  // ✅ auto-scroll เฉพาะตอน "ปีที่เลือกอยู่นอก viewport" เท่านั้น
+  useEffect(() => {
+    if (!open) return;
+    if (didAutoScrollRef.current) return;
+
     const el = yearScrollRef.current;
     if (!el) return;
+
     const btn = el.querySelector(`[data-year="${yy}"]`);
-    if (btn) {
+    if (!btn) return;
+
+    const elRect = el.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+
+    const isAbove = btnRect.top < elRect.top;
+    const isBelow = btnRect.bottom > elRect.bottom;
+
+    if (isAbove || isBelow) {
       const top = btn.offsetTop - el.clientHeight / 2 + btn.clientHeight / 2;
-      el.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      el.scrollTo({ top: Math.max(0, top), behavior: "auto" });
     }
+    // ถ้าอยู่ในจออยู่แล้ว: ไม่ scroll เลย
+
+    didAutoScrollRef.current = true;
   }, [open, yy]);
 
   const commit = () => {
@@ -197,9 +216,7 @@ export default function DateGridPicker({
                 }
                 title={t("dateGridPicker.all")}
               >
-                {mode === "all"
-                  ? t("dateGridPicker.allOn")
-                  : t("dateGridPicker.allOff")}
+                {mode === "all" ? t("dateGridPicker.allOn") : t("dateGridPicker.allOff")}
               </button>
             )}
           </div>

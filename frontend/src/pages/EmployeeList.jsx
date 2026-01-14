@@ -10,14 +10,15 @@ import {
   Users,
   UserMinus,
   Loader2,
-  SlidersHorizontal,
   ShieldCheck,
   Briefcase,
   ChevronDown,
   KeyRound,
+  Download,
 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
+import CsvForEmployee from "./csv/csvforEmployee";
 
 function PaginationBar({ page, totalPages, onPrev, onNext }) {
   return (
@@ -54,9 +55,7 @@ function PaginationBar({ page, totalPages, onPrev, onNext }) {
 }
 
 export default function EmployeeList() {
-  const [statusOpen, setStatusOpen] = useState(false);
   const { t } = useTranslation();
-
   const navigate = useNavigate();
 
   const [roleFilter, setRoleFilter] = useState("all"); // all | Worker | HR
@@ -80,6 +79,10 @@ export default function EmployeeList() {
   const [roleOpen, setRoleOpen] = useState(false);
   const [roleOpenFilter, setRoleOpenFilter] = useState(false);
 
+  // ✅ export csv per employee
+  const [exportOpen, setExportOpen] = useState(false);
+  const [selectedEmp, setSelectedEmp] = useState(null);
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -99,14 +102,14 @@ export default function EmployeeList() {
       setEmployees(list);
     } catch (err) {
       alertError(
-        t("employeeCreate.failed")  ,
+        t("employeeCreate.failed"),
         err?.response?.data?.message ||
           "An error occurred while retrieving the information."
       );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchEmployees();
@@ -152,14 +155,8 @@ export default function EmployeeList() {
     });
   }, [employees, activeTab, roleFilter, statusFilter, search]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredEmployees.length / PAGE_SIZE)
-  );
-  const pageItems = filteredEmployees.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE
-  );
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
+  const pageItems = filteredEmployees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
@@ -186,7 +183,7 @@ export default function EmployeeList() {
     e.preventDefault();
 
     const confirmed = await alertConfirm(
-      t("employeeCreate.confirmTitle") ,
+      t("employeeCreate.confirmTitle"),
       `
       <div style="text-align:left; line-height:1.7">
         <div style="font-weight:900; color:#0f172a; margin-bottom:6px">Please review the information below</div>
@@ -199,7 +196,7 @@ export default function EmployeeList() {
         </div>
       </div>
       `,
-      t("employeeCreate.confirmButton") 
+      t("employeeCreate.confirmButton")
     );
     if (!confirmed) return;
 
@@ -215,12 +212,15 @@ export default function EmployeeList() {
         joiningDate: formData.joiningDate,
       });
 
-      await alertSuccess(t("employeeCreate.success") , "Added new employee successfully.");
+      await alertSuccess(
+        t("employeeCreate.success"),
+        "Added new employee successfully."
+      );
       setShowModal(false);
       fetchEmployees();
     } catch (err) {
       alertError(
-      t("employeeCreate.failed") ,
+        t("employeeCreate.failed"),
         err?.response?.data?.error ||
           err?.response?.data?.message ||
           "An unexpected error occurred. Please try again."
@@ -235,17 +235,15 @@ export default function EmployeeList() {
       {/* Header */}
       <div className="flex justify-between items-center gap-4">
         <h1 className="text-2xl font-black text-gray-800 flex items-center gap-2">
-          <User className="text-blue-600" /> {t("employeeList.title")} 
+          <User className="text-blue-600" /> {t("employeeList.title")}
         </h1>
 
         <div className="flex items-center gap-2">
-
-
           <button
             onClick={handleOpenCreate}
             className="bg-blue-600 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 font-bold text-sm"
           >
-            <Plus size={20} /> {t("employeeList.addNew")} 
+            <Plus size={20} /> {t("employeeList.addNew")}
           </button>
         </div>
       </div>
@@ -258,10 +256,10 @@ export default function EmployeeList() {
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
               activeTab === "active"
                 ? "bg-white text-blue-600 shadow-md"
-                : "text-gray-400 hover:text-gray-600" // ✅ เพิ่ม hover effect
+                : "text-gray-400 hover:text-gray-600"
             }`}
           >
-            <Users size={18} /> {t("employeeList.activeTab")}  ({counts.active})
+            <Users size={18} /> {t("employeeList.activeTab")} ({counts.active})
           </button>
 
           <button
@@ -269,16 +267,15 @@ export default function EmployeeList() {
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
               activeTab === "inactive"
                 ? "bg-white text-rose-600 shadow-md"
-                : "text-gray-400 hover:text-gray-600" // ✅ เพิ่ม hover effect
+                : "text-gray-400 hover:text-gray-600"
             }`}
           >
-            <UserMinus size={18} /> {t("employeeList.resignedTab")}  ({counts.inactive})
+            <UserMinus size={18} /> {t("employeeList.resignedTab")} ({counts.inactive})
           </button>
         </div>
 
         {/* Filters */}
         <div className="flex gap-2 sm:ml-auto w-full sm:w-auto">
-
           {/* Role Filter */}
           <div className="relative w-40">
             <button
@@ -286,17 +283,16 @@ export default function EmployeeList() {
               onClick={() => setRoleOpenFilter((v) => !v)}
               className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5
               text-xs font-black uppercase tracking-widest text-slate-700
-              flex items-center justify-between transition-all
-              hover:bg-gray-50
+              flex items-center justify-between transition-all hover:bg-gray-50
             ${roleOpenFilter ? "ring-2 ring-blue-100" : ""}
           `}
             >
               <span>
                 {roleFilter === "all"
-                  ? t("employeeList.allRoles")   
+                  ? t("employeeList.allRoles")
                   : roleFilter === "HR"
-                  ? t("employeeList.roleHR")  
-                  : t("employeeList.roleWorker") }
+                  ? t("employeeList.roleHR")
+                  : t("employeeList.roleWorker")}
               </span>
 
               <ChevronDown
@@ -309,14 +305,12 @@ export default function EmployeeList() {
 
             {roleOpenFilter && (
               <>
-                {/* click outside */}
                 <button
                   type="button"
                   className="fixed inset-0 z-10 cursor-default"
                   onClick={() => setRoleOpenFilter(false)}
                   aria-label="Close role dropdown"
                 />
-
                 <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
                   {[
                     { value: "all", label: "All Roles" },
@@ -330,14 +324,12 @@ export default function EmployeeList() {
                         setRoleFilter(opt.value);
                         setRoleOpenFilter(false);
                       }}
-                      className={`w-full px-6 py-3 text-left text-sm font-black transition-all
-                      hover:bg-blue-50
+                      className={`w-full px-6 py-3 text-left text-sm font-black transition-all hover:bg-blue-50
                       ${
                         roleFilter === opt.value
                           ? "bg-blue-50 text-blue-700"
                           : "text-slate-700"
-                      }
-                    `}
+                      }`}
                     >
                       {opt.label}
                     </button>
@@ -346,6 +338,7 @@ export default function EmployeeList() {
               </>
             )}
           </div>
+
           {/* Search */}
           <input
             type="text"
@@ -366,38 +359,44 @@ export default function EmployeeList() {
           <thead className="bg-gray-50/50 border-b border-gray-100 font-black text-[10px] text-gray-400 uppercase tracking-widest">
             <tr>
               <th className="p-6">{t("employeeList.colId")}</th>
-              <th className="p-6">{t("employeeList.colName")}   </th>
+              <th className="p-6">{t("employeeList.colName")}</th>
               <th className="p-6">{t("employeeList.colEmail")}</th>
               <th className="p-6 text-center">{t("employeeList.colRole")}</th>
-              <th className="p-6 text-center">{t("employeeList.colStatus")} </th>
+              <th className="p-6 text-center">{t("employeeList.colStatus")}</th>
+
+              {/* ✅ NEW COLUMN */}
+              <th className="p-6 text-center">EXPORT</th>
             </tr>
           </thead>
 
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr>
-                <td colSpan="5" className="p-20 text-center">
+                {/* ✅ colSpan 6 */}
+                <td colSpan="6" className="p-20 text-center">
                   <Loader2 className="animate-spin mx-auto text-blue-600" />
                 </td>
               </tr>
             ) : pageItems.length > 0 ? (
               pageItems.map((emp) => {
                 const active = emp.isActive === true || emp.isActive === 1;
+
                 return (
                   <tr
                     key={emp.id}
                     onClick={() => navigate(`/employees/${emp.id}`)}
                     className="hover:bg-blue-50/30 cursor-pointer transition-all group"
                   >
-                    <td className="p-6 text-gray-400 font-bold text-sm">
-                      #{emp.id}
-                    </td>
+                    <td className="p-6 text-gray-400 font-bold text-sm">#{emp.id}</td>
+
                     <td className="p-6 font-black text-slate-800">
                       {emp.firstName} {emp.lastName}
                     </td>
+
                     <td className="p-6 text-gray-500 text-sm font-medium italic">
                       {emp.email}
                     </td>
+
                     <td className="p-6 text-center">
                       <span
                         className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
@@ -409,6 +408,7 @@ export default function EmployeeList() {
                         {emp.role}
                       </span>
                     </td>
+
                     <td className="p-6 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <div
@@ -424,21 +424,39 @@ export default function EmployeeList() {
                           }`}
                         >
                           {active
-  ? t("employeeList.statusWorking")
-  : t("employeeList.statusResigned")}
+                            ? t("employeeList.statusWorking")
+                            : t("employeeList.statusResigned")}
                         </span>
                       </div>
+                    </td>
+
+                    <td className="p-6 text-center">
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedEmp(emp);
+                          setExportOpen(true);
+                        }}
+                        className="h-10 w-10 rounded-xl inline-flex items-center justify-center
+                          border border-gray-200 bg-white text-slate-700 hover:bg-gray-50
+                          active:scale-95 transition"
+                      >
+                        <Download size={18} />
+                      </button>
                     </td>
                   </tr>
                 );
               })
             ) : (
               <tr>
+                {/* ✅ colSpan 6 */}
                 <td
-                  colSpan="5"
+                  colSpan="6"
                   className="p-20 text-center text-gray-300 font-black text-xs uppercase"
                 >
-                  {t("employeeList.noEmployees")} 
+                  {t("employeeList.noEmployees")}
                 </td>
               </tr>
             )}
@@ -447,7 +465,6 @@ export default function EmployeeList() {
 
         {totalPages > 1 && (
           <PaginationBar
-          
             page={page}
             totalPages={totalPages}
             onPrev={() => setPage((p) => Math.max(1, p - 1))}
@@ -462,14 +479,24 @@ export default function EmployeeList() {
         onClose={() => setShowPolicyModal(false)}
       />
 
-      {/* ✅ Add Employee Modal (ตามแบบภาพ + ใช้ create จริง) */}
+      {/* ✅ CSV Export Popup */}
+      <CsvForEmployee
+        open={exportOpen}
+        employee={selectedEmp}
+        onClose={() => {
+          setExportOpen(false);
+          setSelectedEmp(null);
+        }}
+      />
+
+      {/* ✅ Add Employee Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
             {/* Header */}
             <div className="flex items-center">
               <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-                {t("employeeCreate.title")}   
+                {t("employeeCreate.title")}
               </h2>
 
               <button
@@ -490,7 +517,7 @@ export default function EmployeeList() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    {t("employeeCreate.firstName")} 
+                    {t("employeeCreate.firstName")}
                   </label>
                   <input
                     required
@@ -505,7 +532,7 @@ export default function EmployeeList() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    {t("employeeCreate.lastName")}   
+                    {t("employeeCreate.lastName")}
                   </label>
                   <input
                     required
@@ -522,7 +549,7 @@ export default function EmployeeList() {
               {/* Email */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  {t("employeeCreate.email")} 
+                  {t("employeeCreate.email")}
                 </label>
                 <input
                   required
@@ -537,10 +564,10 @@ export default function EmployeeList() {
                 />
               </div>
 
-              {/* Role Dropdown (เหมือนภาพ) */}
+              {/* Role Dropdown */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  {t("employeeCreate.role")}  
+                  {t("employeeCreate.role")}
                 </label>
 
                 <div className="relative">
@@ -576,8 +603,8 @@ export default function EmployeeList() {
                           <div className="text-slate-800">{formData.role}</div>
                           <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
                             {formData.role === "HR"
-  ? t("employeeCreate.hrAccess")
-  : t("employeeCreate.workerAccess")}
+                              ? t("employeeCreate.hrAccess")
+                              : t("employeeCreate.workerAccess")}
                           </div>
                         </div>
                       </div>
@@ -669,7 +696,7 @@ export default function EmployeeList() {
               {/* Join Date */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                  {t("employeeCreate.joinDate")}  
+                  {t("employeeCreate.joinDate")}
                 </label>
                 <input
                   required
@@ -683,10 +710,10 @@ export default function EmployeeList() {
                 />
               </div>
 
-              {/* Password (create) */}
+              {/* Password */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
-                  <KeyRound size={12} /> {t("employeeCreate.password")} 
+                  <KeyRound size={12} /> {t("employeeCreate.password")}
                 </label>
                 <input
                   required
@@ -713,7 +740,7 @@ export default function EmployeeList() {
                   disabled={isLoading}
                   className="py-4 rounded-2xl font-black border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all active:scale-95 disabled:opacity-60"
                 >
-                  {t("employeeCreate.cancel")}    
+                  {t("employeeCreate.cancel")}
                 </button>
 
                 <button
