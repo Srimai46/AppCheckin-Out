@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
-import { NotebookText, Loader2, AlertCircle } from "lucide-react";
+import { NotebookText, Loader2, AlertCircle, Download } from "lucide-react";
 // ✅ 1. Import Socket Client
 import { io } from "socket.io-client";
+
+// ✅ CSV Popup Component
+import CsvForAuditLog from "./csv/csvforAuditLog";
+// ถ้า path คุณไม่ตรง ให้ปรับเป็น: ../csv/csvforAuditLog หรือ ../../pages/csv/csvforAuditLog ตามโครงโปรเจกต์
 
 export default function AuditLog() {
   const API_BASE = (
@@ -11,6 +15,9 @@ export default function AuditLog() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // ✅ export popup
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -52,6 +59,7 @@ export default function AuditLog() {
         token: token,
       },
     });
+
     socket.on("connect", () => {
       console.log("✅ Socket Connected: Audit Log");
     });
@@ -59,7 +67,6 @@ export default function AuditLog() {
     // รอรับ Event 'new-audit-log' จาก Backend
     socket.on("new-audit-log", (newLog) => {
       console.log("🔔 New Activity:", newLog);
-
       // แทรกข้อมูลใหม่ไปไว้ตัวแรกสุดของ Array ทันที
       setLogs((prevLogs) => [newLog, ...prevLogs]);
     });
@@ -90,9 +97,29 @@ export default function AuditLog() {
             System Activities (Real-time)
           </h1>
         </div>
-        {loading && (
-          <Loader2 className="animate-spin text-slate-400" size={20} />
-        )}
+
+        <div className="flex items-center gap-3">
+          {/* ✅ Export CSV Button */}
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="
+              inline-flex items-center gap-2
+              h-10 px-4 rounded-full
+              border border-slate-200 bg-white
+              text-slate-700 font-bold
+              shadow-sm hover:bg-slate-50
+              active:scale-[0.98] transition
+            "
+          >
+            <Download size={18} />
+            Export CSV
+          </button>
+
+          {loading && (
+            <Loader2 className="animate-spin text-slate-400" size={20} />
+          )}
+        </div>
       </div>
 
       {/* Log Box */}
@@ -120,15 +147,10 @@ export default function AuditLog() {
             return (
               <div
                 key={log.id}
-                // เพิ่ม animation เล็กน้อยให้รู้ว่าอันไหนมาใหม่
                 className="group hover:bg-white p-1 rounded-md transition-all border-b border-gray-100 flex gap-3 animate-in fade-in slide-in-from-top-2 duration-300"
               >
                 <span className="text-slate-400 shrink-0">[{time}]</span>
-                <span
-                  className={`font-bold w-16 shrink-0 ${getActionColor(
-                    log.action
-                  )}`}
-                >
+                <span className={`font-bold w-16 shrink-0 ${getActionColor(log.action)}`}>
                   {log.action}
                 </span>
                 <span className="text-slate-700 font-bold shrink-0">
@@ -137,14 +159,19 @@ export default function AuditLog() {
                 <span className="text-slate-500 flex-1 truncate italic">
                   - {log.details}
                 </span>
-                <span className="text-blue-600 font-bold shrink-0">
-                  @{user}
-                </span>
+                <span className="text-blue-600 font-bold shrink-0">@{user}</span>
               </div>
             );
           })}
         </div>
       </div>
+
+      {/* ✅ CSV Export Popup */}
+      <CsvForAuditLog
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        logs={logs}
+      />
     </div>
   );
 }
