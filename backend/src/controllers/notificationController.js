@@ -1,6 +1,7 @@
+// backend/src/controllers/notificationController.js
 const prisma = require("../config/prisma");
 
-// 1. ดึงการแจ้งเตือนทั้งหมด
+// ✅ rename: getNotifications -> getMyNotifications
 exports.getMyNotifications = async (req, res) => {
   try {
     const employeeId = req.user.id;
@@ -9,89 +10,89 @@ exports.getMyNotifications = async (req, res) => {
       prisma.notification.findMany({
         where: { employeeId },
         orderBy: { createdAt: "desc" },
-        take: 30,
-
-        // ✅ ใช้ select เพื่อคุม field และส่ง relatedEmployeeId ไป FE ชัวร์ ๆ
+        take: 50,
         select: {
           id: true,
-          employeeId: true,
           notificationType: true,
           message: true,
           relatedRequestId: true,
           relatedEmployeeId: true,
-
           isRead: true,
           createdAt: true,
-
-          // ยังอยากได้ข้อมูลใบลาที่เกี่ยวข้องก็เอาไว้ได้
-          relatedRequest: {
-            select: { id: true, status: true, startDate: true },
-          },
         },
       }),
-
       prisma.notification.count({
         where: { employeeId, isRead: false },
       }),
     ]);
 
-    res.json({ notifications, unreadCount });
-  } catch (error) {
-    console.error("Get Notifications Error:", error);
-    res.status(500).json({ error: "Retrieving notification data failed." });
+    const mapped = notifications.map((n) => ({
+      id: n.id,
+      type: n.notificationType, // ✅ frontend ใช้ n.type ได้
+      message: n.message,
+      relatedRequestId: n.relatedRequestId,
+      relatedEmployeeId: n.relatedEmployeeId, // ✅ ใช้กด View ไป /employees/:id
+      isRead: n.isRead,
+      createdAt: n.createdAt,
+    }));
+
+    return res.json({ notifications: mapped, unreadCount });
+  } catch (err) {
+    console.error("getMyNotifications error:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-// 2. กดอ่านทีละรายการ
 exports.markAsRead = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const notiId = parseInt(id);
+  try {
+    const employeeId = req.user.id;
+    const id = Number(req.params.id);
 
-        if (isNaN(notiId)) return res.status(400).json({ error: 'ID incorrect' });
-
-        // ตรวจสอบและอัปเดตเฉพาะของตัวเอง
-        const result = await prisma.notification.updateMany({
-            where: {
-                id: notiId,
-                employeeId: req.user.id,
-                isRead: false // อัปเดตเฉพาะที่ยังไม่ได้อ่าน
-            },
-            data: { isRead: true }
-        });
-
-        // ส่งจำนวนที่ยังไม่ได้อ่านล่าสุดกลับไป เพื่อให้ Frontend อัปเดตตัวเลข Badge
-        const latestUnreadCount = await prisma.notification.count({
-            where: { employeeId: req.user.id, isRead: false }
-        });
-
-        res.json({ 
-            message: 'Read', 
-            unreadCount: latestUnreadCount 
-        });
-    } catch (error) {
-        console.error("Mark Read Error:", error);
-        res.status(500).json({ error: 'There is something wrong' });
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ message: "Invalid id" });
     }
+
+    // ✅ ป้องกันอ่านของคนอื่น
+    const found = await prisma.notification.findFirst({
+      where: { id, employeeId },
+      select: { id: true, isRead: true },
+    });
+
+    if (!found) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+
+    if (!found.isRead) {
+      await prisma.notification.update({
+        where: { id },
+        data: { isRead: true },
+      });
+    }
+
+    const unreadCount = await prisma.notification.count({
+      where: { employeeId, isRead: false },
+    });
+
+    return res.json({ success: true, unreadCount });
+  } catch (err) {
+    console.error("markAsRead error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
 };
 
-// 3. กดอ่านทั้งหมด
+// ✅ rename: markAllRead -> markAllAsRead
 exports.markAllAsRead = async (req, res) => {
-    try {
-        await prisma.notification.updateMany({
-            where: { 
-                employeeId: req.user.id, 
-                isRead: false 
-            },
-            data: { isRead: true }
-        });
+  try {
+    const employeeId = req.user.id;
 
-        res.json({ 
-            message: 'Read All', 
-            unreadCount: 0 // อ่านหมดแล้วส่ง 0 กลับไปได้เลย
-        });
-    } catch (error) {
-        console.error("Mark All Read Error:", error);
-        res.status(500).json({ error: 'There is something wrong' });
-    }
+    await prisma.notification.updateMany({
+      where: { employeeId, isRead: false },
+      data: { isRead: true },
+    });
+
+    return res.json({ success: true, unreadCount: 0 });
+  } catch (err) {
+    console.error("markAllAsRead error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
 };

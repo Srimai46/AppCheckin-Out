@@ -34,6 +34,8 @@ enum NotificationType {
   Rejection
   LateWarning
   EarlyLeaveWarning
+  CheckIn
+  CheckOut
 }
 
 enum AuditAction {

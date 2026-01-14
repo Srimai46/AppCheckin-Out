@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { Bell, CheckCheck, Clock } from "lucide-react";
 import { io } from "socket.io-client";
@@ -17,6 +17,9 @@ export default function NotificationBell() {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
 
+  // ✅ กัน fetch ถี่เกิน (เวลา backend ยิง refresh รัวๆ)
+  const refreshTimerRef = useRef(null);
+
   const getAuthHeader = useCallback(() => {
     const token = localStorage.getItem("token");
     return {
@@ -34,31 +37,46 @@ export default function NotificationBell() {
     }
   }, [getAuthHeader]);
 
+  // ✅ helper: debounce refresh (150ms)
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      fetchNotifications();
+    }, 150);
+  }, [fetchNotifications]);
+
   useEffect(() => {
+    // โหลดครั้งแรก
     fetchNotifications();
 
-    const newSocket = io(SOCKET_URL, {
-      auth: { token: localStorage.getItem("token") },
-      transports: ["polling", "websocket"],
-      upgrade: true,
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ["websocket", "polling"],
       reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 800,
     });
 
-    newSocket.on("connect", () => {
-      console.log("✅ Notification Socket Connected!");
+    socket.on("connect", () => {
+      console.log("✅ Notification Socket Connected!", socket.id);
     });
 
-    newSocket.on("notification_refresh", () => {
-      console.log("🔔 notification_refresh -> Fetching new notifications...");
-      fetchNotifications();
+    // ✅ 핵심: backend ยิง event นี้ -> frontend fetch ใหม่
+    socket.on("notification_refresh", () => {
+      console.log("🔔 notification_refresh -> scheduling fetch...");
+      scheduleRefresh();
     });
 
-    newSocket.on("new_notification", (data) => {
-      console.log("📩 Received notification:", data);
+    // (optional) ถ้าคุณมีระบบส่ง payload noti มาเลยก็รองรับไว้
+    socket.on("new_notification", (data) => {
+      console.log("📩 Received new_notification:", data);
 
-      // ถ้า backend ส่งมาไม่ครบ (ไม่มี id/createdAt) ให้ไป fetch ใหม่
+      // backend บางทีไม่ได้ส่ง id/createdAt -> fetch ใหม่ชัวร์สุด
       if (!data?.id || !data?.createdAt) {
-        fetchNotifications();
+        scheduleRefresh();
         return;
       }
 
@@ -68,8 +86,24 @@ export default function NotificationBell() {
       );
     });
 
-    return () => newSocket.close();
-  }, [fetchNotifications]);
+    socket.on("disconnect", (reason) => {
+      console.log("🔥 Notification Socket Disconnected:", reason);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("❌ Socket connect_error:", err?.message || err);
+    });
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      socket.disconnect();
+    };
+  }, [fetchNotifications, scheduleRefresh]);
+
+  // ✅ เปิด dropdown แล้ว fetch ซ้ำกันพลาด (UX ดีขึ้น)
+  useEffect(() => {
+    if (isOpen) fetchNotifications();
+  }, [isOpen, fetchNotifications]);
 
   const handleMarkAsRead = useCallback(
     async (id) => {
@@ -107,6 +141,7 @@ export default function NotificationBell() {
       } finally {
         setIsOpen(false);
 
+        // ✅ ไปหน้า employee detail ได้เมื่อมี relatedEmployeeId
         if (n?.relatedEmployeeId) {
           navigate(`/employees/${n.relatedEmployeeId}`);
         }
@@ -117,11 +152,9 @@ export default function NotificationBell() {
 
   return (
     <div className="flex items-center gap-3">
-      
-      {/* Bell + Dropdown */}
       <div className="relative">
         <button
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => setIsOpen((v) => !v)}
           className="relative p-2 text-gray-500 hover:text-blue-600 transition-all active:scale-95"
         >
           <Bell size={24} />
@@ -134,10 +167,8 @@ export default function NotificationBell() {
 
         {isOpen && (
           <>
-            {/* Click outside */}
             <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
 
-            {/* Dropdown */}
             <div className="absolute right-0 top-full mt-3 w-80 rounded-[1.5rem] border border-gray-100 bg-white shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
               <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
@@ -196,7 +227,6 @@ export default function NotificationBell() {
                             </span>
                           </div>
 
-                          {/* ✅ hint ว่ากดแล้วจะไปหน้าไหน */}
                           {canGoEmployee && (
                             <span className="text-[10px] font-black text-blue-600">
                               View
