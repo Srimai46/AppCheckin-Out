@@ -1,5 +1,6 @@
 // src/pages/TeamCalendar.jsx
 import React, { useMemo, useState, useEffect, useCallback } from "react";
+import ExportCsvButton from "./csv/csvforTeamCalendar.jsx";
 import {
   format,
   startOfMonth,
@@ -207,6 +208,19 @@ export default function TeamCalendar() {
             </div>
 
             <div className="flex items-center justify-end gap-2">
+
+              <ExportCsvButton
+  leaves={leaves}
+  selectedTypes={selectedTypes}
+  leaveTypeFilters={LEAVE_TYPE_FILTERS}
+  currentDate={currentDate}
+  dfLocale={dfLocale}
+  matchLeaveType={matchLeaveType}
+  t={t}
+/>
+
+
+              
               <div className="flex items-center gap-1">
                 <button
                   onClick={goPrev}
