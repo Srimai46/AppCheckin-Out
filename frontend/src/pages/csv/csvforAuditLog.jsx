@@ -1,6 +1,7 @@
 // frontend/src/pages/csv/csvforAuditLog.jsx
 import { useMemo, useState } from "react";
 import { Download, Filter, X } from "lucide-react";
+import DateGridPicker from "../../components/shared/DateGridPicker";
 
 /**
  * Props:
@@ -21,18 +22,66 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   const [monthValue, setMonthValue] = useState(""); // yyyy-mm
 
   // yearly
-  const [yearValue, setYearValue] = useState(new Date().getFullYear());
+  const [yearValue, setYearValue] = useState(String(new Date().getFullYear())); // keep as string yyyy
 
   // quarter
-  const [quarterYear, setQuarterYear] = useState(new Date().getFullYear());
+  const [quarterYear, setQuarterYear] = useState(String(new Date().getFullYear())); // yyyy string
   const [quarterValue, setQuarterValue] = useState("Q1"); // Q1..Q4
 
   // custom
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  const [customFrom, setCustomFrom] = useState(""); // yyyy-mm-dd
+  const [customTo, setCustomTo] = useState(""); // yyyy-mm-dd
 
   // -------------------------
-  // Other Filters (optional but useful)
+  // DateGridPicker controller
+  // -------------------------
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerField, setPickerField] = useState(null); // 'daily' | 'month' | 'year' | 'qYear' | 'from' | 'to'
+
+  const openPicker = (field) => {
+    setPickerField(field);
+    setPickerOpen(true);
+  };
+
+  const closePicker = () => {
+    setPickerOpen(false);
+    setPickerField(null);
+  };
+
+  const pickerGranularity =
+    pickerField === "year" || pickerField === "qYear"
+      ? "year"
+      : pickerField === "month"
+      ? "month"
+      : "day";
+
+  const pickerValue = useMemo(() => {
+    if (!pickerField) return "";
+    if (pickerField === "daily") return dailyDate || "";
+    if (pickerField === "month") return monthValue || "";
+    if (pickerField === "year") return yearValue || "";
+    if (pickerField === "qYear") return quarterYear || "";
+    if (pickerField === "from") return customFrom || "";
+    if (pickerField === "to") return customTo || "";
+    return "";
+  }, [pickerField, dailyDate, monthValue, yearValue, quarterYear, customFrom, customTo]);
+
+  const handlePickerChange = (val) => {
+    // val will be: null (all) OR "yyyy" OR "yyyy-mm" OR "yyyy-mm-dd"
+    const v = val == null ? "" : String(val);
+
+    if (pickerField === "daily") setDailyDate(v);
+    else if (pickerField === "month") setMonthValue(v);
+    else if (pickerField === "year") setYearValue(v);
+    else if (pickerField === "qYear") setQuarterYear(v);
+    else if (pickerField === "from") setCustomFrom(v);
+    else if (pickerField === "to") setCustomTo(v);
+
+    closePicker();
+  };
+
+  // -------------------------
+  // Other Filters
   // -------------------------
   const [fActions, setFActions] = useState([]); // multi
   const [fModel, setFModel] = useState("all");
@@ -84,13 +133,11 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   const endOfMonth = (yyyyMm) => {
     if (!yyyyMm) return "";
     const [y, m] = yyyyMm.split("-").map((x) => parseInt(x, 10));
-    // last day of month: day 0 of next month
     const d = new Date(y, m, 0);
     return toDateOnly(d);
   };
 
   const buildPeriodRange = () => {
-    // returns { from: "yyyy-mm-dd" | "", to: "yyyy-mm-dd" | "" }
     if (periodType === "daily") {
       return { from: dailyDate || "", to: dailyDate || "" };
     }
@@ -119,7 +166,6 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
       return map[q] || { from: "", to: "" };
     }
 
-    // custom
     return { from: customFrom || "", to: customTo || "" };
   };
 
@@ -132,17 +178,15 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   };
 
   const resetAll = () => {
-    // period
     setPeriodType("daily");
     setDailyDate("");
     setMonthValue("");
-    setYearValue(new Date().getFullYear());
-    setQuarterYear(new Date().getFullYear());
+    setYearValue(String(new Date().getFullYear()));
+    setQuarterYear(String(new Date().getFullYear()));
     setQuarterValue("Q1");
     setCustomFrom("");
     setCustomTo("");
 
-    // others
     setFActions([]);
     setFModel("all");
     setFUser("all");
@@ -162,29 +206,23 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
       const created = l?.createdAt ? new Date(l.createdAt) : null;
       const createdDate = created ? toDateOnly(created) : "";
 
-      // period date range (inclusive)
       if (from && createdDate && createdDate < from) return false;
       if (to && createdDate && createdDate > to) return false;
 
-      // actions multi
       if (fActions.length > 0 && !fActions.includes(l.action)) return false;
 
-      // model
       if (fModel !== "all" && l.modelName !== fModel) return false;
 
-      // user
       const name = l?.performedBy
         ? `${l.performedBy.firstName} ${l.performedBy.lastName || ""}`.trim()
         : "SYSTEM";
       if (fUser !== "all" && (name || "SYSTEM") !== fUser) return false;
 
-      // keyword
       if (kw) {
         const hay = `${l.action} ${l.modelName} ${l.recordId} ${l.details}`.toLowerCase();
         if (!hay.includes(kw)) return false;
       }
 
-      // recordId contains
       if (rid) {
         const r = normalize(l.recordId);
         if (!r.includes(rid)) return false;
@@ -192,7 +230,6 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
 
       return true;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     logs,
     periodType,
@@ -219,14 +256,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   };
 
   const buildCsv = (rows) => {
-    const header = [
-      "createdAt",
-      "action",
-      "modelName",
-      "recordId",
-      "details",
-      "performedBy",
-    ];
+    const header = ["createdAt", "action", "modelName", "recordId", "details", "performedBy"];
 
     const lines = rows.map((l) => {
       const createdText = l?.createdAt ? new Date(l.createdAt).toISOString() : "";
@@ -254,9 +284,9 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
     const url = URL.createObjectURL(blob);
 
     const now = new Date();
-    const fileName = `audit_logs_${now.getFullYear()}-${pad(
-      now.getMonth() + 1
-    )}-${pad(now.getDate())}.csv`;
+    const fileName = `audit_logs_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+      now.getDate()
+    )}.csv`;
 
     const a = document.createElement("a");
     a.href = url;
@@ -273,6 +303,12 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
 
   const { from, to } = buildPeriodRange();
 
+  const inputClass =
+    "w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200 bg-white";
+
+  const readonlyPickerInputClass =
+    "w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 font-bold cursor-pointer focus:ring-2 focus:ring-slate-200 outline-none";
+
   return (
     <div className="fixed inset-0 z-50">
       {/* overlay */}
@@ -285,9 +321,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <Filter size={18} className="text-slate-700" />
-              <h2 className="text-lg font-black text-slate-800">
-                Export CSV Filters
-              </h2>
+              <h2 className="text-lg font-black text-slate-800">Export CSV Filters</h2>
             </div>
             <button
               type="button"
@@ -336,44 +370,39 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                 {periodType === "daily" && (
                   <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-bold text-slate-600">
-                      Select date
-                    </label>
+                    <label className="text-xs font-bold text-slate-600">Select date</label>
                     <input
-                      type="date"
+                      readOnly
                       value={dailyDate}
-                      onChange={(e) => setDailyDate(e.target.value)}
-                      className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
+                      onClick={() => openPicker("daily")}
+                      placeholder="YYYY-MM-DD"
+                      className={readonlyPickerInputClass}
                     />
                   </div>
                 )}
 
                 {periodType === "monthly" && (
                   <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-bold text-slate-600">
-                      Select month
-                    </label>
+                    <label className="text-xs font-bold text-slate-600">Select month</label>
                     <input
-                      type="month"
+                      readOnly
                       value={monthValue}
-                      onChange={(e) => setMonthValue(e.target.value)}
-                      className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
+                      onClick={() => openPicker("month")}
+                      placeholder="YYYY-MM"
+                      className={readonlyPickerInputClass}
                     />
                   </div>
                 )}
 
                 {periodType === "yearly" && (
                   <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-bold text-slate-600">
-                      Select year
-                    </label>
+                    <label className="text-xs font-bold text-slate-600">Select year</label>
                     <input
-                      type="number"
+                      readOnly
                       value={yearValue}
-                      onChange={(e) => setYearValue(e.target.value)}
-                      min={2000}
-                      max={2100}
-                      className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
+                      onClick={() => openPicker("year")}
+                      placeholder="YYYY"
+                      className={readonlyPickerInputClass}
                     />
                   </div>
                 )}
@@ -381,26 +410,21 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
                 {periodType === "quarter" && (
                   <>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600">
-                        Year
-                      </label>
+                      <label className="text-xs font-bold text-slate-600">Year</label>
                       <input
-                        type="number"
+                        readOnly
                         value={quarterYear}
-                        onChange={(e) => setQuarterYear(e.target.value)}
-                        min={2000}
-                        max={2100}
-                        className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
+                        onClick={() => openPicker("qYear")}
+                        placeholder="YYYY"
+                        className={readonlyPickerInputClass}
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600">
-                        Quarter
-                      </label>
+                      <label className="text-xs font-bold text-slate-600">Quarter</label>
                       <select
                         value={quarterValue}
                         onChange={(e) => setQuarterValue(e.target.value)}
-                        className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
+                        className={inputClass}
                       >
                         <option value="Q1">Q1 (Jan–Mar)</option>
                         <option value="Q2">Q2 (Apr–Jun)</option>
@@ -414,25 +438,23 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
                 {periodType === "custom" && (
                   <>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600">
-                        Date from
-                      </label>
+                      <label className="text-xs font-bold text-slate-600">Date from</label>
                       <input
-                        type="date"
+                        readOnly
                         value={customFrom}
-                        onChange={(e) => setCustomFrom(e.target.value)}
-                        className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
+                        onClick={() => openPicker("from")}
+                        placeholder="YYYY-MM-DD"
+                        className={readonlyPickerInputClass}
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600">
-                        Date to
-                      </label>
+                      <label className="text-xs font-bold text-slate-600">Date to</label>
                       <input
-                        type="date"
+                        readOnly
                         value={customTo}
-                        onChange={(e) => setCustomTo(e.target.value)}
-                        className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
+                        onClick={() => openPicker("to")}
+                        placeholder="YYYY-MM-DD"
+                        className={readonlyPickerInputClass}
                       />
                     </div>
                   </>
@@ -449,13 +471,12 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
 
             {/* Other filters */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* model */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-600">Model</label>
                 <select
                   value={fModel}
                   onChange={(e) => setFModel(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
+                  className={inputClass}
                 >
                   <option value="all">All</option>
                   {modelOptions.map((m) => (
@@ -466,16 +487,9 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
                 </select>
               </div>
 
-              {/* performed by */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600">
-                  Performed by
-                </label>
-                <select
-                  value={fUser}
-                  onChange={(e) => setFUser(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
-                >
+                <label className="text-xs font-bold text-slate-600">Performed by</label>
+                <select value={fUser} onChange={(e) => setFUser(e.target.value)} className={inputClass}>
                   <option value="all">All</option>
                   {userOptions.map((u) => (
                     <option key={u} value={u}>
@@ -485,29 +499,23 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
                 </select>
               </div>
 
-              {/* keyword */}
               <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-bold text-slate-600">
-                  Keyword (details)
-                </label>
+                <label className="text-xs font-bold text-slate-600">Keyword (details)</label>
                 <input
                   value={fKeyword}
                   onChange={(e) => setFKeyword(e.target.value)}
                   placeholder='เช่น "Late", "Approved", "withdraw"...'
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
+                  className={inputClass}
                 />
               </div>
 
-              {/* record id */}
               <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-bold text-slate-600">
-                  Record ID (optional)
-                </label>
+                <label className="text-xs font-bold text-slate-600">Record ID (optional)</label>
                 <input
                   value={fRecordId}
                   onChange={(e) => setFRecordId(e.target.value)}
                   placeholder="เช่น 6 หรือ 10"
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200"
+                  className={inputClass}
                 />
               </div>
             </div>
@@ -515,9 +523,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
             {/* actions multi */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-600">
-                  Actions (multi-select)
-                </label>
+                <label className="text-xs font-bold text-slate-600">Actions (multi-select)</label>
                 <button
                   type="button"
                   onClick={() => setFActions([])}
@@ -529,9 +535,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
 
               <div className="flex flex-wrap gap-2">
                 {actionOptions.length === 0 ? (
-                  <div className="text-sm text-slate-400 italic">
-                    No actions loaded yet
-                  </div>
+                  <div className="text-sm text-slate-400 italic">No actions loaded yet</div>
                 ) : (
                   actionOptions.map((act) => {
                     const active = fActions.includes(act);
@@ -558,8 +562,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
             {/* preview count */}
             <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
               <div className="text-sm text-slate-700">
-                Rows to export:{" "}
-                <span className="font-black">{filteredRows.length}</span>
+                Rows to export: <span className="font-black">{filteredRows.length}</span>
               </div>
               <button
                 type="button"
@@ -591,6 +594,29 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
           </div>
         </div>
       </div>
+
+      {/* ✅ DateGridPicker modal (one shared instance) */}
+      <DateGridPicker
+        open={pickerOpen}
+        value={pickerValue}
+        onChange={handlePickerChange}
+        onClose={closePicker}
+        title={
+          pickerField === "daily"
+            ? "Select date"
+            : pickerField === "month"
+            ? "Select month"
+            : pickerField === "year" || pickerField === "qYear"
+            ? "Select year"
+            : pickerField === "from"
+            ? "Date from"
+            : pickerField === "to"
+            ? "Date to"
+            : "Select date"
+        }
+        allowAll={false}
+        granularity={pickerGranularity} // "day" | "month" | "year"
+      />
     </div>
   );
 }

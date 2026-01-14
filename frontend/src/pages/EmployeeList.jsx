@@ -1,3 +1,4 @@
+// frontend/src/pages/EmployeeList.jsx
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
@@ -19,6 +20,7 @@ import {
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
 import CsvForEmployee from "./csv/csvforEmployee";
+import CsvForEmployeesAll from "./csv/csvforEmployeesAll";
 
 function PaginationBar({ page, totalPages, onPrev, onNext }) {
   return (
@@ -82,6 +84,9 @@ export default function EmployeeList() {
   // ✅ export csv per employee
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedEmp, setSelectedEmp] = useState(null);
+
+  // ✅ export all employees
+  const [exportAllOpen, setExportAllOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -156,7 +161,10 @@ export default function EmployeeList() {
   }, [employees, activeTab, roleFilter, statusFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
-  const pageItems = filteredEmployees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageItems = filteredEmployees.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
 
   useEffect(() => {
     setPage(1);
@@ -212,10 +220,7 @@ export default function EmployeeList() {
         joiningDate: formData.joiningDate,
       });
 
-      await alertSuccess(
-        t("employeeCreate.success"),
-        "Added new employee successfully."
-      );
+      await alertSuccess(t("employeeCreate.success"), "Added new employee successfully.");
       setShowModal(false);
       fetchEmployees();
     } catch (err) {
@@ -239,6 +244,26 @@ export default function EmployeeList() {
         </h1>
 
         <div className="flex items-center gap-2">
+          {/* ✅ Export All Employees */}
+          <button
+            type="button"
+            onClick={() => setExportAllOpen(true)}
+            className="
+              h-11 px-5 rounded-xl
+              border border-gray-200 bg-white
+              text-slate-800
+              inline-flex items-center gap-2
+              hover:bg-gray-50
+              active:scale-95
+              transition
+              font-black text-xs uppercase tracking-widest
+            "
+            title="Export all employees"
+          >
+            <Download size={18} />
+            Export All
+          </button>
+
           <button
             onClick={handleOpenCreate}
             className="bg-blue-600 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 font-bold text-sm"
@@ -284,8 +309,7 @@ export default function EmployeeList() {
               className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5
               text-xs font-black uppercase tracking-widest text-slate-700
               flex items-center justify-between transition-all hover:bg-gray-50
-            ${roleOpenFilter ? "ring-2 ring-blue-100" : ""}
-          `}
+            ${roleOpenFilter ? "ring-2 ring-blue-100" : ""}`}
             >
               <span>
                 {roleFilter === "all"
@@ -297,9 +321,7 @@ export default function EmployeeList() {
 
               <ChevronDown
                 size={14}
-                className={`transition-transform ${
-                  roleOpenFilter ? "rotate-180" : ""
-                }`}
+                className={`transition-transform ${roleOpenFilter ? "rotate-180" : ""}`}
               />
             </button>
 
@@ -363,8 +385,6 @@ export default function EmployeeList() {
               <th className="p-6">{t("employeeList.colEmail")}</th>
               <th className="p-6 text-center">{t("employeeList.colRole")}</th>
               <th className="p-6 text-center">{t("employeeList.colStatus")}</th>
-
-              {/* ✅ NEW COLUMN */}
               <th className="p-6 text-center">EXPORT</th>
             </tr>
           </thead>
@@ -372,7 +392,6 @@ export default function EmployeeList() {
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr>
-                {/* ✅ colSpan 6 */}
                 <td colSpan="6" className="p-20 text-center">
                   <Loader2 className="animate-spin mx-auto text-blue-600" />
                 </td>
@@ -442,6 +461,8 @@ export default function EmployeeList() {
                         className="h-10 w-10 rounded-xl inline-flex items-center justify-center
                           border border-gray-200 bg-white text-slate-700 hover:bg-gray-50
                           active:scale-95 transition"
+                        title="Export employee CSV"
+                        aria-label="Export employee CSV"
                       >
                         <Download size={18} />
                       </button>
@@ -451,7 +472,6 @@ export default function EmployeeList() {
               })
             ) : (
               <tr>
-                {/* ✅ colSpan 6 */}
                 <td
                   colSpan="6"
                   className="p-20 text-center text-gray-300 font-black text-xs uppercase"
@@ -479,13 +499,26 @@ export default function EmployeeList() {
         onClose={() => setShowPolicyModal(false)}
       />
 
-      {/* ✅ CSV Export Popup */}
+      {/* ✅ CSV Export Popup (per employee) */}
       <CsvForEmployee
         open={exportOpen}
         employee={selectedEmp}
         onClose={() => {
           setExportOpen(false);
           setSelectedEmp(null);
+        }}
+      />
+
+      {/* ✅ Export ALL Employees Popup */}
+      <CsvForEmployeesAll
+        open={exportAllOpen}
+        onClose={() => setExportAllOpen(false)}
+        employees={employees}
+        initialFilters={{
+          activeTab,
+          roleFilter,
+          statusFilter,
+          search,
         }}
       />
 
@@ -642,9 +675,7 @@ export default function EmployeeList() {
                             <Briefcase size={16} />
                           </span>
                           <div className="flex-1">
-                            <div className="font-black text-slate-800">
-                              Worker
-                            </div>
+                            <div className="font-black text-slate-800">Worker</div>
                             <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
                               Standard Access
                             </div>
@@ -748,9 +779,7 @@ export default function EmployeeList() {
                   disabled={isLoading}
                   className="py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:bg-gray-400 disabled:shadow-none"
                 >
-                  {isLoading
-                    ? t("employeeCreate.processing")
-                    : t("employeeCreate.submit")}
+                  {isLoading ? t("employeeCreate.processing") : t("employeeCreate.submit")}
                 </button>
               </div>
             </form>
