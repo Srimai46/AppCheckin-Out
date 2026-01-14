@@ -16,11 +16,13 @@ import {
   ChevronDown,
   KeyRound,
   Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
 
 import CsvForEmployee from "./csv/csvforEmployee";
 import CsvForEmployeesAll from "./csv/csvforEmployeesAll";
+import XlsxForEmployeesWorkbook from "./csv/xlsxForEmployeesWorkbook";
 
 function PaginationBar({ page, totalPages, onPrev, onNext }) {
   return (
@@ -56,6 +58,84 @@ function PaginationBar({ page, totalPages, onPrev, onNext }) {
   );
 }
 
+function ExportAllChooser({ open, onClose, onPick }) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+
+      <div className="absolute inset-0 flex items-center justify-center p-4">
+        <div className="w-full max-w-xl rounded-[1.5rem] bg-white border border-slate-200 shadow-xl overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <div className="text-lg font-black text-slate-800">Export All</div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-slate-100 transition"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-3">
+            <button
+              type="button"
+              onClick={() => onPick("workbook")}
+              className="w-full text-left p-5 rounded-2xl border border-slate-200 hover:bg-slate-50 transition"
+            >
+              <div className="flex items-start gap-3">
+                <FileSpreadsheet className="mt-0.5" />
+                <div>
+                  <div className="font-black text-slate-800">
+                    (1) Export Workbook (.xlsx) — หลาย Sheet
+                  </div>
+                  <div className="text-sm text-slate-600 font-bold">
+                    สำหรับเลือกพนักงานหลายบุคคล (ไฟล์ .xlsx, 1 sheet ต่อ 1 employee)
+                  </div>
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onPick("employeesList")}
+              className="w-full text-left p-5 rounded-2xl border border-slate-200 hover:bg-slate-50 transition"
+            >
+              <div className="flex items-start gap-3">
+                <Download className="mt-0.5" />
+                <div>
+                  <div className="font-black text-slate-800">
+                    (2) Export รายชื่อพนักงาน
+                  </div>
+                  <div className="text-sm text-slate-600 font-bold">
+                    สำหรับเลือกพนักงานรายบุคคล (ไฟล์ .csv)
+                  </div>
+                </div>
+              </div>
+            </button>
+
+            <div className="text-xs text-slate-500 font-bold pt-2">
+              * หมายเหตุ: Workbook แบบหลายชีตต้องใช้ xlsx (CSV ทำหลายชีตไม่ได้)
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-10 px-4 rounded-full border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EmployeeList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -81,12 +161,14 @@ export default function EmployeeList() {
   const [roleOpen, setRoleOpen] = useState(false);
   const [roleOpenFilter, setRoleOpenFilter] = useState(false);
 
-  // ✅ export csv per employee
+  // export per employee
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedEmp, setSelectedEmp] = useState(null);
 
-  // ✅ export all employees
-  const [exportAllOpen, setExportAllOpen] = useState(false);
+  // export all (chooser + 2 pages)
+  const [exportAllChooserOpen, setExportAllChooserOpen] = useState(false);
+  const [exportAllWorkbookOpen, setExportAllWorkbookOpen] = useState(false);
+  const [exportAllEmployeesListOpen, setExportAllEmployeesListOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -161,10 +243,7 @@ export default function EmployeeList() {
   }, [employees, activeTab, roleFilter, statusFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
-  const pageItems = filteredEmployees.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE
-  );
+  const pageItems = filteredEmployees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
@@ -244,21 +323,14 @@ export default function EmployeeList() {
         </h1>
 
         <div className="flex items-center gap-2">
-          {/* ✅ Export All Employees */}
+          {/* ✅ Export All */}
           <button
             type="button"
-            onClick={() => setExportAllOpen(true)}
-            className="
-              h-11 px-5 rounded-xl
-              border border-gray-200 bg-white
-              text-slate-800
-              inline-flex items-center gap-2
-              hover:bg-gray-50
-              active:scale-95
-              transition
-              font-black text-xs uppercase tracking-widest
-            "
-            title="Export all employees"
+            onClick={() => setExportAllChooserOpen(true)}
+            className="h-11 px-4 rounded-xl border border-gray-200 bg-white text-slate-800
+              inline-flex items-center gap-2 font-black text-sm
+              hover:bg-gray-50 active:scale-95 transition"
+            title="Export All"
           >
             <Download size={18} />
             Export All
@@ -346,8 +418,7 @@ export default function EmployeeList() {
                         setRoleFilter(opt.value);
                         setRoleOpenFilter(false);
                       }}
-                      className={`w-full px-6 py-3 text-left text-sm font-black transition-all hover:bg-blue-50
-                      ${
+                      className={`w-full px-6 py-3 text-left text-sm font-black transition-all hover:bg-blue-50 ${
                         roleFilter === opt.value
                           ? "bg-blue-50 text-blue-700"
                           : "text-slate-700"
@@ -461,8 +532,7 @@ export default function EmployeeList() {
                         className="h-10 w-10 rounded-xl inline-flex items-center justify-center
                           border border-gray-200 bg-white text-slate-700 hover:bg-gray-50
                           active:scale-95 transition"
-                        title="Export employee CSV"
-                        aria-label="Export employee CSV"
+                        title="Export employee"
                       >
                         <Download size={18} />
                       </button>
@@ -499,7 +569,7 @@ export default function EmployeeList() {
         onClose={() => setShowPolicyModal(false)}
       />
 
-      {/* ✅ CSV Export Popup (per employee) */}
+      {/* per-employee export */}
       <CsvForEmployee
         open={exportOpen}
         employee={selectedEmp}
@@ -509,20 +579,32 @@ export default function EmployeeList() {
         }}
       />
 
-      {/* ✅ Export ALL Employees Popup */}
-      <CsvForEmployeesAll
-        open={exportAllOpen}
-        onClose={() => setExportAllOpen(false)}
-        employees={employees}
-        initialFilters={{
-          activeTab,
-          roleFilter,
-          statusFilter,
-          search,
+      {/* ✅ Export All chooser */}
+      <ExportAllChooser
+        open={exportAllChooserOpen}
+        onClose={() => setExportAllChooserOpen(false)}
+        onPick={(mode) => {
+          setExportAllChooserOpen(false);
+          if (mode === "workbook") setExportAllWorkbookOpen(true);
+          if (mode === "employeesList") setExportAllEmployeesListOpen(true);
         }}
       />
 
-      {/* ✅ Add Employee Modal */}
+      {/* ✅ (1) Workbook export: per employee sheets */}
+      <XlsxForEmployeesWorkbook
+        open={exportAllWorkbookOpen}
+        onClose={() => setExportAllWorkbookOpen(false)}
+        employees={filteredEmployees}
+      />
+
+      {/* ✅ (2) Export employee list */}
+      <CsvForEmployeesAll
+        open={exportAllEmployeesListOpen}
+        onClose={() => setExportAllEmployeesListOpen(false)}
+        employees={filteredEmployees}
+      />
+
+      {/* Add Employee Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 space-y-6 animate-in zoom-in duration-300 shadow-2xl relative my-auto">
@@ -611,19 +693,16 @@ export default function EmployeeList() {
                     className={`w-full rounded-2xl px-4 py-3 font-bold outline-none transition-all
                       bg-gray-50 ring-1 ring-transparent hover:bg-gray-100
                       focus:ring-2 focus:ring-blue-100 disabled:opacity-60
-                      ${roleOpen ? "ring-2 ring-blue-100 bg-gray-100" : ""}
-                    `}
+                      ${roleOpen ? "ring-2 ring-blue-100 bg-gray-100" : ""}`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <span
-                          className={`h-9 w-9 rounded-xl flex items-center justify-center border
-                            ${
-                              formData.role === "HR"
-                                ? "bg-blue-50 text-blue-700 border-blue-100"
-                                : "bg-slate-50 text-slate-700 border-slate-100"
-                            }
-                          `}
+                          className={`h-9 w-9 rounded-xl flex items-center justify-center border ${
+                            formData.role === "HR"
+                              ? "bg-blue-50 text-blue-700 border-blue-100"
+                              : "bg-slate-50 text-slate-700 border-slate-100"
+                          }`}
                         >
                           {formData.role === "HR" ? (
                             <ShieldCheck size={16} />
@@ -667,9 +746,9 @@ export default function EmployeeList() {
                             setFormData({ ...formData, role: "Worker" });
                             setRoleOpen(false);
                           }}
-                          className={`w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-all
-                            ${formData.role === "Worker" ? "bg-blue-50/40" : ""}
-                          `}
+                          className={`w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-all ${
+                            formData.role === "Worker" ? "bg-blue-50/40" : ""
+                          }`}
                         >
                           <span className="h-9 w-9 rounded-xl bg-slate-50 text-slate-700 border border-slate-100 flex items-center justify-center">
                             <Briefcase size={16} />
@@ -695,9 +774,9 @@ export default function EmployeeList() {
                             setFormData({ ...formData, role: "HR" });
                             setRoleOpen(false);
                           }}
-                          className={`w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-all
-                            ${formData.role === "HR" ? "bg-blue-50/40" : ""}
-                          `}
+                          className={`w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-all ${
+                            formData.role === "HR" ? "bg-blue-50/40" : ""
+                          }`}
                         >
                           <span className="h-9 w-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center">
                             <ShieldCheck size={16} />
