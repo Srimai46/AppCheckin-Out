@@ -323,15 +323,27 @@ i18n.use(initReactI18next).init({
           halfMorning: "Half Day (Morning)",
           halfAfternoon: "Half Day (Afternoon)",
 
+          loadingTypes: "Loading types...",
+
+          startDate: "Start date",
+          endDate: "End date",
+          pickStartDate: "Select start date",
+          pickEndDate: "Select end date",
+
+          browse: "Browse",
+
           errors: {
             missingType: "Please select a leave type.",
             missingDates: "Please specify both start and end dates.",
             invalidDate: "End date must be after the start date.",
+
+            loadTypesFailed: "Failed to load leave types.",
+
+            endBeforeStart: "End date must be on/after {{min}}."
           },
 
           blockedTitle: "Leave Request Blocked",
-          blockedMessage:
-            "You can’t request leave on holidays or non-working days.",
+          blockedMessage: "You can’t request leave on holidays or non-working days.",
 
           submissionFailed: "Submission Failed",
 
@@ -350,8 +362,7 @@ i18n.use(initReactI18next).init({
           removeFile: "Remove File",
           noFileSelected: "No file selected",
 
-          attachNote:
-            "You may attach supporting documents (e.g., medical certificate).",
+          attachNote: "You may attach supporting documents (e.g., medical certificate).",
 
           placeholderReason: "Please provide details...",
 
@@ -362,7 +373,7 @@ i18n.use(initReactI18next).init({
             period: "Period",
             duration: "Duration",
             attachment: "Attachment",
-            reason: "Reason",
+            reason: "Reason"
           },
 
           confirmTitle: "Confirm Leave Request",
@@ -374,7 +385,7 @@ i18n.use(initReactI18next).init({
 
           cancel: "Cancel",
           submitting: "Submitting request...",
-          submit: "Submit Leave Request",
+          submit: "Submit Leave Request"
         },
 
         /* -------- Attendance Dashboard -------- */
@@ -1429,10 +1440,22 @@ i18n.use(initReactI18next).init({
           halfMorning: "ครึ่งวัน (เช้า)",
           halfAfternoon: "ครึ่งวัน (บ่าย)",
 
+          loadingTypes: "กำลังโหลดประเภทการลา...",
+
+          startDate: "วันที่เริ่ม",
+          endDate: "วันที่สิ้นสุด",
+          pickStartDate: "เลือกวันที่เริ่ม",
+          pickEndDate: "เลือกวันที่สิ้นสุด",
+
+          browse: "เลือกไฟล์",
+
           errors: {
             missingType: "กรุณาเลือกประเภทการลา",
             missingDates: "กรุณาระบุวันที่เริ่มและวันที่สิ้นสุด",
             invalidDate: "วันที่สิ้นสุดต้องมากกว่าวันที่เริ่ม",
+
+            loadTypesFailed: "ไม่สามารถโหลดประเภทการลาได้",
+            endBeforeStart: "วันที่สิ้นสุดต้องไม่ก่อน {{min}}"
           },
 
           blockedTitle: "ไม่สามารถทำรายการได้",
@@ -1459,7 +1482,6 @@ i18n.use(initReactI18next).init({
 
           placeholderReason: "กรุณาระบุรายละเอียด...",
 
-          // ... (Previous leaveRequest translations)
           summaryTitle: "สรุปคำขอการลา",
           summaryReview: "กรุณาตรวจสอบรายละเอียดก่อนยืนยัน",
           summary: {
@@ -1467,16 +1489,18 @@ i18n.use(initReactI18next).init({
             period: "ช่วงเวลา",
             duration: "ระยะเวลา",
             attachment: "ไฟล์แนบ",
-            reason: "เหตุผล",
+            reason: "เหตุผล"
           },
+
           confirmTitle: "ยืนยันคำขอการลา",
           confirmText: "คุณต้องการส่งคำขอการลานี้ใช่หรือไม่?",
           confirmButton: "ส่งคำขอ",
           successTitle: "ส่งคำขอสำเร็จ",
           successMessage: "คำขอการลาของคุณถูกส่งเรียบร้อยแล้ว",
+
           cancel: "ยกเลิก",
           submitting: "กำลังส่งคำขอ...",
-          submit: "ส่งคำขอการลา",
+          submit: "ส่งคำขอการลา"
         },
 
         attendanceDashboard: {
@@ -2302,10 +2326,22 @@ i18n.use(initReactI18next).init({
           halfMorning: "半日（午前）",
           halfAfternoon: "半日（午後）",
 
+          loadingTypes: "休暇タイプを読み込み中...",
+
+          startDate: "開始日",
+          endDate: "終了日",
+          pickStartDate: "開始日を選択",
+          pickEndDate: "終了日を選択",
+
+          browse: "参照",
+
           errors: {
             missingType: "休暇タイプを選択してください。",
             missingDates: "開始日と終了日を両方指定してください。",
             invalidDate: "終了日は開始日より後である必要があります。",
+
+            loadTypesFailed: "休暇タイプの読み込みに失敗しました。",
+            endBeforeStart: "終了日は {{min}} 以降である必要があります。"
           },
 
           blockedTitle: "休暇申請がブロックされました",
@@ -2339,7 +2375,7 @@ i18n.use(initReactI18next).init({
             period: "期間",
             duration: "時間帯",
             attachment: "添付",
-            reason: "理由",
+            reason: "理由"
           },
 
           confirmTitle: "休暇申請の確認",
@@ -2351,7 +2387,7 @@ i18n.use(initReactI18next).init({
 
           cancel: "キャンセル",
           submitting: "申請を送信中...",
-          submit: "休暇申請を送信",
+          submit: "休暇申請を送信"
         },
 
         /* -------- Attendance Dashboard -------- */

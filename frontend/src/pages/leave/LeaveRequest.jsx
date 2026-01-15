@@ -1,23 +1,27 @@
-import React, { useEffect, useState } from "react"; // ✅ 1. เพิ่ม useEffect
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar as CalendarIcon, Paperclip, X } from "lucide-react";
+
 // ✅ 2. เพิ่ม getLeaveTypes
-import { createLeaveRequest, getLeaveTypes } from "../../api/leaveService"; 
-import {
-  alertConfirm,
-  alertSuccess,
-  alertError,
-} from "../../utils/sweetAlert";
+import { createLeaveRequest, getLeaveTypes } from "../../api/leaveService";
+
+import { alertConfirm, alertSuccess, alertError } from "../../utils/sweetAlert";
 import { useTranslation } from "react-i18next";
+
+// ✅ ใช้ DateGridPicker ตามไฟล์ที่คุณให้ไว้
+import DateGridPicker from "../../components/shared/DateGridPicker";
 
 export default function LeaveRequest() {
   const { t, i18n } = useTranslation(); // ✅ ดึง i18n มาเช็คภาษาปัจจุบัน (th/en)
   const navigate = useNavigate();
 
+  // -------------------------
+  // Form state
+  // -------------------------
   const [selectedType, setSelectedType] = useState("");
   const [reason, setReason] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(""); // YYYY-MM-DD
+  const [endDate, setEndDate] = useState(""); // YYYY-MM-DD
   const [duration, setDuration] = useState("Full");
   const [attachment, setAttachment] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,7 +29,13 @@ export default function LeaveRequest() {
   // ✅ 3. เปลี่ยนจาก useMemo เป็น State
   const [leaveTypes, setLeaveTypes] = useState([]);
 
-  // ✅ 4. ดึงข้อมูลจาก API เมื่อหน้าเว็บโหลด
+  // ✅ DateGridPicker modal state
+  const [openStart, setOpenStart] = useState(false);
+  const [openEnd, setOpenEnd] = useState(false);
+
+  // -------------------------
+  // Fetch leave types on mount
+  // -------------------------
   useEffect(() => {
     const fetchTypes = async () => {
       try {
@@ -33,19 +43,24 @@ export default function LeaveRequest() {
         setLeaveTypes(data);
       } catch (error) {
         console.error("Error fetching leave types:", error);
-        alertError(t("common.error"), "Failed to load leave types.");
+        alertError(t("common.error"), t("leaveRequest.errors.loadTypesFailed"));
       }
     };
+
     fetchTypes();
   }, [t]);
 
+  // -------------------------
+  // Helpers
+  // -------------------------
+
   // ฟังก์ชันช่วยแสดงชื่อประเภทการลา (รองรับทั้ง String และ JSON {th, en})
   const getLeaveLabel = (type) => {
-    if (!type.label) return type.typeName;
+    if (!type?.label) return type?.typeName;
     // ถ้า label เป็น object ให้เลือกภาษาตาม i18n
-    if (typeof type.label === 'object') {
-        const lang = i18n.language || 'en';
-        return type.label[lang] || type.label.en || type.label.th || type.typeName;
+    if (typeof type.label === "object") {
+      const lang = i18n.language || "en";
+      return type.label[lang] || type.label.en || type.label.th || type.typeName;
     }
     return type.label;
   };
@@ -55,13 +70,26 @@ export default function LeaveRequest() {
     const units = ["B", "KB", "MB", "GB"];
     let size = bytes;
     let idx = 0;
+
     while (size >= 1024 && idx < units.length - 1) {
       size /= 1024;
       idx += 1;
     }
+
     return `${size.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
   };
 
+  // ✅ แปลง YYYY-MM-DD -> DD/MM/YYYY (แค่แสดงผล)
+  const toDisplay = (ymd) => {
+    if (!ymd) return "";
+    const m = String(ymd).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return ymd;
+    return `${m[3]}/${m[2]}/${m[1]}`;
+  };
+
+  // -------------------------
+  // Handlers
+  // -------------------------
   const handleFileChange = (e) => {
     setAttachment(e.target.files?.[0] || null);
   };
@@ -76,24 +104,15 @@ export default function LeaveRequest() {
     e.preventDefault();
 
     if (!selectedType) {
-      return alertError(
-        t("common.missingInfo"),
-        t("leaveRequest.errors.missingType")
-      );
+      return alertError(t("common.missingInfo"), t("leaveRequest.errors.missingType"));
     }
 
     if (!startDate || !endDate) {
-      return alertError(
-        t("common.missingInfo"),
-        t("leaveRequest.errors.missingDates")
-      );
+      return alertError(t("common.missingInfo"), t("leaveRequest.errors.missingDates"));
     }
 
     if (new Date(startDate) > new Date(endDate)) {
-      return alertError(
-        t("common.error"),
-        t("leaveRequest.errors.invalidDate")
-      );
+      return alertError(t("common.error"), t("leaveRequest.errors.invalidDate"));
     }
 
     const confirmed = await alertConfirm(
@@ -108,7 +127,7 @@ export default function LeaveRequest() {
 
       const formData = new FormData();
       // ✅ ส่ง selectedType (ซึ่งคือ typeName จาก DB)
-      formData.append("type", selectedType); 
+      formData.append("type", selectedType);
       formData.append("startDate", startDate);
       formData.append("endDate", endDate);
       formData.append("reason", reason || "");
@@ -122,6 +141,7 @@ export default function LeaveRequest() {
         t("leaveRequest.successTitle"),
         res?.message || t("leaveRequest.successMessage")
       );
+
       navigate("/dashboard");
     } catch (error) {
       alertError(
@@ -131,6 +151,25 @@ export default function LeaveRequest() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // ✅ ป้องกัน endDate < startDate ตอนเลือกวัน (ไม่เปลี่ยน logic submit เดิม)
+  const handlePickStart = (v) => {
+    const next = v || "";
+    setStartDate(next);
+
+    if (endDate && next && new Date(endDate) < new Date(next)) {
+      setEndDate("");
+    }
+  };
+
+  const handlePickEnd = (v) => {
+    const next = v || "";
+    if (startDate && next && new Date(next) < new Date(startDate)) {
+      alertError(t("common.error"), t("leaveRequest.errors.invalidDate"));
+      return;
+    }
+    setEndDate(next);
   };
 
   return (
@@ -153,16 +192,15 @@ export default function LeaveRequest() {
             {/* Left */}
             <div className="space-y-4">
               <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-2">
-                {t("leaveRequest.step1")}{" "}
-                <span className="text-red-500">*</span>
+                {t("leaveRequest.step1")} <span className="text-red-500">*</span>
               </label>
 
               <div className="grid grid-cols-1 gap-3">
                 {/* ✅ 5. แสดง Loading ระหว่างรอข้อมูล */}
                 {leaveTypes.length === 0 && (
-                    <div className="text-center p-4 text-gray-400 text-sm animate-pulse">
-                        Loading types...
-                    </div>
+                  <div className="text-center p-4 text-gray-400 text-sm animate-pulse">
+                    {t("leaveRequest.loadingTypes")}
+                  </div>
                 )}
 
                 {/* ✅ 6. วนลูปแสดงข้อมูลจริงจาก DB */}
@@ -170,7 +208,7 @@ export default function LeaveRequest() {
                   <div
                     key={type.id}
                     // ใช้ typeName เป็น key ในการส่งกลับ Backend
-                    onClick={() => setSelectedType(type.typeName)} 
+                    onClick={() => setSelectedType(type.typeName)}
                     className={`flex items-center p-5 rounded-3xl border-2 cursor-pointer transition-all duration-300 ${
                       selectedType === type.typeName
                         ? "border-blue-500 bg-blue-50/50 ring-4 ring-blue-50"
@@ -186,12 +224,9 @@ export default function LeaveRequest() {
                     />
                     <span
                       className={`font-black text-sm ${
-                        selectedType === type.typeName
-                          ? "text-blue-900"
-                          : "text-slate-500"
+                        selectedType === type.typeName ? "text-blue-900" : "text-slate-500"
                       }`}
                     >
-                      {/* เรียกฟังก์ชันแสดงชื่อ (รองรับภาษาไทย/อังกฤษ) */}
                       {getLeaveLabel(type)}
                     </span>
                   </div>
@@ -199,46 +234,60 @@ export default function LeaveRequest() {
               </div>
             </div>
 
-            {/* Right Side (เหมือนเดิม) */}
+            {/* Right Side */}
             <div className="space-y-8">
+              {/* ✅ เปลี่ยน input date -> ปุ่มเปิด DateGridPicker (ใช้ class เดิมให้หน้าตาไม่เพี้ยน) */}
               <div className="grid grid-cols-2 gap-4">
-                <input
-                  type="date"
-                  className="w-full p-4 bg-gray-50 border-none rounded-2xl font-bold text-sm"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  required
-                />
-                <input
-                  type="date"
-                  className="w-full p-4 bg-gray-50 border-none rounded-2xl font-bold text-sm"
-                  value={endDate}
-                  min={startDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  required
-                />
+                <button
+                  type="button"
+                  className="w-full p-4 bg-gray-50 border-none rounded-2xl font-bold text-sm text-left"
+                  onClick={() => setOpenStart(true)}
+                >
+                  {startDate ? toDisplay(startDate) : t("leaveRequest.pickStartDate")}
+                </button>
+
+                <button
+                  type="button"
+                  className="w-full p-4 bg-gray-50 border-none rounded-2xl font-bold text-sm text-left"
+                  onClick={() => setOpenEnd(true)}
+                >
+                  {endDate ? toDisplay(endDate) : t("leaveRequest.pickEndDate")}
+                </button>
               </div>
+
+              {/* ✅ ถูกเรียกใช้จริง: DateGridPicker */}
+              <DateGridPicker
+                open={openStart}
+                value={startDate || null}
+                onChange={handlePickStart}
+                onClose={() => setOpenStart(false)}
+                title={t("leaveRequest.startDate")}
+                allowAll={false}
+                granularity="day"
+              />
+
+              <DateGridPicker
+                open={openEnd}
+                value={endDate || null}
+                onChange={handlePickEnd}
+                onClose={() => setOpenEnd(false)}
+                title={t("leaveRequest.endDate")}
+                allowAll={false}
+                granularity="day"
+              />
 
               <div className="flex bg-gray-100 p-1.5 rounded-2xl gap-1">
                 {[
                   { id: "Full", label: t("leaveRequest.fullDay") },
-                  {
-                    id: "HalfMorning",
-                    label: t("leaveRequest.halfMorning"),
-                  },
-                  {
-                    id: "HalfAfternoon",
-                    label: t("leaveRequest.halfAfternoon"),
-                  },
+                  { id: "HalfMorning", label: t("leaveRequest.halfMorning") },
+                  { id: "HalfAfternoon", label: t("leaveRequest.halfAfternoon") },
                 ].map((opt) => (
                   <button
                     key={opt.id}
                     type="button"
                     onClick={() => setDuration(opt.id)}
                     className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                      duration === opt.id
-                        ? "bg-white text-blue-600 shadow-sm"
-                        : "text-gray-400"
+                      duration === opt.id ? "bg-white text-blue-600 shadow-sm" : "text-gray-400"
                     }`}
                   >
                     {opt.label}
@@ -271,16 +320,11 @@ export default function LeaveRequest() {
                   </div>
 
                   <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">
-                    Browse
+                    {t("leaveRequest.browse")}
                   </span>
                 </label>
 
-                <input
-                  id="leave-attachment"
-                  type="file"
-                  hidden
-                  onChange={handleFileChange}
-                />
+                <input id="leave-attachment" type="file" hidden onChange={handleFileChange} />
 
                 {attachment && (
                   <div className="mt-4 flex items-center justify-between bg-white rounded-xl px-4 py-3 text-xs font-bold">
@@ -310,9 +354,7 @@ export default function LeaveRequest() {
               disabled={isLoading}
               className="px-12 py-5 rounded-[2rem] bg-slate-900 text-white font-black text-xs uppercase tracking-[0.3em]"
             >
-              {isLoading
-                ? t("leaveRequest.submitting")
-                : t("leaveRequest.submit")}
+              {isLoading ? t("leaveRequest.submitting") : t("leaveRequest.submit")}
             </button>
           </div>
         </form>
