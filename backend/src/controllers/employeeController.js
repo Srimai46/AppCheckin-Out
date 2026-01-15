@@ -4,7 +4,7 @@ const bcrypt = require("bcryptjs");
 const { auditLog } = require("../utils/logger");
 
 // ==============================
-// ✅ Role helpers (FIX Worker vs WORKER)
+// ✅ Role helpers
 // ==============================
 const normalizeRole = (val) => {
   const raw = String(val ?? "").trim();
@@ -12,7 +12,6 @@ const normalizeRole = (val) => {
 
   if (up === "HR") return "HR";
   if (up === "WORKER" || up === "WORK") return "WORKER";
-  // รองรับ FE ส่ง "Worker"
   if (raw === "Worker") return "WORKER";
 
   return null;
@@ -25,7 +24,20 @@ const presentRole = (val) => {
   return val;
 };
 
-// --- Helper Functions ---
+// ==============================
+// ✅ NEW: Department Helper
+// ==============================
+const normalizeDepartment = (val) => {
+  if (!val) return "GENERAL"; // Default ถ้าไม่ส่งมา
+  const validDepts = [
+    "HR", "IT", "ACCOUNTING", "MARKETING", 
+    "SALES", "OPERATIONS", "MANAGEMENT", "GENERAL"
+  ];
+  const up = String(val).toUpperCase().trim();
+  return validDepts.includes(up) ? up : "GENERAL";
+};
+
+// --- Helper Functions (เหมือนเดิม) ---
 const formatShortDate = (date) => {
   if (!date) return "-";
   return new Date(date).toLocaleDateString("en-GB", {
@@ -45,7 +57,6 @@ const formatThaiTime = (date) => {
   });
 };
 
-// ✅ แปลงเวลาใน Bangkok เป็นนาทีของวัน (สำหรับเทียบ early out)
 const timeToMinutesBangkok = (dateObj) => {
   if (!dateObj) return null;
   const t = new Date(dateObj).toLocaleTimeString("en-GB", {
@@ -59,7 +70,6 @@ const timeToMinutesBangkok = (dateObj) => {
   return Number(m[1]) * 60 + Number(m[2]);
 };
 
-// ✅ แปลง "HH:mm" / "HH:mm:ss" เป็นนาทีของวัน
 const hhmmToMinutes = (val) => {
   if (!val) return null;
   const s = String(val).trim();
@@ -68,10 +78,8 @@ const hhmmToMinutes = (val) => {
   return Number(m[1]) * 60 + Number(m[2]);
 };
 
-// ✅ Normalize endTime ให้เป็น "HH:mm" เสมอ (รองรับ Date/DateTime ด้วย)
 const normalizeEndTimeToHHmm = (val) => {
   if (!val) return null;
-
   if (val instanceof Date) {
     const hhmm = val.toLocaleTimeString("en-GB", {
       timeZone: "Asia/Bangkok",
@@ -81,44 +89,12 @@ const normalizeEndTimeToHHmm = (val) => {
     });
     return hhmm || null;
   }
-
   const s = String(val).trim();
   const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (!m) return null;
   const hh = String(m[1]).padStart(2, "0");
   const mm = String(m[2]).padStart(2, "0");
   return `${hh}:${mm}`;
-};
-
-// ✅ ดึงเวลาเลิกงานจากหลาย model/field แบบทนทาน (คงไว้ เผื่อใช้)
-const fetchWorkEndTime = async () => {
-  const modelCandidates = [
-    "systemConfig",
-    "workConfiguration",
-    "attendancePolicy",
-    "workConfig",
-    "config",
-  ];
-
-  const fieldCandidates = ["endTime", "workEndTime", "end_time", "work_end_time"];
-
-  for (const modelName of modelCandidates) {
-    const model = prisma?.[modelName];
-    if (!model?.findFirst) continue;
-
-    for (const field of fieldCandidates) {
-      try {
-        const row = await model.findFirst({ select: { [field]: true } });
-        const rawVal = row?.[field];
-        const hhmm = normalizeEndTimeToHHmm(rawVal);
-        if (hhmm) return { endTime: hhmm, source: `${modelName}.${field}` };
-      } catch (e) {
-        continue;
-      }
-    }
-  }
-
-  return { endTime: null, source: null };
 };
 
 // 1. ดึงรายชื่อพนักงานทุกคน
@@ -131,13 +107,13 @@ exports.getAllEmployees = async (req, res) => {
         lastName: true,
         email: true,
         role: true,
+        department: true, // ✅ NEW: เพิ่ม field department
         isActive: true,
         joiningDate: true,
       },
       orderBy: { id: "asc" },
     });
 
-    // ✅ FIX: ส่ง role ให้ FE เป็น Worker/HR เหมือนเดิม
     res.json(
       employees.map((e) => ({
         ...e,
@@ -154,8 +130,6 @@ exports.getAllEmployees = async (req, res) => {
 exports.getEmployeeById = async (req, res) => {
   try {
     const { id } = req.params;
-
-    // ✅ 1. รับค่าปีจาก Query String (ถ้าไม่มีให้ใช้ปีปัจจุบัน)
     let year = req.query.year ? parseInt(req.query.year, 10) : new Date().getFullYear();
     if (year > 2500) year -= 543;
 
@@ -190,11 +164,7 @@ exports.getEmployeeById = async (req, res) => {
 
     if (!employee) return res.status(404).json({ error: "Not found employee" });
 
-    // =========================================================
-    // ✅ FIX: ดึงเวลาเลิกงานจาก WorkConfiguration (ตาม role)
-    // =========================================================
-    const roleForConfig = employee.role; // enum ใน DB: WORKER / HR
-
+    const roleForConfig = employee.role;
     const workCfg = await prisma.workConfiguration.findUnique({
       where: { role: roleForConfig },
       select: { endHour: true, endMin: true, startHour: true, startMin: true, role: true },
@@ -208,26 +178,24 @@ exports.getEmployeeById = async (req, res) => {
     const endMin = hhmmToMinutes(workEndTime);
 
     res.json({
-      workEndTime, // "HH:mm" หรือ null
-
+      workEndTime,
       info: {
         id: employee.id,
         fullName: `${employee.firstName} ${employee.lastName}`,
         firstName: employee.firstName,
         lastName: employee.lastName,
         email: employee.email,
-        // ✅ FIX: ส่งให้ FE เป็น Worker/HR
         role: presentRole(employee.role),
+        department: employee.department, // ✅ NEW: ส่ง department กลับไป
         joiningDate: formatShortDate(employee.joiningDate),
         isActive: employee.isActive,
       },
-
+      // ... (quotas, attendance, leaves เหมือนเดิม)
       quotas: employee.leaveQuotas.map((q) => {
         const base = parseFloat(q.totalDays) || 0;
         const carry = parseFloat(q.carryOverDays) || 0;
         const used = parseFloat(q.usedDays) || 0;
         const totalAvailable = base + carry;
-
         return {
           type: q.leaveType.typeName,
           baseQuota: base,
@@ -238,36 +206,28 @@ exports.getEmployeeById = async (req, res) => {
           year: q.year,
         };
       }),
-
       attendance: employee.timeRecords.map((record) => {
         const outMin = timeToMinutesBangkok(record.checkOutTime);
         const isEarly = endMin != null && outMin != null ? outMin < endMin : false;
-
         const checkOutStatus = !record.checkOutTime
           ? "NO_CHECKOUT"
           : isEarly
           ? "EARLY"
           : "NORMAL";
-
         return {
           id: record.id,
           workDate: record.workDate,
           dateDisplay: formatShortDate(record.workDate),
-
           checkInTime: record.checkInTime,
           checkOutTime: record.checkOutTime,
-
           checkInTimeDisplay: record.checkInTime ? formatThaiTime(record.checkInTime) : "-",
           checkOutTimeDisplay: record.checkOutTime ? formatThaiTime(record.checkOutTime) : "-",
-
           isLate: !!record.isLate,
           note: record.note || "-",
-
           checkInStatus: record.checkInTime ? (record.isLate ? "LATE" : "ON_TIME") : "ABSENT",
           checkOutStatus,
         };
       }),
-
       leaves: employee.leaveRequestsAsEmployee.map((leave) => ({
         id: leave.id,
         leaveType: leave.leaveType,
@@ -290,7 +250,7 @@ exports.getEmployeeById = async (req, res) => {
   }
 };
 
-// 3. เปลี่ยนสถานะพนักงาน (Active/Inactive)
+// 3. เปลี่ยนสถานะพนักงาน (เหมือนเดิม)
 exports.updateEmployeeStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -388,10 +348,10 @@ exports.updateEmployeeStatus = async (req, res) => {
   }
 };
 
-// 4. สร้างพนักงานใหม่พร้อมโควตา (Transaction)
+// 4. สร้างพนักงานใหม่พร้อมโควตา
 exports.createEmployee = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, role, joiningDate } = req.body;
+    const { firstName, lastName, email, password, role, department, joiningDate } = req.body; 
     const adminId = req.user.id;
 
     const adminUser = await prisma.employee.findUnique({
@@ -403,12 +363,11 @@ exports.createEmployee = async (req, res) => {
     if (existing) return res.status(400).json({ error: "Email has been used" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const quotaMap = { Sick: 30, Personal: 6, Annual: 6, Emergency: 5 };
     const currentYear = new Date().getFullYear();
 
-    // ✅ FIX: Role ให้ตรง enum ใน DB (WORKER/HR)
     const assignedRole = normalizeRole(role) || "WORKER";
+    const assignedDept = normalizeDepartment(department); 
 
     const result = await prisma.$transaction(async (tx) => {
       const newEmployee = await tx.employee.create({
@@ -417,14 +376,14 @@ exports.createEmployee = async (req, res) => {
           lastName,
           email,
           passwordHash: hashedPassword,
-          role: assignedRole, // ✅ WORKER/HR
+          role: assignedRole,
+          department: assignedDept, 
           joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
           isActive: true,
         },
       });
 
       const leaveTypes = await tx.leaveType.findMany();
-
       let quotaDataForDB = [];
       let quotaSummaryForLog = {};
 
@@ -432,7 +391,6 @@ exports.createEmployee = async (req, res) => {
         quotaDataForDB = leaveTypes.map((type) => {
           const days = Number(quotaMap[type.typeName] ?? 0);
           quotaSummaryForLog[type.typeName] = days;
-
           return {
             employeeId: newEmployee.id,
             leaveTypeId: type.id,
@@ -442,7 +400,6 @@ exports.createEmployee = async (req, res) => {
             usedDays: 0,
           };
         });
-
         await tx.leaveQuota.createMany({ data: quotaDataForDB });
       }
 
@@ -450,12 +407,13 @@ exports.createEmployee = async (req, res) => {
         name: `${firstName} ${lastName}`,
         email: email,
         role: assignedRole,
+        department: assignedDept, 
         joiningDate: newEmployee.joiningDate,
         status: "Active",
         initialQuotas: quotaSummaryForLog,
       };
 
-      const logDetails = `Created new employee: ${firstName} ${lastName} (${assignedRole})`;
+      const logDetails = `Created new employee: ${firstName} ${lastName} (${assignedRole} - ${assignedDept})`;
 
       await auditLog(tx, {
         action: "CREATE",
@@ -497,147 +455,148 @@ exports.createEmployee = async (req, res) => {
     });
   } catch (error) {
     console.error("createEmployee Error:", error);
-    // ✅ FIX: ส่ง message จริงกลับไป จะได้รู้สาเหตุแท้จริง
     res.status(500).json({ error: error?.message || "Add employee fail" });
   }
 };
 
-// 5. ดึงสถิติการเข้างานรายวัน
+// 5. getAttendanceStats (เหมือนเดิม)
 exports.getAttendanceStats = async (req, res) => {
-  try {
-    const { date } = req.query;
-    const targetDate = date ? new Date(date) : new Date();
-
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const totalEmployees = await prisma.employee.count({ where: { isActive: true } });
-
-    const records = await prisma.timeRecord.findMany({
-      where: { workDate: { gte: startOfDay, lte: endOfDay } },
-      include: { employee: { select: { firstName: true, lastName: true } } },
-    });
-
-    res.json({
-      selectedDate: formatShortDate(startOfDay),
-      totalEmployees,
-      checkedIn: records.length,
-      late: records.filter((r) => r.isLate).length,
-      absent: Math.max(0, totalEmployees - records.length),
-      lateDetails: records
-        .filter((r) => r.isLate)
-        .map((r) => ({
-          name: `${r.employee.firstName} ${r.employee.lastName}`,
-          time: formatThaiTime(r.checkInTime),
-        })),
-    });
-  } catch (error) {
-    res.status(500).json({ error: "Unable to retrieve statistical data." });
-  }
-};
-
-// 6. รีเซ็ตรหัสผ่าน (ปรับปรุงสิทธิ์)
-exports.resetPassword = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { newPassword } = req.body;
-    const requester = req.user;
-    const targetId = parseInt(id);
-
-    const isOwner = requester.id === targetId;
-    const isHR = requester.role === "HR" || requester.role === "Admin";
-
-    if (!isHR && !isOwner) {
-      return res.status(403).json({ error: "No permission to change this password." });
-    }
-
-    if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters." });
-    }
-
-    const requesterUser = await prisma.employee.findUnique({
-      where: { id: requester.id },
-      select: { firstName: true, lastName: true, role: true },
-    });
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    const result = await prisma.$transaction(async (tx) => {
-      const targetUser = await tx.employee.findUnique({
-        where: { id: targetId },
-        select: { firstName: true, lastName: true, email: true },
-      });
-
-      if (!targetUser) throw new Error("Employee not found.");
-
-      await tx.employee.update({
-        where: { id: targetId },
-        data: { passwordHash: hashedPassword },
-      });
-
-      const cleanNewValue = {
-        targetName: `${targetUser.firstName} ${targetUser.lastName}`,
-        targetEmail: targetUser.email,
-        action: "Password Reset",
-        resetBy: isOwner ? "Self" : "Admin/HR",
-        status: "Success",
-      };
-
-      const logDetails = isOwner
-        ? `User reset their own password.`
-        : `HR (${requesterUser.firstName}) reset password for ${targetUser.firstName} ${targetUser.lastName}`;
-
-      await auditLog(tx, {
-        action: "UPDATE",
-        modelName: "Employee",
-        recordId: targetId,
-        userId: requester.id,
-        details: logDetails,
-        oldValue: { action: "Password Change Requested" },
-        newValue: cleanNewValue,
-        req: req,
-      });
-
-      return { logDetails, targetUser, cleanNewValue };
-    });
-
-    const io = req.app.get("io");
-    if (io) {
-      io.emit("new-audit-log", {
-        id: Date.now(),
-        action: "UPDATE",
-        modelName: "Employee",
-        recordId: targetId,
-        performedBy: {
-          firstName: requesterUser?.firstName || "Unknown",
-          lastName: requesterUser?.lastName || "",
-        },
-        details: result.logDetails,
-        newValue: result.cleanNewValue,
-        createdAt: new Date(),
-      });
-
-      if (!isOwner) {
-        io.to(`user_${targetId}`).emit("force_logout", {
-          message: "Your password has been changed by Admin/HR. Please login again.",
+    // Code เดิม
+    try {
+        const { date } = req.query;
+        const targetDate = date ? new Date(date) : new Date();
+    
+        const startOfDay = new Date(targetDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(targetDate);
+        endOfDay.setHours(23, 59, 59, 999);
+    
+        const totalEmployees = await prisma.employee.count({ where: { isActive: true } });
+    
+        const records = await prisma.timeRecord.findMany({
+          where: { workDate: { gte: startOfDay, lte: endOfDay } },
+          include: { employee: { select: { firstName: true, lastName: true } } },
         });
+    
+        res.json({
+          selectedDate: formatShortDate(startOfDay),
+          totalEmployees,
+          checkedIn: records.length,
+          late: records.filter((r) => r.isLate).length,
+          absent: Math.max(0, totalEmployees - records.length),
+          lateDetails: records
+            .filter((r) => r.isLate)
+            .map((r) => ({
+              name: `${r.employee.firstName} ${r.employee.lastName}`,
+              time: formatThaiTime(r.checkInTime),
+            })),
+        });
+      } catch (error) {
+        res.status(500).json({ error: "Unable to retrieve statistical data." });
       }
-    }
-
-    res.json({ message: "Password reset successful." });
-  } catch (error) {
-    console.error("resetPassword Error:", error);
-    res.status(400).json({ error: error.message || "Failed to reset password." });
-  }
 };
 
-// 7. แก้ไขข้อมูลพนักงาน (ชื่อ-นามสกุล/อีเมล/role) - PUT (Admin/HR)
+// 6. resetPassword (เหมือนเดิม)
+exports.resetPassword = async (req, res) => {
+    // Code เดิม
+    try {
+        const { id } = req.params;
+        const { newPassword } = req.body;
+        const requester = req.user;
+        const targetId = parseInt(id);
+    
+        const isOwner = requester.id === targetId;
+        const isHR = requester.role === "HR" || requester.role === "Admin";
+    
+        if (!isHR && !isOwner) {
+          return res.status(403).json({ error: "No permission to change this password." });
+        }
+    
+        if (!newPassword || newPassword.length < 6) {
+          return res.status(400).json({ error: "Password must be at least 6 characters." });
+        }
+    
+        const requesterUser = await prisma.employee.findUnique({
+          where: { id: requester.id },
+          select: { firstName: true, lastName: true, role: true },
+        });
+    
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+        const result = await prisma.$transaction(async (tx) => {
+          const targetUser = await tx.employee.findUnique({
+            where: { id: targetId },
+            select: { firstName: true, lastName: true, email: true },
+          });
+    
+          if (!targetUser) throw new Error("Employee not found.");
+    
+          await tx.employee.update({
+            where: { id: targetId },
+            data: { passwordHash: hashedPassword },
+          });
+    
+          const cleanNewValue = {
+            targetName: `${targetUser.firstName} ${targetUser.lastName}`,
+            targetEmail: targetUser.email,
+            action: "Password Reset",
+            resetBy: isOwner ? "Self" : "Admin/HR",
+            status: "Success",
+          };
+    
+          const logDetails = isOwner
+            ? `User reset their own password.`
+            : `HR (${requesterUser.firstName}) reset password for ${targetUser.firstName} ${targetUser.lastName}`;
+    
+          await auditLog(tx, {
+            action: "UPDATE",
+            modelName: "Employee",
+            recordId: targetId,
+            userId: requester.id,
+            details: logDetails,
+            oldValue: { action: "Password Change Requested" },
+            newValue: cleanNewValue,
+            req: req,
+          });
+    
+          return { logDetails, targetUser, cleanNewValue };
+        });
+    
+        const io = req.app.get("io");
+        if (io) {
+          io.emit("new-audit-log", {
+            id: Date.now(),
+            action: "UPDATE",
+            modelName: "Employee",
+            recordId: targetId,
+            performedBy: {
+              firstName: requesterUser?.firstName || "Unknown",
+              lastName: requesterUser?.lastName || "",
+            },
+            details: result.logDetails,
+            newValue: result.cleanNewValue,
+            createdAt: new Date(),
+          });
+    
+          if (!isOwner) {
+            io.to(`user_${targetId}`).emit("force_logout", {
+              message: "Your password has been changed by Admin/HR. Please login again.",
+            });
+          }
+        }
+    
+        res.json({ message: "Password reset successful." });
+      } catch (error) {
+        console.error("resetPassword Error:", error);
+        res.status(400).json({ error: error.message || "Failed to reset password." });
+      }
+};
+
+// 7. แก้ไขข้อมูลพนักงาน (ชื่อ/อีเมล/role/department)
 exports.updateEmployee = async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { firstName, lastName, email, role } = req.body;
+    const { firstName, lastName, email, role, department } = req.body; // ✅ NEW: รับ department
     const adminId = req.user.id;
 
     const adminUser = await prisma.employee.findUnique({
@@ -650,7 +609,6 @@ exports.updateEmployee = async (req, res) => {
     if (lastName !== undefined) dataToUpdate.lastName = lastName;
     if (email !== undefined) dataToUpdate.email = email;
 
-    // ✅ FIX: normalize role ก่อน update (WORKER/HR)
     if (role !== undefined) {
       const normalized = normalizeRole(role);
       if (!normalized) {
@@ -659,10 +617,15 @@ exports.updateEmployee = async (req, res) => {
       dataToUpdate.role = normalized;
     }
 
+    if (department !== undefined) {
+      const normalizedDept = normalizeDepartment(department);
+      dataToUpdate.department = normalizedDept;
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const oldEmployee = await tx.employee.findUnique({
         where: { id },
-        select: { firstName: true, lastName: true, email: true, role: true },
+        select: { firstName: true, lastName: true, email: true, role: true, department: true }, 
       });
 
       if (!oldEmployee) throw { code: "P2025" };
@@ -676,6 +639,7 @@ exports.updateEmployee = async (req, res) => {
           lastName: true,
           email: true,
           role: true,
+          department: true, 
           isActive: true,
           joiningDate: true,
         },
@@ -694,6 +658,9 @@ exports.updateEmployee = async (req, res) => {
       if (dataToUpdate.role && dataToUpdate.role !== oldEmployee.role)
         changes.push(`Role: ${oldEmployee.role} -> ${dataToUpdate.role}`);
 
+      if (dataToUpdate.department && dataToUpdate.department !== oldEmployee.department)
+        changes.push(`Department: ${oldEmployee.department} -> ${dataToUpdate.department}`);
+
       const auditDetails =
         changes.length > 0
           ? `Updated info for ${oldEmployee.firstName}: ${changes.join(", ")}`
@@ -703,6 +670,7 @@ exports.updateEmployee = async (req, res) => {
         name: `${updated.firstName} ${updated.lastName}`,
         email: updated.email,
         role: updated.role,
+        department: updated.department, 
         status: updated.isActive ? "Active" : "Inactive",
         changes: changes,
       };
