@@ -1,3 +1,5 @@
+// backend/src/config/prisma.js
+
 const { PrismaClient } = require('@prisma/client')
 
 // ป้องกันการสร้าง instance ใหม่ซ้ำๆ เวลา HMR (Hot Module Replacement) ในโหมด Dev

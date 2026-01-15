@@ -1,3 +1,5 @@
+// backend/src/sockets/socketHandler.js
+
 const jwt = require('jsonwebtoken')
 
 module.exports = (io) => {
@@ -25,15 +27,21 @@ module.exports = (io) => {
 
     console.log(`⚡ User connected: ${socket.id} (ID: ${userId}, Role: ${userRole})`)
 
-    // ✅ 2.1 เข้าห้องส่วนตัว (Personal Room) สำหรับรับแจ้งเตือนเฉพาะบุคคล
+    // 2.1 เข้าห้องส่วนตัว (Personal Room) สำหรับรับแจ้งเตือนเฉพาะบุคคล
     const personalRoom = `user_${userId}`
     socket.join(personalRoom)
 
-    // ✅ 2.2 เข้าห้องกลุ่ม HR (HR Group Room) 
+    // 2.2 เข้าห้องกลุ่ม HR (HR Group Room) 
     // หากเป็น HR ให้เข้ากลุ่ม 'hr_group' เพื่อรับยอด Pending Badge รวม
     if (userRole === 'HR') {
       socket.join('hr_group')
       console.log(`   -> HR User joined: hr_group`)
+    }
+
+    // 2.3 เข้าห้องกลุ่ม Manager (เผื่ออนาคต)
+    if (userRole === 'MANAGER') {
+      socket.join('manager_group')
+      console.log(`   -> Manager joined: manager_group`)
     }
 
     // Handle Disconnect
