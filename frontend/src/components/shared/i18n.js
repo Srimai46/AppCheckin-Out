@@ -938,7 +938,8 @@ i18n.use(initReactI18next).init({
           },
           errors: {
             noEmployee: "Employee not found.",
-            customIncomplete: "Please select both start and end dates for Custom range.",
+            customIncomplete:
+              "Please select both start and end dates for Custom range.",
             endpoint404:
               "Export failed: Backend endpoint not found (404). Please check backend API routes and update paths in this file.",
             exportFailed: "Export failed",
@@ -1458,8 +1459,9 @@ i18n.use(initReactI18next).init({
 
           placeholderReason: "กรุณาระบุรายละเอียด...",
 
-          summaryTitle: "สรุปคำขอลา",
-          summaryReview: "กรุณาตรวจสอบข้อมูลก่อนยืนยัน",
+          // ... (Previous leaveRequest translations)
+          summaryTitle: "สรุปคำขอการลา",
+          summaryReview: "กรุณาตรวจสอบรายละเอียดก่อนยืนยัน",
           summary: {
             type: "ประเภท",
             period: "ช่วงเวลา",
@@ -1467,80 +1469,60 @@ i18n.use(initReactI18next).init({
             attachment: "ไฟล์แนบ",
             reason: "เหตุผล",
           },
-
-          confirmTitle: "ยืนยันคำขอลา",
-          confirmText: "คุณต้องการส่งคำขอลานี้ใช่หรือไม่",
+          confirmTitle: "ยืนยันคำขอการลา",
+          confirmText: "คุณต้องการส่งคำขอการลานี้ใช่หรือไม่?",
           confirmButton: "ส่งคำขอ",
-
           successTitle: "ส่งคำขอสำเร็จ",
-          successMessage: "ระบบได้รับคำขอลาของคุณแล้ว",
-
+          successMessage: "คำขอการลาของคุณถูกส่งเรียบร้อยแล้ว",
           cancel: "ยกเลิก",
           submitting: "กำลังส่งคำขอ...",
-          submit: "ส่งคำขอลา",
+          submit: "ส่งคำขอการลา",
         },
 
-        /* -------- Attendance Dashboard -------- */
         attendanceDashboard: {
-          title: "การลงเวลา",
-          viewing: "กำลังแสดงข้อมูลของ:",
-          noData: "ไม่พบข้อมูลการลงเวลา",
-          selectMonthHint: "กรุณาเลือกเดือนเพื่อดูปฏิทิน",
+          title: "การเข้างาน",
+          viewing: "กำลังดูข้อมูลของ:",
+          noData: "ไม่มีข้อมูลการเข้างาน",
+          selectMonthHint: "เลือกเดือนเพื่อดูปฏิทิน",
           allYear: "ทั้งปี {{year}}",
-
           workingDays: "วันทำงาน",
-          presentExpected: "มาทำงาน / ที่คาดหวัง",
-          late: "มาสาย",
-          early: "ออกก่อนเวลา",
-          leave: "การลาที่อนุมัติ",
-          absent: "ขาดงาน",
-          daysTaken: "จำนวนวันที่ลา",
-          unexcused: "วันที่ไม่มีเหตุผล",
+          presentExpected: "มาทำงาน / ทั้งหมด",
+          late: "การมาสาย",
+          early: "การออกก่อนเวลา",
+          leave: "การลาที่อนุมัติแล้ว",
+          absent: "การขาดงาน",
+          daysTaken: "จำนวนวันที่ใช้",
+          unexcused: "ขาดงานโดยไม่แจ้ง",
           minutes: "นาที",
-
           present: "มาทำงาน",
-          attendanceRatio: "สัดส่วนการลงเวลา",
+          attendanceRatio: "อัตราการเข้างาน",
           leaveTypes: "ประเภทการลา",
-
-          subtitle: "ภาพรวมการลงเวลา",
-          filterAll: "ทั้งปี {{year}}",
-          clear: "ล้างค่า",
+          subtitle: "ภาพรวมการเข้างาน",
+          filterAll: "ทั้งหมดของปี {{year}}",
+          clear: "ล้างข้อมูล",
           selectPeriod: "เลือกช่วงเวลา",
-          loading: "กำลังโหลดข้อมูล...",
-          noDataFound: "ไม่พบข้อมูลการลงเวลา",
+          loading: "กำลังโหลดสถิติ...",
+          noDataFound: "ไม่พบข้อมูลการเข้างาน",
           yearlyView: "มุมมองรายปี",
           calendar: "ปฏิทินเดือน {{month}}",
-
           stat: {
             workingDays: "วันทำงาน",
-            presentExpected: "มาทำงาน / ที่คาดหวัง",
-            late: "มาสาย",
-            earlyLeave: "ออกก่อน",
-            leaves: "การลา",
+            presentExpected: "มาทำงาน / ทั้งหมด",
+            late: "สาย",
+            earlyLeave: "ออกก่อนเวลา",
+            leaves: "ลา",
             absences: "ขาดงาน",
             approved: "อนุมัติแล้ว",
-            unexcused: "ไม่มีเหตุผล",
+            unexcused: "ไม่แจ้ง",
             minutes: "นาที",
           },
-
-          ratio: "สัดส่วนการลงเวลา",
-
           legend: {
             holiday: "วันหยุด",
             absent: "ขาดงาน",
-            late: "มาสาย",
+            late: "สาย",
             leave: "ลา",
-            early: "ออกก่อน",
+            early: "ออกก่อนเวลา",
           },
-
-          calendarHint: "กรุณาเลือกเดือนเพื่อดูปฏิทิน",
-
-          events: {
-            absent: "ขาดงาน",
-            late: "มาสาย",
-            early: "ออกก่อน",
-          },
-
           weekdays: {
             sun: "อา.",
             mon: "จ.",
@@ -1552,247 +1534,198 @@ i18n.use(initReactI18next).init({
           },
         },
 
-        /* -------- Year End Configuration -------- */
         yearEndConfig: {
-          title: "ตั้งค่าสิ้นปี",
-          subtitle: "กำหนดการทบวันลา, โควต้า และนโยบายส่วนกลาง",
-
-          carryOverTitle: "การทบวันลา (รายประเภท)",
-          carryOverHint: "จำนวนวันสะสมสูงสุดที่ยกยอดไปปีถัดไปได้ (ต่อพนักงาน)",
-
-          quotaTitle: "ตั้งค่าโควต้า ปี {{year}}",
-          quotaHint: "จำนวนวันลาพื้นฐานต่อพนักงาน",
-
-          maxConsecutiveTitle: "นโยบายกลาง: ลาติดต่อกันสูงสุด",
+          title: "การตั้งค่าประมวลผลสิ้นปี",
+          subtitle: "ตั้งค่าการยกยอด, โควต้า และนโยบายส่วนกลาง",
+          carryOverTitle: "การยกยอดประเภทการลา",
+          carryOverHint: "จำนวนวันที่ยกยอดไปปีหน้าได้สูงสุด (ต่อพนักงาน)",
+          quotaTitle: "ตั้งค่าโควต้าสำหรับปี {{year}}",
+          quotaHint: "โควต้าการลาพื้นฐานต่อพนักงาน",
+          maxConsecutiveTitle: "นโยบาย: จำนวนวันหยุดต่อเนื่องสูงสุด",
           unlimitedHint: "0 = ไม่จำกัด",
-
-          targetYear: "ปีเป้าหมาย",
-
+          targetYear: "ปีที่ดำเนินการ",
           process: "ยืนยันและประมวลผล",
           processing: "กำลังประมวลผล...",
-
           warning:
-            "การดำเนินการนี้จะเขียนทับโควต้าของพนักงานทั้งหมด และล็อกข้อมูลเดิม",
+            "การดำเนินการนี้จะเขียนทับโควต้าของพนักงานทุกคนและล็อคข้อมูลของปีที่ผ่านมา",
         },
 
-        /* -------- Employee Detail -------- */
         employeeDetail: {
           loading: "กำลังโหลดข้อมูลพนักงาน...",
           working: "กำลังทำงาน",
           resigned: "ลาออกแล้ว",
-          joined: "วันที่เริ่มงาน",
+          joined: "วันที่เข้าทำงาน",
           manageInfo: "จัดการข้อมูล",
-          leaveBalance: "ยอดวันลา",
+          leaveBalance: "ยอดลาคงเหลือ",
           employeeInfo: "ข้อมูลพนักงาน",
-          fullAccess: "สิทธิ์เต็มรูปแบบ",
-          standardAccess: "สิทธิ์มาตรฐาน",
-          roleNote: "หมายเหตุ: การเปลี่ยนบทบาทจะมีผลต่อสิทธิ์การเข้าถึงระบบ",
+          fullAccess: "สิทธิ์การเข้าถึงทั้งหมด (Full Access)",
+          standardAccess: "สิทธิ์การเข้าถึงทั่วไป (Standard Access)",
+          roleNote:
+            "หมายเหตุ: การเปลี่ยนบทบาทจะส่งผลต่อสิทธิ์การเข้าใช้งานระบบ",
           newPassword: "รหัสผ่านใหม่",
-          passwordOptional: "(เว้นว่างเพื่อใช้รหัสผ่านเดิม)",
+          passwordOptional: "(เว้นว่างไว้หากไม่ต้องการเปลี่ยน)",
           passwordMin: "อย่างน้อย 6 ตัวอักษร",
           confirmPassword: "ยืนยันรหัสผ่าน",
-          confirmPasswordPlaceholder: "พิมพ์รหัสผ่านใหม่ให้ตรงกัน",
-          terminate: "ยุติสถานะพนักงาน",
-          reinstate: "คืนสถานะพนักงาน",
-          adjustQuota: "ปรับโควตาวันลา",
-          fetchFailed: "ไม่สามารถดึงข้อมูลพนักงานได้",
-          quotaUpdated: "อัปเดตโควตาสำเร็จ",
-          quotaFailed: "อัปเดตโควตาไม่สำเร็จ",
+          confirmPasswordPlaceholder: "กรอกรหัสผ่านใหม่อีกครั้ง",
+          terminate: "สิ้นสุดการจ้างงาน",
+          reinstate: "กลับเข้าทำงาน",
+          adjustQuota: "ปรับโควต้า",
+          fetchFailed: "ไม่สามารถเรียกข้อมูลพนักงานได้",
+          quotaUpdated: "อัปเดตโควต้าสำเร็จ",
+          quotaFailed: "อัปเดตโควต้าล้มเหลว",
           passwordMismatch: "รหัสผ่านไม่ตรงกัน",
           infoUpdated: "อัปเดตข้อมูลเรียบร้อยแล้ว",
         },
-        /* -------- Employee list -------- */
+
         employeeList: {
           title: "รายชื่อพนักงาน",
           addNew: "เพิ่มพนักงานใหม่",
           leavePolicy: "นโยบายการลา",
-
-          activeTab: "กำลังทำงาน",
-          resignedTab: "ลาออกแล้ว",
-
-          allRoles: "ทุกตำแหน่ง",
-          roleWorker: "พนักงาน",
-          roleHR: "ฝ่ายบุคคล",
-
-          searchPlaceholder: "ค้นหาชื่อ อีเมล หรือรหัสพนักงาน",
-
+          activeTab: "พนักงานปัจจุบัน",
+          resignedTab: "พนักงานที่ลาออก",
+          allRoles: "ทุกบทบาท",
+          roleWorker: "พนักงานทั่วไป",
+          roleHR: "HR",
+          searchPlaceholder: "ค้นหาด้วยชื่อ, อีเมล หรือ รหัส",
           colId: "รหัส",
           colName: "ชื่อ",
           colEmail: "อีเมล",
-          colRole: "ตำแหน่ง",
+          colRole: "บทบาท",
           colStatus: "สถานะ",
-
-          statusWorking: "ทำงานอยู่",
+          statusWorking: "กำลังทำงาน",
           statusResigned: "ลาออกแล้ว",
-
           noEmployees: "ไม่พบข้อมูลพนักงาน",
-
           page: "หน้า",
           prev: "ก่อนหน้า",
           next: "ถัดไป",
-
           colExport: "ส่งออก",
           exportEmployee: "ส่งออกข้อมูลพนักงาน",
-
-          aria: {
-            closeRoleDropdown: "ปิดตัวเลือกบทบาท",
-          },
-
-          pagination: {
-            label: "หน้า {{page}} / {{totalPages}}",
-          },
-
+          aria: { closeRoleDropdown: "ปิดรายการเลือกบทบาท" },
+          pagination: { label: "หน้า {{page}} / {{totalPages}}" },
           exportAll: {
             button: "ส่งออกทั้งหมด",
-            buttonTitle: "ส่งออกทั้งหมด",
+            buttonTitle: "ส่งออกข้อมูลพนักงานทั้งหมด",
             title: "ส่งออกทั้งหมด",
-
             workbook: {
-              title: "(1) ส่งออก Workbook (.xlsx) — หลายชีต",
-              desc: "สำหรับเลือกพนักงานหลายคน (ไฟล์ .xlsx, 1 ชีตต่อ 1 พนักงาน)",
+              title: "(1) ส่งออกไฟล์ Workbook (.xlsx) — แยกชีท",
+              desc: "สำหรับเลือกพนักงานหลายคน (1 พนักงานต่อ 1 ชีท)",
             },
             employeesList: {
               title: "(2) ส่งออกรายชื่อพนักงาน",
-              desc: "สำหรับส่งออกรายชื่อพนักงาน (ไฟล์ .csv)",
+              desc: "สำหรับส่งออกเฉพาะรายชื่อพนักงาน (csv)",
             },
-            note: "* หมายเหตุ: Workbook แบบหลายชีตต้องใช้ xlsx (CSV ทำหลายชีตไม่ได้)",
+            note: "* หมายเหตุ: การแยกหลายชีทต้องใช้ไฟล์ xlsx เท่านั้น (CSV ไม่สามารถมีหลายชีทได้)",
           },
         },
 
         employeeCreate: {
           title: "ข้อมูลพนักงาน",
-
           firstName: "ชื่อ",
           lastName: "นามสกุล",
           email: "อีเมล",
           emailPlaceholder: "กรุณากรอกอีเมล",
-
-          role: "ตำแหน่ง",
-          workerAccess: "สิทธิ์มาตรฐาน",
-          hrAccess: "สิทธิ์เต็มรูปแบบ",
-          roleNote: "หมายเหตุ: การเปลี่ยนตำแหน่งมีผลต่อสิทธิ์การใช้งานระบบ",
-
+          role: "บทบาท",
+          workerAccess: "สิทธิ์ทั่วไป",
+          hrAccess: "สิทธิ์ทั้งหมด",
+          roleNote: "หมายเหตุ: การเปลี่ยนบทบาทส่งผลต่อสิทธิ์การใช้งานระบบ",
           joinDate: "วันที่เริ่มงาน",
-
           password: "รหัสผ่าน",
-          passwordHint: "อย่างน้อย 6 ตัวอักษร",
-
-          confirmTitle: "ยืนยันการเพิ่มพนักงาน",
+          passwordHint: "ขั้นต่ำ 6 ตัวอักษร",
+          confirmTitle: "ยืนยันการลงทะเบียน",
           confirmButton: "ลงทะเบียน",
           cancel: "ยกเลิก",
-          submit: "บันทึก",
+          submit: "ลงทะเบียนพนักงาน",
           processing: "กำลังดำเนินการ...",
-
-          roleWorker: "พนักงาน",
-          roleHR: "ฝ่ายบุคคล",
-          selected: "เลือกอยู่",
-
+          roleWorker: "พนักงานทั่วไป",
+          roleHR: "HR",
+          selected: "เลือกแล้ว",
           confirmReviewTitle: "กรุณาตรวจสอบข้อมูลด้านล่าง",
-          successText: "เพิ่มพนักงานใหม่เรียบร้อยแล้ว",
-
+          successText: "เพิ่มพนักงานใหม่สำเร็จ",
           success: "สำเร็จ",
-          failed: "ไม่สำเร็จ",
+          failed: "ล้มเหลว",
         },
-        /* -------- working days -------- */
+
         workingDays: {
           title: "วันทำงาน",
           subtitle: "เลือกวันทำงานและบันทึกนโยบาย",
-
           loading: "กำลังโหลดนโยบายวันทำงาน...",
-
           currently: "ปัจจุบัน:",
-
           saveBtn: "บันทึก",
           savingBtn: "กำลังบันทึก...",
           loadingBtn: "กำลังโหลด...",
-
-          mon: "จันทร์",
-          tue: "อังคาร",
-          wed: "พุธ",
-          thu: "พฤหัส",
-          fri: "ศุกร์",
-          sat: "เสาร์",
-          sun: "อาทิตย์",
+          mon: "จ.",
+          tue: "อ.",
+          wed: "พ.",
+          thu: "พฤ.",
+          fri: "ศ.",
+          sat: "ส.",
+          sun: "อา.",
         },
-        /* -------- worktimeby role -------- */
+
         workTimeByRole: {
-          title: "เวลาทำงาน (แยกตามตำแหน่ง)",
-          subtitle: "กำหนดเวลาเข้างาน / ออกงานสำหรับแต่ละตำแหน่ง",
-
-          roleHR: "ฝ่ายบุคคล",
-          roleWorker: "พนักงาน",
-
+          title: "เวลาทำงาน (ตามบทบาท)",
+          subtitle: "ตั้งเวลาเช็คอิน / เช็คเอาท์ สำหรับแต่ละบทบาท",
+          roleHR: "HR",
+          roleWorker: "พนักงานทั่วไป",
           checkIn: "เวลาเข้างาน",
-          checkOut: "เวลาออกงาน",
-
+          checkOut: "เวลาเลิกงาน",
           current: "ปัจจุบัน:",
-
-          saveBtn: "บันทึกเวลาเข้างาน",
+          saveBtn: "บันทึกเวลาทำงาน",
           savingBtn: "กำลังบันทึก...",
         },
-        /* -------- YearEnd History -------- */
+
         yearEndHistory: {
           title: "ประวัติการประมวลผล",
-
           year: "ปี",
-          lockStatus: "สถานะการล็อก",
+          lockStatus: "สถานะการล็อค",
           processedAt: "ประมวลผลเมื่อ",
-          action: "การทำงาน",
-
-          closed: "ปิดแล้ว",
-          open: "เปิดอยู่",
-
-          unlock: "ปลดล็อกปีนี้",
-
+          action: "การกระทำ",
+          closed: "ปิดงวดแล้ว",
+          open: "ยังไม่ปิดงวด",
+          unlock: "ปลดล็อคปีนี้",
           empty: "ไม่มีประวัติการประมวลผล",
         },
-        /* -------- YearEnd Policy -------- */
+
         yearEndPolicy: {
           title: "นโยบายวันหยุดและวันหยุดพิเศษ",
-          subtitle: "ตั้งค่าวันทำงานและจัดการวันหยุดพิเศษ",
+          subtitle: "กำหนดวันทำงานและจัดการวันหยุดพิเศษ",
         },
-        /* -------- YearEnd Process -------- */
+
         yearEndProcess: {
-          title: "ประมวลผลสิ้นปีและกำหนดโควต้าการลา",
-          subtitle: "ยกยอดวันลาคงเหลือและกำหนดโควต้าประจำปีในขั้นตอนเดียว",
-        } /* -------- Team Calendar -------- */,
+          title: "การประมวลผลสิ้นปีและกำหนดโควต้า",
+          subtitle: "ยกยอดวันลาคงเหลือและกำหนดโควต้าปีใหม่ในขั้นตอนเดียว",
+        },
+
         teamCalendar: {
           title: "ปฏิทินทีม",
-          subtitle: "ดูวันลาของทีมและวันหยุดพิเศษ",
-
+          subtitle: "ดูการลาของทีมและวันหยุดพิเศษ",
           actions: {
-            todayOverview: "สรุปวันนี้ ({{count}})",
+            todayOverview: "ภาพรวมวันนี้ ({{count}})",
             today: "วันนี้",
             prevMonth: "เดือนก่อนหน้า",
             nextMonth: "เดือนถัดไป",
             openDay: "ดูรายละเอียด",
             close: "ปิด",
             refresh: "รีเฟรช",
-            clear: "ล้างค่า",
+            clear: "ล้าง",
           },
-
           filters: {
             leaveTypesLabel: "ประเภทการลา",
             allTypes: "ทั้งหมด",
-
-            // ✅ ใช้กับ LeaveTypeFilters (labelKey)
             leaveTypes: {
               sick: "ลาป่วย",
               vacation: "ลาพักร้อน",
               personal: "ลากิจ",
             },
-
             roleLabel: "บทบาท",
-            allRoles: "ทั้งหมด",
+            allRoles: "ทุกบทบาท",
             searchPlaceholder: "ค้นหาชื่อ / อีเมล...",
           },
-
           tabs: {
             pending: "รออนุมัติ",
             approved: "อนุมัติแล้ว",
             rejected: "ปฏิเสธแล้ว",
           },
-
           week: {
             sun: "อา.",
             mon: "จ.",
@@ -1802,45 +1735,33 @@ i18n.use(initReactI18next).init({
             fri: "ศ.",
             sat: "ส.",
           },
-
           hints: {
             lateRule:
-              "* กฎสาย: หลัง {{time}} ถ้ายังไม่เช็คอินจะถูกนับว่า “มาสาย”",
+              "* กฎการสาย: หลังเวลา {{time}} หากยังไม่เช็คอินจะถือว่า “สาย”",
           },
-
           loading: {
             calendar: "กำลังโหลดปฏิทิน...",
             modal: "กำลังโหลดรายละเอียด...",
-            attendance: "กำลังโหลดข้อมูลการลงเวลา...",
+            attendance: "กำลังโหลดข้อมูลการเข้างาน...",
           },
-
-          grid: {
-            loading: "กำลังโหลด...",
-            moreTypes: "+{{count}} ประเภท",
-          },
-
+          grid: { loading: "กำลังโหลด...", moreTypes: "+อีก {{count}} ประเภท" },
           status: {
             pending: "รออนุมัติ",
             approved: "อนุมัติแล้ว",
             rejected: "ปฏิเสธแล้ว",
-            cancelled: "ยกเลิก",
-            withdrawn: "ถอนคำขอ",
+            cancelled: "ยกเลิกแล้ว",
+            withdrawn: "ถอนคำขอแล้ว",
           },
-
-          // ✅ TeamAttendancePanel ใช้ชุดนี้
           attendance: {
-            title: "เช็กอิน / เช็กเอาต์ของทีม (วันนี้)",
+            title: "การเช็คอิน / เช็คเอาท์ ของทีม (วันนี้)",
             subtitle:
-              "ทั้งหมด {{total}} • เช็กอินแล้ว {{checkedIn}} • มาสาย {{late}} • เช็กเอาต์แล้ว {{checkedOut}}",
-
+              "ทั้งหมด {{total}} • เช็คอินแล้ว {{checkedIn}} • สาย {{late}} • เช็คเอาท์แล้ว {{checkedOut}}",
             cards: {
-              checkedIn: "เช็กอิน",
-              late: "มาสาย",
-              checkedOut: "เช็กเอาต์",
+              checkedIn: "เช็คอินแล้ว",
+              late: "สาย",
+              checkedOut: "เช็คเอาท์แล้ว",
             },
-
             searchPlaceholder: "ค้นหาชื่อ, อีเมล, รหัสพนักงาน...",
-
             table: {
               employee: "พนักงาน",
               role: "บทบาท",
@@ -1848,153 +1769,122 @@ i18n.use(initReactI18next).init({
               out: "ออก",
               statusIn: "สถานะเข้า",
               statusOut: "สถานะออก",
-              actions: "การทำงาน",
+              actions: "การกระทำ",
             },
-
-            loading: "กำลังโหลดข้อมูลการลงเวลา...",
+            loading: "กำลังโหลดข้อมูลการเข้างาน...",
             empty: {
-              activeNone: "ไม่พบข้อมูลการลงเวลาของพนักงานที่กำลังทำงาน",
-              noMatch: "ไม่พบพนักงานที่ตรงกับเงื่อนไข",
+              activeNone: "ไม่มีข้อมูลการเข้างานของพนักงาน",
+              noMatch: "ไม่พบพนักงานที่ค้นหา",
             },
-
-            unknown: "ไม่ทราบชื่อ",
-
+            unknown: "ไม่ระบุ",
             buttons: {
               saving: "กำลังบันทึก...",
-              checkIn: "เช็กอิน",
-              checkOut: "เช็กเอาต์",
+              checkIn: "เช็คอิน",
+              checkOut: "เช็คเอาท์",
             },
-
             statusIn: {
               onTime: "ตรงเวลา",
-              late: "มาสาย",
+              late: "สาย",
               leave: "ลา",
-              waiting: "รอเช็กอิน",
+              waiting: "รอเช็คอิน",
               normal: "ปกติ",
             },
-
             statusOut: {
               none: "-",
               normal: "ปกติ",
               earlyLeave: "ออกก่อนเวลา",
-              noCheckout: "ยังไม่เช็กเอาต์",
+              noCheckout: "ไม่เช็คเอาท์",
               leave: "ลา",
             },
-
             pagination: {
               label:
                 "หน้า {{page}} / {{totalPages}} • แสดง {{start}}-{{end}} จาก {{total}}",
             },
           },
-
-          // ✅ DailyDetailsModal ใช้ชุดนี้
           modal: {
-            title: "รายละเอียดประจำวัน",
-
+            title: "รายละเอียดรายวัน",
             pills: {
               checkedIn: "เช็คอินแล้ว",
-              late: "มาสาย",
+              late: "สาย",
               absent: "ขาดงาน",
-              onLeave: "ลางาน",
+              onLeave: "ลา",
             },
-
             nav: {
               prevDay: "วันก่อนหน้า",
               nextDay: "วันถัดไป",
-              goToday: "ไปวันนี้",
+              goToday: "ไปที่วันนี้",
             },
-
             tabs: {
-              pending: "รออนุมัติ",
+              pending: "รอการอนุมัติ",
               approved: "อนุมัติแล้ว",
               rejected: "ปฏิเสธแล้ว",
             },
-
-            role: {
-              all: "ทุกบทบาท",
-              worker: "พนักงาน",
-              hr: "ฝ่ายบุคคล",
-            },
-
-            searchPlaceholder: "ค้นหาชื่อ, อีเมล, รหัสพนักงาน...",
-
+            role: { all: "ทุกบทบาท", worker: "พนักงานทั่วไป", hr: "HR" },
+            searchPlaceholder: "ค้นหาชื่อ, อีเมล, รหัส...",
             table: {
               employee: "พนักงาน",
               type: "ประเภท",
-              noteReason: "หมายเหตุ/เหตุผล",
+              noteReason: "หมายเหตุ / เหตุผล",
               duration: "ระยะเวลา",
               evidence: "หลักฐาน",
-              action: "จัดการ",
+              action: "การกระทำ",
               approvedBy: "อนุมัติโดย",
               rejectedBy: "ปฏิเสธโดย",
             },
-
-            loading: "กำลังซิงโครไนซ์ข้อมูล...",
-            noData: "ไม่พบข้อมูล",
+            loading: "กำลังซิงค์ข้อมูล...",
+            noData: "ไม่มีข้อมูล",
             noFile: "ไม่มีไฟล์",
             ref: "อ้างอิง: #{{id}}",
-
             tooltips: {
               viewAttachment: "ดูไฟล์แนบ",
               approve: "อนุมัติ",
-              special: "อนุมัติพิเศษ",
+              special: "อนุมัติกรณีพิเศษ",
               reject: "ปฏิเสธ",
             },
-
             actions: {
-              approve: "อนุมัติ",
+              approve: "อนุมัติแล้ว",
               special: "พิเศษ",
-              reject: "ปฏิเสธ",
-
+              reject: "ปฏิเสธแล้ว",
               approveFull: "อนุมัติปกติ",
-              specialFull: "อนุมัติพิเศษ (ไม่ตัดสิทธิ์)",
+              specialFull: "อนุมัติพิเศษ (ไม่หักวันลา)",
               rejectFull: "ปฏิเสธ",
             },
-
             confirm: {
-              title: "ยืนยันการ{{action}}",
-              text: "ต้องการดำเนินการกับ <b>{{name}}</b> เป็น <b>{{action}}</b> ใช่หรือไม่?",
+              title: "ยืนยัน {{action}}",
+              text: "ต้องการดำเนินการคำขอของ <b>{{name}}</b> เป็น <b>{{action}}</b> ใช่หรือไม่?",
             },
-
             toast: {
-              processedOne: "ดำเนินการสำเร็จ 1 รายการ",
-              actionFailedTitle: "ดำเนินการไม่สำเร็จ",
+              processedOne: "ดำเนินการ 1 คำขอสำเร็จ",
+              actionFailedTitle: "ดำเนินการล้มเหลว",
               unknownError: "เกิดข้อผิดพลาดไม่ทราบสาเหตุ",
             },
-
             hrNameHint:
-              "* แท็บอนุมัติ/ปฏิเสธ จะแสดงชื่อ HR หาก backend ส่งค่า approvedBy / rejectedBy มาให้",
-
-            specialReasonPrefix: "อนุมัติพิเศษ",
-            noReason: "ไม่ระบุเหตุผล",
-
+              "* แท็บที่อนุมัติ/ปฏิเสธแล้วจะแสดงชื่อ HR หากข้อมูลจากระบบรองรับ",
+            specialReasonPrefix: "การอนุมัติกรณีพิเศษ",
+            noReason: "ไม่มีเหตุผล",
             reasonTitle: "เหตุผล: {{reason}}",
             noteTitle: "หมายเหตุ: {{note}}",
           },
         },
 
-        /* -------- Notification Bell -------- */
         notificationBell: {
           title: "การแจ้งเตือน",
           readAll: "อ่านทั้งหมด",
           empty: "ไม่มีการแจ้งเตือนใหม่",
           view: "ดู",
           tooltip: {
-            openEmployee: "เปิดรายละเอียดพนักงาน",
+            openEmployee: "ดูรายละเอียดพนักงาน",
             markRead: "ทำเครื่องหมายว่าอ่านแล้ว",
           },
-          aria: {
-            toggle: "เปิด/ปิดการแจ้งเตือน",
-          },
+          aria: { toggle: "เปิด/ปิด การแจ้งเตือน" },
         },
 
-        // -------- Employee Export --------
         employeeExport: {
-          title: "Export CSV (รายบุคคล)",
+          title: "ส่งออก CSV (พนักงาน)",
           exportType: {
-            label: "ประเภทการ Export",
+            label: "ประเภทการส่งออก",
             attendance: "การเข้างาน",
-            leaveRequests: "คำขอลา",
+            leaveRequests: "คำขอการลา",
           },
           period: {
             label: "ช่วงเวลา",
@@ -2010,93 +1900,76 @@ i18n.use(initReactI18next).init({
           quarter: {
             year: "ปี",
             quarter: "ไตรมาส",
-            q1: "ไตรมาส 1 (ม.ค.–มี.ค.)",
-            q2: "ไตรมาส 2 (เม.ย.–มิ.ย.)",
-            q3: "ไตรมาส 3 (ก.ค.–ก.ย.)",
-            q4: "ไตรมาส 4 (ต.ค.–ธ.ค.)",
+            q1: "Q1 (ม.ค.–มี.ค.)",
+            q2: "Q2 (เม.ย.–มิ.ย.)",
+            q3: "Q3 (ก.ค.–ก.ย.)",
+            q4: "Q4 (ต.ค.–ธ.ค.)",
           },
           custom: {
-            dateFrom: "วันที่เริ่ม",
-            dateTo: "วันที่สิ้นสุด",
+            dateFrom: "จากวันที่",
+            dateTo: "ถึงวันที่",
             pickDate: "เลือกวันที่",
           },
-          range: {
-            label: "ช่วง:",
-          },
-          buttons: {
-            export: "Export",
-          },
-          common: {
-            all: "ทั้งหมด",
-          },
+          range: { label: "ช่วง:" },
+          buttons: { export: "ส่งออก" },
+          common: { all: "ทั้งหมด" },
           picker: {
             selectDate: "เลือกวันที่",
             selectMonth: "เลือกเดือน",
             selectYear: "เลือกปี",
-            dateFrom: "วันที่เริ่ม",
-            dateTo: "วันที่สิ้นสุด",
+            dateFrom: "จากวันที่",
+            dateTo: "ถึงวันที่",
           },
           errors: {
-            noEmployee: "ไม่พบข้อมูลพนักงาน",
-            customIncomplete: "กรุณาเลือกวันเริ่มต้น-วันสิ้นสุด (Custom) ให้ครบ",
-            endpoint404:
-              "Export ไม่สำเร็จ: Backend ไม่มี endpoint ที่รองรับ (404) กรุณาเช็คเส้น API จริงใน backend แล้วปรับ paths ในไฟล์นี้",
-            exportFailed: "Export ไม่สำเร็จ",
+            noEmployee: "ไม่พบพนักงาน",
+            customIncomplete:
+              "กรุณาเลือกทั้งวันที่เริ่มและสิ้นสุดสำหรับช่วงเวลาที่กำหนดเอง",
+            endpoint404: "ส่งออกล้มเหลว: ไม่พบ Endpoint ในระบบ (404)",
+            exportFailed: "การส่งออกล้มเหลว",
           },
         },
 
-        // -------- Employees All Export --------
         employeesAllExport: {
-          title: "Export รายชื่อพนักงาน (ทั้งหมด)",
-          rowsToExport: "จำนวนแถวที่จะ Export:",
+          title: "ส่งออกข้อมูลพนักงาน (ทั้งหมด)",
+          rowsToExport: "จำนวนแถวที่ส่งออก:",
           previewRows: "ตัวอย่างแถว:",
-          buttons: {
-            exportCsv: "Export CSV",
-          },
+          buttons: { exportCsv: "ส่งออก CSV" },
           filters: {
             label: "ตัวกรอง",
             activeTab: "แท็บพนักงานปัจจุบัน",
             resignedTab: "แท็บพนักงานลาออก",
-            role: "ตำแหน่ง",
+            role: "บทบาท",
             status: "สถานะ",
             keyword: "คำค้นหา",
-            keywordPlaceholder: "ค้นหาจากชื่อ, อีเมล, ตำแหน่ง, ID...",
+            keywordPlaceholder: "ค้นหาจากชื่อ, อีเมล, บทบาท, รหัส...",
           },
-          options: {
-            all: "ทั้งหมด",
-            worker: "Worker",
-            hr: "HR",
-          },
-          status: {
-            active: "ทำงานอยู่",
-            inactive: "ลาออกแล้ว",
-          },
+          options: { all: "ทั้งหมด", worker: "พนักงานทั่วไป", hr: "HR" },
+          status: { active: "เปิดใช้งาน", inactive: "ไม่ได้ใช้งาน" },
           columns: {
             label: "คอลัมน์",
             employeeId: "รหัสพนักงาน",
             firstName: "ชื่อ",
             lastName: "นามสกุล",
             email: "อีเมล",
-            role: "ตำแหน่ง",
-            status: "สถานะ (ทำงานอยู่/ลาออกแล้ว)",
+            role: "บทบาท",
+            status: "สถานะ",
             joiningDate: "วันที่เริ่มงาน",
-            tip: "Tip: ปิดคอลัมน์ที่ไม่ต้องการ เพื่อลดขนาดไฟล์ export",
+            tip: "คำแนะนำ: ปิดคอลัมน์ที่ไม่ต้องการเพื่อลดขนาดไฟล์",
           },
         },
 
-        // -------- XLSX Workbook Export --------
         xlsxWorkbook: {
-          title: "Export Workbook (XLSX)",
+          title: "ส่งออกไฟล์ Workbook (XLSX)",
           employeesCount: "จำนวนพนักงาน:",
           workbookType: {
-            label: "รูปแบบ Workbook",
-            perEmployee: "แยกตามพนักงาน (หลายชีต)",
-            employeesList: "รายชื่อพนักงาน (ชีตเดียว)",
+            label: "รูปแบบไฟล์",
+            perEmployee: "รายพนักงาน (แยกหลายชีท)",
+            employeesList: "รายชื่อพนักงาน (ชีทเดียว)",
           },
           dataType: {
             label: "ประเภทข้อมูล",
-            attendance: "การเข้างาน (Attendance)",
-            leave: "คำขอลา (Leave Requests)",
+            attendance: "การเข้างาน",
+            leave: "คำขอการลา",
           },
           period: {
             label: "ช่วงเวลา",
@@ -2107,115 +1980,14 @@ i18n.use(initReactI18next).init({
             custom: "กำหนดเอง",
           },
           fields: {
-            selectDate: "เลือกวัน",
+            selectDate: "เลือกวันที่",
             selectMonth: "เลือกเดือน",
             selectYear: "เลือกปี",
             year: "ปี",
             quarter: "ไตรมาส",
-            dateFrom: "วันที่เริ่มต้น",
-            dateTo: "วันที่สิ้นสุด",
-          },
-          placeholders: {
-            pickDate: "เลือกวัน",
-            pickMonth: "เลือกเดือน",
-            pickYear: "เลือกปี",
-            pickStart: "เลือกวันเริ่มต้น",
-            pickEnd: "เลือกวันสิ้นสุด",
-          },
-          rangeLabel: "ช่วง:",
-          buttons: {
-            exportXlsx: "Export XLSX",
-          },
-          quarters: {
-            q1: "Q1 (ม.ค.–มี.ค.)",
-            q2: "Q2 (เม.ย.–มิ.ย.)",
-            q3: "Q3 (ก.ค.–ก.ย.)",
-            q4: "Q4 (ต.ค.–ธ.ค.)",
-          },
-          picker: {
-            select: "เลือก",
-            selectDate: "เลือกวัน",
-            selectMonth: "เลือกเดือน",
-            selectYear: "เลือกปี",
-            dateFrom: "วันที่เริ่มต้น",
-            dateTo: "วันที่สิ้นสุด",
-          },
-          errors: {
-            noEmployees: "ไม่มีรายชื่อพนักงานสำหรับ Export",
-            pickDaily: "กรุณาเลือกวัน (รายวัน)",
-            pickMonthly: "กรุณาเลือกเดือน (รายเดือน)",
-            pickCustom: "กรุณาเลือกวันเริ่มต้น-วันสิ้นสุด (กำหนดเอง) ให้ครบ",
-            exportFailed: "Export workbook ไม่สำเร็จ",
+            dateFrom: "เริ่มจากวันที่",
           },
         },
-
-        /* -------- Audit Log Export -------- */
-        auditLogExport: {
-          title: "ตัวกรองการ Export CSV",
-          period: {
-            label: "ช่วงเวลา",
-            daily: "รายวัน",
-            monthly: "รายเดือน",
-            yearly: "รายปี",
-            quarter: "รายไตรมาส",
-            customRange: "กำหนดเอง",
-            selectDate: "เลือกวันที่",
-            selectMonth: "เลือกเดือน",
-            selectYear: "เลือกปี",
-          },
-          quarter: {
-            year: "ปี",
-            quarter: "ไตรมาส",
-            q1: "ไตรมาส 1 (ม.ค.–มี.ค.)",
-            q2: "ไตรมาส 2 (เม.ย.–มิ.ย.)",
-            q3: "ไตรมาส 3 (ก.ค.–ก.ย.)",
-            q4: "ไตรมาส 4 (ต.ค.–ธ.ค.)",
-          },
-          custom: {
-            dateFrom: "วันที่เริ่ม",
-            dateTo: "วันที่สิ้นสุด",
-          },
-          range: {
-            label: "ช่วง:",
-            to: "→",
-          },
-          filters: {
-            model: "โมเดล",
-            performedBy: "ดำเนินการโดย",
-            keyword: "คำค้น (รายละเอียด)",
-            recordId: "รหัสรายการ (ถ้ามี)",
-            actions: "Actions (เลือกได้หลายค่า)",
-          },
-          actions: {
-            clearActions: "ล้าง actions",
-            noActions: "ยังไม่มี actions",
-          },
-          preview: {
-            rowsToExport: "จำนวนแถวที่จะ export:",
-          },
-          buttons: {
-            export: "Export",
-          },
-          common: {
-            all: "ทั้งหมด",
-            reset: "รีเซ็ต",
-          },
-          placeholders: {
-            date: "YYYY-MM-DD",
-            month: "YYYY-MM",
-            year: "YYYY",
-            keyword: 'เช่น "Late", "Approved", "withdraw"...',
-            recordId: "เช่น 6 หรือ 10",
-          },
-          picker: {
-            selectDate: "เลือกวันที่",
-            selectMonth: "เลือกเดือน",
-            selectYear: "เลือกปี",
-            dateFrom: "วันที่เริ่ม",
-            dateTo: "วันที่สิ้นสุด",
-          },
-        },
-
       },
     },
   },
