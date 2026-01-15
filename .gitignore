@@ -14931,3 +14931,4 @@ backend/prisma/migrations/20251226095857_/migration.sql
 backend/prisma/migrations/20251226100123_/migration.sql
 backend/prisma/migrations/20251229031731_/migration.sql
 backend/prisma/migrations/migration_lock.toml
+frontend/src/components/shared/i18n.js
