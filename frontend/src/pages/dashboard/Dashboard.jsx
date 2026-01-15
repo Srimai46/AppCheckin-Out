@@ -53,7 +53,9 @@ export default function Dashboard() {
   const dateTimeText = useMemo(() => {
     const locale = String(i18n.language || "").startsWith("th")
       ? "th-TH"
-      : "en-US";
+      : String(i18n.language || "").startsWith("ja")
+        ? "ja-JP"
+        : "en-US";
     return new Intl.DateTimeFormat(locale, {
       weekday: "long",
       year: "numeric",
