@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { HistoryTable } from "../../components/shared";
 import LeaveSummaryPopup from "../../components/shared/LeaveSummaryPopup";
 
+
 export default function Main() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();

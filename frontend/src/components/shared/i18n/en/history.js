@@ -1,0 +1,38 @@
+export default {
+  history: {
+    attendanceLog: "Attendance Log",
+    leaveHistory: "Leave History",
+    tabAttendance: "Attendance",
+    tabLeave: "Leave",
+    date: "Date",
+    inOut: "In / Out",
+    status: "Status",
+    statusIn: "Status In",
+    statusOut: "Status Out",
+    signedBy: "Signed By",
+    type: "Type",
+    period: "Period",
+    days: "Days",
+    note: "Note",
+    file: "File",
+    noData: "No Data",
+    filter: "Filter",
+    clear: "Clear",
+    selectDate: "Select Date",
+
+    late: "Late",
+    onTime: "On Time",
+    absent: "Absent",
+    leave: "Leave",
+    early: "Early Leave",
+    normal: "Normal",
+    noCheckout: "No Check-out",
+    notCheckedOutYet: "NOT CHECKED OUT YET",
+
+    deleteTitle: "Delete leave request?",
+    deleteText:
+      "Are you sure you want to delete this request?<br/><b>{{type}}</b>",
+    deleteButton: "Delete",
+    requestCancelButton: "Request Cancel",
+  },
+};
