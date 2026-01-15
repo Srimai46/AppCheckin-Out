@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import Layout from "../components/shared/Layout";
 
 import Login from "../pages/auth/Login";
-import Main from "../pages/dashboard/Main";
+import Main from "../pages/Main/Main";
 import AttendanceDashboard from "../pages/attendance/AttendanceDashboard";
 import TeamCalendar from "../pages/teamCalendar/TeamCalendar";
 import LeaveRequest from "../pages/leave/LeaveRequest";
