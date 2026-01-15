@@ -1,5 +1,4 @@
 //frontend/src/components/shared/i18n.js
-import { add } from "date-fns"; // Note: 'add' is imported but not used in this config, check if needed.
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 

@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import Layout from "../components/shared/Layout";
 
 import Login from "../pages/auth/Login";
-import Dashboard from "../pages/dashboard/Dashboard";
+import Main from "../pages/dashboard/Main";
 import AttendanceDashboard from "../pages/attendance/AttendanceDashboard";
 import TeamCalendar from "../pages/teamCalendar/TeamCalendar";
 import LeaveRequest from "../pages/leave/LeaveRequest";
@@ -44,9 +44,9 @@ export default function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route index element={<Navigate to="/main" replace />} />
         {/* เมนูสำหรับพนักงานทุกคน */}
-        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="main" element={<Main />} />
         <Route path="leave-request" element={<LeaveRequest />} />
         <Route path="calendar" element={<TeamCalendar />} />
         {/* เมนูสำหรับ HR/Admin */}
@@ -60,7 +60,7 @@ export default function AppRouter() {
         <Route path="attendance-dashboard" element={<AttendanceDashboard />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/main" replace />} />
     </Routes>
   );
 }
