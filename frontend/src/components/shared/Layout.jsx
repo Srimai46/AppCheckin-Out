@@ -49,10 +49,13 @@ export default function Layout() {
     }
   };
 
+  // ✅ init language from localStorage (validate)
   useEffect(() => {
     try {
       const saved = safeGetSavedLang();
-      const initial = saved || "th"; // ✅ default TH
+      const allow = new Set(["th", "en", "ja"]);
+      const initial = allow.has(saved) ? saved : "th";
+
       if (i18n?.changeLanguage && i18n.language !== initial) {
         i18n.changeLanguage(initial);
       }
@@ -62,13 +65,23 @@ export default function Layout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ รองรับ ja ด้วย
+  // ✅ current language (th/en/ja)
   const currentLang = useMemo(() => {
     const lang = String(i18n?.language || "th").toLowerCase();
     if (lang.startsWith("ja")) return "ja";
     if (lang.startsWith("en")) return "en";
     return "th";
   }, [i18n?.language]);
+
+  // ✅ set <html lang="...">
+  useEffect(() => {
+    try {
+      if (typeof document === "undefined") return;
+      document.documentElement.lang = currentLang === "ja" ? "ja" : currentLang === "en" ? "en" : "th";
+    } catch {
+      // ignore
+    }
+  }, [currentLang]);
 
   const setLang = (lang) => {
     safeSetSavedLang(lang);
@@ -79,7 +92,7 @@ export default function Layout() {
     }
   };
 
-  // ✅ วนภาษา TH -> EN -> JA -> TH
+  // ✅ cycle TH -> EN -> JA -> TH
   const cycleLang = () => {
     const order = ["th", "en", "ja"];
     const idx = order.indexOf(currentLang);
