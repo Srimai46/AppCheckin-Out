@@ -20,14 +20,13 @@ export default function Layout() {
   const { t, i18n } = useTranslation();
 
   // =========================
-  // ✅ Language Tabs (TH/EN) in Layout
+  // ✅ Languages (TH/EN/JA)
   // =========================
   const languages = useMemo(
     () => [
       { key: "th", label: "TH" },
       { key: "en", label: "EN" },
-      // ถ้าจะเพิ่มภาษาอื่นในอนาคต แค่เติมตรงนี้
-      // { key: "ja", label: "日本語" },
+      { key: "ja", label: "日本語" },
     ],
     []
   );
@@ -53,7 +52,7 @@ export default function Layout() {
   useEffect(() => {
     try {
       const saved = safeGetSavedLang();
-      const initial = saved || "th"; // ✅ เข้าหน้ามา default เป็นไทย
+      const initial = saved || "th"; // ✅ default TH
       if (i18n?.changeLanguage && i18n.language !== initial) {
         i18n.changeLanguage(initial);
       }
@@ -63,9 +62,12 @@ export default function Layout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ✅ รองรับ ja ด้วย
   const currentLang = useMemo(() => {
-    const lang = i18n?.language || "th";
-    return String(lang).startsWith("en") ? "en" : "th";
+    const lang = String(i18n?.language || "th").toLowerCase();
+    if (lang.startsWith("ja")) return "ja";
+    if (lang.startsWith("en")) return "en";
+    return "th";
   }, [i18n?.language]);
 
   const setLang = (lang) => {
@@ -75,6 +77,14 @@ export default function Layout() {
     } catch {
       // ignore
     }
+  };
+
+  // ✅ วนภาษา TH -> EN -> JA -> TH
+  const cycleLang = () => {
+    const order = ["th", "en", "ja"];
+    const idx = order.indexOf(currentLang);
+    const next = order[(idx + 1) % order.length];
+    setLang(next);
   };
 
   // =========================
@@ -223,9 +233,10 @@ export default function Layout() {
           </div>
 
           <div className="flex items-center gap-6">
+            {/* ✅ Cycle language: TH -> EN -> JA */}
             <button
               type="button"
-              onClick={() => setLang(currentLang === "th" ? "en" : "th")}
+              onClick={cycleLang}
               className="
                 text-[16px] font-extrabold tracking-wide
                 text-blue-600
@@ -236,7 +247,7 @@ export default function Layout() {
               aria-label="Toggle language"
               title="Toggle language"
             >
-              {currentLang === "th" ? "TH" : "EN"}
+              {languages.find((x) => x.key === currentLang)?.label || "TH"}
             </button>
 
             <NotificationBell />
