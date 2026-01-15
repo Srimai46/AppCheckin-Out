@@ -19,14 +19,14 @@ import { enUS, th as thLocale } from "date-fns/locale";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { LEAVE_TYPE_FILTERS, WEEK_HEADERS, SHIFT_START, PAGE_SIZE } from "./teamCalendar/constants";
-import { matchLeaveType } from "./teamCalendar/utils";
+import { LEAVE_TYPE_FILTERS, WEEK_HEADERS, SHIFT_START, PAGE_SIZE } from "./constants";
+import { matchLeaveType } from "./utils";
 
-import useLeaves from "./teamCalendar/hooks/useLeaves";
-import useTeamAttendanceToday from "./teamCalendar/hooks/useTeamAttendanceToday";
-import useModalAttendance from "./teamCalendar/hooks/useModalAttendance";
+import useLeaves from "./hooks/useLeaves";
+import useTeamAttendanceToday from "./hooks/useTeamAttendanceToday";
+import useModalAttendance from "./hooks/useModalAttendance";
 
-import { getPageNumbers, clamp } from "./teamCalendar/helpers/pagination";
+import { getPageNumbers, clamp } from "./helpers/pagination";
 import {
   countLeavesToday,
   leavesByDayAndType,
@@ -34,12 +34,12 @@ import {
   filterLeaveRows,
   buildModalSummary,
   buildOnLeaveIdSet,
-} from "./teamCalendar/helpers/leaveSelectors";
+} from "./helpers/leaveSelectors";
 
-import LeaveTypeFilters from "./teamCalendar/components/LeaveTypeFilters";
-import CalendarGrid from "./teamCalendar/components/CalendarGrid";
-import TeamAttendancePanel from "./teamCalendar/components/TeamAttendancePanel";
-import DailyDetailsModal from "./teamCalendar/components/DailyDetailsModal";
+import LeaveTypeFilters from "./components/LeaveTypeFilters";
+import CalendarGrid from "./components/CalendarGrid";
+import TeamAttendancePanel from "./components/TeamAttendancePanel";
+import DailyDetailsModal from "./components/DailyDetailsModal";
 
 export default function TeamCalendar() {
   const { t, i18n } = useTranslation();

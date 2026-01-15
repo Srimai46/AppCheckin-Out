@@ -4,7 +4,7 @@ import {
   getPendingLeaves,
   updateLeaveStatus,
   grantSpecialLeave,
-} from "../api/leaveService";
+} from "../../api/leaveService";
 import {
   CheckSquare,
   Square,
@@ -21,8 +21,8 @@ import {
   alertSuccess,
   alertError,
   alertRejectReason,
-} from "../utils/sweetAlert";
-import { openAttachment } from "../utils/attachmentPreview";
+} from "../../utils/sweetAlert";
+import { openAttachment } from "../../utils/attachmentPreview";
 
 export default function LeaveApproval() {
   const { t, i18n } = useTranslation();

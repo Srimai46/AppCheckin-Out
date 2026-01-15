@@ -1,7 +1,7 @@
 import { useState } from "react";
-import api from "../api/axios";
+import api from "../../api/axios";
 import { X, Minus, Plus, Save, Loader2 } from "lucide-react";
-import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
+import { alertConfirm, alertSuccess, alertError } from "../../utils/sweetAlert";
 
 export default function LeavePolicyModal({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false);

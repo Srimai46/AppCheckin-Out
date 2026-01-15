@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { checkIn, checkOut, getMyHistory } from "../api/attendanceService";
-import { getMyQuotas, getMyLeaves, getLeaveTypes } from "../api/leaveService";
+import { checkIn, checkOut, getMyHistory } from "../../api/attendanceService";
+import { getMyQuotas, getMyLeaves, getLeaveTypes } from "../../api/leaveService";
 import { LogIn, LogOut, Calendar, Loader2 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
-import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
+import { useAuth } from "../../context/AuthContext";
+import { alertConfirm, alertSuccess, alertError } from "../../utils/sweetAlert";
 import { useTranslation } from "react-i18next";
-import { HistoryTable } from "../components/shared";
-import LeaveSummaryPopup from "../components/shared/LeaveSummaryPopup";
+import { HistoryTable } from "../../components/shared";
+import LeaveSummaryPopup from "../../components/shared/LeaveSummaryPopup";
 
 export default function Dashboard() {
   const navigate = useNavigate();

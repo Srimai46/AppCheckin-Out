@@ -2,15 +2,15 @@ import React from "react";
 import { Calendar, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { HolidayPolicyProvider } from "./yearEnd/hooks/useHolidayPolicy";
-import { CarryOverLimitsProvider } from "./yearEnd/hooks/useCarryOverLimits";
+import { HolidayPolicyProvider } from "./hooks/useHolidayPolicy";
+import { CarryOverLimitsProvider } from "./hooks/useCarryOverLimits";
 
-import WorkingDaysCard from "./yearEnd/components/WorkingDaysCard";
-import WorkTimeByRoleCard from "./yearEnd/components/WorkTimeByRoleCard";
-import MaxConsecutiveCard from "./yearEnd/components/MaxConsecutiveCard";
-import SpecialHolidaysCard from "./yearEnd/components/SpecialHolidaysCard";
-import CarryOverCard from "./yearEnd/components/CarryOverCard";
-import LeaveTypeCard from "./yearEnd/components/LeaveTypeCard";
+import WorkingDaysCard from "./components/WorkingDaysCard";
+import WorkTimeByRoleCard from "./components/WorkTimeByRoleCard";
+import MaxConsecutiveCard from "./components/MaxConsecutiveCard";
+import SpecialHolidaysCard from "./components/SpecialHolidaysCard";
+import CarryOverCard from "./components/CarryOverCard";
+import LeaveTypeCard from "./components/LeaveTypeCard";
 
 export default function YearEndProcessing() {
   const { t } = useTranslation();

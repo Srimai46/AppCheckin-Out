@@ -1,9 +1,9 @@
 // frontend/src/pages/yearEnd/components/AttendanceDashboard.jsx
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useAuth } from "../context/AuthContext";
-import { getAttendanceStats } from "../api/attendanceService";
-import DateGridPicker from "../components/shared/DateGridPicker";
+import { useAuth } from "../../context/AuthContext";
+import { getAttendanceStats } from "../../api/attendanceService";
+import DateGridPicker from "../../components/shared/DateGridPicker";
 import {
   Calendar,
   Clock,

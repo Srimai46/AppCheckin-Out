@@ -1,9 +1,13 @@
 // frontend/src/pages/EmployeeList.jsx
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../api/axios";
-import LeavePolicyModal from "../components/LeavePolicyModal";
+import api from "../../api/axios";
+import LeavePolicyModal from "../../components/shared/LeavePolicyModal";
 import { useTranslation } from "react-i18next";
+import { alertConfirm, alertSuccess, alertError } from "../../utils/sweetAlert";
+import CsvForEmployee from "./csv/csvforEmployee";
+import CsvForEmployeesAll from "./csv/csvforEmployeesAll";
+import XlsxForEmployeesWorkbook from "./csv/xlsxForEmployeesWorkbook";
 import {
   Plus,
   User,
@@ -18,11 +22,6 @@ import {
   Download,
   FileSpreadsheet,
 } from "lucide-react";
-import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
-
-import CsvForEmployee from "./csv/csvforEmployee";
-import CsvForEmployeesAll from "./csv/csvforEmployeesAll";
-import XlsxForEmployeesWorkbook from "./csv/xlsxForEmployeesWorkbook";
 
 function PaginationBar({ page, totalPages, onPrev, onNext }) {
   const { t } = useTranslation();

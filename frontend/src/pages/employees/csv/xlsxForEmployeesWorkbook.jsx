@@ -9,9 +9,9 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import api from "../../api/axios";
+import api from "../../../api/axios";
 import * as XLSX from "xlsx";
-import DateGridPicker from "../../components/shared/DateGridPicker";
+import DateGridPicker from "../../../components/shared/DateGridPicker";
 
 export default function XlsxForEmployeesWorkbook({ open, onClose, employees = [] }) {
   const { t } = useTranslation();

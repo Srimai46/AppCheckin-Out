@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { Download, Filter, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import DateGridPicker from "../../components/shared/DateGridPicker";
+import DateGridPicker from "../../../components/shared/DateGridPicker";
 
 /**
  * Props:

@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react"; // ✅ 1. เพิ่ม us
 import { useNavigate } from "react-router-dom";
 import { Calendar as CalendarIcon, Paperclip, X } from "lucide-react";
 // ✅ 2. เพิ่ม getLeaveTypes
-import { createLeaveRequest, getLeaveTypes } from "../api/leaveService"; 
+import { createLeaveRequest, getLeaveTypes } from "../../api/leaveService"; 
 import {
   alertConfirm,
   alertSuccess,
   alertError,
-} from "../utils/sweetAlert";
+} from "../../utils/sweetAlert";
 import { useTranslation } from "react-i18next";
 
 export default function LeaveRequest() {

@@ -1,7 +1,7 @@
 import React from "react";
 import { RefreshCw, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import TimePicker from "../../../components/TimePicker";
+import TimePicker from "../../../components/shared/TimePicker";
 import { useHolidayPolicy } from "../hooks/useHolidayPolicy";
 
 export default function WorkTimeByRoleCard() {

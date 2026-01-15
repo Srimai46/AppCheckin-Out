@@ -12,7 +12,7 @@ import {
   Settings2,
   NotebookText,
 } from "lucide-react";
-import NotificationBell from "../NotificationBell";
+import NotificationBell from "./NotificationBell";
 import { useTranslation } from "react-i18next";
 
 export default function Layout() {

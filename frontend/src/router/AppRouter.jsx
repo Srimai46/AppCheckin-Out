@@ -1,18 +1,18 @@
 // frontend/src/router/AppRouter.jsx
-
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Layout from "../components/shared/Layout";
-import Login from "../pages/Login";
-import Dashboard from "../pages/Dashboard";
-import TeamCalendar from "../pages/TeamCalendar";
-import LeaveRequest from "../pages/LeaveRequest";
-import EmployeeList from "../pages/EmployeeList";
-import EmployeeDetail from "../pages/EmployeeDetail";
-import LeaveApproval from "../pages/LeaveApproval";
-import YearEndProcessing from "../pages/YearEndProcessing";
-import AuditLog from "../pages/AuditLog";
-import AttendanceDashboard from "../pages/AttendanceDashboard";
+
+import Login from "../pages/auth/Login";
+import Dashboard from "../pages/dashboard/Dashboard";
+import AttendanceDashboard from "../pages/attendance/AttendanceDashboard";
+import TeamCalendar from "../pages/teamCalendar/TeamCalendar";
+import LeaveRequest from "../pages/leave/LeaveRequest";
+import LeaveApproval from "../pages/leave/LeaveApproval";
+import EmployeeList from "../pages/employees/EmployeeList";
+import EmployeeDetail from "../pages/employees/EmployeeDetail";
+import YearEndProcessing from "../pages/yearEnd/YearEndProcessing";
+import AuditLog from "../pages/audit/AuditLog";
 
 // 🔒 ตัวป้องกัน Route (ProtectedRoute)
 const ProtectedRoute = ({ children }) => {

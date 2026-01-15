@@ -2,7 +2,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import api from "../api/axios";
+import api from "../../api/axios";
+import { alertConfirm, alertSuccess, alertError } from "../../utils/sweetAlert";
+import { QuotaCards, HistoryTable } from "../../components/shared";
+import LeaveSummaryPopup from "../../components/shared/LeaveSummaryPopup";
+import { getLeaveTypes } from "../../api/leaveService";
+import AttendanceDashboardComponent from "../yearEnd/components/AttendanceDashboard";
+
 import {
   ArrowLeft,
   Briefcase,
@@ -17,12 +23,6 @@ import {
   Plus,
   ChevronDown,
 } from "lucide-react";
-import { alertConfirm, alertSuccess, alertError } from "../utils/sweetAlert";
-
-import { QuotaCards, HistoryTable } from "../components/shared";
-import LeaveSummaryPopup from "../components/shared/LeaveSummaryPopup";
-import { getLeaveTypes } from "../api/leaveService";
-import AttendanceDashboardComponent from "./yearEnd/components/AttendanceDashboard";
 
 export default function EmployeeDetail() {
   const { t } = useTranslation();

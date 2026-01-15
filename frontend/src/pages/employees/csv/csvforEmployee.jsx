@@ -2,8 +2,8 @@
 import { useMemo, useState } from "react";
 import { Download, Filter, X, Loader2, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import api from "../../api/axios";
-import DateGridPicker from "../../components/shared/DateGridPicker";
+import api from "../../../api/axios";
+import DateGridPicker from "../../../components/shared/DateGridPicker";
 
 export default function CsvForEmployee({ open, onClose, employee }) {
   const { t } = useTranslation();
