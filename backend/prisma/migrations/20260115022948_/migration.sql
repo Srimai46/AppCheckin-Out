@@ -24,7 +24,8 @@ CREATE TABLE `employees` (
     `last_name` VARCHAR(100) NOT NULL,
     `email` VARCHAR(255) NOT NULL,
     `password_hash` VARCHAR(255) NOT NULL,
-    `role` ENUM('Worker', 'HR') NOT NULL,
+    `role` ENUM('WORKER', 'HR') NOT NULL,
+    `department` ENUM('HR', 'IT', 'ACCOUNTING', 'MARKETING', 'SALES', 'OPERATIONS', 'MANAGEMENT', 'GENERAL') NOT NULL DEFAULT 'GENERAL',
     `joining_date` DATE NOT NULL,
     `resignation_date` DATE NULL,
     `is_active` BOOLEAN NOT NULL DEFAULT true,
@@ -72,6 +73,8 @@ CREATE TABLE `time_records` (
     `check_out_time` DATETIME(3) NULL,
     `is_late` BOOLEAN NOT NULL DEFAULT false,
     `note` TEXT NULL,
+    `check_in_status` ENUM('ON_TIME', 'LATE', 'LEAVE', 'ABSENT') NULL,
+    `check_out_status` ENUM('NORMAL', 'EARLY', 'LEAVE', 'NO_CHECKOUT') NULL,
     `check_in_lat` DECIMAL(10, 8) NULL,
     `check_in_lng` DECIMAL(11, 8) NULL,
     `check_out_lat` DECIMAL(10, 8) NULL,
@@ -124,7 +127,7 @@ CREATE TABLE `special_leave_grants` (
 CREATE TABLE `notifications` (
     `notification_id` INTEGER NOT NULL AUTO_INCREMENT,
     `employee_id` INTEGER NOT NULL,
-    `notification_type` ENUM('NewRequest', 'Approval', 'Rejection', 'LateWarning', 'EarlyLeaveWarning') NOT NULL,
+    `notification_type` ENUM('NewRequest', 'Approval', 'Rejection', 'LateWarning', 'EarlyLeaveWarning', 'CheckIn', 'CheckOut') NOT NULL,
     `message` VARCHAR(500) NOT NULL,
     `related_request_id` INTEGER NULL,
     `related_employee_id` INTEGER NULL,
@@ -153,7 +156,7 @@ CREATE TABLE `SystemConfig` (
 -- CreateTable
 CREATE TABLE `work_configurations` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `role` ENUM('Worker', 'HR') NOT NULL,
+    `role` ENUM('WORKER', 'HR') NOT NULL,
     `startHour` INTEGER NOT NULL,
     `startMin` INTEGER NOT NULL,
     `endHour` INTEGER NOT NULL,
@@ -169,6 +172,7 @@ CREATE TABLE `Holiday` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `date` DATETIME(3) NOT NULL,
     `name` JSON NOT NULL,
+    `isSubsidy` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
