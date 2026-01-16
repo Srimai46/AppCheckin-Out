@@ -46,7 +46,6 @@ export default function SpecialHolidaysCard() {
     upsertSpecialHoliday,
   } = useHolidayPolicy();
   const { t, i18n } = useTranslation();
-  const emptyHolidayName = { en: "", th: "", ja: "" };
 
 
   
