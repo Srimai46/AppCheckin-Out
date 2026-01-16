@@ -309,7 +309,7 @@ export default function AttendanceDashboard() {
             value={month === "All" ? `${year}` : `${year}-${pad2(month)}`}
             granularity="month"
             allowAll={true}
-            title="Select Period"
+            title={t("attendanceDashboard.selectPeriod")}
             onClose={() => setDatePickerOpen(false)}
             onChange={(val) => {
                 if (!val) { setMonth("All"); setYear(new Date().getFullYear()); return; }

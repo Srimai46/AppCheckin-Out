@@ -373,12 +373,14 @@ export default {
       submit: "ส่งคำขอการลา",
     },
 
+    /* -------- Attendance Dashboard -------- */
     attendanceDashboard: {
       title: "การเข้างาน",
       viewing: "กำลังดูข้อมูลของ:",
       noData: "ไม่มีข้อมูลการเข้างาน",
       selectMonthHint: "เลือกเดือนเพื่อดูปฏิทิน",
       allYear: "ทั้งปี {{year}}",
+
       workingDays: "วันทำงาน",
       presentExpected: "มาทำงาน / ทั้งหมด",
       late: "การมาสาย",
@@ -388,9 +390,11 @@ export default {
       daysTaken: "จำนวนวันที่ใช้",
       unexcused: "ขาดงานโดยไม่แจ้ง",
       minutes: "นาที",
+
       present: "มาทำงาน",
       attendanceRatio: "อัตราการเข้างาน",
       leaveTypes: "ประเภทการลา",
+
       subtitle: "ภาพรวมการเข้างาน",
       filterAll: "ทั้งหมดของปี {{year}}",
       clear: "ล้างข้อมูล",
@@ -399,6 +403,7 @@ export default {
       noDataFound: "ไม่พบข้อมูลการเข้างาน",
       yearlyView: "มุมมองรายปี",
       calendar: "ปฏิทินเดือน {{month}}",
+
       stat: {
         workingDays: "วันทำงาน",
         presentExpected: "มาทำงาน / ทั้งหมด",
@@ -410,6 +415,9 @@ export default {
         unexcused: "ไม่แจ้ง",
         minutes: "นาที",
       },
+
+      ratio: "Attendance Ratio",
+
       legend: {
         holiday: "วันหยุด",
         absent: "ขาดงาน",
@@ -417,6 +425,7 @@ export default {
         leave: "ลา",
         early: "ออกก่อนเวลา",
       },
+
       weekdays: {
         sun: "อา.",
         mon: "จ.",

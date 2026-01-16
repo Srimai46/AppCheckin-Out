@@ -312,6 +312,13 @@ export default {
       halfMorning: "半日（午前）",
       halfAfternoon: "半日（午後）",
 
+      loadingTypes: "休暇タイプを読み込み中...",
+      startDate: "開始日",
+      endDate: "終了日",
+      pickStartDate: "開始日を選択",
+      pickEndDate: "終了日を選択",
+      browse: "参照",
+
       errors: {
         missingType: "休暇タイプを選択してください。",
         missingDates: "開始日と終了日を両方指定してください。",

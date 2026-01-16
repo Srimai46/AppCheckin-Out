@@ -423,7 +423,7 @@ export default {
         minutes: "mins",
       },
 
-      ratio: "Attendance Ratio",
+      ratio: "อัตราการเข้างาน",
 
       legend: {
         holiday: "Holiday",
