@@ -3,13 +3,8 @@ import { AlertTriangle, Info, RefreshCw, Save } from "lucide-react";
 
 import { useYearEndProcessing } from "../hooks/useYearEndProcessing";
 import HistoryTable from "./HistoryTable";
-import { useTranslation } from "react-i18next";
-
-
 
 export default function YearEndCard() {
-    const { t } = useTranslation();
-
   const {
     loading,
     targetYear,
@@ -48,22 +43,22 @@ export default function YearEndCard() {
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-800">
-  {t("yearEndConfig.title")}
-</h2>
-<p className="text-sm text-gray-500">
-  {t("yearEndConfig.subtitle")}
-</p>
+              Year End Configuration
+            </h2>
+            <p className="text-sm text-gray-500">
+              Configure carry-over, quotas, and global policies.
+            </p>
           </div>
         </div>
 
         {/* ===== Carry Over ===== */}
         <div className="mb-10">
           <div className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
-  {t("yearEndConfig.carryOverTitle")}
-</div>
+            Leave Type Carry Over
+          </div>
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1 mb-5">
-  {t("yearEndConfig.carryOverHint")}
-</div>
+            Maximum carry over days to next year (per employee)
+          </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {leaveTypes.map((lt) => {
@@ -98,11 +93,11 @@ export default function YearEndCard() {
         {/* ===== Quotas ===== */}
         <div>
           <div className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
-  {t("yearEndConfig.quotaTitle", { year: targetYear })}
-</div>
+            Configure Quotas for {targetYear}
+          </div>
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1 mb-6">
-  {t("yearEndConfig.quotaHint")}
-</div>
+            Base leave quota per employee
+          </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {leaveTypes.map((lt) => {
@@ -135,8 +130,8 @@ export default function YearEndCard() {
           {/* ===== Max Consecutive ===== */}
           <div className="mb-6 p-5 bg-gray-50 rounded-3xl border border-gray-100">
             <label className="block text-xs font-black text-gray-500 uppercase mb-2">
-  {t("yearEndConfig.maxConsecutiveTitle")}
-</label>
+              Global Policy: Max Consecutive Holidays
+            </label>
             <div className="flex items-center gap-3">
               <input
                 type="number"
@@ -146,9 +141,7 @@ export default function YearEndCard() {
                 className="w-32 border border-gray-200 rounded-3xl px-3 py-2
                   text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
               />
-              <span className="text-xs text-gray-400">
-  {t("yearEndConfig.unlimitedHint")}
-</span>
+              <span className="text-xs text-gray-400">0 = Unlimited</span>
             </div>
           </div>
 
@@ -156,12 +149,24 @@ export default function YearEndCard() {
           <div className="flex items-end justify-between pt-4 border-t border-gray-50">
             <div className="relative w-44">
               <span className="text-xs text-gray-400 font-bold mb-1 block">
-  {t("yearEndConfig.targetYear")}
-</span>
+                Target Year
+              </span>
 
-
-              {loading ? t("yearEndConfig.processing") : t("yearEndConfig.process")}
-
+              <button
+                type="button"
+                onClick={() => setTargetYearOpen((v) => !v)}
+                className="w-full bg-white border border-gray-300 rounded-3xl px-4 py-2
+                  text-sm font-black flex items-center justify-between"
+              >
+                Year {targetYear}
+                <span
+                  className={`transition-transform ${
+                    targetYearOpen ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
 
               {targetYearOpen && (
                 <div
@@ -201,7 +206,7 @@ export default function YearEndCard() {
               ) : (
                 <Save size={18} />
               )}
-              {loading ? t("yearEndConfig.processing") : t("yearEndConfig.process")}
+              {loading ? "Processing..." : "Confirm & Process"}
             </button>
           </div>
         </div>
@@ -215,9 +220,9 @@ export default function YearEndCard() {
       >
         <AlertTriangle size={20} />
         <div className="text-xs font-bold uppercase">
-  {t("yearEndConfig.warning")}
-</div>
-
+          This action will overwrite quotas for all employees and lock previous
+          data.
+        </div>
       </div>
     </>
   );
