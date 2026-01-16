@@ -42,23 +42,23 @@ async function main() {
   const holidays = [
     { 
       date: new Date('2026-01-01T00:00:00Z'), 
-      name: { th: "วันขึ้นปีใหม่", en: "New Year's Day" } 
+      name: { th: "วันขึ้นปีใหม่", en: "New Year's Day" ,ja: "お正月" } 
     },
     { 
       date: new Date('2026-04-13T00:00:00Z'), 
-      name: { th: "วันสงกรานต์", en: "Songkran Festival" } 
+      name: { th: "วันสงกรานต์", en: "Songkran Festival" ,ja: "ソンクラーン祭り" } 
     },
     { 
       date: new Date('2026-05-01T00:00:00Z'), 
-      name: { th: "วันแรงงานแห่งชาติ", en: "Labour Day" } 
+      name: { th: "วันแรงงานแห่งชาติ", en: "Labour Day" , ja: "メーデー（労働者の日）" } 
     },
     { 
       date: new Date('2026-07-28T00:00:00Z'), 
-      name: { th: "วันเฉลิมพระชนมพรรษา ร.10", en: "King's Birthday" } 
+      name: { th: "วันเฉลิมพระชนมพรรษา ร.10", en: "King's Birthday" , ja: "国王誕生日" } 
     },
     { 
       date: new Date('2026-12-05T00:00:00Z'), 
-      name: { th: "วันพ่อแห่งชาติ", en: "Father's Day" } 
+      name: { th: "วันพ่อแห่งชาติ", en: "Father's Day", ja: "父の日" } 
     },
   ];
   await prisma.holiday.createMany({ data: holidays });

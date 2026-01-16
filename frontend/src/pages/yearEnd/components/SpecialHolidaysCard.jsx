@@ -46,6 +46,9 @@ export default function SpecialHolidaysCard() {
     upsertSpecialHoliday,
   } = useHolidayPolicy();
   const { t, i18n } = useTranslation();
+  const emptyHolidayName = { en: "", th: "", ja: "" };
+
+
   
   const [page, setPage] = useState(1);
 
@@ -159,100 +162,108 @@ export default function SpecialHolidaysCard() {
           </div>
 
           {/* Body */}
-          <div className="p-6 max-h-[75vh] overflow-y-auto">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="md:col-span-2">
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
-                  {t("specialHoliday.form.holidayName")}
-                </label>
+<div className="p-6 max-h-[75vh] overflow-y-auto">
+  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+    <div className="md:col-span-2">
+      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+        {t("specialHoliday.form.holidayName")}
+      </label>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {LANGS.map((lang) => (
-                    <input
-                      key={lang.key}
-                      value={holidayName?.[lang.key] || ""}
-                      onChange={(e) =>
-                        setHolidayName((prev) => ({
-                          ...prev,
-                          [lang.key]: e.target.value,
-                        }))
-                      }
-                      placeholder={lang.key.toUpperCase()}
-                      className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-                        text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                    />
-                  ))}
-                </div>
-              </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {[
+          { key: "en", label: "EN" },
+          { key: "th", label: "TH" },
+          { key: "ja", label: "JA" },
+        ].map((lang) => (
+          <input
+            key={lang.key}
+            value={holidayName?.[lang.key] || ""}
+            onChange={(e) =>
+              setHolidayName((prev) => ({
+                en: "",
+                th: "",
+                ja: "",
+                ...prev,
+                [lang.key]: e.target.value,
+              }))
+            }
+            placeholder={lang.label}
+            className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
+              text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+          />
+        ))}
+      </div>
+    </div>
 
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
-                  {t("specialHoliday.form.startDate")}
-                </label>
-                <input
-                  type="date"
-                  value={holidayStart}
-                  onChange={(e) => setHolidayStart(e.target.value)}
-                  className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-                    text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                />
-              </div>
+    <div>
+      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+        {t("specialHoliday.form.startDate")}
+      </label>
+      <input
+        type="date"
+        value={holidayStart}
+        onChange={(e) => setHolidayStart(e.target.value)}
+        className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
+          text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+      />
+    </div>
 
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
-                  {t("specialHoliday.form.endDate")}
-                </label>
-                <input
-                  type="date"
-                  value={holidayEnd}
-                  onChange={(e) => setHolidayEnd(e.target.value)}
-                  className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-                    text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                />
-              </div>
-            </div>
+    <div>
+      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+        {t("specialHoliday.form.endDate")}
+      </label>
+      <input
+        type="date"
+        value={holidayEnd}
+        onChange={(e) => setHolidayEnd(e.target.value)}
+        className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
+          text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+      />
+    </div>
+  </div>
 
-            <div className="mt-4 flex justify-between flex-col sm:flex-row gap-3">
-              <div className="text-[10px] text-gray-400 font-bold uppercase">
-                {t("specialHoliday.form.duration")}:{" "}
-                <span className="text-slate-700">
-                  {calcTotalDays(holidayStart, holidayEnd) || 0}{" "}
-                  {(calcTotalDays(holidayStart, holidayEnd) || 0) <= 1
-                    ? t("specialHoliday.form.day")
-                    : t("specialHoliday.form.days")}
-                </span>
-              </div>
+  <div className="mt-4 flex justify-between flex-col sm:flex-row gap-3">
+    <div className="text-[10px] text-gray-400 font-bold uppercase">
+      {t("specialHoliday.form.duration")}:{" "}
+      <span className="text-slate-700">
+        {calcTotalDays(holidayStart, holidayEnd) || 0}{" "}
+        {(calcTotalDays(holidayStart, holidayEnd) || 0) <= 1
+          ? t("specialHoliday.form.day")
+          : t("specialHoliday.form.days")}
+      </span>
+    </div>
 
-              <div className="flex items-center gap-2">
-                {editId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      resetHolidayForm();
-                      setFormOpen(false);
-                    }}
-                    className="h-11 px-6 rounded-3xl bg-white border border-gray-200 text-slate-700
-                      font-black text-[11px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95"
-                  >
-                    {t("specialHoliday.form.cancelEdit")}
-                  </button>
-                )}
+    <div className="flex items-center gap-2">
+      {editId && (
+        <button
+          type="button"
+          onClick={() => {
+            resetHolidayForm();
+            setFormOpen(false);
+          }}
+          className="h-11 px-6 rounded-3xl bg-white border border-gray-200 text-slate-700
+            font-black text-[11px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95"
+        >
+          {t("specialHoliday.form.cancelEdit")}
+        </button>
+      )}
 
-                <button
-                  type="button"
-                  onClick={upsertSpecialHoliday}
-                  className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
-                    uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100
-                    inline-flex items-center gap-2"
-                >
-                  <Plus size={16} />
-                  {editId
-                    ? t("specialHoliday.form.update")
-                    : t("specialHoliday.form.add")}
-                </button>
-              </div>
-            </div>
-          </div>
+      <button
+        type="button"
+        onClick={upsertSpecialHoliday}
+        className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
+          uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100
+          inline-flex items-center gap-2"
+      >
+        <Plus size={16} />
+        {editId
+          ? t("specialHoliday.form.update")
+          : t("specialHoliday.form.add")}
+      </button>
+    </div>
+  </div>
+</div>
+
         </div>
       </div>
     )}
