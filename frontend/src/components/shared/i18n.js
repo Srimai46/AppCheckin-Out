@@ -581,6 +581,7 @@ i18n.use(initReactI18next).init({
           roleNote: "Note: Changing role affects system permissions.",
 
           joinDate: "Join Date",
+          pickJoinDate: "Select joining date",
 
           password: "Password",
           passwordHint: "Minimum 6 characters",
@@ -1643,15 +1644,20 @@ i18n.use(initReactI18next).init({
 
         employeeCreate: {
           title: "ข้อมูลพนักงาน",
+
           firstName: "ชื่อ",
           lastName: "นามสกุล",
           email: "อีเมล",
           emailPlaceholder: "กรุณากรอกอีเมล",
+
           role: "บทบาท",
           workerAccess: "สิทธิ์ทั่วไป",
           hrAccess: "สิทธิ์ทั้งหมด",
           roleNote: "หมายเหตุ: การเปลี่ยนบทบาทส่งผลต่อสิทธิ์การใช้งานระบบ",
+
           joinDate: "วันที่เริ่มงาน",
+          pickJoinDate: "เลือกวันที่เริ่มงาน",
+
           password: "รหัสผ่าน",
           passwordHint: "ขั้นต่ำ 6 ตัวอักษร",
           confirmTitle: "ยืนยันการลงทะเบียน",
@@ -2582,6 +2588,7 @@ i18n.use(initReactI18next).init({
           roleNote: "注意：役割の変更は権限に影響します。",
 
           joinDate: "入社日",
+          pickJoinDate: "入社日を選択",
 
           password: "パスワード",
           passwordHint: "6 文字以上",
