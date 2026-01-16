@@ -1,7 +1,5 @@
 import Swal from "sweetalert2";
-import i18n from "../components/shared/i18n";
-
-
+import i18n from "../components/shared/i18n/i18n";
 
 export const alertConfirm = async (title, html, confirmText) => {
   const res = await Swal.fire({
