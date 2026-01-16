@@ -69,27 +69,27 @@ async function main() {
   const leaveTypesData = [
     { 
       typeName: 'Sick', 
-      label: { th: "ลาป่วย", en: "Sick Leave" }, 
+      label: { th: "ลาป่วย", en: "Sick Leave" ,ja: "病気休暇"}, 
       isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 0 
     },
     { 
       typeName: 'Personal', 
-      label: { th: "ลากิจ", en: "Personal Leave" }, 
+      label: { th: "ลากิจ", en: "Personal Leave" ,ja: "私事休暇"}, 
       isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 0 
     },
     { 
       typeName: 'Annual', 
-      label: { th: "ลาพักร้อน", en: "Annual Leave" }, 
+      label: { th: "ลาพักร้อน", en: "Annual Leave" ,ja: "年次休暇"}, 
       isPaid: true, maxCarryOver: 12.0, maxConsecutiveDays: 0 
     },
     { 
       typeName: 'Emergency', 
-      label: { th: "ลาฉุกเฉิน", en: "Emergency Leave" }, 
+      label: { th: "ลาฉุกเฉิน", en: "Emergency Leave"  ,ja: "緊急休暇"}, 
       isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 0 
     },
     { 
       typeName: 'Special', 
-      label: { th: "ลาพิเศษ", en: "Special Leave" }, 
+      label: { th: "ลาพิเศษ", en: "Special Leave"  ,ja: "特別休暇"}, 
       isPaid: true, maxCarryOver: 0, maxConsecutiveDays: 365 
     }, 
   ];

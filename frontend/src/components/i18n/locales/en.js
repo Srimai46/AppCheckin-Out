@@ -250,6 +250,7 @@ export default {
         paid: "Paid",
         labelTh: "Label (TH)",
         labelEn: "Label (EN)",
+        labelJa: "Label (JP)",
         maxCarryOver: "Max Carry Over (Days)",
         maxConsecutive: "Max Consecutive Days",
         cancelEdit: "Cancel",

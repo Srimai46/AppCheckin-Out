@@ -1,8 +1,19 @@
 import React, { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, X ,ChevronLeft ,ChevronRight} from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useYearEndProcessing } from "../hooks/useYearEndProcessing";
-import { alertConfirm, alertSuccess, alertError } from "../../../utils/sweetAlert";
+import {
+  alertConfirm,
+  alertSuccess,
+  alertError,
+} from "../../../utils/sweetAlert";
 import {
   createLeaveType,
   updateLeaveType,
@@ -12,14 +23,22 @@ import {
 const PAGE_SIZE = 5;
 
 /* ========================= Helpers ========================= */
-const getLeaveTypeLabel = (label, typeName, lang) => {
-  if (label && typeof label === "object") {
-    const key = lang?.split("-")[0];
-    return label[key] || label.th || label.en || typeName;
-  }
-  return typeName || "-";
+const getLeaveTypeLabel = (label, typeName, language) => {
+  if (!label) return typeName || "-";
+
+  const lang = language?.split("-")[0]; // en-US → en
+
+  return (
+    label[lang] || // ภาษาปัจจุบัน
+    label.en || // fallback หลัก
+    label.th ||
+    label.ja ||
+    typeName ||
+    "-"
+  );
 };
 
+const emptyLabel = { en: "", th: "", ja: "" };
 const renderPaid = (isPaid, t) => (isPaid ? t("common.yes") : t("common.no"));
 
 const renderMaxConsecutive = (days, t) => {
@@ -36,17 +55,15 @@ export default function LeaveTypeCard() {
   const [editId, setEditId] = useState(null);
 
   const [typeName, setTypeName] = useState("");
-  const [label, setLabel] = useState({ th: "", en: "" });
+  const [label, setLabel] = useState({ en: "", th: "", ja: "" });
   const [isPaid, setIsPaid] = useState(true);
   const [maxCarryOver, setMaxCarryOver] = useState(0);
   const [maxConsecutiveDays, setMaxConsecutiveDays] = useState(0);
 
-  
-
   const resetForm = () => {
     setEditId(null);
     setTypeName("");
-    setLabel({ th: "", en: "" });
+    setLabel(emptyLabel);
     setIsPaid(true);
     setMaxCarryOver(0);
     setMaxConsecutiveDays(0);
@@ -93,7 +110,9 @@ export default function LeaveTypeCard() {
 
     // ===== Confirm before save =====
     const confirmed = await alertConfirm(
-      editId ? t("leaveType.confirm.updateTitle") : t("leaveType.confirm.addTitle"),
+      editId
+        ? t("leaveType.confirm.updateTitle")
+        : t("leaveType.confirm.addTitle"),
       editId
         ? t("leaveType.confirm.updateMessage")
         : t("leaveType.confirm.addMessage"),
@@ -114,9 +133,7 @@ export default function LeaveTypeCard() {
       // ===== Success alert =====
       await alertSuccess(
         t("common.success"),
-        editId
-          ? t("leaveType.success.updated")
-          : t("leaveType.success.created")
+        editId ? t("leaveType.success.updated") : t("leaveType.success.created")
       );
     } catch (err) {
       console.error(err);
@@ -144,10 +161,7 @@ export default function LeaveTypeCard() {
       await fetchLeaveTypes();
       window.dispatchEvent(new Event("leave-type-refresh"));
 
-      await alertSuccess(
-        t("common.success"),
-        t("leaveType.success.deleted")
-      );
+      await alertSuccess(t("common.success"), t("leaveType.success.deleted"));
     } catch (err) {
       console.error(err);
 
@@ -244,7 +258,9 @@ export default function LeaveTypeCard() {
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div>
                 <div className="text-sm font-black uppercase tracking-widest text-slate-800">
-                  {editId ? t("leaveType.form.editTitle") : t("leaveType.form.addTitle")}
+                  {editId
+                    ? t("leaveType.form.editTitle")
+                    : t("leaveType.form.addTitle")}
                 </div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
                   {t("leaveType.form.subtitle")}
@@ -269,20 +285,6 @@ export default function LeaveTypeCard() {
             {/* Body */}
             <div className="px-6 py-6 max-h-[75vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Label TH */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    {t("leaveType.form.labelTh")}
-                  </label>
-                  <input
-                    placeholder="TH"
-                    className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
-                      text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                    value={label.th}
-                    onChange={(e) => setLabel({ ...label, th: e.target.value })}
-                  />
-                </div>
-
                 {/* Label EN */}
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
@@ -299,6 +301,53 @@ export default function LeaveTypeCard() {
                       setTypeName(value);
                     }}
                   />
+                </div>
+
+                {/* Label TH */}
+                
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t("leaveType.form.labelTh")}
+                  </label>
+                <input
+                  placeholder="TH"
+                  className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
+                      text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                  value={label.th}
+                  onChange={(e) =>
+                    setLabel((prev) => ({ ...prev, th: e.target.value }))
+                  }
+                />
+</div>
+                {/* Label JP */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t("leaveType.form.labelJa")}
+                  </label>
+                <input
+                  placeholder="JP"
+                  className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
+                      text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                  value={label.ja}
+                  onChange={(e) =>
+                    setLabel((prev) => ({ ...prev, ja: e.target.value }))
+                  }
+                />
+                </div>
+
+                {/* Paid */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t("leaveType.form.paid")}
+                  </label>
+                  <select
+                    className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
+                    value={isPaid ? "1" : "0"}
+                    onChange={(e) => setIsPaid(e.target.value === "1")}
+                  >
+                    <option value="1">{t("common.yes")}</option>
+                    <option value="0">{t("common.no")}</option>
+                  </select>
                 </div>
 
                 {/* Max Carry Over */}
@@ -329,20 +378,7 @@ export default function LeaveTypeCard() {
                   />
                 </div>
 
-                {/* Paid */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    {t("leaveType.form.paid")}
-                  </label>
-                  <select
-                    className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                    value={isPaid ? "1" : "0"}
-                    onChange={(e) => setIsPaid(e.target.value === "1")}
-                  >
-                    <option value="1">{t("common.yes")}</option>
-                    <option value="0">{t("common.no")}</option>
-                  </select>
-                </div>
+                
               </div>
 
               {/* Footer buttons */}
@@ -355,7 +391,9 @@ export default function LeaveTypeCard() {
                     inline-flex items-center gap-2"
                 >
                   <Plus size={16} />
-                  {editId ? t("leaveType.form.update") : t("leaveType.form.add")}
+                  {editId
+                    ? t("leaveType.form.update")
+                    : t("leaveType.form.add")}
                 </button>
               </div>
             </div>
@@ -410,11 +448,7 @@ export default function LeaveTypeCard() {
               {pagedLeaveTypes.map((lt) => (
                 <tr key={lt.id} className="hover:bg-gray-50/50">
                   <td className="px-6 py-4 font-black">
-                    {getLeaveTypeLabel(
-                      lt.label,
-                      lt.typeName,
-                      i18n.language
-                    )}
+                    {getLeaveTypeLabel(lt.label, lt.typeName, i18n.language)}
                   </td>
                   <td className="px-6 py-4 font-bold">
                     {renderPaid(lt.isPaid, t)}
@@ -423,10 +457,7 @@ export default function LeaveTypeCard() {
                     {Number(lt.maxCarryOver)} {t("common.days")}
                   </td>
                   <td className="px-6 py-4 font-bold">
-                    {renderMaxConsecutive(
-                      lt.maxConsecutiveDays,
-                      t
-                    )}
+                    {renderMaxConsecutive(lt.maxConsecutiveDays, t)}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex justify-end gap-2">
@@ -438,11 +469,10 @@ export default function LeaveTypeCard() {
                       >
                         <Pencil size={12} />
                         {t("leaveType.action.edit")}
-
                       </button>
                       <button
                         onClick={() => handleDelete(lt)}
-                         className="h-9 px-4 rounded-3xl border border-rose-100 bg-rose-50 text-rose-700
+                        className="h-9 px-4 rounded-3xl border border-rose-100 bg-rose-50 text-rose-700
                               font-black text-[10px] uppercase tracking-widest hover:bg-rose-100 transition-all active:scale-95
                               inline-flex items-center gap-2"
                       >

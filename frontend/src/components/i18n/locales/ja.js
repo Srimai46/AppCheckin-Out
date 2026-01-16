@@ -244,6 +244,7 @@ export default {
         paid: "有給",
         labelTh: "ラベル（TH）",
         labelEn: "ラベル（EN）",
+        labelJa: "ラベル（JP）",
         maxCarryOver: "繰り越し上限（日）",
         maxConsecutive: "連続上限（日）",
         cancelEdit: "キャンセル",

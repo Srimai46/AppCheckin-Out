@@ -243,6 +243,7 @@ export default {
         paid: "ได้รับค่าจ้าง",
         labelTh: "ชื่อ (ภาษาไทย)",
         labelEn: "ชื่อ (ภาษาอังกฤษ)",
+        labelJa: "ชื่อ (ภาษาญี่ปุ่น)",
         maxCarryOver: "ทบต่อไปปีหน้าได้สูงสุด (วัน)",
         maxConsecutive: "ลาติดต่อกันสูงสุด (วัน)",
         cancelEdit: "ยกเลิกการแก้ไข",
