@@ -412,6 +412,12 @@ export default function EmployeeList() {
 
             {roleOpenFilter && (
               <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-10 cursor-default"
+                  onClick={() => setRoleOpenFilter(false)}
+                  aria-label={t("employeeList.aria.closeRoleDropdown")}
+                />
 
                 <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
                   {[
