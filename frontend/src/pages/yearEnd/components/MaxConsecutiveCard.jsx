@@ -1,8 +1,11 @@
 import React from "react";
 import { RefreshCw, Save } from "lucide-react";
 import { useHolidayPolicy } from "../hooks/useHolidayPolicy";
+import { useTranslation } from "react-i18next";
 
 export default function MaxConsecutiveCard() {
+  const { t } = useTranslation();
+
   const {
     maxConsecutiveHolidayDays,
     setMaxConsecutiveHolidayDays,
@@ -15,10 +18,10 @@ export default function MaxConsecutiveCard() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
-            Max Consecutive Holidays
+            {t("maxConsecutive.title")}
           </div>
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-            Maximum consecutive holiday days allowed per request
+            {t("maxConsecutive.subtitle")}
           </div>
         </div>
 
@@ -32,7 +35,9 @@ export default function MaxConsecutiveCard() {
             className="w-24 h-11 px-4 rounded-2xl bg-white border border-gray-200
               text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
           />
-          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">day(s)</span>
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            {t("common.daysShort")}
+          </span>
 
           <button
             type="button"
@@ -42,8 +47,12 @@ export default function MaxConsecutiveCard() {
               uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95
               shadow-lg shadow-indigo-100 disabled:bg-gray-300 disabled:shadow-none inline-flex items-center gap-2"
           >
-            {maxConsecutiveSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
-            {maxConsecutiveSaving ? "Saving..." : "Save"}
+            {maxConsecutiveSaving ? (
+              <RefreshCw size={16} className="animate-spin" />
+            ) : (
+              <Save size={16} />
+            )}
+            {maxConsecutiveSaving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </div>

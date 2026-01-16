@@ -66,6 +66,8 @@ i18n.use(initReactI18next).init({
 
           close: "Close",
 
+          daysShort: "day(s)",
+
           // Alerts / Validation
           missingInfo: "Missing information",
           invalidValue: "Invalid value",
@@ -639,6 +641,13 @@ i18n.use(initReactI18next).init({
           saveBtn: "Save Work Time",
           savingBtn: "Saving...",
         },
+
+        /* -------- Max Consecutive -------- */
+        maxConsecutive: {
+          title: "Max Consecutive Holidays",
+          subtitle: "Maximum consecutive holiday days allowed per request",
+        },
+
         /* -------- YearEnd History -------- */
         yearEndHistory: {
           title: "Processing History",
@@ -1187,6 +1196,8 @@ i18n.use(initReactI18next).init({
 
           close: "ปิด",
 
+          daysShort: "วัน",
+
           // Alerts / Validation
           missingInfo: "ข้อมูลไม่ครบถ้วน",
           invalidValue: "ค่าที่กรอกไม่ถูกต้อง",
@@ -1703,6 +1714,13 @@ i18n.use(initReactI18next).init({
           savingBtn: "กำลังบันทึก...",
         },
 
+        /* -------- Max Consecutive -------- */
+        maxConsecutive: {
+          title: "กำหนดวันหยุดต่อเนื่องสูงสุด",
+          subtitle: "จำนวนวันหยุดต่อเนื่องสูงสุดที่อนุญาตต่อการขอ 1 ครั้ง",
+        },
+
+        /* -------- YearEnd History -------- */
         yearEndHistory: {
           title: "ประวัติการประมวลผล",
           year: "ปี",
@@ -2075,6 +2093,8 @@ i18n.use(initReactI18next).init({
           back: "戻る",
 
           close: "閉じる",
+
+          daysShort: "日",
 
           // Alerts / Validation
           missingInfo: "必須項目が不足しています",
@@ -2635,6 +2655,12 @@ i18n.use(initReactI18next).init({
 
           saveBtn: "勤務時間を保存",
           savingBtn: "保存中...",
+        },
+
+        /* -------- Max Consecutive -------- */
+        maxConsecutive: {
+          title: "連続休日の上限",
+          subtitle: "申請ごとに許可される連続休日の日数の上限",
         },
 
         /* -------- YearEnd History -------- */
