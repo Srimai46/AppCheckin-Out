@@ -255,7 +255,7 @@ export default function LeaveApproval() {
                   {t("leaveApproval.table.type")}
                 </th>
                 <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
-                  {activeTab === 'cancel' ? "Cancel Reason" : t("leaveApproval.table.reason")}
+                  {activeTab === 'cancel' ? t("leaveApproval.labels.cancelReason") : t("leaveApproval.table.reason")}
                 </th>
                 <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
                   {t("leaveApproval.table.duration")}
