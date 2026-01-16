@@ -13,7 +13,6 @@ export default {
     roleNote: "Note: Changing role affects system permissions.",
 
     joinDate: "Join Date",
-    pickJoinDate: "Select joining date",
 
     password: "Password",
     passwordHint: "Minimum 6 characters",
