@@ -1,5 +1,5 @@
 import Swal from "sweetalert2";
-import i18n from "../components/shared/i18n";
+import i18n from "../components/i18n/i18n";
 
 
 

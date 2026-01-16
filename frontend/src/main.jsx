@@ -2,8 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './styles/index.css';
 import App from './App';
-import "../src/components/shared/i18n.js";
-
+import "./components/i18n/i18n";
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
