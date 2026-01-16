@@ -41,6 +41,7 @@ export default {
       delete: "ลบ",
       confirm: "ยืนยัน",
       cancel: "ยกเลิก",
+
       days: "วัน",
       unlimited: "ไม่จำกัด",
       today: "วันนี้",
@@ -81,6 +82,7 @@ export default {
       leaveHistory: "ประวัติการลา",
       tabAttendance: "การลงเวลา",
       tabLeave: "การลา",
+
       date: "วันที่",
       inOut: "เข้า / ออก",
       status: "สถานะ",
@@ -92,11 +94,13 @@ export default {
       days: "จำนวนวัน",
       note: "หมายเหตุ",
       file: "ไฟล์แนบ",
+
       noData: "ไม่พบข้อมูล",
       filter: "ตัวกรอง",
       clear: "ล้างค่า",
       selectDate: "เลือกวันที่",
 
+      // Status Badges
       late: "สาย",
       onTime: "ตรงเวลา",
       absent: "ขาดงาน",
@@ -713,6 +717,8 @@ export default {
           label: "หน้า {{page}} / {{totalPages}} • แสดง {{start}}-{{end}} จาก {{total}}",
         },
       },
+
+      // Daily Detail Modal
       modal: {
         title: "รายละเอียดรายวัน",
         pills: {

@@ -809,6 +809,7 @@ export default {
         },
       },
 
+      // Daily Details Modal
       modal: {
         title: "Daily Details",
 

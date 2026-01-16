@@ -41,6 +41,7 @@ export default {
       delete: "削除",
       confirm: "確認",
       cancel: "キャンセル",
+
       days: "日",
       unlimited: "無制限",
       today: "今日",
@@ -791,6 +792,7 @@ export default {
         },
       },
 
+      // Daily Detail Modal
       modal: {
         title: "日次詳細",
 
