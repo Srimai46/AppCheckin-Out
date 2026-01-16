@@ -13,6 +13,7 @@ export default {
     roleNote: "注意：役割の変更はシステム権限に影響します。",
 
     joinDate: "入社日",
+    pickJoinDate: "入社日を選択",
 
     password: "パスワード",
     passwordHint: "6文字以上",
