@@ -2026,32 +2026,31 @@ i18n.use(initReactI18next).init({
         /* -------- Dashboard -------- */
         dashboard: {
           title: "ダッシュボード",
-          attendance: "勤怠",
+          attendance: "勤怠", // kintai 
           welcome: "ようこそ、{{firstName}} {{lastName}} さん",
-          selectYear: "年を選択",
+          selectYear: "年を選択", // toshi wo sentaku
           year: "年",
 
-          checkIn: "出勤",
-          checkOut: "退勤",
-          updatecheckOut: "退勤を更新",
+          checkIn: "出勤", // Shukkin
+          checkOut: "退勤", // taikin
+          updatecheckOut: "退勤を更新", // Taikin wo koushin
           leave: "休暇",
 
-          attendanceConfirmTitle: "勤怠の確認",
+          attendanceConfirmTitle: "打刻の確認",
           attendanceConfirmText: "{{action}} してもよろしいですか？",
           loadFail: "ダッシュボードデータの読み込みに失敗しました。",
         },
 
-        /* -------- Layout / Sidebar -------- */
+         /* -------- Layout / Sidebar -------- */
         layout: {
           mainMenu: "メインメニュー",
-          hrManagement: "HR 管理",
-          approveLeave: "休暇申請の承認",
+          hrManagement: "人事管理",
+          approveLeave: "休暇申請承認",
           employees: "従業員一覧",
           calendar: "カレンダー",
           yearEnd: "設定",
           logout: "ログアウト",
         },
-
         /* -------- Common -------- */
         common: {
           loading: "読み込み中...",
@@ -2078,7 +2077,7 @@ i18n.use(initReactI18next).init({
           close: "閉じる",
 
           // Alerts / Validation
-          missingInfo: "情報が不足しています",
+          missingInfo: "必須項目が不足しています",
           invalidValue: "無効な値です",
           saveFailed: "保存に失敗しました",
           deleteFailed: "削除に失敗しました",
@@ -2088,8 +2087,8 @@ i18n.use(initReactI18next).init({
         /* -------- QuotaCard -------- */
         quota: {
           noData: "この期間の休暇クォーターデータが見つかりません",
-          carryOver: "繰り越し",
-          used: "使用済み",
+          carryOver: "繰越分",
+          used: "消化済み",
           specialUsage: "特別休暇の使用",
           days: "日",
           usedTotal: "使用 {{used}} / 合計 {{total}}",
@@ -2098,19 +2097,19 @@ i18n.use(initReactI18next).init({
 
         /* -------- History -------- */
         history: {
-          attendanceLog: "勤怠ログ",
+          attendanceLog: "勤怠履歴",
           leaveHistory: "休暇履歴",
           tabAttendance: "勤怠",
           tabLeave: "休暇",
           date: "日付",
-          inOut: "出勤／退勤",
+          inOut: "出退勤",
           status: "状態",
           statusIn: "出勤状態",
           statusOut: "退勤状態",
-          signedBy: "確認者",
+          signedBy: "承認者",
           type: "種類",
           period: "期間",
-          days: "日",
+          days: "日数",
           note: "備考",
           file: "ファイル",
           noData: "データなし",
@@ -2124,9 +2123,9 @@ i18n.use(initReactI18next).init({
           absent: "欠勤",
           leave: "休暇",
           early: "早退",
-          normal: "正常",
-          noCheckout: "退勤なし",
-          notCheckedOutYet: "まだ退勤していません",
+          normal: "通常",
+          noCheckout: "退勤登録",
+          notCheckedOutYet: "勤務中",
 
           // Alerts
           deleteTitle: "休暇申請を削除しますか？",
@@ -2134,21 +2133,20 @@ i18n.use(initReactI18next).init({
           deleteButton: "削除",
           requestCancelButton: "キャンセル申請",
         },
-
         /* -------- Leave Approval -------- */
         leaveApproval: {
           title: "承認待ち",
           selected: "{{count}} 件選択",
           bulkApprove: "一括承認",
-          bulkSpecial: "一括（特別）",
-          bulkReject: "却下",
+          bulkSpecial: "一括特別承認",
+          bulkReject: "一括却下",
 
           table: {
             employee: "従業員",
             type: "種類",
-            reason: "メモ／理由",
+            reason: "申請理由",
             duration: "期間",
-            evidence: "証拠",
+            evidence: "添付書類",
             action: "操作",
           },
 
@@ -2220,8 +2218,8 @@ i18n.use(initReactI18next).init({
           },
 
           table: {
-            title: "特別休日ログ",
-            subtitle: "DD-MM-YYYY（合計日数）、名前、編集、削除",
+            title: "特別休日一覧",
+            subtitle: "YYYY/MM/DD（合計日数）、名前、編集、削除",
             date: "日付",
             name: "休日名",
             actions: "操作",
@@ -2242,7 +2240,6 @@ i18n.use(initReactI18next).init({
             delete: "削除",
           },
         },
-
         /* -------- Leave Type -------- */
         leaveType: {
           table: {
@@ -2312,44 +2309,32 @@ i18n.use(initReactI18next).init({
         dateGridPicker: {
           title: "日付を選択",
           all: "すべて",
-          allOn: "全てON",
-          allOff: "全てOFF",
+          allOn: "全選択",
+          allOff: "全解除",
           year: "年",
           month: "月",
           day: "日",
           reset: "リセット",
           cancel: "キャンセル",
-          done: "完了",
+          done: "決定",
         },
 
-        /* -------- Leave Request -------- */
+       /* -------- Leave Request -------- */
         leaveRequest: {
           type: "休暇タイプ",
           none: "なし",
 
-          fullDay: "全日",
+          fullDay: "終日",
           halfMorning: "半日（午前）",
           halfAfternoon: "半日（午後）",
-
-          loadingTypes: "休暇タイプを読み込み中...",
-
-          startDate: "開始日",
-          endDate: "終了日",
-          pickStartDate: "開始日を選択",
-          pickEndDate: "終了日を選択",
-
-          browse: "参照",
 
           errors: {
             missingType: "休暇タイプを選択してください。",
             missingDates: "開始日と終了日を両方指定してください。",
             invalidDate: "終了日は開始日より後である必要があります。",
-
-            loadTypesFailed: "休暇タイプの読み込みに失敗しました。",
-            endBeforeStart: "終了日は {{min}} 以降である必要があります。"
           },
 
-          blockedTitle: "休暇申請がブロックされました",
+          blockedTitle: "申請エラー",
           blockedMessage: "休日または非稼働日に休暇申請はできません。",
 
           submissionFailed: "送信に失敗しました",
@@ -2359,11 +2344,11 @@ i18n.use(initReactI18next).init({
 
           step1: "1. 休暇タイプを選択",
           step2: "2. 日付と時間帯を選択",
-          step3: "3. 理由",
+          step3: "3. 申請理由",
           step4: "4. 添付（任意）",
 
-          start: "開始",
-          end: "終了",
+          start: "開始日",
+          end: "終了日",
 
           chooseFile: "ファイルを選択",
           removeFile: "ファイルを削除",
@@ -2379,8 +2364,8 @@ i18n.use(initReactI18next).init({
             type: "種類",
             period: "期間",
             duration: "時間帯",
-            attachment: "添付",
-            reason: "理由"
+            attachment: "添付書類",
+            reason: "理由",
           },
 
           confirmTitle: "休暇申請の確認",
@@ -2392,7 +2377,7 @@ i18n.use(initReactI18next).init({
 
           cancel: "キャンセル",
           submitting: "申請を送信中...",
-          submit: "休暇申請を送信"
+          submit: "休暇申請を送信",
         },
 
         /* -------- Attendance Dashboard -------- */
@@ -2467,10 +2452,11 @@ i18n.use(initReactI18next).init({
           },
         },
 
-        /* -------- Year End Configuration -------- */
+
+       /* -------- Year End Configuration -------- */
         yearEndConfig: {
-          title: "年末設定",
-          subtitle: "繰り越し、クォータ、全体ポリシーを設定します。",
+          title: "年次処理",
+          subtitle: "繰り越し、付与日数、全体ルールを設定します。",
 
           carryOverTitle: "休暇タイプの繰り越し",
           carryOverHint: "翌年への最大繰り越し日数（従業員ごと）",
@@ -2478,36 +2464,38 @@ i18n.use(initReactI18next).init({
           quotaTitle: "{{year}}年のクォータ設定",
           quotaHint: "従業員あたりの基本休暇クォータ",
 
-          maxConsecutiveTitle: "全体ポリシー：連続休日の上限",
+          maxConsecutiveTitle: "全体ルール：連続取得の上限",
           unlimitedHint: "0 = 無制限",
 
           targetYear: "対象年",
 
-          process: "確認して実行",
+          process: "処理実行",
           processing: "処理中...",
 
-          warning: "この操作は全従業員のクォータを上書きし、過去データをロックします。",
+          warning: "この操作は全従業員のデータを上書きし、過去データをロックします。",
         },
 
         /* -------- Employee Detail -------- */
-        employeeDetail: {
+       employeeDetail: {
           loading: "プロフィールを読み込み中...",
           working: "在職",
           resigned: "退職",
           joined: "入社日",
           manageInfo: "情報管理",
-          leaveBalance: "休暇残高",
+          leaveBalance: "休暇残高",    
           employeeInfo: "従業員情報",
-          fullAccess: "フルアクセス",
-          standardAccess: "標準アクセス",
+          fullAccess: "フルアクセス",    
+          standardAccess: "標準アクセス", 
           roleNote: "注意：役割の変更はシステム権限に影響します。",
           newPassword: "新しいパスワード",
           passwordOptional: "（空欄の場合は変更しません）",
           passwordMin: "6 文字以上",
-          confirmPassword: "パスワード確認",
+          confirmPassword: "パスワード（確認用）", 
           confirmPasswordPlaceholder: "同じ新しいパスワードを入力",
-          terminate: "退職にする",
-          reinstate: "復職にする",
+          
+          terminate: "退職処理",        
+          reinstate: "復職処理",        
+          
           adjustQuota: "クォータ調整",
           fetchFailed: "従業員データを取得できませんでした。",
           quotaUpdated: "クォータを更新しました。",
