@@ -204,6 +204,8 @@ export default {
         duration: "Duration",
         day: "day",
         days: "days",
+        pickStartDate: "Select start date",
+        pickEndDate: "Select end date",
         add: "Add",
         update: "Update",
         cancelEdit: "Cancel Edit",

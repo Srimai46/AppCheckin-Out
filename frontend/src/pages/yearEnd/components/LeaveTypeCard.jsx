@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useYearEndProcessing } from "../hooks/useYearEndProcessing";
+import PaidDropdown from "./PaidDropdown";
+import ColorPickerButton from "./ColorPickerButton";
 import { alertConfirm, alertSuccess, alertError } from "../../../utils/sweetAlert";
 import {
   createLeaveType,
@@ -539,42 +541,30 @@ export default function LeaveTypeCard() {
                   />
                 </div>
 
+                {/* Color */}
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     {t("leaveType.form.color")}
                   </label>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="h-11 w-11 rounded-2xl border border-gray-200"
-                      style={{ backgroundColor: normalizeHex(color, DEFAULT_COLOR) }}
-                      title={normalizeHex(color, DEFAULT_COLOR)}
-                    />
-                    <input
-                      type="color"
-                      value={normalizeHex(color, DEFAULT_COLOR)}
-                      onChange={(e) => setColor(e.target.value)}
-                      className="h-11 w-16 rounded-2xl border border-gray-200 bg-white"
-                      aria-label={t("leaveType.form.color")}
-                    />
-                    <div className="text-[12px] font-black text-slate-800">
-                      {normalizeHex(color, DEFAULT_COLOR)}
-                    </div>
-                  </div>
+
+                  <ColorPickerButton
+                    value={color}
+                    onChange={(hex) => setColor(hex)}
+                    label={t("leaveType.form.color")}
+                  />
                 </div>
+
 
                 {/* Paid */}
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     {t("leaveType.form.paid")}
                   </label>
-                  <select
-                    className="h-11 px-5 rounded-2xl border border-gray-200 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                    value={isPaid ? "1" : "0"}
-                    onChange={(e) => setIsPaid(e.target.value === "1")}
-                  >
-                    <option value="1">{t("common.yes")}</option>
-                    <option value="0">{t("common.no")}</option>
-                  </select>
+
+                  <PaidDropdown
+                    value={isPaid}
+                    onChange={(v) => setIsPaid(v)}
+                  />
                 </div>
 
                 {/* Max Carry Over */}

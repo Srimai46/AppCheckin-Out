@@ -197,6 +197,8 @@ export default {
         duration: "日数",
         day: "日",
         days: "日",
+        pickStartDate: "開始日を選択",
+        pickEndDate: "終了日を選択",
         add: "追加",
         update: "更新",
         cancelEdit: "編集をキャンセル",

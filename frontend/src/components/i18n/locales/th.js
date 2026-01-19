@@ -200,6 +200,8 @@ export default {
         duration: "ระยะเวลา",
         day: "วัน",
         days: "วัน",
+        pickStartDate: "เลือกวันที่เริ่ม",
+        pickEndDate: "เลือกวันที่สิ้นสุด",
         add: "เพิ่ม",
         update: "อัปเดต",
         cancelEdit: "ยกเลิกการแก้ไข",
