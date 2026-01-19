@@ -310,6 +310,11 @@ export default {
         placeholder: "กรุณาระบุเหตุผลในการปฏิเสธ...",
         confirm: "ปฏิเสธ",
         required: "กรุณาระบุเหตุผล",
+        requestcancelleave:"ขอยกเลิกการลา",
+        reasonforcancellation:"เหตุผลที่ยกเลิก",
+        placeholdercancellation:"กรุณาระบุเหตุผลที่ยกเลิก...",
+        leaveRequest: "ส่งคำขอ",
+        cancelreasonrequired: "กรุณาระบุเหตุผลที่ยกเลิก",
       },
     },
 

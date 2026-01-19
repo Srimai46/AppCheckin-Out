@@ -307,6 +307,11 @@ export default {
         placeholder: "却下理由を入力してください...",
         confirm: "却下",
         required: "却下理由は必須です",
+        requestcancelleave:"休暇キャンセルを申請",
+        reasonforcancellation:"キャンセル理由",
+        placeholdercancellation:"キャンセル理由を入力してください...",
+        leaveRequest: "送信",
+        cancelreasonrequired: "キャンセル理由は必須です",
       },
     },
 

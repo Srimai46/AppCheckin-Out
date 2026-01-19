@@ -311,6 +311,12 @@ export default {
         placeholder: "Please enter rejection reason...",
         confirm: "Reject",
         required: "Rejection reason is required",
+        requestcancelleave:"Request Cancel Leave",
+        reasonforcancellation:"Reason for cancellation",
+        placeholdercancellation:"Please enter cancellation reason...",
+        leaveRequest: "Request",
+        cancelreasonrequired: "Cancellation reason is required",
+
       },
     },
 
