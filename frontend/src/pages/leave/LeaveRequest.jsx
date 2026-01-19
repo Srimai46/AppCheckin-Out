@@ -139,14 +139,14 @@ export default function LeaveRequest() {
 
       await alertSuccess(
         t("leaveRequest.successTitle"),
-        res?.message || t("leaveRequest.successMessage")
+        t("leaveRequest.successMessage")
       );
 
       navigate("/dashboard");
     } catch (error) {
       alertError(
         t("leaveRequest.submissionFailed"),
-        error?.response?.data?.error || t("common.systemError")
+        t("leaveRequest.sumbitfailedtext")
       );
     } finally {
       setIsLoading(false);

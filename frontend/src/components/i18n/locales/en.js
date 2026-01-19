@@ -16,6 +16,13 @@ export default {
       attendanceConfirmTitle: "Attendance Confirmation",
       attendanceConfirmText: "Are you sure you want to {{action}}?",
       loadFail: "Failed to load dashboard data.",
+      updatecheckOutsweetalert: "Update Check-out?",
+      updatecheckOutsweetalertconfirm: "You already checked out. Do you want to update (re-check out)?",
+      alertcheckinfirst: "Please check-in first.",
+      alertcheckedinalready: "You have already checked in for today.",
+      checkedsuccess:"Check-in successful",
+
+
     },
 
     /* -------- Layout / Sidebar -------- */
@@ -337,6 +344,7 @@ export default {
         "You can’t request leave on holidays or non-working days.",
 
       submissionFailed: "Submission Failed",
+      sumbitfailedtext:"Cannot request leave on holidays/non-working days",
 
       headerTitle: "Leave Request",
       headerSubtitle: "Employee Leave Management System",

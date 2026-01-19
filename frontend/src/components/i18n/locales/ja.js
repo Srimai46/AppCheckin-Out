@@ -16,6 +16,11 @@ export default {
       attendanceConfirmTitle: "打刻の確認",
       attendanceConfirmText: "{{action}} してもよろしいですか？",
       loadFail: "ダッシュボードデータの読み込みに失敗しました。",
+      updatecheckOutsweetalert: "チェックアウト時間を更新しますか？",
+      updatecheckOutsweetalertconfirm: "すでにチェックアウトされています。更新（再チェックアウト）しますか？",
+      alertcheckinfirst: "まずチェックインしてください。",
+      alertcheckedinalready: "本日はすでにチェックインしています。",
+      checkedsuccess:"チェックイン成功",
     },
 
     /* -------- Layout / Sidebar -------- */
@@ -330,6 +335,7 @@ export default {
       blockedMessage: "休日または非稼働日に休暇申請はできません。",
 
       submissionFailed: "送信に失敗しました",
+      sumbitfailedtext:"休日/非稼働日に休暇申請はできません",
 
       headerTitle: "休暇申請",
       headerSubtitle: "従業員休暇管理システム",
@@ -366,6 +372,7 @@ export default {
 
       successTitle: "申請を送信しました",
       successMessage: "休暇申請を送信しました。",
+      
 
       cancel: "キャンセル",
       submitting: "申請を送信中...",
