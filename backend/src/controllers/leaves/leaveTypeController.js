@@ -1,5 +1,3 @@
-// backend/src/controllers/leaves/leaveTypeController.js
-
 const prisma = require("../../config/prisma");
 const { auditLog } = require("../../utils/logger");
 
@@ -8,6 +6,9 @@ const { auditLog } = require("../../utils/logger");
 // =====================================================
 const MAX_CONSECUTIVE_KEY = "MAX_CONSECUTIVE_HOLIDAYS";
 const DEFAULT_MAX_CONSECUTIVE = 0; // 0 = Unlimited
+
+// ✅ NEW: Leave type color default (hex)
+const DEFAULT_COLOR = "#6366F1";
 
 const getLabelStr = (label, fallback) => {
   if (!label) return fallback || "Unknown";
@@ -54,10 +55,18 @@ const normalizeIsPaid = (v) => {
   return undefined;
 };
 
+// ✅ NEW: normalize color (#RRGGBB)
+const normalizeHexColor = (v, fallback = DEFAULT_COLOR) => {
+  if (v === undefined) return undefined; // not provided (update)
+  if (v === null || v === "") return null; // provided but invalid/empty -> treat invalid
+  const s = String(v).trim();
+  const isHex = /^#([0-9a-fA-F]{6})$/.test(s);
+  return isHex ? s.toUpperCase() : null;
+};
+
 const formatConsecutive = (n) => (Number(n) === 0 ? "Unlimited" : `${Number(n)} days`);
 
 const getGlobalMaxConsecutive = async (tx) => {
-  // tx อาจเป็น prisma หรือ transaction client
   const row = await tx.holidayPolicy.findUnique({
     where: { key: MAX_CONSECUTIVE_KEY },
     select: { maxConsecutiveHolidayDays: true },
@@ -84,11 +93,19 @@ exports.getAllLeaveTypes = async (req, res) => {
 // =====================================================
 // ✅ Create Leave Type
 // - ถ้าไม่ส่ง maxConsecutiveDays มา -> ใช้ global policy เป็น default
+// - ✅ รองรับ color (#RRGGBB)
 // =====================================================
 exports.createLeaveType = async (req, res) => {
   try {
-    // ✅ รับ label เพิ่มเข้ามา (คาดหวัง { th: "...", en: "..." })
-    const { typeName, label, isPaid, maxCarryOver, maxConsecutiveDays } = req.body;
+    const {
+      typeName,
+      label,
+      isPaid,
+      maxCarryOver,
+      maxConsecutiveDays,
+      color, // ✅ NEW
+    } = req.body;
+
     const adminId = req.user.id;
 
     if (!typeName) return res.status(400).json({ error: "Type name (ID) is required." });
@@ -99,23 +116,25 @@ exports.createLeaveType = async (req, res) => {
     });
 
     const result = await prisma.$transaction(async (tx) => {
-      // typeName ควรเป็นตัวใหญ่เสมอเพื่อใช้เป็น Key (เช่น ANNUAL, SICK)
       const normalizedTypeName = String(typeName).trim().toUpperCase();
 
-      const existing = await tx.leaveType.findUnique({ 
-          where: { typeName: normalizedTypeName } 
+      const existing = await tx.leaveType.findUnique({
+        where: { typeName: normalizedTypeName },
       });
       if (existing) throw new Error(`Leave type "${normalizedTypeName}" already exists.`);
 
-      // ✅ normalize fields
       const paid = normalizeIsPaid(isPaid);
       const carry = normalizeCarryOver(maxCarryOver);
       const consecutive = normalizeMaxConsecutiveDays(maxConsecutiveDays);
 
-      // ✅ default maxConsecutiveDays = global policy ถ้าไม่ได้ส่งมา
+      // ✅ NEW: validate color if provided
+      const hex = normalizeHexColor(color);
+      if (color !== undefined && hex === null) {
+        throw new Error('color must be a hex string like "#RRGGBB"');
+      }
+
       const globalDefault = await getGlobalMaxConsecutive(tx);
-      const finalConsecutive =
-        consecutive === null ? globalDefault : consecutive;
+      const finalConsecutive = consecutive === null ? globalDefault : consecutive;
 
       if (maxConsecutiveDays !== undefined && consecutive === null) {
         throw new Error("maxConsecutiveDays must be an integer between 0 and 365");
@@ -127,25 +146,27 @@ exports.createLeaveType = async (req, res) => {
       const newType = await tx.leaveType.create({
         data: {
           typeName: normalizedTypeName,
-          // ✅ บันทึก label (ถ้าไม่ส่งมา ให้ใช้ typeName เป็นค่าเริ่มต้นทั้ง 2 ภาษา)
           label: label || { th: typeName, en: typeName },
           isPaid: paid !== undefined ? paid : true,
           maxCarryOver: carry !== null ? carry : 0,
           maxConsecutiveDays: finalConsecutive,
+
+          // ✅ NEW: store color (default if not provided)
+          color: hex !== undefined ? hex : DEFAULT_COLOR,
         },
       });
 
-      // ดึงชื่อภาษาไทยมาแสดงใน Log
       const displayName = getLabelStr(newType.label, newType.typeName);
       const logDetails = `Created new leave type: ${displayName} (${newType.typeName})`;
 
       const cleanNewValue = {
         id: newType.id,
         typeName: newType.typeName,
-        label: newType.label, // เก็บ JSON ลง Log
+        label: newType.label,
         isPaid: newType.isPaid ? "Yes" : "No",
         maxConsecutive: formatConsecutive(newType.maxConsecutiveDays),
         maxCarryOver: Number(newType.maxCarryOver),
+        color: newType.color, // ✅ NEW
       };
 
       await auditLog(tx, {
@@ -186,11 +207,21 @@ exports.createLeaveType = async (req, res) => {
   }
 };
 
+// =====================================================
+// ✅ Update Leave Type
+// - ✅ รองรับ color (#RRGGBB)
+// =====================================================
 exports.updateLeaveType = async (req, res) => {
   try {
     const { id } = req.params;
-    // ✅ รับ label มาด้วย
-    const { label, maxConsecutiveDays, maxCarryOver, isPaid } = req.body;
+
+    const {
+      label,
+      maxConsecutiveDays,
+      maxCarryOver,
+      isPaid,
+      color, // ✅ NEW
+    } = req.body;
 
     const adminId = req.user.id;
     const typeId = parseInt(id, 10);
@@ -207,9 +238,9 @@ exports.updateLeaveType = async (req, res) => {
 
       const dataToUpdate = {};
 
-      // ✅ อัปเดต label (ถ้าส่งมา)
+      // ✅ label
       if (label) {
-          dataToUpdate.label = label;
+        dataToUpdate.label = label;
       }
 
       // ✅ maxConsecutiveDays
@@ -233,6 +264,13 @@ exports.updateLeaveType = async (req, res) => {
         dataToUpdate.isPaid = paid;
       }
 
+      // ✅ NEW: color
+      if (color !== undefined) {
+        const hex = normalizeHexColor(color);
+        if (hex === null) throw new Error('color must be a hex string like "#RRGGBB"');
+        dataToUpdate.color = hex;
+      }
+
       if (Object.keys(dataToUpdate).length === 0) {
         const name = getLabelStr(oldType.label, oldType.typeName);
         return { updatedType: oldType, logDetails: `Updated ${name} (No changes)`, changes: [] };
@@ -245,16 +283,16 @@ exports.updateLeaveType = async (req, res) => {
 
       const changes = [];
 
-      // ✅ เช็คการเปลี่ยนแปลงของ Label (Name)
+      // ✅ label changes
       if (dataToUpdate.label) {
-          const oldName = getLabelStr(oldType.label, "Unnamed");
-          const newName = getLabelStr(dataToUpdate.label, "Unnamed");
-          // ถ้าชื่อไทยเปลี่ยน หรือ อังกฤษเปลี่ยน ให้แจ้งเตือน
-          if (JSON.stringify(oldType.label) !== JSON.stringify(dataToUpdate.label)) {
-              changes.push(`Name: ${oldName} -> ${newName}`);
-          }
+        const oldName = getLabelStr(oldType.label, "Unnamed");
+        const newName = getLabelStr(dataToUpdate.label, "Unnamed");
+        if (JSON.stringify(oldType.label) !== JSON.stringify(dataToUpdate.label)) {
+          changes.push(`Name: ${oldName} -> ${newName}`);
+        }
       }
 
+      // ✅ consecutive change
       if (
         dataToUpdate.maxConsecutiveDays !== undefined &&
         Number(dataToUpdate.maxConsecutiveDays) !== Number(oldType.maxConsecutiveDays)
@@ -266,6 +304,7 @@ exports.updateLeaveType = async (req, res) => {
         );
       }
 
+      // ✅ carry over change
       if (
         dataToUpdate.maxCarryOver !== undefined &&
         Number(dataToUpdate.maxCarryOver) !== Number(oldType.maxCarryOver)
@@ -273,12 +312,20 @@ exports.updateLeaveType = async (req, res) => {
         changes.push(`Max Carry Over: ${Number(oldType.maxCarryOver)} -> ${Number(dataToUpdate.maxCarryOver)}`);
       }
 
+      // ✅ paid change
       if (dataToUpdate.isPaid !== undefined && dataToUpdate.isPaid !== oldType.isPaid) {
-        changes.push(`Paid Status: ${oldType.isPaid ? "Paid" : "Unpaid"} -> ${dataToUpdate.isPaid ? "Paid" : "Unpaid"}`);
+        changes.push(
+          `Paid Status: ${oldType.isPaid ? "Paid" : "Unpaid"} -> ${dataToUpdate.isPaid ? "Paid" : "Unpaid"}`
+        );
+      }
+
+      // ✅ NEW: color change
+      if (dataToUpdate.color !== undefined && dataToUpdate.color !== oldType.color) {
+        changes.push(`Color: ${oldType.color || DEFAULT_COLOR} -> ${dataToUpdate.color}`);
       }
 
       const typeNameDisplay = getLabelStr(oldType.label, oldType.typeName);
-      
+
       const logDetails =
         changes.length > 0
           ? `Updated policy for ${typeNameDisplay}: ${changes.join(", ")}`

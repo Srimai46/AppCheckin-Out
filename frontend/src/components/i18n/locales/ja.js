@@ -232,12 +232,14 @@ export default {
         maxCarryOver: "繰り越し上限",
         maxConsecutive: "連続上限",
         actions: "操作",
+        color: "色",
       },
 
       action: {
         add: "休暇タイプを追加",
         edit: "編集",
         delete: "削除",
+        color: "色変更",
       },
 
       form: {
@@ -255,10 +257,23 @@ export default {
         add: "追加",
         update: "更新",
         close: "閉じる",
+        color: "休暇タイプの色",
 
         // validation text
         requiredLabel: "タイ語と英語のラベルは両方必要です。",
         invalidNumber: "値は 0 以上である必要があります。",
+      },
+
+      color: {
+        title: "休暇タイプの色",
+        subtitle: "この休暇タイプの色を選択します",
+        current: "現在の色",
+        pick: "色を選択",
+        presets: "プリセット",
+        save: "保存",
+        confirmTitle: "色変更の確認",
+        confirmMessage: "「{{name}}」の色を変更しますか？",
+        saved: "色を更新しました。",
       },
 
       // confirm popups

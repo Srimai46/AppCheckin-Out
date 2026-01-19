@@ -234,12 +234,14 @@ export default {
         maxCarryOver: "ทบต่อปีหน้าได้สูงสุด",
         maxConsecutive: "ลาติดต่อกันสูงสุด",
         actions: "การจัดการ",
+        color: "สี",
       },
 
       action: {
         add: "เพิ่มประเภทการลา",
         edit: "แก้ไข",
         delete: "ลบ",
+        color: "เปลี่ยนสี",
       },
 
       form: {
@@ -257,10 +259,23 @@ export default {
         add: "เพิ่ม",
         update: "อัปเดต",
         close: "ปิด",
+        color: "สีประเภทวันลา",
 
         // validation text
         requiredLabel: "ต้องกรอกชื่อภาษาไทยและภาษาอังกฤษ",
         invalidNumber: "ค่าตัวเลขต้องมากกว่าหรือเท่ากับ 0",
+      },
+
+      color: {
+        title: "สีประเภทวันลา",
+        subtitle: "เลือกสีสำหรับประเภทวันลานี้",
+        current: "สีปัจจุบัน",
+        pick: "เลือกสี",
+        presets: "สีแนะนำ",
+        save: "บันทึก",
+        confirmTitle: "ยืนยันการเปลี่ยนสี",
+        confirmMessage: 'ต้องการเปลี่ยนสีของ "{{name}}" ใช่หรือไม่?',
+        saved: "อัปเดตสีเรียบร้อยแล้ว",
       },
 
       // confirm popups

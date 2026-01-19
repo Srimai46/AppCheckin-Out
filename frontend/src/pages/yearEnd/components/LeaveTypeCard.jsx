@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Plus,
   Pencil,
@@ -6,14 +6,11 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Palette,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useYearEndProcessing } from "../hooks/useYearEndProcessing";
-import {
-  alertConfirm,
-  alertSuccess,
-  alertError,
-} from "../../../utils/sweetAlert";
+import { alertConfirm, alertSuccess, alertError } from "../../../utils/sweetAlert";
 import {
   createLeaveType,
   updateLeaveType,
@@ -29,8 +26,8 @@ const getLeaveTypeLabel = (label, typeName, language) => {
   const lang = language?.split("-")[0]; // en-US → en
 
   return (
-    label[lang] || // ภาษาปัจจุบัน
-    label.en || // fallback หลัก
+    label[lang] || // current language
+    label.en || // main fallback
     label.th ||
     label.ja ||
     typeName ||
@@ -46,6 +43,27 @@ const renderMaxConsecutive = (days, t) => {
   return `${days} ${t("common.days")}`;
 };
 
+const normalizeHex = (value, fallback = "#6366F1") => {
+  if (!value || typeof value !== "string") return fallback;
+  const v = value.trim();
+  const isHex = /^#([0-9a-fA-F]{6})$/.test(v);
+  return isHex ? v : fallback;
+};
+
+const DEFAULT_COLOR = "#6366F1";
+const PRESET_COLORS = [
+  "#6366F1", // indigo
+  "#22C55E", // green
+  "#06B6D4", // cyan
+  "#0EA5E9", // sky
+  "#F59E0B", // amber
+  "#EF4444", // red
+  "#A855F7", // purple
+  "#F43F5E", // rose
+  "#64748B", // slate
+  "#111827", // gray-900
+];
+
 export default function LeaveTypeCard() {
   const { t, i18n } = useTranslation();
   const { leaveTypes = [], fetchLeaveTypes } = useYearEndProcessing();
@@ -60,6 +78,9 @@ export default function LeaveTypeCard() {
   const [maxCarryOver, setMaxCarryOver] = useState(0);
   const [maxConsecutiveDays, setMaxConsecutiveDays] = useState(0);
 
+  const [color, setColor] = useState(DEFAULT_COLOR);
+  const [tempColors, setTempColors] = useState({});
+
   const resetForm = () => {
     setEditId(null);
     setTypeName("");
@@ -67,6 +88,7 @@ export default function LeaveTypeCard() {
     setIsPaid(true);
     setMaxCarryOver(0);
     setMaxConsecutiveDays(0);
+    setColor(DEFAULT_COLOR);
   };
 
   const openAddForm = () => {
@@ -77,27 +99,22 @@ export default function LeaveTypeCard() {
   const openEditForm = (row) => {
     setEditId(row.id);
     setTypeName(row.typeName);
-    setLabel(row.label || { th: "", en: "" });
-    setIsPaid(row.isPaid);
+    setLabel(row.label || emptyLabel);
+    setIsPaid(!!row.isPaid);
     setMaxCarryOver(Number(row.maxCarryOver ?? 0));
-    setMaxConsecutiveDays(row.maxConsecutiveDays ?? 0);
+    setMaxConsecutiveDays(Number(row.maxConsecutiveDays ?? 0));
+    setColor(normalizeHex(row.color, DEFAULT_COLOR));
     setFormOpen(true);
   };
 
   const handleSubmit = async () => {
     // ===== Validate required fields =====
     if (!label.th?.trim() || !label.en?.trim()) {
-      return alertError(
-        t("common.missingInfo"),
-        t("leaveType.form.requiredLabel")
-      );
+      return alertError(t("common.missingInfo"), t("leaveType.form.requiredLabel"));
     }
 
     if (Number(maxCarryOver) < 0 || Number(maxConsecutiveDays) < 0) {
-      return alertError(
-        t("common.invalidValue"),
-        t("leaveType.form.invalidNumber")
-      );
+      return alertError(t("common.invalidValue"), t("leaveType.form.invalidNumber"));
     }
 
     const payload = {
@@ -106,31 +123,26 @@ export default function LeaveTypeCard() {
       isPaid,
       maxCarryOver: Number(maxCarryOver),
       maxConsecutiveDays: Number(maxConsecutiveDays),
+      // ✅ NEW
+      color: normalizeHex(color, DEFAULT_COLOR),
     };
 
     // ===== Confirm before save =====
     const confirmed = await alertConfirm(
-      editId
-        ? t("leaveType.confirm.updateTitle")
-        : t("leaveType.confirm.addTitle"),
-      editId
-        ? t("leaveType.confirm.updateMessage")
-        : t("leaveType.confirm.addMessage"),
+      editId ? t("leaveType.confirm.updateTitle") : t("leaveType.confirm.addTitle"),
+      editId ? t("leaveType.confirm.updateMessage") : t("leaveType.confirm.addMessage"),
       t("common.save")
     );
     if (!confirmed) return;
 
     try {
-      editId
-        ? await updateLeaveType(editId, payload)
-        : await createLeaveType(payload);
+      editId ? await updateLeaveType(editId, payload) : await createLeaveType(payload);
 
       setFormOpen(false);
       resetForm();
       await fetchLeaveTypes();
       window.dispatchEvent(new Event("leave-type-refresh"));
 
-      // ===== Success alert =====
       await alertSuccess(
         t("common.success"),
         editId ? t("leaveType.success.updated") : t("leaveType.success.created")
@@ -143,7 +155,6 @@ export default function LeaveTypeCard() {
         err?.response?.data?.message ||
         t("common.systemError");
 
-      // ===== Error alert =====
       alertError(t("common.saveFailed"), msg);
     }
   };
@@ -174,6 +185,78 @@ export default function LeaveTypeCard() {
     }
   };
 
+  /* ========================= Color Modal State (NEW) ========================= */
+  const [colorOpen, setColorOpen] = useState(false);
+  const [colorRow, setColorRow] = useState(null);
+  const [colorDraft, setColorDraft] = useState(DEFAULT_COLOR);
+
+  const openColorModal = (row) => {
+    const initial = normalizeHex(row?.color, DEFAULT_COLOR);
+    setColorRow(row);
+    setColorDraft(initial);
+    setTempColors((prev) => ({ ...prev, [row.id]: initial }));
+    setColorOpen(true);
+  };
+
+  const closeColorModal = ({ restore = true } = {}) => {
+    if (restore && colorRow?.id) {
+      const original = normalizeHex(colorRow?.color, DEFAULT_COLOR);
+      setTempColors((prev) => ({ ...prev, [colorRow.id]: original }));
+    }
+
+    setColorOpen(false);
+    setColorRow(null);
+    setColorDraft(DEFAULT_COLOR);
+  };
+
+  const handleSaveColor = async () => {
+    if (!colorRow?.id) return;
+
+    const confirmed = await alertConfirm(
+      t("leaveType.color.confirmTitle"),
+      t("leaveType.color.confirmMessage", {
+        name: getLeaveTypeLabel(colorRow.label, colorRow.typeName, i18n.language),
+      }),
+      t("leaveType.color.save")
+    );
+    if (!confirmed) return;
+
+    try {
+      const finalColor = normalizeHex(colorDraft, DEFAULT_COLOR);
+
+      const payload = {
+        typeName: colorRow.typeName,
+        label: colorRow.label || emptyLabel,
+        isPaid: !!colorRow.isPaid,
+        maxCarryOver: Number(colorRow.maxCarryOver ?? 0),
+        maxConsecutiveDays: Number(colorRow.maxConsecutiveDays ?? 0),
+        color: finalColor,
+      };
+
+      await updateLeaveType(colorRow.id, payload);
+      setTempColors((prev) => ({
+        ...prev,
+        [colorRow.id]: finalColor,
+      }));
+
+      closeColorModal({ restore: false });
+
+      await fetchLeaveTypes();
+      window.dispatchEvent(new Event("leave-type-refresh"));
+
+      await alertSuccess(t("common.success"), t("leaveType.color.saved"));
+    } catch (err) {
+      console.error(err);
+
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        t("common.systemError");
+
+      alertError(t("common.saveFailed"), msg);
+    }
+  };
+
   /* ========================= Pagination ========================= */
   const [page, setPage] = useState(1);
 
@@ -182,8 +265,7 @@ export default function LeaveTypeCard() {
     return Math.max(1, Math.ceil(total / PAGE_SIZE));
   }, [leaveTypes]);
 
-  // ถ้าจำนวนรายการเปลี่ยน (เพิ่ม/ลบ) แล้วหน้าเกิน ให้ดึงกลับ
-  React.useEffect(() => {
+  useEffect(() => {
     setPage((p) => Math.min(Math.max(1, p), totalPages));
   }, [totalPages]);
 
@@ -228,6 +310,138 @@ export default function LeaveTypeCard() {
   /* ========================= Render ========================= */
   return (
     <>
+      {/* ========================= COLOR MODAL (NEW) ========================= */}
+      {colorOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => closeColorModal({ restore: true })}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") closeColorModal();
+          }}
+          tabIndex={-1}
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+
+          <div
+            className="relative w-full max-w-xl rounded-3xl border border-gray-200 bg-white overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-black uppercase tracking-widest text-slate-800">
+                  {t("leaveType.color.title")}
+                </div>
+                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                  {t("leaveType.color.subtitle")}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => closeColorModal({ restore: true })}
+                className="h-10 w-10 rounded-2xl border border-gray-200 bg-white text-slate-700
+                  font-black text-[11px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95
+                  inline-flex items-center justify-center"
+                aria-label={t("common.close")}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-6 py-6">
+              <div className="text-[11px] font-black text-slate-800">
+                {getLeaveTypeLabel(colorRow?.label, colorRow?.typeName, i18n.language)}
+              </div>
+
+              <div className="mt-4 flex items-center gap-3">
+                <div
+                  className="h-10 w-10 rounded-2xl border border-gray-200"
+                  style={{ backgroundColor: normalizeHex(colorDraft, DEFAULT_COLOR) }}
+                  aria-label={t("leaveType.color.current")}
+                  title={normalizeHex(colorDraft, DEFAULT_COLOR)}
+                />
+                <div className="flex flex-col">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t("leaveType.color.current")}
+                  </div>
+                  <div className="text-[12px] font-black text-slate-800">
+                    {normalizeHex(colorDraft, DEFAULT_COLOR)}
+                  </div>
+                </div>
+
+                <div className="ml-auto flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={normalizeHex(colorDraft, DEFAULT_COLOR)}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setColorDraft(next);
+
+                      if (colorRow?.id) {
+                        setTempColors((prev) => ({
+                          ...prev,
+                          [colorRow.id]: next,
+                        }));
+                      }
+                    }}
+                    className="h-10 w-14 rounded-2xl border border-gray-200 bg-white"
+                    aria-label={t("leaveType.color.pick")}
+                    title={t("leaveType.color.pick")}
+                  />
+                </div>
+              </div>
+
+              {/* Presets */}
+              <div className="mt-5">
+                <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                  {t("leaveType.color.presets")}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {PRESET_COLORS.map((c) => {
+                    const active = normalizeHex(colorDraft, DEFAULT_COLOR) === c;
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          setColorDraft(c);
+                          if (colorRow?.id) {
+                            setTempColors((prev) => ({ ...prev, [colorRow.id]: c }));
+                          }
+                        }}
+                        className={`h-9 w-9 rounded-2xl border transition-all active:scale-95 ${
+                          active
+                            ? "border-indigo-300 ring-2 ring-indigo-100"
+                            : "border-gray-200 hover:scale-[1.02]"
+                        }`}
+                        style={{ backgroundColor: c }}
+                        aria-label={c}
+                        title={c}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveColor}
+                  className="h-11 px-6 rounded-3xl bg-indigo-600 text-white font-black text-[11px]
+                    uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100
+                    inline-flex items-center gap-2"
+                >
+                  <Palette size={16} />
+                  {t("leaveType.color.save")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ========================= FORM CARD POPUP ========================= */}
       {formOpen && (
         <div
@@ -246,21 +460,16 @@ export default function LeaveTypeCard() {
           }}
           tabIndex={-1}
         >
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
-          {/* Modal */}
           <div
             className="relative w-full max-w-3xl rounded-3xl border border-gray-200 bg-white overflow-hidden shadow-2xl"
-            onClick={(e) => e.stopPropagation()} // กันคลิกทะลุไปปิด
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div>
                 <div className="text-sm font-black uppercase tracking-widest text-slate-800">
-                  {editId
-                    ? t("leaveType.form.editTitle")
-                    : t("leaveType.form.addTitle")}
+                  {editId ? t("leaveType.form.editTitle") : t("leaveType.form.addTitle")}
                 </div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
                   {t("leaveType.form.subtitle")}
@@ -276,13 +485,12 @@ export default function LeaveTypeCard() {
                 className="h-10 w-10 rounded-2xl border border-gray-200 bg-white text-slate-700
                   font-black text-[11px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95
                   inline-flex items-center justify-center"
-                aria-label="Close"
+                aria-label={t("common.close")}
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Body */}
             <div className="px-6 py-6 max-h-[75vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Label EN */}
@@ -304,35 +512,54 @@ export default function LeaveTypeCard() {
                 </div>
 
                 {/* Label TH */}
-                
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     {t("leaveType.form.labelTh")}
                   </label>
-                <input
-                  placeholder="TH"
-                  className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
+                  <input
+                    placeholder="TH"
+                    className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
                       text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                  value={label.th}
-                  onChange={(e) =>
-                    setLabel((prev) => ({ ...prev, th: e.target.value }))
-                  }
-                />
-</div>
-                {/* Label JP */}
+                    value={label.th}
+                    onChange={(e) => setLabel((prev) => ({ ...prev, th: e.target.value }))}
+                  />
+                </div>
+
+                {/* Label JA */}
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     {t("leaveType.form.labelJa")}
                   </label>
-                <input
-                  placeholder="JP"
-                  className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
+                  <input
+                    placeholder="JA"
+                    className="w-full h-11 px-5 rounded-2xl bg-white border border-gray-200
                       text-slate-800 font-black text-[12px] outline-none focus:ring-2 focus:ring-indigo-100"
-                  value={label.ja}
-                  onChange={(e) =>
-                    setLabel((prev) => ({ ...prev, ja: e.target.value }))
-                  }
-                />
+                    value={label.ja}
+                    onChange={(e) => setLabel((prev) => ({ ...prev, ja: e.target.value }))}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t("leaveType.form.color")}
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="h-11 w-11 rounded-2xl border border-gray-200"
+                      style={{ backgroundColor: normalizeHex(color, DEFAULT_COLOR) }}
+                      title={normalizeHex(color, DEFAULT_COLOR)}
+                    />
+                    <input
+                      type="color"
+                      value={normalizeHex(color, DEFAULT_COLOR)}
+                      onChange={(e) => setColor(e.target.value)}
+                      className="h-11 w-16 rounded-2xl border border-gray-200 bg-white"
+                      aria-label={t("leaveType.form.color")}
+                    />
+                    <div className="text-[12px] font-black text-slate-800">
+                      {normalizeHex(color, DEFAULT_COLOR)}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Paid */}
@@ -377,11 +604,8 @@ export default function LeaveTypeCard() {
                     onChange={(e) => setMaxConsecutiveDays(e.target.value)}
                   />
                 </div>
-
-                
               </div>
 
-              {/* Footer buttons */}
               <div className="mt-6 flex justify-end gap-2">
                 <button
                   type="button"
@@ -391,9 +615,7 @@ export default function LeaveTypeCard() {
                     inline-flex items-center gap-2"
                 >
                   <Plus size={16} />
-                  {editId
-                    ? t("leaveType.form.update")
-                    : t("leaveType.form.add")}
+                  {editId ? t("leaveType.form.update") : t("leaveType.form.add")}
                 </button>
               </div>
             </div>
@@ -403,7 +625,6 @@ export default function LeaveTypeCard() {
 
       {/* ========================= TABLE CARD ========================= */}
       <div className="mt-6 rounded-3xl border border-gray-200 bg-white overflow-hidden">
-        {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
             <div className="text-sm font-black uppercase tracking-widest text-slate-800">
@@ -425,64 +646,86 @@ export default function LeaveTypeCard() {
           </button>
         </div>
 
-        {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
               <tr>
                 <th className="px-6 py-4">{t("leaveType.table.name")}</th>
                 <th className="px-6 py-4">{t("leaveType.table.paid")}</th>
-                <th className="px-6 py-4">
-                  {t("leaveType.table.maxCarryOver")}
-                </th>
-                <th className="px-6 py-4">
-                  {t("leaveType.table.maxConsecutive")}
-                </th>
-                <th className="px-6 py-4 text-right">
-                  {t("leaveType.table.actions")}
-                </th>
+                <th className="px-6 py-4">{t("leaveType.table.maxCarryOver")}</th>
+                <th className="px-6 py-4">{t("leaveType.table.maxConsecutive")}</th>
+                <th className="px-6 py-4 text-center">{t("leaveType.table.color")}</th>
+                <th className="px-6 py-4 text-center">{t("leaveType.table.actions")}</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-gray-100">
-              {pagedLeaveTypes.map((lt) => (
-                <tr key={lt.id} className="hover:bg-gray-50/50">
-                  <td className="px-6 py-4 font-black">
-                    {getLeaveTypeLabel(lt.label, lt.typeName, i18n.language)}
-                  </td>
-                  <td className="px-6 py-4 font-bold">
-                    {renderPaid(lt.isPaid, t)}
-                  </td>
-                  <td className="px-6 py-4 font-bold">
-                    {Number(lt.maxCarryOver)} {t("common.days")}
-                  </td>
-                  <td className="px-6 py-4 font-bold">
-                    {renderMaxConsecutive(lt.maxConsecutiveDays, t)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => openEditForm(lt)}
-                        className="h-9 px-4 rounded-3xl border border-gray-200 bg-white text-slate-700
-                              font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95
-                              inline-flex items-center gap-2"
-                      >
-                        <Pencil size={12} />
-                        {t("leaveType.action.edit")}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(lt)}
-                        className="h-9 px-4 rounded-3xl border border-rose-100 bg-rose-50 text-rose-700
-                              font-black text-[10px] uppercase tracking-widest hover:bg-rose-100 transition-all active:scale-95
-                              inline-flex items-center gap-2"
-                      >
-                        <Trash2 size={12} />
-                        {t("leaveType.action.delete")}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {pagedLeaveTypes.map((lt) => {
+                const rowColor = normalizeHex(tempColors[lt.id] ?? lt.color, DEFAULT_COLOR);
+
+                return (
+                  <tr key={lt.id} className="hover:bg-gray-50/50">
+                    <td className="px-6 py-4 font-black">
+                      {getLeaveTypeLabel(lt.label, lt.typeName, i18n.language)}
+                    </td>
+
+                    <td className="px-6 py-4 font-bold">{renderPaid(lt.isPaid, t)}</td>
+
+                    <td className="px-6 py-4 font-bold">
+                      {Number(lt.maxCarryOver)} {t("common.days")}
+                    </td>
+
+                    <td className="px-6 py-4 font-bold">
+                      {renderMaxConsecutive(lt.maxConsecutiveDays, t)}
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openColorModal(lt)}
+                          className="h-9 px-4 rounded-3xl border border-gray-200 bg-white text-slate-700
+                            font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95
+                            inline-flex items-center gap-2"
+                          title={t("leaveType.action.color")}
+                          aria-label={t("leaveType.action.color")}
+                        >
+                          <span
+                            className="h-3 w-3 rounded-full border border-gray-200"
+                            style={{ backgroundColor: rowColor }}
+                          />
+                          <Palette size={12} />
+                          {t("leaveType.action.color")}
+                        </button>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => openEditForm(lt)}
+                          className="h-9 px-4 rounded-3xl border border-gray-200 bg-white text-slate-700
+                            font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95
+                            inline-flex items-center gap-2"
+                        >
+                          <Pencil size={12} />
+                          {t("leaveType.action.edit")}
+                        </button>
+
+                        <button
+                          onClick={() => handleDelete(lt)}
+                          className="h-9 px-4 rounded-3xl border border-rose-100 bg-rose-50 text-rose-700
+                            font-black text-[10px] uppercase tracking-widest hover:bg-rose-100 transition-all active:scale-95
+                            inline-flex items-center gap-2"
+                        >
+                          <Trash2 size={12} />
+                          {t("leaveType.action.delete")}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 

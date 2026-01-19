@@ -237,12 +237,14 @@ export default {
         maxCarryOver: "Max Carry Over",
         maxConsecutive: "Max Consecutive",
         actions: "Actions",
+        color: "Color",
       },
 
       action: {
         add: "Add Leave Type",
         edit: "Edit",
         delete: "Delete",
+        color: "Color",
       },
 
       form: {
@@ -260,9 +262,22 @@ export default {
         add: "Add",
         update: "update",
         close: "close",
+        color: "Color",
 
         requiredLabel: "Both Thai and English labels are required.",
         invalidNumber: "Values must be zero or greater.",
+      },
+
+      color: {
+        title: "Leave type color",
+        subtitle: "Choose a color for this leave type",
+        current: "Current color",
+        pick: "Pick color",
+        presets: "Presets",
+        save: "Save",
+        confirmTitle: "Confirm color change",
+        confirmMessage: 'Change color for "{{name}}"?',
+        saved: "Color updated successfully.",
       },
 
       confirm: {

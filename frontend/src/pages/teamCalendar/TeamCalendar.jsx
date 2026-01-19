@@ -210,17 +210,15 @@ export default function TeamCalendar() {
             <div className="flex items-center justify-end gap-2">
 
               <ExportCsvButton
-  leaves={leaves}
-  selectedTypes={selectedTypes}
-  leaveTypeFilters={LEAVE_TYPE_FILTERS}
-  currentDate={currentDate}
-  dfLocale={dfLocale}
-  matchLeaveType={matchLeaveType}
-  t={t}
-/>
+                leaves={leaves}
+                selectedTypes={selectedTypes}
+                leaveTypeFilters={LEAVE_TYPE_FILTERS}
+                currentDate={currentDate}
+                dfLocale={dfLocale}
+                matchLeaveType={matchLeaveType}
+                t={t}
+              />
 
-
-              
               <div className="flex items-center gap-1">
                 <button
                   onClick={goPrev}

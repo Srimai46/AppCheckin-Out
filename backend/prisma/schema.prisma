@@ -131,6 +131,7 @@ model LeaveType {
   isPaid             Boolean @default(true) @map("is_paid")
   maxCarryOver       Decimal @default(0.00) @map("max_carry_over") @db.Decimal(5, 2)
   maxConsecutiveDays Int?    @default(0) @map("max_consecutive_days")
+  color              String   @default("#6366F1") @map("color") @db.VarChar(7)
 
   leaveQuotas        LeaveQuota[]
   leaveRequests      LeaveRequest[]
