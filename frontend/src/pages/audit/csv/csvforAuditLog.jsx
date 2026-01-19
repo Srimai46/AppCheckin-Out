@@ -1,5 +1,5 @@
 // frontend/src/pages/csv/csvforAuditLog.jsx
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Download, Filter, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import DateGridPicker from "../../../components/shared/DateGridPicker";
@@ -14,26 +14,60 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   const { t } = useTranslation();
 
   // -------------------------
+  // Date helpers (✅ default today)
+  // -------------------------
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const todayYMD = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  };
+  const todayYM = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  };
+
+  // -------------------------
   // Period Filter
   // -------------------------
   const [periodType, setPeriodType] = useState("daily"); // daily | monthly | yearly | quarter | custom
 
   // daily
   const [dailyDate, setDailyDate] = useState(""); // yyyy-mm-dd
-
   // monthly
   const [monthValue, setMonthValue] = useState(""); // yyyy-mm
-
   // yearly
-  const [yearValue, setYearValue] = useState(String(new Date().getFullYear())); // keep as string yyyy
-
+  const [yearValue, setYearValue] = useState(String(new Date().getFullYear())); // yyyy string
   // quarter
   const [quarterYear, setQuarterYear] = useState(String(new Date().getFullYear())); // yyyy string
   const [quarterValue, setQuarterValue] = useState("Q1"); // Q1..Q4
-
   // custom
   const [customFrom, setCustomFrom] = useState(""); // yyyy-mm-dd
   const [customTo, setCustomTo] = useState(""); // yyyy-mm-dd
+
+  // ✅ Seed defaults when opening export popup
+  useEffect(() => {
+    if (!open) return;
+
+    const ymd = todayYMD();
+    const ym = todayYM();
+    const y = String(new Date().getFullYear());
+
+    // default period = daily (ตามที่คุณตั้งใจ)
+    setPeriodType("daily");
+
+    // set defaults only if empty (ไม่ทับค่าที่ user เคยเลือกไว้)
+    setDailyDate((prev) => prev || ymd);
+    setMonthValue((prev) => prev || ym);
+    setYearValue((prev) => prev || y);
+    setQuarterYear((prev) => prev || y);
+    setQuarterValue((prev) => prev || "Q1");
+
+    // custom: ให้เริ่มเป็นวันนี้→วันนี้ (หรือจะปล่อยว่างก็ได้ แต่แบบนี้ใช้ง่ายกว่า)
+    setCustomFrom((prev) => prev || ymd);
+    setCustomTo((prev) => prev || ymd);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // -------------------------
   // DateGridPicker controller
@@ -70,7 +104,6 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   }, [pickerField, dailyDate, monthValue, yearValue, quarterYear, customFrom, customTo]);
 
   const handlePickerChange = (val) => {
-    // val will be: null (all) OR "yyyy" OR "yyyy-mm" OR "yyyy-mm-dd"
     const v = val == null ? "" : String(val);
 
     if (pickerField === "daily") setDailyDate(v);
@@ -123,7 +156,8 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   // -------------------------
   const pad = (n) => String(n).padStart(2, "0");
 
-  const toDateOnly = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const toDateOnly = (d) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
   const startOfMonth = (yyyyMm) => {
     if (!yyyyMm) return "";
@@ -178,14 +212,18 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   };
 
   const resetAll = () => {
+    const ymd = todayYMD();
+    const ym = todayYM();
+    const y = String(new Date().getFullYear());
+
     setPeriodType("daily");
-    setDailyDate("");
-    setMonthValue("");
-    setYearValue(String(new Date().getFullYear()));
-    setQuarterYear(String(new Date().getFullYear()));
+    setDailyDate(ymd);
+    setMonthValue(ym);
+    setYearValue(y);
+    setQuarterYear(y);
     setQuarterValue("Q1");
-    setCustomFrom("");
-    setCustomTo("");
+    setCustomFrom(ymd);
+    setCustomTo(ymd);
 
     setFActions([]);
     setFModel("all");
@@ -644,7 +682,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
         </div>
       </div>
 
-      {/* ✅ DateGridPicker modal (one shared instance) */}
+      {/* DateGridPicker modal */}
       <DateGridPicker
         open={pickerOpen}
         value={pickerValue}
@@ -652,7 +690,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
         onClose={closePicker}
         title={pickerTitle}
         allowAll={false}
-        granularity={pickerGranularity} // "day" | "month" | "year"
+        granularity={pickerGranularity}
       />
     </div>
   );

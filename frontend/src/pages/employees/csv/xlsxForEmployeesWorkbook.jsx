@@ -25,9 +25,6 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
   // -------------------------
   // Export Mode
   // -------------------------
-  // workbookType:
-  // 1) "perEmployeeData" => หลาย sheet: Employee-Name (Attendance/Leave)
-  // 2) "employeesList"   => sheet เดียว: รายชื่อพนักงาน
   const [workbookType, setWorkbookType] = useState("perEmployeeData");
   const [exportType, setExportType] = useState("attendance"); // attendance | leave
 
@@ -36,21 +33,43 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
   // -------------------------
   const [periodType, setPeriodType] = useState("monthly"); // daily | monthly | yearly | quarter | custom
 
-  // daily
   const [dailyDate, setDailyDate] = useState(""); // yyyy-mm-dd
-  // monthly
   const [monthValue, setMonthValue] = useState(""); // yyyy-mm
-  // yearly
-  const [yearValue, setYearValue] = useState(new Date().getFullYear());
-  // quarter
-  const [quarterYear, setQuarterYear] = useState(new Date().getFullYear());
-  const [quarterValue, setQuarterValue] = useState("Q1");
-  // custom
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  const [yearValue, setYearValue] = useState(new Date().getFullYear()); // number yyyy
+  const [quarterYear, setQuarterYear] = useState(new Date().getFullYear()); // number yyyy
+  const [quarterValue, setQuarterValue] = useState("Q1"); // Q1..Q4
+  const [customFrom, setCustomFrom] = useState(""); // yyyy-mm-dd
+  const [customTo, setCustomTo] = useState(""); // yyyy-mm-dd
 
   // -------------------------
-  // DateGridPicker modal control (✅ สำคัญ)
+  // Date helpers
+  // -------------------------
+  const pad = (n) => String(n).padStart(2, "0");
+  const todayYMD = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const todayYM = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+  };
+  const toDateOnly = (d) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  const startOfMonth = (yyyyMm) => {
+    if (!yyyyMm) return "";
+    const [y, m] = yyyyMm.split("-").map((x) => parseInt(x, 10));
+    return toDateOnly(new Date(y, m - 1, 1));
+  };
+
+  const endOfMonth = (yyyyMm) => {
+    if (!yyyyMm) return "";
+    const [y, m] = yyyyMm.split("-").map((x) => parseInt(x, 10));
+    return toDateOnly(new Date(y, m, 0));
+  };
+
+  // -------------------------
+  // DateGridPicker modal control
   // -------------------------
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerTarget, setPickerTarget] = useState(null); // "daily" | "month" | "year" | "qyear" | "from" | "to"
@@ -76,23 +95,65 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
   }, [open]);
 
   // -------------------------
-  // Date helpers
+  // ✅ Seed defaults when popup opens
+  // - daily: วันนี้
+  // - monthly: เดือนปัจจุบัน
   // -------------------------
-  const pad = (n) => String(n).padStart(2, "0");
-  const toDateOnly = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  useEffect(() => {
+    if (!open) return;
 
-  const startOfMonth = (yyyyMm) => {
-    if (!yyyyMm) return "";
-    const [y, m] = yyyyMm.split("-").map((x) => parseInt(x, 10));
-    return toDateOnly(new Date(y, m - 1, 1));
-  };
+    const ymd = todayYMD();
+    const ym = todayYM();
+    const y = new Date().getFullYear();
 
-  const endOfMonth = (yyyyMm) => {
-    if (!yyyyMm) return "";
-    const [y, m] = yyyyMm.split("-").map((x) => parseInt(x, 10));
-    return toDateOnly(new Date(y, m, 0));
-  };
+    // ถ้าเปิดมาครั้งแรกแล้วค่าใน state ยังว่าง ให้เติมค่า default
+    setDailyDate((prev) => prev || ymd);
+    setMonthValue((prev) => prev || ym);
+    setYearValue((prev) => (prev ? prev : y));
+    setQuarterYear((prev) => (prev ? prev : y));
+    setQuarterValue((prev) => prev || "Q1");
+    setCustomFrom((prev) => prev || ymd);
+    setCustomTo((prev) => prev || ymd);
 
+    // ถ้าหน้านี้ default เป็น monthly อยู่แล้ว แต่ monthValue ว่าง → เติมทันที
+    if (periodType === "monthly") {
+      setMonthValue((prev) => prev || ym);
+    }
+    if (periodType === "daily") {
+      setDailyDate((prev) => prev || ymd);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // -------------------------
+  // ✅ Auto-fill when switching periodType
+  // -------------------------
+  useEffect(() => {
+    if (!open) return;
+
+    const ymd = todayYMD();
+    const ym = todayYM();
+    const y = new Date().getFullYear();
+
+    if (periodType === "daily") {
+      setDailyDate((prev) => prev || ymd);
+    } else if (periodType === "monthly") {
+      setMonthValue((prev) => prev || ym);
+    } else if (periodType === "yearly") {
+      setYearValue((prev) => (prev ? prev : y));
+    } else if (periodType === "quarter") {
+      setQuarterYear((prev) => (prev ? prev : y));
+      setQuarterValue((prev) => prev || "Q1");
+    } else if (periodType === "custom") {
+      setCustomFrom((prev) => prev || ymd);
+      setCustomTo((prev) => prev || ymd);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodType, open]);
+
+  // -------------------------
+  // range
+  // -------------------------
   const range = useMemo(() => {
     if (periodType === "daily") return { from: dailyDate || "", to: dailyDate || "" };
 
@@ -119,7 +180,16 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
     }
 
     return { from: customFrom || "", to: customTo || "" };
-  }, [periodType, dailyDate, monthValue, yearValue, quarterYear, quarterValue, customFrom, customTo]);
+  }, [
+    periodType,
+    dailyDate,
+    monthValue,
+    yearValue,
+    quarterYear,
+    quarterValue,
+    customFrom,
+    customTo,
+  ]);
 
   // -------------------------
   // DateGridPicker value/granularity
@@ -179,7 +249,13 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
   };
 
   const fetchAttendanceRows = async ({ empId, from, to }) => {
-    const paths = ["/attendance/records", "/attendance/time-records", "/time-records", "/attendance/history", "/attendance"];
+    const paths = [
+      "/attendance/records",
+      "/attendance/time-records",
+      "/time-records",
+      "/attendance/history",
+      "/attendance",
+    ];
 
     const paramSets = [
       { employeeId: empId, from, to },
@@ -253,7 +329,8 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
       const empId = emp?.id;
       if (!empId) continue;
 
-      const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || `EMP_${empId}`;
+      const fullName =
+        `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || `EMP_${empId}`;
       const sheetName = safeSheetName(fullName);
 
       let rows = [];
@@ -272,7 +349,8 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
     if (workbookType === "perEmployeeData") {
       if (periodType === "daily" && !dailyDate) return t("xlsxWorkbook.errors.pickDaily");
       if (periodType === "monthly" && !monthValue) return t("xlsxWorkbook.errors.pickMonthly");
-      if (periodType === "custom" && (!customFrom || !customTo)) return t("xlsxWorkbook.errors.pickCustom");
+      if (periodType === "custom" && (!customFrom || !customTo))
+        return t("xlsxWorkbook.errors.pickCustom");
     }
     return "";
   };
@@ -315,12 +393,17 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
         const perSheets = await buildPerEmployeeSheets({ from, to });
         perSheets.forEach((s) => XLSX.utils.book_append_sheet(wb, s.ws, s.name));
 
-        XLSX.writeFile(wb, `${exportType}_employees_${from || "na"}_${to || "na"}_${stamp}.xlsx`);
+        XLSX.writeFile(
+          wb,
+          `${exportType}_employees_${from || "na"}_${to || "na"}_${stamp}.xlsx`
+        );
       }
 
       onClose?.();
     } catch (e) {
-      setErrMsg(e?.response?.data?.message || e?.message || t("xlsxWorkbook.errors.exportFailed"));
+      setErrMsg(
+        e?.response?.data?.message || e?.message || t("xlsxWorkbook.errors.exportFailed")
+      );
     } finally {
       setLoading(false);
     }
@@ -350,7 +433,9 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
         className="w-full h-10 px-3 rounded-xl border border-slate-200 text-left font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-between"
         disabled={loading}
       >
-        <span className={value ? "text-slate-800" : "text-slate-400"}>{value || placeholder}</span>
+        <span className={value ? "text-slate-800" : "text-slate-400"}>
+          {value || placeholder}
+        </span>
         <CalendarDays size={18} className="text-slate-500" />
       </button>
     </div>
@@ -378,7 +463,9 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
             <div className="flex items-center gap-2">
               <FileSpreadsheet size={18} className="text-slate-700" />
               <div>
-                <div className="text-lg font-black text-slate-800">{t("xlsxWorkbook.title")}</div>
+                <div className="text-lg font-black text-slate-800">
+                  {t("xlsxWorkbook.title")}
+                </div>
                 <div className="text-xs text-slate-500 font-bold">
                   {t("xlsxWorkbook.employeesCount")} {employees?.length || 0}
                 </div>
@@ -404,7 +491,9 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
           <div className="px-6 py-5 space-y-5">
             {/* workbook type */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-slate-600">{t("xlsxWorkbook.workbookType.label")}</div>
+              <div className="text-xs font-bold text-slate-600">
+                {t("xlsxWorkbook.workbookType.label")}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {[
                   { key: "perEmployeeData", label: t("xlsxWorkbook.workbookType.perEmployee") },
@@ -432,12 +521,13 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
               </div>
             </div>
 
-            {/* perEmployee options */}
             {workbookType === "perEmployeeData" && (
               <>
                 {/* export type */}
                 <div className="space-y-2">
-                  <div className="text-xs font-bold text-slate-600">{t("xlsxWorkbook.dataType.label")}</div>
+                  <div className="text-xs font-bold text-slate-600">
+                    {t("xlsxWorkbook.dataType.label")}
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {[
                       { key: "attendance", label: t("xlsxWorkbook.dataType.attendance") },
@@ -466,7 +556,9 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
 
                 {/* period */}
                 <div className="space-y-2">
-                  <div className="text-xs font-bold text-slate-600">{t("xlsxWorkbook.period.label")}</div>
+                  <div className="text-xs font-bold text-slate-600">
+                    {t("xlsxWorkbook.period.label")}
+                  </div>
 
                   <div className="flex flex-wrap gap-2">
                     {[
@@ -620,18 +712,16 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
         </div>
       </div>
 
-      {/* ✅ DateGridPicker เป็น modal ซ้อน modal (ต้องอยู่ท้ายสุด + z สูง) */}
-      <div className="relative z-[100000]">
-        <DateGridPicker
-          open={pickerOpen}
-          granularity={pickerGranularity}
-          allowAll={false}
-          value={pickerValue}
-          onChange={handlePickerChange}
-          onClose={closePicker}
-          title={pickerTitle}
-        />
-      </div>
+      {/* ✅ DateGridPicker modal (one instance) */}
+      <DateGridPicker
+        open={pickerOpen}
+        granularity={pickerGranularity}
+        allowAll={false}
+        value={pickerValue}
+        onChange={handlePickerChange}
+        onClose={closePicker}
+        title={pickerTitle}
+      />
     </div>
   );
 }

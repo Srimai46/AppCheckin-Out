@@ -1,5 +1,5 @@
 // frontend/src/pages/csv/csvforEmployee.jsx
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Download, Filter, X, Loader2, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import api from "../../../api/axios";
@@ -26,7 +26,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
   const [quarterYear, setQuarterYear] = useState(String(new Date().getFullYear())); // "" = All
   const [quarterValue, setQuarterValue] = useState("Q1");
 
-  // custom (yyyy-mm-dd) -> "" = All (ถ้าจะบังคับค่อย validate)
+  // custom (yyyy-mm-dd)
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
@@ -52,6 +52,16 @@ export default function CsvForEmployee({ open, onClose, employee }) {
   // =========================
   const pad = (n) => String(n).padStart(2, "0");
 
+  const todayYMD = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const todayYM = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+  };
+
   const toDateOnly = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
   const startOfMonth = (yyyyMm) => {
@@ -66,7 +76,67 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     return toDateOnly(new Date(y, m, 0));
   };
 
+  // =========================
+  // ✅ Seed defaults when modal opens
+  // - daily: วันนี้
+  // - monthly: เดือนปัจจุบัน
+  // - custom: from/to = วันนี้ (ปรับได้)
+  // =========================
+  useEffect(() => {
+    if (!open) return;
+
+    const ymd = todayYMD();
+    const ym = todayYM();
+    const y = new Date().getFullYear();
+
+    // เติมค่า default เฉพาะตอน "ว่าง"
+    setDailyDate((prev) => prev || ymd);
+    setMonthValue((prev) => prev || ym);
+    setYearValue((prev) => prev || String(y));
+    setQuarterYear((prev) => prev || String(y));
+    setQuarterValue((prev) => prev || "Q1");
+    setCustomFrom((prev) => prev || ymd);
+    setCustomTo((prev) => prev || ymd);
+
+    // ให้สอดคล้องกับ period ที่เลือกอยู่
+    if (periodType === "monthly") setMonthValue((prev) => prev || ym);
+    if (periodType === "daily") setDailyDate((prev) => prev || ymd);
+    if (periodType === "custom") {
+      setCustomFrom((prev) => prev || ymd);
+      setCustomTo((prev) => prev || ymd);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // =========================
+  // ✅ Auto-fill when switching periodType (ตอนสลับแท็บ)
+  // =========================
+  useEffect(() => {
+    if (!open) return;
+
+    const ymd = todayYMD();
+    const ym = todayYM();
+    const y = new Date().getFullYear();
+
+    if (periodType === "daily") {
+      setDailyDate((prev) => prev || ymd);
+    } else if (periodType === "monthly") {
+      setMonthValue((prev) => prev || ym);
+    } else if (periodType === "yearly") {
+      setYearValue((prev) => prev || String(y));
+    } else if (periodType === "quarter") {
+      setQuarterYear((prev) => prev || String(y));
+      setQuarterValue((prev) => prev || "Q1");
+    } else if (periodType === "custom") {
+      setCustomFrom((prev) => prev || ymd);
+      setCustomTo((prev) => prev || ymd);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodType, open]);
+
+  // =========================
   // ===== Range (รองรับ All)
+  // =========================
   const range = useMemo(() => {
     // All => from/to = ""
     if (periodType === "daily") {
@@ -101,7 +171,16 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     // custom
     if (!customFrom || !customTo) return { from: "", to: "" };
     return { from: customFrom, to: customTo };
-  }, [periodType, dailyDate, monthValue, yearValue, quarterYear, quarterValue, customFrom, customTo]);
+  }, [
+    periodType,
+    dailyDate,
+    monthValue,
+    yearValue,
+    quarterYear,
+    quarterValue,
+    customFrom,
+    customTo,
+  ]);
 
   // =========================
   // CSV helpers
@@ -124,7 +203,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
   };
 
   // =========================
-  // API Fetchers (รองรับหลาย endpoint + หลาย params กัน 404)
+  // API Fetchers
   // =========================
   const normalizeRows = (res) => {
     const data = res?.data;
@@ -321,7 +400,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     if (!employee?.id) return t("employeeExport.errors.noEmployee");
 
     if (periodType === "custom") {
-      // custom ต้องเลือกครบ (ถ้าต้องการให้ custom = All ได้ ให้เอา if นี้ออก)
+      // ถ้าอยากให้ custom = All ได้ ให้เอา if นี้ออก
       if (!customFrom || !customTo) return t("employeeExport.errors.customIncomplete");
     }
 
@@ -363,11 +442,8 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       onClose?.();
     } catch (e) {
       const status = e?.response?.status;
-      if (status === 404) {
-        setErrMsg(t("employeeExport.errors.endpoint404"));
-      } else {
-        setErrMsg(e?.response?.data?.message || e?.message || t("employeeExport.errors.exportFailed"));
-      }
+      if (status === 404) setErrMsg(t("employeeExport.errors.endpoint404"));
+      else setErrMsg(e?.response?.data?.message || e?.message || t("employeeExport.errors.exportFailed"));
     } finally {
       setLoading(false);
     }
@@ -472,7 +548,9 @@ export default function CsvForEmployee({ open, onClose, employee }) {
 
             {/* period */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-slate-600">{t("employeeExport.period.label")}</div>
+              <div className="text-xs font-bold text-slate-600">
+                {t("employeeExport.period.label")}
+              </div>
 
               <div className="flex flex-wrap gap-2">
                 {[
