@@ -225,6 +225,17 @@ export default {
         edit: "編集",
         delete: "削除",
       },
+
+      confirm: {
+        addTitle: "追加してもよろしいですか？",
+        updateTitle: "更新してもよろしいですか？",
+        deleteTitle: "この祝日を削除しますか？",
+      },
+      toast: {
+        added: "祝日を追加しました。",
+        updated: "祝日を更新しました。",
+        deleted: "祝日を削除しました。",
+      },
     },
 
     /* -------- Leave Type -------- */
@@ -265,7 +276,7 @@ export default {
         color: "休暇タイプの色",
 
         // validation text
-        requiredLabel: "タイ語と英語のラベルは両方必要です。",
+        requiredLabel: "必須項目をすべて入力してください。",
         invalidNumber: "値は 0 以上である必要があります。",
       },
 
@@ -473,25 +484,26 @@ export default {
 
     /* -------- Year End Configuration -------- */
     yearEndConfig: {
-      title: "年次処理",
-      subtitle: "繰り越し、付与日数、全体ルールを設定します。",
+      title: "年末設定",
+      subtitle: "繰り越し日数・付与日数・全体ポリシーを設定します。",
 
       carryOverTitle: "休暇タイプの繰り越し",
-      carryOverHint: "翌年への最大繰り越し日数（従業員ごと）",
+      carryOverHint: "翌年に繰り越せる最大日数（従業員ごと）",
 
-      quotaTitle: "{{year}}年のクォータ設定",
-      quotaHint: "従業員あたりの基本休暇クォータ",
+      quotaTitle: "{{year}}年の付与日数を設定",
+      quotaHint: "従業員ごとの基本付与日数",
 
-      maxConsecutiveTitle: "全体ルール：連続取得の上限",
+      maxConsecutiveTitle: "全体ポリシー：連続休日の上限",
       unlimitedHint: "0 = 無制限",
 
       targetYear: "対象年",
+      yearLabel: "{{year}}年",
 
-      process: "処理実行",
+      process: "確定して処理",
       processing: "処理中...",
 
       warning:
-        "この操作は全従業員のデータを上書きし、過去データをロックします。",
+        "この操作により全従業員の付与日数が上書きされ、過去データはロックされます。",
     },
 
     /* -------- Employee Detail -------- */
@@ -636,6 +648,10 @@ export default {
       fri: "金",
       sat: "土",
       sun: "日",
+
+      confirmTitle: "勤務日を保存しますか？",
+      confirmSubtitle: "勤務日を確認",
+      savedText: "勤務日を更新しました。",
     },
 
     /* -------- worktimeby role -------- */
@@ -653,12 +669,18 @@ export default {
 
       saveBtn: "勤務時間を保存",
       savingBtn: "保存中...",
+
+      confirmTitle: "勤務時間を保存しますか？",
+      savedText: "勤務時間を保存しました。",
     },
 
     /* -------- Max Consecutive -------- */
     maxConsecutive: {
       title: "連続休日の上限",
       subtitle: "申請ごとに許可される連続休日の日数の上限",
+
+      confirmTitle: "連続休日の上限を保存しますか？",
+      savedText: "更新しました。",
     },
 
     /* -------- YearEnd History -------- */
@@ -679,8 +701,42 @@ export default {
 
     /* -------- YearEnd Policy -------- */
     yearEndPolicy: {
-      title: "休日ポリシー & 特別休日",
-      subtitle: "稼働日を設定し、特別休日を管理します。",
+      title: "勤務日ポリシーと特別休日",
+      subtitle: "勤務日を設定し、特別休日を管理します。",
+
+      buttons: {
+        add: "追加",
+        update: "更新",
+      },
+
+      confirm: {
+        saveWorkingDaysTitle: "勤務日を保存しますか？",
+        saveWorkTimeTitle: "勤務時間を保存しますか？",
+        saveMaxConsecutiveTitle: "連続休日の上限を保存しますか？",
+        addHolidayTitle: "追加を確認しますか？",
+        updateHolidayTitle: "更新を確認しますか？",
+        deleteHolidayTitle: "この休日を削除しますか？",
+      },
+
+      success: {
+        workingDaysSaved: "勤務日を更新しました。",
+        workTimeSaved: "勤務時間を保存しました。",
+        maxConsecutiveSaved: "更新しました。",
+        holidayAdded: "休日を追加しました。",
+        holidayUpdated: "休日を更新しました。",
+        holidayDeleted: "休日を削除しました。",
+      },
+
+      errors: {
+        loadWorkingDaysFailed: "勤務日の読み込みに失敗しました: {{msg}}",
+        pickAtLeastOneDay: "少なくとも1日選択してください。",
+        invalidTime: "無効な時間: {{role}}",
+        invalidRange: "無効な時間範囲: {{role}}",
+        invalidLimit: "無効な上限です。",
+        missingHolidayName: "少なくとも1言語で名前を入力してください。",
+        missingDate: "日付を指定してください。",
+        invalidRangeGeneric: "無効な期間です。",
+      },
     },
 
     /* -------- YearEnd Process -------- */
@@ -902,6 +958,47 @@ export default {
 
         reasonTitle: "理由: {{reason}}",
         noteTitle: "メモ: {{note}}",
+      },
+
+      exportCsv: {
+        openButton: "CSVをエクスポート",
+        title: "CSVエクスポート",
+
+        scope: {
+          label: "範囲",
+          options: {
+            month: "月別",
+            year: "年別",
+            all: "すべて",
+          },
+        },
+
+        fields: {
+          month: "月",
+          year: "年",
+        },
+
+        loading: "読み込み中...",
+        typesLoadFailed: "休暇タイプの読み込みに失敗しました",
+
+        leaveTypes: {
+          label: "休暇タイプ",
+          allTypes: "すべてのタイプ",
+          selectedCount: "{{count}}件選択済み",
+          dropdownTitle: "タイプを選択",
+          selectAll: "すべて選択",
+          clear: "クリア",
+        },
+
+        found: "件数",
+        items: "件",
+
+        download: "CSVをダウンロード",
+
+        pickerTitle: {
+          month: "月を選択",
+          year: "年を選択",
+        },
       },
     },
 
@@ -1146,6 +1243,78 @@ export default {
         selectYear: "年を選択",
         dateFrom: "開始日",
         dateTo: "終了日",
+      },
+    },
+
+    /* -------- Holiday Policy Errors -------- */
+    holidayPolicy: {
+      success: {
+        savedTitle: "保存しました",
+        updatedTitle: "更新しました",
+        addedTitle: "追加しました",
+        deletedTitle: "削除しました",
+      },
+
+      errors: {
+        loadFailedTitle: "読み込みに失敗しました",
+        saveFailedTitle: "保存に失敗しました",
+        invalidTitle: "入力内容が無効です",
+        selectAtLeastOneDay: "少なくとも1日を選択してください。",
+        invalidTimeTitle: "無効な時刻",
+        invalidRangeTitle: "無効な範囲",
+        invalidLimitTitle: "無効な上限",
+        missingNameTitle: "名称が未入力です",
+        enterAtLeastOneLanguage: "少なくとも1つの言語で名称を入力してください。",
+        missingDateTitle: "日付が未選択です",
+        invalidRangeOnlyTitle: "無効な期間",
+      },
+    },
+
+    /* -------- Confirm Html (SweetAlert confirm bodies) -------- */
+    confirmHtml: {
+      common: {
+        to: "〜",
+        daySingular: "日",
+        dayPlural: "日",
+      },
+
+      workingDays: {
+        subtitle: "勤務日を確認",
+      },
+
+      workTime: {
+        title: "勤務時間の確認（役割別）",
+      },
+
+      maxConsecutive: {
+        title: "連続休日の上限を確認",
+        label: "連続日数の上限",
+      },
+
+      carryOver: {
+        title: "繰越上限の確認",
+        hint: "各休暇タイプの繰越上限（日数）を保存します（従業員ごと）。",
+      },
+
+      holiday: {
+        fallbackName: "祝日",
+        fields: {
+          holiday: "祝日",
+          date: "日付",
+        },
+        mode: {
+          add: "追加",
+          update: "更新",
+        },
+      },
+
+      holidayUpsert: {
+        title: "{{mode}}の確認",
+      },
+
+      holidayDelete: {
+        title: "祝日の削除確認",
+        hint: "この操作は元に戻せません。",
       },
     },
   },

@@ -232,6 +232,17 @@ export default {
         edit: "Edit",
         delete: "Delete",
       },
+
+      confirm: {
+        addTitle: "Confirm Add?",
+        updateTitle: "Confirm Update?",
+        deleteTitle: "Delete this holiday?",
+      },
+      toast: {
+        added: "Holidays added.",
+        updated: "Holiday updated.",
+        deleted: "Holiday removed.",
+      },
     },
 
     /* -------- Leave Type -------- */
@@ -271,7 +282,7 @@ export default {
         close: "close",
         color: "Color",
 
-        requiredLabel: "Both Thai and English labels are required.",
+        requiredLabel: "Please fill in all required fields.",
         invalidNumber: "Values must be zero or greater.",
       },
 
@@ -497,6 +508,7 @@ export default {
       unlimitedHint: "0 = Unlimited",
 
       targetYear: "Target Year",
+      yearLabel: "Year {{year}}",
 
       process: "Confirm & Process",
       processing: "Processing...",
@@ -654,6 +666,10 @@ export default {
       fri: "Fri",
       sat: "Sat",
       sun: "Sun",
+
+      confirmTitle: "Save Working Days?",
+      confirmSubtitle: "Confirm Working Days",
+      savedText: "Working days updated.",
     },
 
     /* -------- Work Time by Role -------- */
@@ -671,12 +687,18 @@ export default {
 
       saveBtn: "Save Work Time",
       savingBtn: "Saving...",
+
+      confirmTitle: "Save Work Time?",
+      savedText: "Work time saved.",
     },
 
     /* -------- Max Consecutive -------- */
     maxConsecutive: {
       title: "Max Consecutive Holidays",
       subtitle: "Maximum consecutive holiday days allowed per request",
+
+      confirmTitle: "Save Max Consecutive?",
+      savedText: "Updated.",
     },
 
     /* -------- YearEnd History -------- */
@@ -699,6 +721,40 @@ export default {
     yearEndPolicy: {
       title: "Holiday Policy & Special Holidays",
       subtitle: "Configure working days and manage special holidays.",
+
+      buttons: {
+        add: "Add",
+        update: "Update",
+      },
+
+      confirm: {
+        saveWorkingDaysTitle: "Save working days?",
+        saveWorkTimeTitle: "Save work time?",
+        saveMaxConsecutiveTitle: "Save max consecutive holidays?",
+        addHolidayTitle: "Confirm add?",
+        updateHolidayTitle: "Confirm update?",
+        deleteHolidayTitle: "Delete this holiday?",
+      },
+
+      success: {
+        workingDaysSaved: "Working days updated.",
+        workTimeSaved: "Work time saved.",
+        maxConsecutiveSaved: "Updated.",
+        holidayAdded: "Holidays added.",
+        holidayUpdated: "Holiday updated.",
+        holidayDeleted: "Holiday removed.",
+      },
+
+      errors: {
+        loadWorkingDaysFailed: "Failed to load working days. {{msg}}",
+        pickAtLeastOneDay: "Select at least 1 day.",
+        invalidTime: "Invalid time: {{role}}",
+        invalidRange: "Invalid time range: {{role}}",
+        invalidLimit: "Invalid limit.",
+        missingHolidayName: "Enter at least 1 language.",
+        missingDate: "Missing date.",
+        invalidRangeGeneric: "Invalid range.",
+      },
     },
 
     /* -------- YearEnd Process -------- */
@@ -922,6 +978,47 @@ export default {
 
         reasonTitle: "Reason: {{reason}}",
         noteTitle: "Note: {{note}}",
+      },
+
+      exportCsv: {
+        openButton: "Export CSV",
+        title: "Export CSV",
+
+        scope: {
+          label: "Data scope",
+          options: {
+            month: "Monthly",
+            year: "Yearly",
+            all: "All",
+          },
+        },
+
+        fields: {
+          month: "Month",
+          year: "Year",
+        },
+
+        loading: "Loading...",
+        typesLoadFailed: "Failed to load leave types",
+
+        leaveTypes: {
+          label: "Leave Types",
+          allTypes: "All types",
+          selectedCount: "Selected {{count}} types",
+          dropdownTitle: "Select types",
+          selectAll: "Select all",
+          clear: "Clear",
+        },
+
+        found: "Found",
+        items: "items",
+
+        download: "Download CSV",
+
+        pickerTitle: {
+          month: "Select month",
+          year: "Select year",
+        },
       },
     },
 
@@ -1206,6 +1303,78 @@ export default {
         selectYear: "Select year",
         dateFrom: "Date from",
         dateTo: "Date to",
+      },
+    },
+
+    /* -------- Holiday Policy Errors -------- */
+    holidayPolicy: {
+      success: {
+        savedTitle: "Saved",
+        updatedTitle: "Updated",
+        addedTitle: "Added",
+        deletedTitle: "Deleted",
+      },
+      
+      errors: {
+        loadFailedTitle: "Load Failed",
+        saveFailedTitle: "Save Failed",
+        invalidTitle: "Invalid",
+        selectAtLeastOneDay: "Select at least 1 day.",
+        invalidTimeTitle: "Invalid Time",
+        invalidRangeTitle: "Invalid Range",
+        invalidLimitTitle: "Invalid Limit",
+        missingNameTitle: "Missing Name",
+        enterAtLeastOneLanguage: "Enter at least 1 language.",
+        missingDateTitle: "Missing Date",
+        invalidRangeOnlyTitle: "Invalid Range",
+      },
+    },
+
+    /* -------- Confirm Html (SweetAlert confirm bodies) -------- */
+    confirmHtml: {
+      common: {
+        to: "to",
+        daySingular: "day",
+        dayPlural: "day(s)",
+      },
+
+      workingDays: {
+        subtitle: "Confirm Working Days",
+      },
+
+      workTime: {
+        title: "Confirm Work Time (By Role)",
+      },
+
+      maxConsecutive: {
+        title: "Confirm Max Consecutive Holidays",
+        label: "Max consecutive days",
+      },
+
+      carryOver: {
+        title: "Confirm Carry Over Limits",
+        hint: "You are about to save these carry over limits (per employee).",
+      },
+
+      holiday: {
+        fallbackName: "Holiday",
+        fields: {
+          holiday: "Holiday",
+          date: "Date",
+        },
+        mode: {
+          add: "Add",
+          update: "Update",
+        },
+      },
+
+      holidayUpsert: {
+        title: "Confirm {{mode}}",
+      },
+
+      holidayDelete: {
+        title: "Confirm Delete Holiday",
+        hint: "This action cannot be undone.",
       },
     },
   },

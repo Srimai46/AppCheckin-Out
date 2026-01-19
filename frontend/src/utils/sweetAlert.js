@@ -1,8 +1,6 @@
 import Swal from "sweetalert2";
 import i18n from "../components/i18n/i18n";
 
-
-
 export const alertConfirm = async (title, html, confirmText) => {
   const res = await Swal.fire({
     icon: "question",

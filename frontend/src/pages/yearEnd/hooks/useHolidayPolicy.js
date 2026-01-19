@@ -7,7 +7,12 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { alertConfirm, alertError, alertSuccess } from "../../../utils/sweetAlert";
+import { useTranslation } from "react-i18next";
+import {
+  alertConfirm,
+  alertError,
+  alertSuccess,
+} from "../../../utils/sweetAlert";
 import { calcTotalDays, clamp, isValidTime, safeYMD, toYMD } from "../utils";
 
 import {
@@ -31,7 +36,10 @@ const hasAtLeastOneName = (nameObj) =>
 // ============================
 // API helpers
 // ============================
-const API_HOST = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(/\/$/, "");
+const API_HOST = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(
+  /\/$/,
+  ""
+);
 const getToken = () => localStorage.getItem("token");
 const getAuthHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
 
@@ -59,10 +67,18 @@ const fetchJson = async (url, options = {}) => {
 };
 
 export function HolidayPolicyProvider({ children }) {
+  const { t } = useTranslation();
+
   // =========================================
   // 1. Working Days
   // =========================================
-  const [workingDays, setWorkingDays] = useState(["MON", "TUE", "WED", "THU", "FRI"]);
+  const [workingDays, setWorkingDays] = useState([
+    "MON",
+    "TUE",
+    "WED",
+    "THU",
+    "FRI",
+  ]);
   const [policySaving, setPolicySaving] = useState(false);
   const [policyLoading, setPolicyLoading] = useState(false);
 
@@ -81,12 +97,12 @@ export function HolidayPolicyProvider({ children }) {
       setWorkingDays(arr);
     } catch (e) {
       console.error(e);
-      alertError("Load Failed", e.message);
+      alertError(t("holidayPolicy.errors.loadFailedTitle"), e.message);
       setWorkingDays(["MON", "TUE", "WED", "THU", "FRI"]);
     } finally {
       setPolicyLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const toggleWorkingDay = (k) => {
     setWorkingDays((prev) => {
@@ -97,12 +113,16 @@ export function HolidayPolicyProvider({ children }) {
 
   const saveWorkingDaysPolicy = async () => {
     if (policySaving) return;
-    if (!workingDays.length) return alertError("Invalid", "Select at least 1 day.");
+    if (!workingDays.length)
+      return alertError(
+        t("holidayPolicy.errors.invalidTitle"),
+        t("holidayPolicy.errors.selectAtLeastOneDay")
+      );
 
     const ok = await alertConfirm(
-      "Save Working Days?",
+      t("workingDays.confirmTitle"),
       buildWorkingDaysConfirmHtml(workingDays),
-      "Save"
+      t("common.save")
     );
     if (!ok) return;
 
@@ -114,9 +134,12 @@ export function HolidayPolicyProvider({ children }) {
         body: JSON.stringify({ workingDays }),
       });
 
-      await alertSuccess("Saved", "Working days updated.");
+      await alertSuccess(
+        t("holidayPolicy.success.savedTitle"),
+        t("workingDays.savedText")
+      );
     } catch (e) {
-      alertError("Save Failed", e.message);
+      alertError(t("holidayPolicy.errors.saveFailedTitle"), e.message);
     } finally {
       setPolicySaving(false);
     }
@@ -145,14 +168,20 @@ export function HolidayPolicyProvider({ children }) {
         const map = {};
         result.data.forEach((i) => {
           map[String(i.role).toUpperCase()] = {
-            start: `${String(i.startHour).padStart(2, "0")}:${String(i.startMin).padStart(2, "0")}`,
-            end: `${String(i.endHour).padStart(2, "0")}:${String(i.endMin).padStart(2, "0")}`,
+            start: `${String(i.startHour).padStart(2, "0")}:${String(
+              i.startMin
+            ).padStart(2, "0")}`,
+            end: `${String(i.endHour).padStart(2, "0")}:${String(i.endMin).padStart(
+              2,
+              "0"
+            )}`,
           };
         });
         setWorkTimeByRole((prev) => ({ ...prev, ...map }));
       }
     } catch (e) {
       console.error(e);
+      // (เดิมไม่ได้ alert) คง behavior เดิม
     }
   }, []);
 
@@ -166,17 +195,17 @@ export function HolidayPolicyProvider({ children }) {
   const saveWorkTimePolicy = async () => {
     if (workTimeSaving) return;
 
-    for (const [role, t] of Object.entries(workTimeByRole)) {
-      if (!isValidTime(t.start) || !isValidTime(t.end))
-        return alertError("Invalid Time", role);
-      if (t.start >= t.end)
-        return alertError("Invalid Range", role);
+    for (const [role, tt] of Object.entries(workTimeByRole)) {
+      if (!isValidTime(tt.start) || !isValidTime(tt.end))
+        return alertError(t("holidayPolicy.errors.invalidTimeTitle"), role);
+      if (tt.start >= tt.end)
+        return alertError(t("holidayPolicy.errors.invalidRangeTitle"), role);
     }
 
     const ok = await alertConfirm(
-      "Save Work Time?",
+      t("workTimeByRole.confirmTitle"),
       buildWorkTimeConfirmHtml(workTimeByRole),
-      "Save"
+      t("common.save")
     );
     if (!ok) return;
 
@@ -184,23 +213,32 @@ export function HolidayPolicyProvider({ children }) {
     try {
       const token = getToken();
       await Promise.all(
-        Object.entries(workTimeByRole).map(([role, t]) => {
-          const [sh, sm] = t.start.split(":").map(Number);
-          const [eh, em] = t.end.split(":").map(Number);
+        Object.entries(workTimeByRole).map(([role, tt]) => {
+          const [sh, sm] = tt.start.split(":").map(Number);
+          const [eh, em] = tt.end.split(":").map(Number);
           return fetchJson(`${API_HOST}/api/attendance/work-config`, {
             method: "PUT",
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ role, startHour: sh, startMin: sm, endHour: eh, endMin: em }),
+            body: JSON.stringify({
+              role,
+              startHour: sh,
+              startMin: sm,
+              endHour: eh,
+              endMin: em,
+            }),
           });
         })
       );
 
-      await alertSuccess("Saved", "Work time saved.");
+      await alertSuccess(
+        t("holidayPolicy.success.savedTitle"),
+        t("workTimeByRole.savedText")
+      );
     } catch (e) {
-      alertError("Save Failed", e.message);
+      alertError(t("holidayPolicy.errors.saveFailedTitle"), e.message);
     } finally {
       setWorkTimeSaving(false);
     }
@@ -222,19 +260,22 @@ export function HolidayPolicyProvider({ children }) {
       setMaxConsecutiveHolidayDays(
         clamp(Number(data?.maxConsecutiveHolidayDays || 3), 1, 365)
       );
-    } catch {false}
+    } catch {
+      false;
+    }
   }, []);
 
   const saveMaxConsecutivePolicy = async () => {
     if (maxConsecutiveSaving) return;
 
     const v = Number(maxConsecutiveHolidayDays);
-    if (v < 1 || v > 365) return alertError("Invalid Limit");
+    if (v < 1 || v > 365)
+      return alertError(t("holidayPolicy.errors.invalidLimitTitle"));
 
     const ok = await alertConfirm(
-      "Save Max Consecutive?",
+      t("maxConsecutive.confirmTitle"),
       buildMaxConsecutiveConfirmHtml(v),
-      "Save"
+      t("common.save")
     );
     if (!ok) return;
 
@@ -246,9 +287,12 @@ export function HolidayPolicyProvider({ children }) {
         body: JSON.stringify({ days: v }),
       });
 
-      await alertSuccess("Saved", "Updated.");
+      await alertSuccess(
+        t("holidayPolicy.success.savedTitle"),
+        t("maxConsecutive.savedText")
+      );
     } catch (e) {
-      alertError("Save Failed", e.message);
+      alertError(t("holidayPolicy.errors.saveFailedTitle"), e.message);
     } finally {
       setMaxConsecutiveSaving(false);
     }
@@ -318,14 +362,17 @@ export function HolidayPolicyProvider({ children }) {
     const end = safeYMD(holidayEnd);
 
     if (!hasAtLeastOneName(holidayName))
-      return alertError("Missing Name", "Enter at least 1 language.");
-    if (!start || !end) return alertError("Missing Date");
-    if (start > end) return alertError("Invalid Range");
+      return alertError(
+        t("holidayPolicy.errors.missingNameTitle"),
+        t("holidayPolicy.errors.enterAtLeastOneLanguage")
+      );
+    if (!start || !end) return alertError(t("holidayPolicy.errors.missingDateTitle"));
+    if (start > end) return alertError(t("holidayPolicy.errors.invalidRangeTitle"));
 
     const total = calcTotalDays(start, end);
 
     const ok = await alertConfirm(
-      editId ? "Confirm Update?" : "Confirm Add?",
+      editId ? t("specialHoliday.confirm.updateTitle") : t("specialHoliday.confirm.addTitle"),
       buildHolidayUpsertConfirmHtml({
         name: holidayName,
         start,
@@ -333,7 +380,7 @@ export function HolidayPolicyProvider({ children }) {
         total,
         mode: editId ? "Update" : "Add",
       }),
-      editId ? "Update" : "Add"
+      editId ? t("common.update") : t("common.add")
     );
     if (!ok) return;
 
@@ -344,7 +391,10 @@ export function HolidayPolicyProvider({ children }) {
           headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
           body: JSON.stringify({ name: holidayName, date: start }),
         });
-        await alertSuccess("Updated", "Holiday updated.");
+        await alertSuccess(
+          t("holidayPolicy.success.updatedTitle"),
+          t("specialHoliday.toast.updated")
+        );
       } else {
         const holidays = [];
         let d = new Date(start);
@@ -365,14 +415,17 @@ export function HolidayPolicyProvider({ children }) {
           body: JSON.stringify({ holidays }),
         });
 
-        await alertSuccess("Added", "Holidays added.");
+        await alertSuccess(
+          t("holidayPolicy.success.addedTitle"),
+          t("specialHoliday.toast.added")
+        );
       }
 
       fetchSpecialHolidays();
       setFormOpen(false);
       resetHolidayForm();
     } catch (e) {
-      alertError("Error", e.message);
+      alertError(t("common.error"), e.message);
     }
   };
 
@@ -381,14 +434,14 @@ export function HolidayPolicyProvider({ children }) {
     const total = calcTotalDays(start, safeYMD(row.endDate));
 
     const ok = await alertConfirm(
-      "Delete this holiday?",
+      t("specialHoliday.confirm.deleteTitle"),
       buildHolidayDeleteConfirmHtml({
         name: row.name,
         start,
         end: row.endDate,
         total,
       }),
-      "Delete"
+      t("common.delete")
     );
     if (!ok) return;
 
@@ -397,10 +450,13 @@ export function HolidayPolicyProvider({ children }) {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
-      await alertSuccess("Deleted", "Holiday removed.");
+      await alertSuccess(
+        t("holidayPolicy.success.deletedTitle"),
+        t("specialHoliday.toast.deleted")
+      );
       fetchSpecialHolidays();
     } catch (e) {
-      alertError("Error", e.message);
+      alertError(t("common.error"), e.message);
     }
   };
 
@@ -468,6 +524,7 @@ export function HolidayPolicyProvider({ children }) {
 
 export function useHolidayPolicy() {
   const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useHolidayPolicy must be used within HolidayPolicyProvider");
+  if (!ctx)
+    throw new Error("useHolidayPolicy must be used within HolidayPolicyProvider");
   return ctx;
 }

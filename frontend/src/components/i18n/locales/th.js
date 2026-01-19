@@ -228,6 +228,17 @@ export default {
         edit: "แก้ไข",
         delete: "ลบ",
       },
+
+      confirm: {
+        addTitle: "ยืนยันการเพิ่มหรือไม่?",
+        updateTitle: "ยืนยันการแก้ไขหรือไม่?",
+        deleteTitle: "ลบวันหยุดนี้หรือไม่?",
+      },
+      toast: {
+        added: "เพิ่มวันหยุดเรียบร้อยแล้ว",
+        updated: "อัปเดตวันหยุดเรียบร้อยแล้ว",
+        deleted: "ลบวันหยุดเรียบร้อยแล้ว",
+      },
     },
 
     /* -------- Leave Type -------- */
@@ -268,7 +279,7 @@ export default {
         color: "สีประเภทวันลา",
 
         // validation text
-        requiredLabel: "ต้องกรอกชื่อภาษาไทยและภาษาอังกฤษ",
+        requiredLabel: "กรุณากรอกข้อมูลให้ครบถ้วน",
         invalidNumber: "ค่าตัวเลขต้องมากกว่าหรือเท่ากับ 0",
       },
 
@@ -469,19 +480,26 @@ export default {
     },
 
     yearEndConfig: {
-      title: "การตั้งค่าประมวลผลสิ้นปี",
-      subtitle: "ตั้งค่าการยกยอด, โควต้า และนโยบายส่วนกลาง",
-      carryOverTitle: "การยกยอดประเภทการลา",
-      carryOverHint: "จำนวนวันที่ยกยอดไปปีหน้าได้สูงสุด (ต่อพนักงาน)",
-      quotaTitle: "ตั้งค่าโควต้าสำหรับปี {{year}}",
-      quotaHint: "โควต้าการลาพื้นฐานต่อพนักงาน",
-      maxConsecutiveTitle: "นโยบาย: จำนวนวันหยุดต่อเนื่องสูงสุด",
+      title: "ตั้งค่าปลายปี",
+      subtitle: "ตั้งค่าการโอนสิทธิ์คงเหลือ โควตา และนโยบายรวมของระบบ",
+
+      carryOverTitle: "การโอนสิทธิ์คงเหลือของประเภทการลา",
+      carryOverHint: "จำนวนวันสูงสุดที่สามารถโอนไปปีถัดไปได้ (ต่อพนักงาน)",
+
+      quotaTitle: "ตั้งค่าโควตาสำหรับปี {{year}}",
+      quotaHint: "โควตาพื้นฐานต่อพนักงาน",
+
+      maxConsecutiveTitle: "นโยบายรวม: วันหยุดต่อเนื่องสูงสุด",
       unlimitedHint: "0 = ไม่จำกัด",
-      targetYear: "ปีที่ดำเนินการ",
+
+      targetYear: "ปีเป้าหมาย",
+      yearLabel: "ปี {{year}}",
+
       process: "ยืนยันและประมวลผล",
       processing: "กำลังประมวลผล...",
+
       warning:
-        "การดำเนินการนี้จะเขียนทับโควต้าของพนักงานทุกคนและล็อคข้อมูลของปีที่ผ่านมา",
+        "การดำเนินการนี้จะเขียนทับโควตาของพนักงานทั้งหมดและล็อกข้อมูลย้อนหลัง",
     },
 
     employeeDetail: {
@@ -586,11 +604,14 @@ export default {
     workingDays: {
       title: "วันทำงาน",
       subtitle: "เลือกวันทำงานและบันทึกนโยบาย",
+
       loading: "กำลังโหลดนโยบายวันทำงาน...",
       currently: "ปัจจุบัน:",
+
       saveBtn: "บันทึก",
       savingBtn: "กำลังบันทึก...",
       loadingBtn: "กำลังโหลด...",
+
       mon: "จ.",
       tue: "อ.",
       wed: "พ.",
@@ -598,24 +619,38 @@ export default {
       fri: "ศ.",
       sat: "ส.",
       sun: "อา.",
+
+      confirmTitle: "บันทึกวันทำงานหรือไม่?",
+      confirmSubtitle: "ยืนยันวันทำงาน",
+      savedText: "อัปเดตวันทำงานเรียบร้อยแล้ว",
     },
 
     workTimeByRole: {
       title: "เวลาทำงาน (ตามบทบาท)",
       subtitle: "ตั้งเวลาเช็คอิน / เช็คเอาท์ สำหรับแต่ละบทบาท",
+
       roleHR: "HR",
       roleWorker: "พนักงานทั่วไป",
+
       checkIn: "เวลาเข้างาน",
       checkOut: "เวลาเลิกงาน",
+
       current: "ปัจจุบัน:",
+
       saveBtn: "บันทึกเวลาทำงาน",
       savingBtn: "กำลังบันทึก...",
+
+      confirmTitle: "บันทึกเวลาทำงานหรือไม่?",
+      savedText: "บันทึกเวลาทำงานเรียบร้อยแล้ว",
     },
 
     /* -------- Max Consecutive -------- */
     maxConsecutive: {
       title: "กำหนดวันหยุดต่อเนื่องสูงสุด",
       subtitle: "จำนวนวันหยุดต่อเนื่องสูงสุดที่อนุญาตต่อการขอ 1 ครั้ง",
+
+      confirmTitle: "บันทึกจำนวนวันหยุดต่อเนื่องสูงสุดหรือไม่?",
+      savedText: "อัปเดตเรียบร้อยแล้ว",
     },
 
     /* -------- YearEnd History -------- */
@@ -631,9 +666,44 @@ export default {
       empty: "ไม่มีประวัติการประมวลผล",
     },
 
+    /* -------- YearEnd Policy -------- */
     yearEndPolicy: {
-      title: "นโยบายวันหยุดและวันหยุดพิเศษ",
-      subtitle: "กำหนดวันทำงานและจัดการวันหยุดพิเศษ",
+      title: "Holiday Policy & Special Holidays",
+      subtitle: "Configure working days and manage special holidays.",
+
+      buttons: {
+        add: "Add",
+        update: "Update",
+      },
+
+      confirm: {
+        saveWorkingDaysTitle: "Save working days?",
+        saveWorkTimeTitle: "Save work time?",
+        saveMaxConsecutiveTitle: "Save max consecutive holidays?",
+        addHolidayTitle: "Confirm add?",
+        updateHolidayTitle: "Confirm update?",
+        deleteHolidayTitle: "Delete this holiday?",
+      },
+
+      success: {
+        workingDaysSaved: "Working days updated.",
+        workTimeSaved: "Work time saved.",
+        maxConsecutiveSaved: "Updated.",
+        holidayAdded: "Holidays added.",
+        holidayUpdated: "Holiday updated.",
+        holidayDeleted: "Holiday removed.",
+      },
+
+      errors: {
+        loadWorkingDaysFailed: "Failed to load working days. {{msg}}",
+        pickAtLeastOneDay: "Select at least 1 day.",
+        invalidTime: "Invalid time: {{role}}",
+        invalidRange: "Invalid time range: {{role}}",
+        invalidLimit: "Invalid limit.",
+        missingHolidayName: "Enter at least 1 language.",
+        missingDate: "Missing date.",
+        invalidRangeGeneric: "Invalid range.",
+      },
     },
 
     yearEndProcess: {
@@ -810,6 +880,47 @@ export default {
         reasonTitle: "เหตุผล: {{reason}}",
         noteTitle: "หมายเหตุ: {{note}}",
       },
+
+      exportCsv: {
+        openButton: "ส่งออก CSV",
+        title: "ส่งออก CSV",
+
+        scope: {
+          label: "ขอบเขตข้อมูล (Scope)",
+          options: {
+            month: "รายเดือน",
+            year: "รายปี",
+            all: "ทั้งหมด",
+          },
+        },
+
+        fields: {
+          month: "เดือน",
+          year: "ปี",
+        },
+
+        loading: "กำลังโหลด...",
+        typesLoadFailed: "ไม่สามารถโหลดประเภทการลาได้",
+
+        leaveTypes: {
+          label: "ประเภทการลา (Leave Types)",
+          allTypes: "ทุกประเภท",
+          selectedCount: "เลือกไว้ {{count}} ประเภท",
+          dropdownTitle: "เลือกประเภท",
+          selectAll: "เลือกทั้งหมด",
+          clear: "ล้างค่า",
+        },
+
+        found: "พบข้อมูล",
+        items: "รายการ",
+
+        download: "ดาวน์โหลด CSV",
+
+        pickerTitle: {
+          month: "เลือกเดือนที่ต้องการ",
+          year: "เลือกปีที่ต้องการ",
+        },
+      },
     },
 
     notificationBell: {
@@ -874,6 +985,7 @@ export default {
       },
     },
 
+    /* -------- Employees All Export -------- */
     employeesAllExport: {
       title: "ส่งออกข้อมูลพนักงาน (ทั้งหมด)",
       rowsToExport: "จำนวนแถวที่ส่งออก:",
@@ -904,33 +1016,226 @@ export default {
     },
 
     xlsxWorkbook: {
-      title: "ส่งออกไฟล์ Workbook (XLSX)",
+      title: "ส่งออกเวิร์กบุ๊ก (XLSX)",
       employeesCount: "จำนวนพนักงาน:",
+
       workbookType: {
-        label: "รูปแบบไฟล์",
-        perEmployee: "รายพนักงาน (แยกหลายชีท)",
-        employeesList: "รายชื่อพนักงาน (ชีทเดียว)",
+        label: "ประเภทเวิร์กบุ๊ก",
+        perEmployee: "แยกตามพนักงาน (หลายชีต)",
+        employeesList: "รายชื่อพนักงาน (ชีตเดียว)",
       },
+
       dataType: {
         label: "ประเภทข้อมูล",
         attendance: "การเข้างาน",
-        leave: "คำขอการลา",
+        leave: "คำขอลา",
       },
+
       period: {
         label: "ช่วงเวลา",
         daily: "รายวัน",
         monthly: "รายเดือน",
         yearly: "รายปี",
-        quarter: "รายไตรมาส",
-        custom: "กำหนดเอง",
+        quarter: "ไตรมาส",
+        custom: "กำหนดช่วงเอง",
       },
+
       fields: {
         selectDate: "เลือกวันที่",
         selectMonth: "เลือกเดือน",
         selectYear: "เลือกปี",
         year: "ปี",
         quarter: "ไตรมาส",
-        dateFrom: "เริ่มจากวันที่",
+        dateFrom: "วันที่เริ่มต้น",
+        dateTo: "วันที่สิ้นสุด",
+      },
+
+      placeholders: {
+        pickDate: "เลือกวันที่",
+        pickMonth: "เลือกเดือน",
+        pickYear: "เลือกปี",
+        pickStart: "เลือกวันที่เริ่มต้น",
+        pickEnd: "เลือกวันที่สิ้นสุด",
+      },
+
+      rangeLabel: "ช่วง:",
+
+      buttons: {
+        exportXlsx: "ส่งออก XLSX",
+      },
+
+      quarters: {
+        q1: "ไตรมาส 1 (ม.ค.–มี.ค.)",
+        q2: "ไตรมาส 2 (เม.ย.–มิ.ย.)",
+        q3: "ไตรมาส 3 (ก.ค.–ก.ย.)",
+        q4: "ไตรมาส 4 (ต.ค.–ธ.ค.)",
+      },
+
+      picker: {
+        select: "เลือก",
+        selectDate: "เลือกวันที่",
+        selectMonth: "เลือกเดือน",
+        selectYear: "เลือกปี",
+        dateFrom: "วันที่เริ่มต้น",
+        dateTo: "วันที่สิ้นสุด",
+      },
+
+      errors: {
+        noEmployees: "ไม่มีพนักงานสำหรับการส่งออก",
+        pickDaily: "กรุณาเลือกวันที่ (รายวัน)",
+        pickMonthly: "กรุณาเลือกเดือน (รายเดือน)",
+        pickCustom: "กรุณาเลือกทั้งวันที่เริ่มต้นและวันที่สิ้นสุด (กำหนดช่วงเอง)",
+        exportFailed: "ไม่สามารถส่งออกเวิร์กบุ๊กได้",
+      },
+    },
+
+    /* -------- Audit Log Export -------- */
+    auditLogExport: {
+      title: "ตัวกรองการส่งออก CSV",
+
+      period: {
+        label: "ช่วงเวลา",
+        daily: "รายวัน",
+        monthly: "รายเดือน",
+        yearly: "รายปี",
+        quarter: "ไตรมาส",
+        customRange: "กำหนดช่วงเอง",
+        selectDate: "เลือกวันที่",
+        selectMonth: "เลือกเดือน",
+        selectYear: "เลือกปี",
+      },
+
+      quarter: {
+        year: "ปี",
+        quarter: "ไตรมาส",
+        q1: "ไตรมาส 1 (ม.ค.–มี.ค.)",
+        q2: "ไตรมาส 2 (เม.ย.–มิ.ย.)",
+        q3: "ไตรมาส 3 (ก.ค.–ก.ย.)",
+        q4: "ไตรมาส 4 (ต.ค.–ธ.ค.)",
+      },
+
+      custom: {
+        dateFrom: "วันที่เริ่มต้น",
+        dateTo: "วันที่สิ้นสุด",
+      },
+
+      range: {
+        label: "ช่วง:",
+        to: "→",
+      },
+
+      filters: {
+        model: "โมเดล",
+        performedBy: "ดำเนินการโดย",
+        keyword: "คำค้นหา (รายละเอียด)",
+        recordId: "รหัสรายการ (ไม่บังคับ)",
+        actions: "การกระทำ (เลือกหลายรายการ)",
+      },
+
+      actions: {
+        clearActions: "ล้างการกระทำ",
+        noActions: "ยังไม่มีการกระทำให้เลือก",
+      },
+
+      preview: {
+        rowsToExport: "จำนวนแถวที่จะส่งออก:",
+      },
+
+      buttons: {
+        export: "ส่งออก",
+      },
+
+      common: {
+        all: "ทั้งหมด",
+        reset: "รีเซ็ต",
+      },
+
+      placeholders: {
+        date: "YYYY-MM-DD",
+        month: "YYYY-MM",
+        year: "YYYY",
+        keyword: 'เช่น "มาสาย", "อนุมัติ", "ถอนคำขอ"...',
+        recordId: "เช่น 6 หรือ 10",
+      },
+
+      picker: {
+        selectDate: "เลือกวันที่",
+        selectMonth: "เลือกเดือน",
+        selectYear: "เลือกปี",
+        dateFrom: "วันที่เริ่มต้น",
+        dateTo: "วันที่สิ้นสุด",
+      },
+    },
+
+    /* -------- Holiday Policy Errors -------- */
+    holidayPolicy: {
+      success: {
+        savedTitle: "บันทึกสำเร็จ",
+        updatedTitle: "อัปเดตสำเร็จ",
+        addedTitle: "เพิ่มสำเร็จ",
+        deletedTitle: "ลบสำเร็จ",
+      },
+      
+      errors: {
+        loadFailedTitle: "โหลดไม่สำเร็จ",
+        saveFailedTitle: "บันทึกไม่สำเร็จ",
+        invalidTitle: "ข้อมูลไม่ถูกต้อง",
+        selectAtLeastOneDay: "กรุณาเลือกอย่างน้อย 1 วัน",
+        invalidTimeTitle: "เวลาไม่ถูกต้อง",
+        invalidRangeTitle: "ช่วงเวลาไม่ถูกต้อง",
+        invalidLimitTitle: "ค่าที่กำหนดไม่ถูกต้อง",
+        missingNameTitle: "ไม่มีชื่อวันหยุด",
+        enterAtLeastOneLanguage: "กรุณากรอกชื่ออย่างน้อย 1 ภาษา",
+        missingDateTitle: "ไม่ได้ระบุวันที่",
+        invalidRangeOnlyTitle: "ช่วงวันไม่ถูกต้อง",
+      },
+    },
+
+    /* -------- Confirm Html (SweetAlert confirm bodies) -------- */
+    confirmHtml: {
+      common: {
+        to: "ถึง",
+        daySingular: "วัน",
+        dayPlural: "วัน",
+      },
+
+      workingDays: {
+        subtitle: "ยืนยันวันทำงาน",
+      },
+
+      workTime: {
+        title: "ยืนยันเวลาเข้างาน (ตามบทบาท)",
+      },
+
+      maxConsecutive: {
+        title: "ยืนยันจำนวนวันหยุดติดต่อกันสูงสุด",
+        label: "จำนวนวันติดต่อกันสูงสุด",
+      },
+
+      carryOver: {
+        title: "ยืนยันจำนวนวันโอนสิทธิ์ (Carry Over)",
+        hint: "คุณกำลังจะบันทึกจำนวนวันโอนสิทธิ์ของแต่ละประเภทการลา (ต่อพนักงาน)",
+      },
+
+      holiday: {
+        fallbackName: "วันหยุด",
+        fields: {
+          holiday: "วันหยุด",
+          date: "วันที่",
+        },
+        mode: {
+          add: "เพิ่ม",
+          update: "แก้ไข",
+        },
+      },
+
+      holidayUpsert: {
+        title: "ยืนยันการ{{mode}}",
+      },
+
+      holidayDelete: {
+        title: "ยืนยันการลบวันหยุด",
+        hint: "การดำเนินการนี้ไม่สามารถย้อนกลับได้",
       },
     },
   },

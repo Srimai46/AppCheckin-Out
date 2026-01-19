@@ -7,7 +7,7 @@ import { Filter, X, CalendarDays, Loader2, ChevronDown } from "lucide-react";
 import DateGridPicker from "../../../components/shared/DateGridPicker";
 
 // ✅ 1. นำ Cache และ Helper functions กลับมาไว้ด้านนอก
-const leaveTypesCache = {}; 
+const leaveTypesCache = {};
 
 const parseLabel = (label, lang, fallback) => {
   if (label == null) return fallback;
@@ -44,18 +44,27 @@ export default function CsvForTeamCalendar({
 
   // DateGridPicker State
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState(null); 
+  const [pickerTarget, setPickerTarget] = useState(null);
 
   // ✅ 3. นำฟังก์ชัน Auth กลับมา
   const defaultGetAuthToken = () => {
-    try { return localStorage.getItem("token"); } catch { return null; }
+    try {
+      return localStorage.getItem("token");
+    } catch {
+      return null;
+    }
   };
 
   const buildFetchOptions = () => {
     if (useCookieAuth) {
-      return { method: "GET", credentials: "include", headers: { "Content-Type": "application/json" } };
+      return {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      };
     }
-    const token = typeof getAuthToken === "function" ? getAuthToken() : defaultGetAuthToken();
+    const token =
+      typeof getAuthToken === "function" ? getAuthToken() : defaultGetAuthToken();
     return {
       method: "GET",
       headers: {
@@ -80,7 +89,8 @@ export default function CsvForTeamCalendar({
     try {
       const opts = buildFetchOptions();
       const res = await fetch("/api/leaves/types", opts);
-      if (!res.ok) throw new Error(`Failed to load leave types (${res.status})`);
+      if (!res.ok)
+        throw new Error(`Failed to load leave types (${res.status})`);
 
       const data = await res.json();
       const mapped = (data || []).map((row, idx) => {
@@ -92,7 +102,7 @@ export default function CsvForTeamCalendar({
       leaveTypesCache[lang] = mapped;
       setLeaveTypeFilters(mapped);
     } catch (err) {
-      setTypesError(err.message || "Failed to load leave types");
+      setTypesError(err.message || t("teamCalendar.exportCsv.typesLoadFailed"));
     } finally {
       setTypesLoading(false);
     }
@@ -111,7 +121,11 @@ export default function CsvForTeamCalendar({
   useEffect(() => {
     const onDocClick = (e) => {
       if (!openTypesDropdown) return;
-      if (typesDropdownRef.current?.contains(e.target) || typesBtnRef.current?.contains(e.target)) return;
+      if (
+        typesDropdownRef.current?.contains(e.target) ||
+        typesBtnRef.current?.contains(e.target)
+      )
+        return;
       setOpenTypesDropdown(false);
     };
     document.addEventListener("mousedown", onDocClick);
@@ -123,7 +137,8 @@ export default function CsvForTeamCalendar({
     if (!val) return;
     if (pickerTarget === "month") {
       const [y, m] = val.split("-");
-      setYear(y); setMonth(m);
+      setYear(y);
+      setMonth(m);
     } else if (pickerTarget === "year") {
       setYear(val);
     }
@@ -144,19 +159,46 @@ export default function CsvForTeamCalendar({
       const y = Number(year);
       const m = Number(month);
       if (scope === "YEAR") return start.getFullYear() === y;
-      if (scope === "MONTH") return start.getFullYear() === y && (start.getMonth() + 1) === m;
+      if (scope === "MONTH")
+        return start.getFullYear() === y && start.getMonth() + 1 === m;
       return true;
     });
   };
 
   const download = () => {
     const rows = filterLeaves();
-    const headers = ["id", "employeeName", "type", "status", "startDate", "endDate", "days", "reason", "approvedBy"];
+    const headers = [
+      "id",
+      "employeeName",
+      "type",
+      "status",
+      "startDate",
+      "endDate",
+      "days",
+      "reason",
+      "approvedBy",
+    ];
     const csvContent = [
       headers.join(","),
-      ...rows.map(r => [
-        r.id, r.name || "", r.type, r.status, r.startDate, r.endDate, r.totalDaysRequested, r.reason, r.approvedBy
-      ].map(v => (v == null ? "" : `"${String(v).replace(/"/g, '""')}"`)).join(","))
+      ...rows
+        .map((r) =>
+          [
+            r.id,
+            r.name || "",
+            r.type,
+            r.status,
+            r.startDate,
+            r.endDate,
+            r.totalDaysRequested,
+            r.reason,
+            r.approvedBy,
+          ]
+            .map((v) =>
+              v == null ? "" : `"${String(v).replace(/"/g, '""')}"`
+            )
+            .join(",")
+        )
+        .join("\n"),
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -168,8 +210,6 @@ export default function CsvForTeamCalendar({
     setOpen(false);
   };
 
-  // ... (โค้ดส่วนบนคงเดิม)
-
   return (
     <>
       <button
@@ -177,40 +217,46 @@ export default function CsvForTeamCalendar({
         onClick={() => setOpen(true)}
         className="w-50 h-10 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 transition"
       >
-        Export CSV
+        {t("teamCalendar.exportCsv.openButton")}
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          {/* ✅ 1. เอา overflow-hidden ออกจากบรรทัดนี้ */}
           <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 relative">
-            
-            {/* Header - ✅ ใส่ rounded-t-2xl เพื่อให้มุมโค้งตาม Container */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 rounded-t-2xl bg-white">
               <div className="flex items-center gap-2">
                 <Filter size={18} className="text-slate-700" />
-                <h3 className="text-lg font-bold text-slate-800">Export CSV</h3>
+                <h3 className="text-lg font-bold text-slate-800">
+                  {t("teamCalendar.exportCsv.title")}
+                </h3>
               </div>
-              <button onClick={() => setOpen(false)} className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-slate-100">
+              <button
+                onClick={() => setOpen(false)}
+                className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-slate-100"
+                aria-label={t("common.close")}
+              >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Body - ✅ ตรวจสอบให้แน่ใจว่าไม่มี overflow-hidden ที่นี่ */}
             <div className="p-6 space-y-6 overflow-visible">
               {/* 1. Scope Selection */}
               <div className="space-y-3">
-                <label className="text-xs font-black text-slate-400 uppercase">ขอบเขตข้อมูล (Scope)</label>
+                <label className="text-xs font-black text-slate-400 uppercase">
+                  {t("teamCalendar.exportCsv.scope.label")}
+                </label>
                 <div className="flex gap-2">
                   {["MONTH", "YEAR", "ALL"].map((s) => (
                     <button
                       key={s}
                       onClick={() => setScope(s)}
                       className={`px-4 h-9 rounded-full border font-bold text-sm transition ${
-                        scope === s ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        scope === s
+                          ? "bg-slate-900 text-white border-slate-900"
+                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                       }`}
                     >
-                      {s === "MONTH" ? "รายเดือน" : s === "YEAR" ? "รายปี" : "ทั้งหมด"}
+                      {t(`teamCalendar.exportCsv.scope.options.${s.toLowerCase()}`)}
                     </button>
                   ))}
                 </div>
@@ -221,9 +267,14 @@ export default function CsvForTeamCalendar({
                 <div className="grid grid-cols-2 gap-4">
                   {scope === "MONTH" && (
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600">เดือน</label>
+                      <label className="text-xs font-bold text-slate-600">
+                        {t("teamCalendar.exportCsv.fields.month")}
+                      </label>
                       <button
-                        onClick={() => { setPickerTarget("month"); setPickerOpen(true); }}
+                        onClick={() => {
+                          setPickerTarget("month");
+                          setPickerOpen(true);
+                        }}
                         className="w-full h-10 px-3 rounded-xl border border-slate-200 text-left font-bold text-slate-700 hover:bg-slate-50 flex items-center justify-between"
                       >
                         <span>{monthLabel}</span>
@@ -231,10 +282,16 @@ export default function CsvForTeamCalendar({
                       </button>
                     </div>
                   )}
+
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-600">ปี</label>
+                    <label className="text-xs font-bold text-slate-600">
+                      {t("teamCalendar.exportCsv.fields.year")}
+                    </label>
                     <button
-                      onClick={() => { setPickerTarget("year"); setPickerOpen(true); }}
+                      onClick={() => {
+                        setPickerTarget("year");
+                        setPickerOpen(true);
+                      }}
                       className="w-full h-10 px-3 rounded-xl border border-slate-200 text-left font-bold text-slate-700 hover:bg-slate-50 flex items-center justify-between"
                     >
                       <span>{year}</span>
@@ -246,44 +303,94 @@ export default function CsvForTeamCalendar({
 
               {/* 3. Leave Types Dropdown */}
               <div className="space-y-3">
-                <label className="text-xs font-black text-slate-400 uppercase">ประเภทการลา (Leave Types)</label>
+                <label className="text-xs font-black text-slate-400 uppercase">
+                  {t("teamCalendar.exportCsv.leaveTypes.label")}
+                </label>
+
                 <div className="relative" ref={typesBtnRef}>
                   <button
                     type="button"
-                    onClick={() => !typesLoading && setOpenTypesDropdown(!openTypesDropdown)}
+                    onClick={() =>
+                      !typesLoading && setOpenTypesDropdown(!openTypesDropdown)
+                    }
                     className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white flex items-center justify-between font-bold text-slate-700 disabled:bg-slate-50"
                     disabled={typesLoading}
                   >
                     {typesLoading ? (
-                      <div className="flex items-center gap-2"><Loader2 className="animate-spin" size={16}/> กำลังโหลด...</div>
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="animate-spin" size={16} />
+                        {t("teamCalendar.exportCsv.loading")}
+                      </div>
                     ) : (
-                      <span>{types.length === 0 ? "ทุกประเภท" : `เลือกไว้ ${types.length} ประเภท`}</span>
+                      <span>
+                        {types.length === 0
+                          ? t("teamCalendar.exportCsv.leaveTypes.allTypes")
+                          : t("teamCalendar.exportCsv.leaveTypes.selectedCount", {
+                              count: types.length,
+                            })}
+                      </span>
                     )}
-                    <ChevronDown size={18} className={`text-slate-400 transition-transform ${openTypesDropdown ? 'rotate-180' : ''}`} />
+
+                    <ChevronDown
+                      size={18}
+                      className={`text-slate-400 transition-transform ${
+                        openTypesDropdown ? "rotate-180" : ""
+                      }`}
+                    />
                   </button>
 
-                  {/* ✅ Dropdown กางออกมาได้โดยไม่โดนตัด */}
                   {openTypesDropdown && (
-                    <div ref={typesDropdownRef} className="absolute z-[60] mt-2 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 animate-in fade-in zoom-in duration-150">
+                    <div
+                      ref={typesDropdownRef}
+                      className="absolute z-[60] mt-2 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 animate-in fade-in zoom-in duration-150"
+                    >
                       <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-50">
-                        <span className="text-sm font-bold text-slate-800">เลือกประเภท</span>
+                        <span className="text-sm font-bold text-slate-800">
+                          {t("teamCalendar.exportCsv.leaveTypes.dropdownTitle")}
+                        </span>
                         <div className="flex gap-3">
-                          <button onClick={() => setTypes(leaveTypeFilters.map(t => t.typeName))} className="text-xs text-indigo-600 font-bold hover:underline">เลือกทั้งหมด</button>
-                          <button onClick={() => setTypes([])} className="text-xs text-slate-400 font-bold hover:underline">ล้างค่า</button>
+                          <button
+                            onClick={() =>
+                              setTypes(leaveTypeFilters.map((x) => x.typeName))
+                            }
+                            className="text-xs text-indigo-600 font-bold hover:underline"
+                          >
+                            {t("teamCalendar.exportCsv.leaveTypes.selectAll")}
+                          </button>
+                          <button
+                            onClick={() => setTypes([])}
+                            className="text-xs text-slate-400 font-bold hover:underline"
+                          >
+                            {t("teamCalendar.exportCsv.leaveTypes.clear")}
+                          </button>
                         </div>
                       </div>
+
                       <div className="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                         {leaveTypeFilters.map((lt) => (
-                          <label key={lt.typeName} className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-xl cursor-pointer transition">
+                          <label
+                            key={lt.typeName}
+                            className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-xl cursor-pointer transition"
+                          >
                             <input
                               type="checkbox"
                               checked={types.includes(lt.typeName)}
                               onChange={() => {
-                                setTypes(prev => prev.includes(lt.typeName) ? prev.filter(t => t !== lt.typeName) : [...prev, lt.typeName]);
+                                setTypes((prev) =>
+                                  prev.includes(lt.typeName)
+                                    ? prev.filter((x) => x !== lt.typeName)
+                                    : [...prev, lt.typeName]
+                                );
                               }}
                               className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                             />
-                            <span className={`text-sm ${types.includes(lt.typeName) ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
+                            <span
+                              className={`text-sm ${
+                                types.includes(lt.typeName)
+                                  ? "font-bold text-slate-900"
+                                  : "text-slate-600"
+                              }`}
+                            >
                               {lt.label}
                             </span>
                           </label>
@@ -292,23 +399,34 @@ export default function CsvForTeamCalendar({
                     </div>
                   )}
                 </div>
-                {typesError && <p className="text-xs text-red-500 font-medium">{typesError}</p>}
+
+                {typesError && (
+                  <p className="text-xs text-red-500 font-medium">{typesError}</p>
+                )}
               </div>
             </div>
 
-            {/* Footer - ✅ ใส่ rounded-b-2xl เพื่อให้มุมโค้งตาม Container */}
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between rounded-b-2xl">
               <div className="text-sm font-bold text-slate-500">
-                พบข้อมูล <span className="text-slate-900">{filterLeaves().length}</span> รายการ
+                {t("teamCalendar.exportCsv.found")}{" "}
+                <span className="text-slate-900">{filterLeaves().length}</span>{" "}
+                {t("teamCalendar.exportCsv.items")}
               </div>
+
               <div className="flex gap-3">
-                <button onClick={() => setOpen(false)} className="px-6 h-10 rounded-full font-bold text-slate-600 hover:bg-slate-200 transition">ยกเลิก</button>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="px-6 h-10 rounded-full font-bold text-slate-600 hover:bg-slate-200 transition"
+                >
+                  {t("common.cancel")}
+                </button>
+
                 <button
                   onClick={download}
                   disabled={filterLeaves().length === 0}
                   className="px-6 h-10 rounded-full bg-slate-900 text-white font-black hover:bg-slate-800 transition disabled:opacity-50"
                 >
-                  Download CSV
+                  {t("teamCalendar.exportCsv.download")}
                 </button>
               </div>
             </div>
@@ -316,7 +434,6 @@ export default function CsvForTeamCalendar({
         </div>
       )}
 
-      {/* DateGridPicker (อยู่ชั้นนอกสุด) */}
       <DateGridPicker
         open={pickerOpen}
         granularity={pickerTarget === "year" ? "year" : "month"}
@@ -324,7 +441,11 @@ export default function CsvForTeamCalendar({
         value={pickerTarget === "month" ? `${year}-${month}` : year}
         onChange={handlePickerChange}
         onClose={() => setPickerOpen(false)}
-        title={pickerTarget === "month" ? "เลือกเดือนที่ต้องการ" : "เลือกปีที่ต้องการ"}
+        title={
+          pickerTarget === "month"
+            ? t("teamCalendar.exportCsv.pickerTitle.month")
+            : t("teamCalendar.exportCsv.pickerTitle.year")
+        }
       />
     </>
   );
