@@ -16,6 +16,12 @@ export default {
       attendanceConfirmTitle: "ยืนยันการลงเวลา",
       attendanceConfirmText: "คุณต้องการ {{action}} ใช่หรือไม่",
       loadFail: "ไม่สามารถโหลดข้อมูลแดชบอร์ดได้",
+      updatecheckOutsweetalert: "อัปเดตเวลาออกหรือไม่",
+      updatecheckOutsweetalertconfirm: "คุณได้เช็กเอาต์แล้ว ต้องการอัปเดต (เช็กเอาต์ใหม่) หรือไม่",
+      alertcheckinfirst: "กรุณาเช็กอินก่อน",
+      alertcheckedinalready: "คุณได้เช็กอินสำหรับวันนี้แล้ว",
+      checkedsuccess:"เช็กอินสำเร็จ",
+
     },
 
     /* -------- Layout / Sidebar -------- */
@@ -351,6 +357,7 @@ export default {
       blockedMessage: "ไม่สามารถขอลาในวันหยุดหรือวันที่ไม่ใช่วันทำงาน",
 
       submissionFailed: "ส่งคำขอไม่สำเร็จ",
+      sumbitfailedtext:"ไม่สามารถขอลาในวันหยุด/วันไม่ทำงาน",
 
       headerTitle: "ยื่นคำขอลา",
       headerSubtitle: "ระบบจัดการการลาของพนักงาน",

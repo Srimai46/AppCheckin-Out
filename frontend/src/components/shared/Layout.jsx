@@ -24,8 +24,8 @@ export default function Layout() {
   // =========================
   const languages = useMemo(
     () => [
-      { key: "th", label: "TH" },
-      { key: "en", label: "EN" },
+      { key: "th", label: "ภาษาไทย" },
+      { key: "en", label: "English" },
       { key: "ja", label: "日本語" },
     ],
     []

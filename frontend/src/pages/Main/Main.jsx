@@ -180,8 +180,8 @@ export default function Main() {
     });
 
     if (type === 'out' && todayStatus.isCheckedOut) {
-        confirmTitle = "Update Check-out?";
-        confirmText = "You already checked out. Do you want to update (re-check out)?";
+        confirmTitle = t("dashboard.updatecheckOutsweetalert");
+        confirmText = t("dashboard.updatecheckOutsweetalertconfirm");
     }
 
     const confirmed = await alertConfirm(confirmTitle, confirmText);
@@ -201,15 +201,10 @@ export default function Main() {
           ? await checkIn({ location })
           : await checkOut({ location });
           
-      await alertSuccess(t("common.success"), res?.message || "");
+      await alertSuccess(t("common.success"),t("dashboard.checkedsuccess"));
       fetchData(selectedYear);
     } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        t("common.error");
-      alertError(t("common.error"), msg);
+      alertError(t("common.error"),t("dashboard.alertcheckedinalready"));
     } finally {
       setIsProcessing(false);
     }
