@@ -123,9 +123,29 @@ export default function HistoryTable({
   onDeletedLeaveSuccess,
   workEndTime,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const pad2 = (n) => String(n).padStart(2, "0");
+
+  // ===================== Leave Type (from DB label) =====================
+  const pickLabelByLang = (label) => {
+    if (!label || typeof label !== "object") return null;
+    const lang = String(i18n.language || "en").split("-")[0]; // en-US -> en
+    return label?.[lang] || label?.en || label?.th || label?.ja || null;
+  };
+
+  const getLeaveTypeText = (leave) => {
+    const labelObj = leave?.leaveType?.label || leave?.label;
+    const fromLabel = pickLabelByLang(labelObj);
+    if (fromLabel) return fromLabel;
+
+    return (
+      leave?.leaveType?.typeName ||
+      leave?.typeName ||
+      leave?.type ||
+      "-"
+    );
+  };
 
   // ===================== Leave Status Badge =====================
   const getLeaveStatusStyle = (status) => {
@@ -381,12 +401,20 @@ export default function HistoryTable({
   };
 
   const getSignedBy = (leave) => {
-    if (leave?.approverName) return leave.approverName;
+    if (leave?.approverName) {
+      const v = String(leave.approverName).trim();
+      if (v.toLowerCase() === "waiting for hr") return t("history.waitingForHr");
+      if (v.toLowerCase() === "withdrawal reviewing") return t("history.withdrawalReviewing");
+      return v;
+    }
+
     const a = leave?.approvedByHr;
     if (a?.firstName || a?.lastName)
       return `${a.firstName || ""} ${a.lastName || ""}`.trim();
+
     if (typeof leave?.approvedBy === "string") return leave.approvedBy;
     if (typeof leave?.rejectedBy === "string") return leave.rejectedBy;
+
     if (String(leave?.status || "").toLowerCase() === "pending") return "-";
     return "-";
   };
@@ -398,7 +426,7 @@ export default function HistoryTable({
 
       const ok = await alertConfirm(
         t("history.deleteTitle"),
-        t("history.deleteText", { type: leave.typeName || "Leave" }),
+        t("history.deleteText", { type: getLeaveTypeText(leave) }), // ✅ use translated type
         t("history.deleteButton")
       );
       if (!ok) return;
@@ -647,21 +675,23 @@ export default function HistoryTable({
                     (leave.cancelReason
                       ? `${t("leaveApproval.labels.cancelReason")}: ${leave.cancelReason}`
                       : null) ||
-                    (leave.rejectionReason ? `Rejected: ${leave.rejectionReason}` : null) ||
+                    (leave.rejectionReason
+                      ? `${t("leaveApproval.status.rejected")}: ${leave.rejectionReason}`
+                      : null) ||
                     "-";
 
                   const signedBy = getSignedBy(leave);
                   const statusStyle = getLeaveStatusStyle(leave.status);
 
                   const statusLower = String(leave.status || "").trim().toLowerCase();
-                  const canDelete = statusLower === "pending";   // ✅ เฉพาะ pending เท่านั้น
-                  const canCancel = statusLower === "approved";  // ✅ เฉพาะ approved เท่านั้น
+                  const canDelete = statusLower === "pending";
+                  const canCancel = statusLower === "approved";
 
                   return (
                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/30">
                       <td className="px-6 py-4">
                         <div className="text-slate-800 font-black">
-                          {leave.typeName || leave.leaveType?.typeName || leave.type || "-"}
+                          {getLeaveTypeText(leave)}
                         </div>
                       </td>
 
@@ -705,7 +735,6 @@ export default function HistoryTable({
                         </span>
                       </td>
 
-                      {/* ✅ ACTION: Pending=Delete, Approved=Request Cancel, อื่นๆ = '-' (รวม Withdraw) */}
                       <td className="px-6 py-4 text-center">
                         {canDelete ? (
                           <div className="inline-flex items-center justify-center">

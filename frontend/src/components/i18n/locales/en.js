@@ -115,6 +115,7 @@ export default {
       normal: "Normal",
       noCheckout: "No Check-out",
       notCheckedOutYet: "NOT CHECKED OUT YET",
+      waitingForHr: "Waiting for HR",
 
       // Alerts
       deleteTitle: "Delete leave request?",

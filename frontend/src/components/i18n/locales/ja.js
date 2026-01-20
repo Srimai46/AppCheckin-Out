@@ -111,6 +111,7 @@ export default {
       normal: "通常",
       noCheckout: "退勤登録",
       notCheckedOutYet: "勤務中",
+      waitingForHr: "人事の確認待ち",
 
       // Alerts
       deleteTitle: "休暇申請を削除しますか？",

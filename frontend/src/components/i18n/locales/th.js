@@ -115,6 +115,7 @@ export default {
       normal: "ปกติ",
       noCheckout: "ไม่ลงชื่อออก",
       notCheckedOutYet: "ยังไม่ลงชื่อออก",
+      waitingForHr: "รอฝ่ายบุคคล",
 
       deleteTitle: "ลบรายการลา?",
       deleteText: "คุณแน่ใจหรือไม่ที่จะลบรายการนี้?<br/><b>{{type}}</b>",

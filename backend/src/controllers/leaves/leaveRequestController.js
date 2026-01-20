@@ -464,10 +464,8 @@ exports.getMyLeaves = async (req, res) => {
       where: { employeeId: userId },
       orderBy: { requestedAt: "desc" },
       include: {
-        leaveType: true,
-        approvedByHr: {
-          select: { firstName: true, lastName: true },
-        },
+        leaveType: { select: { typeName: true, label: true, color: true } },
+        approvedByHr: { select: { firstName: true, lastName: true } },
       },
     });
 
@@ -477,6 +475,7 @@ exports.getMyLeaves = async (req, res) => {
       const used = Number(q.usedDays || 0);
       return {
         leaveTypeName: q.leaveType.typeName,
+        leaveTypeLabel: q.leaveType.label || null,
         totalAllowed: totalAllowed,
         used: used,
         remaining: totalAllowed - used,
@@ -485,26 +484,33 @@ exports.getMyLeaves = async (req, res) => {
 
     // 4. ปรับโครงสร้างข้อมูลประวัติการลา (Formatted History)
     const formattedLeaves = leaves.map((l) => {
-      // Logic สำหรับแสดงสถานะผู้จัดการ (Approver Display)
       let approverDisplay = "-";
       if (l.approvedByHr) {
         approverDisplay = `${l.approvedByHr.firstName} ${l.approvedByHr.lastName}`;
       } else if (l.status === "Pending") {
         approverDisplay = "Waiting for HR";
       } else if (l.status === "Withdraw_Pending") {
-        approverDisplay = "Withdrawal Reviewing"; 
+        approverDisplay = "Withdrawal Reviewing";
       }
 
       return {
         id: l.id,
+        leaveType: l.leaveType
+          ? {
+              typeName: l.leaveType.typeName,
+              label: l.leaveType.label,
+              color: l.leaveType.color,
+            }
+          : null,
         typeName: l.leaveType?.typeName,
+
         startDate: l.startDate,
         endDate: l.endDate,
         totalDaysRequested: Number(l.totalDaysRequested),
         status: l.status,
         reason: l.reason,
-        rejectionReason: l.rejectionReason, 
-        cancelReason: l.cancelReason, 
+        rejectionReason: l.rejectionReason,
+        cancelReason: l.cancelReason,
         requestedAt: l.requestedAt,
         approvalDate: l.approvalDate,
         isSpecialApproved: l.isSpecialApproved,
