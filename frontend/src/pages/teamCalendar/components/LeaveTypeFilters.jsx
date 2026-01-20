@@ -19,9 +19,9 @@ const isHexColor = (value) => {
 
 const getLeaveTypeLabel = (label, typeName, language) => {
   if (!label) return typeName || "-";
-  if (typeof label === "string") return label; // รองรับข้อมูลเก่า
+  if (typeof label === "string") return label;
 
-  const lang = language?.split("-")[0]; // en-US -> en
+  const lang = language?.split("-")[0];
   return (
     label[lang] ||
     label.en ||
@@ -34,17 +34,13 @@ const getLeaveTypeLabel = (label, typeName, language) => {
 
 export default function LeaveTypeFilters({ selected = [], setSelected }) {
   const { t, i18n } = useTranslation();
-
-  // ✅ reuse hook ที่คุณมีอยู่แล้ว
   const { leaveTypes = [], fetchLeaveTypes } = useYearEndProcessing();
 
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState("");
 
-  // ✅ โหลด leave types ทั้งหมด
   useEffect(() => {
     let alive = true;
-
     (async () => {
       try {
         setLoading(true);
@@ -59,13 +55,8 @@ export default function LeaveTypeFilters({ selected = [], setSelected }) {
       }
     })();
 
-    // รองรับ refresh event (ที่ LeaveTypeCard dispatch ไว้)
     const onRefresh = async () => {
-      try {
-        await fetchLeaveTypes();
-      } catch {
-        // ignore
-      }
+      try { await fetchLeaveTypes(); } catch {}
     };
     window.addEventListener("leave-type-refresh", onRefresh);
 
@@ -77,10 +68,11 @@ export default function LeaveTypeFilters({ selected = [], setSelected }) {
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 
-  // ✅ สร้าง items จาก leaveTypes (custom สี + label ตามภาษา)
   const items = useMemo(() => {
     return (leaveTypes || []).map((lt) => ({
-      key: String(lt.id), // ✅ ถ้าระบบกรองเดิมใช้ typeName ให้เปลี่ยนเป็น String(lt.typeName)
+      // ✅ FIX: ใช้ typeName เป็น Key หลัก (ถ้าไม่มีให้ fallback ไปหา id)
+      // เพื่อให้ตรงกับข้อมูลใน CalendarGrid ที่ใช้ leaf.typeName
+      key: lt.typeName ? String(lt.typeName) : String(lt.id), 
       label: getLeaveTypeLabel(lt.label, lt.typeName, i18n.language),
       color: normalizeHex(lt.color, DEFAULT_COLOR),
     }));
@@ -110,7 +102,6 @@ export default function LeaveTypeFilters({ selected = [], setSelected }) {
     <div className="flex flex-wrap items-center gap-2">
       {items.map((item) => {
         const active = selectedSet.has(item.key);
-
         const useHex = isHexColor(item.color);
         const dotStyle = useHex ? { backgroundColor: normalizeHex(item.color) } : undefined;
         const dotClass = useHex ? "" : item.color || "bg-indigo-500";
@@ -126,8 +117,7 @@ export default function LeaveTypeFilters({ selected = [], setSelected }) {
                   : [...prev, item.key]
               )
             }
-            className={`flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-black transition-all
-              ${
+            className={`flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-black transition-all ${
                 active
                   ? "bg-white border-blue-400 ring-2 ring-blue-200 scale-[1.03]"
                   : "bg-gray-50 border-gray-100 opacity-60 hover:opacity-100"

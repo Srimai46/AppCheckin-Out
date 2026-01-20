@@ -1,5 +1,5 @@
 // src/pages/teamCalendar/components/DailyDetailsModal.jsx
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react"; // ✅ เพิ่ม useEffect, useState, useMemo
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,7 +13,7 @@ import {
   Info,
 } from "lucide-react";
 
-import { updateLeaveStatus, grantSpecialLeave } from "../../../api/leaveService";
+import { updateLeaveStatus, grantSpecialLeave, getLeaveTypes } from "../../../api/leaveService"; // ✅ เพิ่ม getLeaveTypes
 import { alertConfirm, alertSuccess, alertError, alertRejectReason } from "../../../utils/sweetAlert";
 import { openAttachment } from "../../../utils/attachmentPreview";
 
@@ -22,6 +22,17 @@ import TabButton from "./TabButton";
 import RoleDropdown from "./RoleDropdown";
 
 import { buildRowName, buildDurationText, typeBadgeTheme } from "../utils";
+
+// ✅ Helper สำหรับเลือกสี Text ให้ตัดกับพื้นหลัง (ขาว/ดำ) แบบง่ายๆ
+const getContrastYIQ = (hexcolor) => {
+  if (!hexcolor) return 'black';
+  hexcolor = hexcolor.replace("#", "");
+  var r = parseInt(hexcolor.substr(0, 2), 16);
+  var g = parseInt(hexcolor.substr(2, 2), 16);
+  var b = parseInt(hexcolor.substr(4, 2), 16);
+  var yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return (yiq >= 128) ? '#1f2937' : 'white'; // dark-gray or white
+};
 
 export default function DailyDetailsModal({
   open,
@@ -48,7 +59,56 @@ export default function DailyDetailsModal({
 
   refetchLeaves,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language; // ✅ ดึงภาษาปัจจุบัน
+
+  // ✅ 1. State สำหรับเก็บข้อมูล Leave Types (Label & Color)
+  const [leaveTypeMap, setLeaveTypeMap] = useState({});
+
+  // ✅ 2. Fetch Leave Types เมื่อ Modal เปิด หรือ Component Mount
+  useEffect(() => {
+    let active = true;
+    getLeaveTypes().then((data) => {
+      if (!active) return;
+      const map = {};
+      (data || []).forEach((t) => {
+        // ใช้ typeName เป็น Key หลัก (Normalized เป็น UpperCase)
+        const key = String(t.typeName || "").toUpperCase();
+        map[key] = {
+          label: t.label || null,
+          color: t.color || null,
+        };
+      });
+      setLeaveTypeMap(map);
+    });
+    return () => { active = false; };
+  }, []);
+
+  // ✅ 3. ฟังก์ชัน Resolve Label (เหมือนใน CalendarGrid)
+  const resolveLeaveLabel = useCallback((leaf) => {
+    // 1) เช็คว่าใน object leaf มี label ติดมาไหม (บาง API ส่งมา)
+    if (leaf?.label && typeof leaf.label === "object") {
+      return leaf.label[lang] || leaf.label.en || Object.values(leaf.label)[0];
+    }
+    
+    const key = String(leaf?.typeName || leaf?.type || "").toUpperCase();
+    
+    // 2) Lookup จาก Map ที่เรา fetch มา
+    const fromType = leaveTypeMap[key]?.label;
+    if (fromType && typeof fromType === "object") {
+      return fromType[lang] || fromType.en || Object.values(fromType)[0];
+    }
+
+    // 3) Fallback เป็นชื่อ type ดิบๆ
+    return leaf?.typeName || leaf?.type || "-";
+  }, [leaveTypeMap, lang]);
+
+  // ✅ 4. ฟังก์ชัน Resolve Color
+  const resolveLeaveColor = useCallback((leaf) => {
+    const key = String(leaf?.typeName || leaf?.type || "").toUpperCase();
+    return leaveTypeMap[key]?.color || null;
+  }, [leaveTypeMap]);
+
 
   const handleLeaveActionInModal = useCallback(
     async (mode, leaf) => {
@@ -68,7 +128,6 @@ export default function DailyDetailsModal({
         let rejectionReason = null;
 
         if (isReject) {
-          // alertRejectReason ปกติไปใช้ i18n ของ sweetAlert.reject.* อยู่แล้ว
           rejectionReason = await alertRejectReason();
           if (!rejectionReason) return;
         } else {
@@ -302,8 +361,12 @@ export default function DailyDetailsModal({
                   ) : (
                     (rows || []).map((leaf) => {
                       const name = buildRowName(leaf);
-                      const type = String(leaf.type || "-");
+                      const rawType = String(leaf.type || leaf.typeName || "-"); // เก็บค่า Raw ไว้เทียบสี
                       const dur = buildDurationText(leaf);
+
+                      // ✅ ใช้ Logic ใหม่ในการดึงชื่อและสี
+                      const displayLabel = resolveLeaveLabel(leaf);
+                      const customColor = resolveLeaveColor(leaf);
 
                       const showHrName =
                         tab === "APPROVED"
@@ -322,13 +385,28 @@ export default function DailyDetailsModal({
                           </td>
 
                           <td className="p-5">
-                            <span
-                              className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${typeBadgeTheme(
-                                type
-                              )}`}
-                            >
-                              {type}
-                            </span>
+                            {/* ✅ Render Badge แบบมี Custom Color */}
+                            {customColor ? (
+                                <span
+                                  className="inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap border shadow-sm"
+                                  style={{
+                                    backgroundColor: customColor,
+                                    borderColor: customColor,
+                                    color: getContrastYIQ(customColor), // ปรับสี Text ตาม Background
+                                  }}
+                                >
+                                  {displayLabel}
+                                </span>
+                            ) : (
+                                // Fallback ใช้ Theme เดิมถ้าไม่มีสีจาก DB
+                                <span
+                                  className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${typeBadgeTheme(
+                                    rawType
+                                  )}`}
+                                >
+                                  {displayLabel}
+                                </span>
+                            )}
                           </td>
 
                           <td className="p-5 min-w-[260px]">
