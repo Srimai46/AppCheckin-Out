@@ -261,6 +261,7 @@ export default function TeamCalendar() {
             onDayClick={openDay}
             isSameMonth={isSameMonth}
             isToday={isToday}
+            matchLeaveType={matchLeaveType}
           />
 
           {/* Team attendance today */}
@@ -297,6 +298,7 @@ export default function TeamCalendar() {
         loading={loading || modalAttLoading}
         rows={filteredModalRows}
         refetchLeaves={refetchLeaves}
+        
       />
     </div>
   );

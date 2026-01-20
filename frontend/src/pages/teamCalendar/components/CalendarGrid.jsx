@@ -27,7 +27,9 @@ export default function CalendarGrid({
   const [leaveTypeMap, setLeaveTypeMap] = useState({});
 
   useEffect(() => {
+    let active = true;
     getLeaveTypes().then((data) => {
+      if (!active) return;
       const map = {};
       (data || []).forEach((t) => {
         const key = String(t.typeName || "").toUpperCase();
@@ -38,6 +40,7 @@ export default function CalendarGrid({
       });
       setLeaveTypeMap(map);
     });
+    return () => { active = false; };
   }, []);
 
   /* ---------------- Group leaves by dateKey ---------------- */
@@ -54,47 +57,43 @@ export default function CalendarGrid({
 
   /* ---------------- Resolve label by current language ---------------- */
   const resolveLeaveLabel = (leaf) => {
-    // 1) label จาก leaf (กรณี normalize มาแล้ว)
     if (leaf?.label && typeof leaf.label === "object") {
-      return (
-        leaf.label[lang] ||
-        leaf.label.en ||
-        Object.values(leaf.label)[0]
-      );
+      return leaf.label[lang] || leaf.label.en || Object.values(leaf.label)[0];
     }
-
-    // 2) lookup จาก LeaveType
-    const key = String(
-      leaf?.typeName || leaf?.type || ""
-    ).toUpperCase();
-
+    const key = String(leaf?.typeName || leaf?.type || "").toUpperCase();
     const fromType = leaveTypeMap[key]?.label;
     if (fromType && typeof fromType === "object") {
-      return (
-        fromType[lang] ||
-        fromType.en ||
-        Object.values(fromType)[0]
-      );
+      return fromType[lang] || fromType.en || Object.values(fromType)[0];
     }
-
-    // 3) fallback สุดท้าย
     return leaf?.typeName || leaf?.type || "UNKNOWN";
   };
 
   /* ---------------- Build badges per day ---------------- */
   const buildBadges = (day) => {
     const dayKey = format(day, "yyyy-MM-dd");
-    const dayLeaves = (leavesByKey.get(dayKey) || []).filter((leaf) => {
-      if (!selectedTypes?.length) return true;
-      return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
+    
+    // ✅ FIX: ปรับปรุง Logic Filter ให้แข็งแรงขึ้น
+    const rawLeaves = leavesByKey.get(dayKey) || [];
+    const dayLeaves = rawLeaves.filter((leaf) => {
+      // ถ้าไม่มีการเลือก Filter ให้แสดงทั้งหมด
+      if (!selectedTypes || selectedTypes.length === 0) return true;
+
+      // ดึงค่า Type ของใบลาออกมา Normalize
+      const leafType = String(leaf.type || leaf.typeName || "").trim();
+      
+      // ตรวจสอบว่าตรงกับที่เลือกหรือไม่ (รองรับทั้ง matchLeaveType และการเทียบ String ปกติ)
+      return selectedTypes.some((filterKey) => {
+        // 1. ลองใช้ utility function ที่ส่งเข้ามา
+        if (matchLeaveType(leafType, filterKey)) return true;
+        
+        // 2. ถ้า utility ไม่ work ให้ลองเทียบแบบ Case Insensitive String
+        return leafType.toUpperCase() === String(filterKey).toUpperCase();
+      });
     });
 
     // TYPE => { count, sample }
     const typeMap = dayLeaves.reduce((acc, leaf) => {
-      const type = String(
-        leaf.type || leaf.typeName || "UNKNOWN"
-      ).toUpperCase();
-
+      const type = String(leaf.type || leaf.typeName || "UNKNOWN").toUpperCase();
       if (!acc[type]) {
         acc[type] = { count: 0, sample: leaf };
       }
