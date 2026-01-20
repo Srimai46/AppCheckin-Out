@@ -1,3 +1,7 @@
+/* =========================
+   DateGridPicker.css
+   ========================= */
+
 /* Backdrop */
 .dgp-backdrop{
   position: fixed;
@@ -83,11 +87,11 @@
   color: #fff;
 }
 
-/* Panels */
+/* Panels (✅ make DAY wider) */
 .dgp-panels{
   padding: 14px 16px 18px 16px;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1.25fr;
   gap: 14px;
 }
 
@@ -100,6 +104,9 @@
   border-radius: 22px;
   padding: 14px;
   background: #fff;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
 }
 
 .dgp-label{
@@ -116,7 +123,8 @@
   background: #f8fafc;
   border: 1px solid #eef2f7;
   border-radius: 18px;
-  padding: 12px;
+  padding: 14px;
+  overflow: hidden;
 }
 
 .dgp-scroll{
@@ -134,6 +142,7 @@
   background-clip: padding-box;
 }
 
+/* Base grid */
 .dgp-grid{
   display: grid;
   gap: 10px;
@@ -142,27 +151,28 @@
 .dgp-grid-3{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .dgp-grid-4{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
-/* Chips */
+/* Chips (Year/Month) */
 .dgp-chip{
   height: 44px;
   border-radius: 16px;
   border: 1px solid #eef2f7;
   background: #ffffff;
   font-weight: 900;
-  letter-spacing: .12em;
+  letter-spacing: .06em;
   font-size: 12px;
   color: #0f172a;
   cursor: pointer;
   transition: transform .08s ease, background .15s ease, border-color .15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  white-space: nowrap;
+  margin: 0;
 }
 
-.dgp-chip:hover{
-  background: #f1f5f9;
-}
-
-.dgp-chip:active{
-  transform: scale(0.98);
-}
+.dgp-chip:hover{ background: #f1f5f9; }
+.dgp-chip:active{ transform: scale(0.98); }
 
 .dgp-chip.is-active{
   background: #4f46e5;
@@ -210,9 +220,7 @@
   color: #0f172a;
 }
 
-.dgp-btn.ghost:hover{
-  background: #f8fafc;
-}
+.dgp-btn.ghost:hover{ background: #f8fafc; }
 
 .dgp-btn.primary{
   background: #4f46e5;
@@ -223,4 +231,115 @@
 .dgp-btn.primary:hover{
   background: #4338ca;
   border-color: #4338ca;
+}
+
+/* ========================= Calendar ========================= */
+
+.dgp-weekday-preview{
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  color: #64748b;
+}
+
+.dgp-cal{ width: 100%; }
+
+.dgp-weekdays{
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.dgp-weekday{
+  text-align: center;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #0f172a;
+  opacity: .85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Days grid */
+.dgp-cal-grid{
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* ✅ Day cell (ใหญ่ขึ้น + อ่านง่ายขึ้น) */
+.dgp-cal-cell{
+  height: 25px;
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: #ffffff;
+  font-weight: 900;
+  letter-spacing: 0;
+  font-size: 13px;
+  color: #0f172a;
+  cursor: pointer;
+  transition: transform .08s ease, background .15s ease, border-color .15s ease;
+}
+
+.dgp-cal-cell:hover{ background: #f1f5f9; }
+.dgp-cal-cell:active{ transform: scale(0.98); }
+
+/* Out of month */
+.dgp-cal-cell.out-month{
+  opacity: .28;
+  background: #ffffff;
+}
+
+/* In month */
+.dgp-cal-cell.in-month{ opacity: .95; }
+
+/* Selected day */
+.dgp-cal-cell.is-selected{
+  opacity: 1;
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #ffffff;
+}
+
+/* Today ring */
+.dgp-cal-cell.is-today{
+  border-color: #94a3b8;
+}
+
+/* Today + Selected */
+.dgp-cal-cell.is-selected.is-today{
+  border-color: #4f46e5;
+}
+
+/* =========================
+   Hardening: prevent global styles from breaking grids
+   ========================= */
+.dgp-modal .dgp-grid{
+  display: grid !important;
+  gap: 10px !important;
+  grid-auto-flow: row !important;
+  align-content: start !important;
+}
+
+.dgp-modal .dgp-grid-3{
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.dgp-modal .dgp-grid-4{
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.dgp-modal .dgp-grid > button{
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.dgp-modal button.dgp-chip{
+  display: flex !important;
 }

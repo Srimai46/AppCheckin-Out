@@ -12,17 +12,64 @@ export default function DateGridPicker({
   allowAll = true,
   granularity = "day",
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const pad2 = (n) => String(n).padStart(2, "0");
 
+  // =========================
+  // ✅ Locale helpers
+  // =========================
+  const locale = useMemo(() => {
+    const lang = (i18n.language || "en").toLowerCase();
+    if (lang.startsWith("th")) return "th-TH";
+    if (lang.startsWith("ja")) return "ja-JP";
+    return "en-US";
+  }, [i18n.language]);
+
+  const weekdayLongFormatter = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat(locale, { weekday: "long" });
+    } catch {
+      return new Intl.DateTimeFormat("en-US", { weekday: "long" });
+    }
+  }, [locale]);
+
+  const monthFormatter = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat(locale, { month: "short" });
+    } catch {
+      return new Intl.DateTimeFormat("en-US", { month: "short" });
+    }
+  }, [locale]);
+
+  const getWeekdayLong = (y, m, d) => {
+    const yyNum = Number(y);
+    const mmNum = Number(m);
+    const ddNum = Number(d);
+    if (!yyNum || !mmNum || !ddNum) return "";
+    const date = new Date(yyNum, mmNum - 1, ddNum);
+    if (Number.isNaN(date.getTime())) return "";
+    return weekdayLongFormatter.format(date);
+  };
+
+  // ✅ Week header like screenshot (Su Mo Tu ...)
+  const weekHeaders = useMemo(() => {
+    const lang = (i18n.language || "en").toLowerCase();
+    if (lang.startsWith("th")) return ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+    if (lang.startsWith("ja")) return ["日", "月", "火", "水", "木", "金", "土"];
+    return ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  }, [i18n.language]);
+
+  // =========================
+  // Parse/State
+  // =========================
   const parseValue = (v) => {
     const now = new Date();
     const fallback = {
       mode: allowAll ? "all" : "date",
       y: String(now.getFullYear()),
-      m: "01",
-      d: "01",
+      m: pad2(now.getMonth() + 1),
+      d: pad2(now.getDate()),
     };
 
     if (!v) return fallback;
@@ -50,30 +97,19 @@ export default function DateGridPicker({
     if (!open) return;
     const p = parseValue(value);
     initialRef.current = p;
-
-    setState({
-      mode: p.mode,
-      y: p.y,
-      m: p.m,
-      d: p.d,
-    });
+    setState({ mode: p.mode, y: p.y, m: p.m, d: p.d });
   }, [open, value]);
 
+  // =========================
+  // Options
+  // =========================
   const yearOptions = useMemo(() => {
     const nowY = new Date().getFullYear();
     const start = nowY - 10;
     const end = nowY + 2;
     const arr = [];
-    for (let y = end; y >= start; y--) arr.push(String(y)); // new -> old
+    for (let y = end; y >= start; y--) arr.push(String(y));
     return arr;
-  }, []);
-
-  const monthFormatter = useMemo(() => {
-    try {
-      return new Intl.DateTimeFormat(undefined, { month: "short" });
-    } catch {
-      return new Intl.DateTimeFormat("en", { month: "short" });
-    }
   }, []);
 
   const months = useMemo(() => {
@@ -90,17 +126,63 @@ export default function DateGridPicker({
     return new Date(y, m, 0).getDate();
   }, [yy, mm]);
 
-  const days = useMemo(() => {
-    return Array.from({ length: daysInMonth }, (_, i) => pad2(i + 1));
-  }, [daysInMonth]);
-
   useEffect(() => {
     const n = Number(dd);
-    if (n > daysInMonth) {
-      setState((prev) => ({ ...prev, d: pad2(daysInMonth) }));
-    }
+    if (n > daysInMonth) setState((prev) => ({ ...prev, d: pad2(daysInMonth) }));
   }, [daysInMonth]);
 
+  // =========================
+  // ✅ Calendar cells (6 weeks x 7 days)
+  // =========================
+  const calendarCells = useMemo(() => {
+    const y = Number(yy);
+    const m = Number(mm);
+    if (!y || !m) return [];
+
+    const first = new Date(y, m - 1, 1);
+    const firstDow = first.getDay(); // 0=Sun
+    const dim = new Date(y, m, 0).getDate(); // days in current month
+    const prevDim = new Date(y, m - 1, 0).getDate(); // days in prev month
+
+    const cells = [];
+    for (let i = 0; i < 42; i++) {
+      const dayNum = i - firstDow + 1;
+      if (dayNum <= 0) {
+        // prev month
+        const d = prevDim + dayNum;
+        const prevDate = new Date(y, m - 2, d);
+        cells.push({
+          y: String(prevDate.getFullYear()),
+          m: pad2(prevDate.getMonth() + 1),
+          d: pad2(prevDate.getDate()),
+          inMonth: false,
+        });
+      } else if (dayNum > dim) {
+        // next month
+        const d = dayNum - dim;
+        const nextDate = new Date(y, m, d);
+        cells.push({
+          y: String(nextDate.getFullYear()),
+          m: pad2(nextDate.getMonth() + 1),
+          d: pad2(nextDate.getDate()),
+          inMonth: false,
+        });
+      } else {
+        // current month
+        cells.push({
+          y: String(y),
+          m: pad2(m),
+          d: pad2(dayNum),
+          inMonth: true,
+        });
+      }
+    }
+    return cells;
+  }, [yy, mm]);
+
+  // =========================
+  // Year auto scroll (เดิม)
+  // =========================
   const yearScrollRef = useRef(null);
   const didAutoScrollRef = useRef(false);
 
@@ -109,7 +191,6 @@ export default function DateGridPicker({
     didAutoScrollRef.current = false;
   }, [open]);
 
-  // ✅ auto-scroll เฉพาะตอน "ปีที่เลือกอยู่นอก viewport" เท่านั้น
   useEffect(() => {
     if (!open) return;
     if (didAutoScrollRef.current) return;
@@ -130,11 +211,13 @@ export default function DateGridPicker({
       const top = btn.offsetTop - el.clientHeight / 2 + btn.clientHeight / 2;
       el.scrollTo({ top: Math.max(0, top), behavior: "auto" });
     }
-    // ถ้าอยู่ในจออยู่แล้ว: ไม่ scroll เลย
 
     didAutoScrollRef.current = true;
   }, [open, yy]);
 
+  // =========================
+  // Actions
+  // =========================
   const commit = () => {
     if (allowAll && mode === "all") {
       onChange?.(null);
@@ -160,18 +243,19 @@ export default function DateGridPicker({
 
   const reset = () => {
     const p = initialRef.current;
-    setState({
-      mode: p.mode,
-      y: p.y,
-      m: p.m,
-      d: p.d,
-    });
+    setState({ mode: p.mode, y: p.y, m: p.m, d: p.d });
   };
 
   const onKeyDown = (e) => {
     if (e.key === "Escape") onClose?.();
     if (e.key === "Enter") commit();
   };
+
+  const weekdayLong = useMemo(() => {
+    if (allowAll && mode === "all") return "";
+    if (granularity !== "day") return "";
+    return getWeekdayLong(yy, mm, dd);
+  }, [allowAll, mode, granularity, yy, mm, dd, weekdayLongFormatter]);
 
   const previewText = useMemo(() => {
     if (allowAll && mode === "all") return t("dateGridPicker.all");
@@ -199,25 +283,31 @@ export default function DateGridPicker({
         <div className="dgp-head">
           <div className="dgp-title">{title || t("dateGridPicker.title")}</div>
 
-          <div className="dgp-preview">
-            <span className={`dgp-preview-pill ${allowAll && mode === "all" ? "is-all" : ""}`}>
-              {previewText}
-            </span>
+          <div className="dgp-preview" style={{ flexDirection: "column", alignItems: "flex-end" }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span className={`dgp-preview-pill ${allowAll && mode === "all" ? "is-all" : ""}`}>
+                {previewText}
+              </span>
 
-            {allowAll && (
-              <button
-                type="button"
-                className={`dgp-all-toggle ${mode === "all" ? "is-on" : ""}`}
-                onClick={() =>
-                  setState((prev) => ({
-                    ...prev,
-                    mode: prev.mode === "all" ? "date" : "all",
-                  }))
-                }
-                title={t("dateGridPicker.all")}
-              >
-                {mode === "all" ? t("dateGridPicker.allOn") : t("dateGridPicker.allOff")}
-              </button>
+              {allowAll && (
+                <button
+                  type="button"
+                  className={`dgp-all-toggle ${mode === "all" ? "is-on" : ""}`}
+                  onClick={() =>
+                    setState((prev) => ({
+                      ...prev,
+                      mode: prev.mode === "all" ? "date" : "all",
+                    }))
+                  }
+                  title={t("dateGridPicker.all")}
+                >
+                  {mode === "all" ? t("dateGridPicker.allOn") : t("dateGridPicker.allOff")}
+                </button>
+              )}
+            </div>
+
+            {granularity === "day" && !(allowAll && mode === "all") && (
+              <div className="dgp-weekday-preview">{weekdayLong}</div>
             )}
           </div>
         </div>
@@ -244,13 +334,7 @@ export default function DateGridPicker({
                       type="button"
                       data-year={y}
                       className={`dgp-chip ${y === yy ? "is-active" : ""}`}
-                      onClick={() =>
-                        setState((prev) => ({
-                          ...prev,
-                          mode: "date",
-                          y,
-                        }))
-                      }
+                      onClick={() => setState((prev) => ({ ...prev, mode: "date", y }))}
                     >
                       {y}
                     </button>
@@ -270,13 +354,7 @@ export default function DateGridPicker({
                       key={m.value}
                       type="button"
                       className={`dgp-chip ${m.value === mm ? "is-active" : ""}`}
-                      onClick={() =>
-                        setState((prev) => ({
-                          ...prev,
-                          mode: "date",
-                          m: m.value,
-                        }))
-                      }
+                      onClick={() => setState((prev) => ({ ...prev, mode: "date", m: m.value }))}
                     >
                       {m.label}
                     </button>
@@ -289,24 +367,50 @@ export default function DateGridPicker({
           {showDay && (
             <div className="dgp-panel">
               <div className="dgp-label">{t("dateGridPicker.day")}</div>
-              <div className="dgp-grid-wrap dgp-scroll">
-                <div className="dgp-grid dgp-grid-4">
-                  {days.map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      className={`dgp-chip ${d === dd ? "is-active" : ""}`}
-                      onClick={() =>
-                        setState((prev) => ({
-                          ...prev,
-                          mode: "date",
-                          d,
-                        }))
-                      }
-                    >
-                      {d}
-                    </button>
-                  ))}
+
+              {/* ✅ Calendar View */}
+              <div className="dgp-grid-wrap">
+                <div className="dgp-cal">
+                  <div className="dgp-weekdays">
+                    {weekHeaders.map((h) => (
+                      <div key={h} className="dgp-weekday">
+                        {h}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="dgp-cal-grid" role="grid" aria-label="Calendar">
+                    {calendarCells.map((c, idx) => {
+                      const isSelected = c.y === yy && c.m === mm && c.d === dd;
+                      const cls = [
+                        "dgp-cal-cell",
+                        c.inMonth ? "in-month" : "out-month",
+                        isSelected ? "is-selected" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
+
+                      return (
+                        <button
+                          key={`${c.y}-${c.m}-${c.d}-${idx}`}
+                          type="button"
+                          className={cls}
+                          onClick={() =>
+                            setState((prev) => ({
+                              ...prev,
+                              mode: "date",
+                              y: c.y,
+                              m: c.m,
+                              d: c.d,
+                            }))
+                          }
+                          title={`${c.d}/${c.m}/${c.y} (${getWeekdayLong(c.y, c.m, c.d)})`}
+                        >
+                          {Number(c.d)}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
