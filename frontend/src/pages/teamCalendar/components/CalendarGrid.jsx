@@ -1,8 +1,12 @@
-// src/pages/teamCalendar/components/CalendarGrid.jsx
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
-import { leaveTheme, weekendBgByDow, matchLeaveType as defaultMatch } from "../utils";
+import {
+  leaveTheme,
+  weekendBgByDow,
+  matchLeaveType as defaultMatch,
+} from "../utils";
+import { getLeaveTypes } from "../../../api/leaveService";
 
 export default function CalendarGrid({
   weekHeaders,
@@ -16,20 +20,68 @@ export default function CalendarGrid({
   isToday,
   matchLeaveType = defaultMatch,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
 
+  /* ---------------- LeaveType cache (label json) ---------------- */
+  const [leaveTypeMap, setLeaveTypeMap] = useState({});
+
+  useEffect(() => {
+    getLeaveTypes().then((data) => {
+      const map = {};
+      (data || []).forEach((t) => {
+        const key = String(t.typeName || "").toUpperCase();
+        map[key] = {
+          label: t.label || null,
+          color: t.color || null,
+        };
+      });
+      setLeaveTypeMap(map);
+    });
+  }, []);
+
+  /* ---------------- Group leaves by dateKey ---------------- */
   const leavesByKey = useMemo(() => {
     const map = new Map();
     (leaves || []).forEach((leaf) => {
-      const key = leaf.dateKey;
-      if (!key) return;
-      const arr = map.get(key) || [];
+      if (!leaf?.dateKey) return;
+      const arr = map.get(leaf.dateKey) || [];
       arr.push(leaf);
-      map.set(key, arr);
+      map.set(leaf.dateKey, arr);
     });
     return map;
   }, [leaves]);
 
+  /* ---------------- Resolve label by current language ---------------- */
+  const resolveLeaveLabel = (leaf) => {
+    // 1) label จาก leaf (กรณี normalize มาแล้ว)
+    if (leaf?.label && typeof leaf.label === "object") {
+      return (
+        leaf.label[lang] ||
+        leaf.label.en ||
+        Object.values(leaf.label)[0]
+      );
+    }
+
+    // 2) lookup จาก LeaveType
+    const key = String(
+      leaf?.typeName || leaf?.type || ""
+    ).toUpperCase();
+
+    const fromType = leaveTypeMap[key]?.label;
+    if (fromType && typeof fromType === "object") {
+      return (
+        fromType[lang] ||
+        fromType.en ||
+        Object.values(fromType)[0]
+      );
+    }
+
+    // 3) fallback สุดท้าย
+    return leaf?.typeName || leaf?.type || "UNKNOWN";
+  };
+
+  /* ---------------- Build badges per day ---------------- */
   const buildBadges = (day) => {
     const dayKey = format(day, "yyyy-MM-dd");
     const dayLeaves = (leavesByKey.get(dayKey) || []).filter((leaf) => {
@@ -37,29 +89,45 @@ export default function CalendarGrid({
       return selectedTypes.some((f) => matchLeaveType(leaf.type, f));
     });
 
-    const typeCounts = dayLeaves.reduce((acc, leaf) => {
-      const type = String(leaf.type || "UNKNOWN").toUpperCase();
-      acc[type] = (acc[type] || 0) + 1;
+    // TYPE => { count, sample }
+    const typeMap = dayLeaves.reduce((acc, leaf) => {
+      const type = String(
+        leaf.type || leaf.typeName || "UNKNOWN"
+      ).toUpperCase();
+
+      if (!acc[type]) {
+        acc[type] = { count: 0, sample: leaf };
+      }
+      acc[type].count += 1;
       return acc;
     }, {});
 
-    const typeBadges = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    return { typeCounts, typeBadges };
+    const typeBadges = Object.entries(typeMap)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 3);
+
+    return { typeMap, typeBadges };
   };
 
+  /* ---------------- Render ---------------- */
   return (
     <div className="bg-white rounded-[2rem] border border-blue-200 ring-2 overflow-hidden">
+      {/* Week headers */}
       <div className="grid grid-cols-7 border-b border-gray-100 bg-white">
         {weekHeaders.map((d) => (
-          <div key={d} className="py-2 text-center text-[11px] font-black text-slate-700">
+          <div
+            key={d}
+            className="py-2 text-center text-[11px] font-black text-slate-700"
+          >
             {d}
           </div>
         ))}
       </div>
 
+      {/* Calendar grid */}
       <div className="grid grid-cols-7 bg-white">
         {days.map((day) => {
-          const { typeCounts, typeBadges } = buildBadges(day);
+          const { typeMap, typeBadges } = buildBadges(day);
           const inMonth = isSameMonth(day, currentDate);
           const weekendBg = weekendBgByDow(day.getDay());
 
@@ -74,6 +142,7 @@ export default function CalendarGrid({
                 "hover:bg-slate-50",
               ].join(" ")}
             >
+              {/* Day number */}
               <div className="flex items-start justify-between">
                 <span
                   className={[
@@ -87,14 +156,17 @@ export default function CalendarGrid({
                 </span>
               </div>
 
+              {/* Leave badges */}
               {loading ? (
                 <div className="mt-2 text-[10px] text-gray-300 font-bold">
                   {t("teamCalendar.grid.loading")}
                 </div>
               ) : (
                 <div className="mt-2 space-y-1">
-                  {typeBadges.map(([type, count]) => {
+                  {typeBadges.map(([type, { count, sample }]) => {
                     const theme = leaveTheme(type);
+                    const label = resolveLeaveLabel(sample);
+
                     return (
                       <div
                         key={type}
@@ -104,19 +176,23 @@ export default function CalendarGrid({
                           theme.bg,
                           theme.text,
                         ].join(" ")}
-                        title={`${type} • ${count}`}
+                        title={`${label} • ${count}`}
                       >
-                        <span className={`w-1.5 h-1.5 rounded-full ${theme.dot}`} />
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${theme.dot}`}
+                        />
                         <span className="truncate">
-                          {type} • {count}
+                          {label} • {count}
                         </span>
                       </div>
                     );
                   })}
 
-                  {Object.keys(typeCounts).length > 3 && (
+                  {Object.keys(typeMap).length > 3 && (
                     <div className="text-[10px] text-indigo-600 font-black pl-1 uppercase tracking-widest">
-                      {t("teamCalendar.grid.moreTypes", { count: Object.keys(typeCounts).length - 3 })}
+                      {t("teamCalendar.grid.moreTypes", {
+                        count: Object.keys(typeMap).length - 3,
+                      })}
                     </div>
                   )}
                 </div>
