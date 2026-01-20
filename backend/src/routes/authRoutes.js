@@ -14,6 +14,5 @@ router.post("/login", login);
 router.get("/me", protect, getMe);
 
 // GET /api/auth/employees (เฉพาะ HR)
-router.get("/employees", protect, authorize("HR"), getAllEmployees);
-
+router.get("/employees", protect, authorize("HR", "ADMIN"), getAllEmployees);
 module.exports = router;

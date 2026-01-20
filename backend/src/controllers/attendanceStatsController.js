@@ -10,48 +10,46 @@ const isWeekend = (date) => {
 
 const isSameDay = (d1, d2) => formatDateStr(d1) === formatDateStr(d2);
 
-// คำนวณจุดกึ่งกลาง (Midpoint) เป็นนาที (เพื่อหาเวลาตัดรอบเช้า/บ่าย)
-const calculateMidpointMinutes = (startHour, startMin, endHour, endMin) => {
-    const startTotal = (startHour * 60) + startMin;
-    const endTotal = (endHour * 60) + endMin;
-    return Math.floor((startTotal + endTotal) / 2);
-};
-
 // --- Main Controller ---
 exports.getStats = async (req, res) => {
   try {
     const { year, month, employeeId } = req.query;
     const requesterId = req.user.id;
-    const requesterRole = req.user.role;
+    const requesterRole = req.user.role; // Middleware แปลงเป็น String แล้ว ("HR"/"ADMIN")
 
-    // 1. Security Check
+    // 1. Security Check (เพิ่ม ADMIN)
     let targetId = requesterId;
-    if (employeeId && requesterRole === 'HR') {
+    
+    // ถ้าเป็น HR หรือ ADMIN สามารถดูของคนอื่นได้
+    if (employeeId && (requesterRole === 'HR' || requesterRole === 'ADMIN')) {
       targetId = parseInt(employeeId, 10);
-    } else if (employeeId && requesterRole !== 'HR' && parseInt(employeeId, 10) !== requesterId) {
+    } else if (employeeId && parseInt(employeeId, 10) !== requesterId) {
+      // ถ้าเป็น User ธรรมดา ห้ามดูของคนอื่น
       return res.status(403).json({ error: "Access denied." });
     }
 
-    // 2. Fetch Employee Info
+    // 2. Fetch Employee Info (✅ แก้ให้รองรับ Relation)
     const targetEmployee = await prisma.employee.findUnique({ 
         where: { id: targetId },
         select: { 
-            role: true, 
+            id: true,
             firstName: true, 
             lastName: true, 
-            joiningDate: true,     // วันเริ่มงาน
-            resignationDate: true, // วันลาออก
-            isActive: true
+            joiningDate: true,
+            resignationDate: true, 
+            isActive: true,
+            // ✅ ดึง Role ID และ Name
+            roleId: true,
+            role: { select: { name: true } }
         } 
     });
 
     if (!targetEmployee) return res.status(404).json({ error: "Employee not found" });
 
-    // 3. Prepare Date Range
+    // 3. Prepare Date Range (เหมือนเดิม)
     const targetYear = parseInt(year);
     let startDate, endDate;
     
-    // ตั้งค่าวันเริ่มต้น/สิ้นสุด ตามที่ User เลือก
     if (month && month !== 'All') {
       const m = parseInt(month) - 1; 
       startDate = new Date(Date.UTC(targetYear, m, 1));
@@ -61,40 +59,20 @@ exports.getStats = async (req, res) => {
       endDate = new Date(targetYear, 11, 31, 23, 59, 59);
     }
 
-    // Logic A: ปรับ StartDate ตามวันเริ่มงาน
+    // Logic A & B: Adjust Start/End Date (เหมือนเดิม)
     if (targetEmployee.joiningDate) {
         const joinDate = new Date(targetEmployee.joiningDate);
         joinDate.setHours(0, 0, 0, 0);
-        if (joinDate > startDate) {
-            startDate = joinDate;
-        }
+        if (joinDate > startDate) startDate = joinDate;
     }
-
-    // Logic B: ปรับ EndDate ตามวันลาออก
     if (targetEmployee.resignationDate) {
         const resignDate = new Date(targetEmployee.resignationDate);
         resignDate.setHours(23, 59, 59, 999);
-        if (resignDate < endDate) {
-            endDate = resignDate;
-        }
+        if (resignDate < endDate) endDate = resignDate;
     }
 
-    // ตรวจสอบความถูกต้องของช่วงเวลา
     if (startDate > endDate) {
-        return res.json({
-            employee: {
-                id: targetId,
-                name: `${targetEmployee.firstName} ${targetEmployee.lastName}`,
-                role: targetEmployee.role,
-                isResigned: !!targetEmployee.resignationDate
-            },
-            period: { year: targetYear, month: month || 'All' },
-            stats: {
-                totalDaysExpected: 0,
-                present: 0, late: 0, earlyLeave: 0, leave: 0, absent: 0,
-                leaveBreakdown: {}, leaveDates: [], lateDates: [], earlyLeaveDates: [], absentDates: [], holidayDates: []
-            }
-        });
+        return res.json({ /* ...Empty Response... */ });
     }
 
     const today = new Date();
@@ -117,22 +95,32 @@ exports.getStats = async (req, res) => {
       prisma.holiday.findMany({
         where: { date: { gte: startDate, lte: loopEndDate } }
       }),
+      // ✅ แก้การดึง Config โดยใช้ roleId
       prisma.workConfiguration.findUnique({
-        where: { role: targetEmployee.role }
+        where: { roleId: targetEmployee.roleId }
       })
     ]);
 
-    // Config เวลาทำงานพื้นฐาน
+    // ✅ Config เวลาทำงาน (ดึงจาก DB หรือ Default)
     const startHour = realWorkConfig?.startHour || 9;
     const startMin = realWorkConfig?.startMin || 0;
-    const endHour = realWorkConfig?.endHour || 17;
+    const endHour = realWorkConfig?.endHour || 18;
     const endMin = realWorkConfig?.endMin || 0;
 
-    // แปลงเวลามาตรฐานเป็นนาที
+    // ✅ NEW: Config เวลาพัก (Break Time)
+    // ถ้าใน DB ไม่มี ให้ Default เป็น 12:00 - 13:00
+    const breakStartHour = realWorkConfig?.breakStartHour || 12;
+    const breakStartMin = realWorkConfig?.breakStartMin || 0;
+    const breakEndHour = realWorkConfig?.breakEndHour || 13;
+    const breakEndMin = realWorkConfig?.breakEndMin || 0;
+
+    // แปลงเวลาเป็นนาทีเพื่อคำนวณ
     const standardStartMinutes = (startHour * 60) + startMin;
     const standardEndMinutes = (endHour * 60) + endMin;
-    // คำนวณ Midpoint (เที่ยง/บ่าย) เป็นนาทีไว้เลย
-    const midpointMinutes = calculateMidpointMinutes(startHour, startMin, endHour, endMin);
+    
+    // ✅ จุดตัดเวลาครึ่งวัน (ใช้เวลาพักมาคำนวณ)
+    const morningEndMinutes = (breakStartHour * 60) + breakStartMin; // เลิกงานครึ่งเช้า (12:00)
+    const afternoonStartMinutes = (breakEndHour * 60) + breakEndMin; // เริ่มงานครึ่งบ่าย (13:00)
 
     // 5. Initialization
     const stats = {
@@ -168,18 +156,18 @@ exports.getStats = async (req, res) => {
             return dTime >= sTime && dTime <= eTime;
         });
 
-        // 🔥 Logic ตรวจสอบการลา (Full / Half)
+        // 🔥 Logic ตรวจสอบการลา
         let isHalfDayLeave = false;
-        let isHalfMorning = false;
-        let isHalfAfternoon = false;
+        let isHalfMorning = false;   // ลาครึ่งเช้า (มาเข้างานบ่าย)
+        let isHalfAfternoon = false; // ลาครึ่งบ่าย (กลับตอนเที่ยง)
         
         if (leave) {
             if (leave.startDuration === 'HalfMorning' || leave.endDuration === 'HalfMorning') {
                 isHalfDayLeave = true;
-                isHalfMorning = true;
+                isHalfMorning = true; // ลาเช้า -> ต้องมาทำงานบ่าย
             } else if (leave.startDuration === 'HalfAfternoon' || leave.endDuration === 'HalfAfternoon') {
                 isHalfDayLeave = true;
-                isHalfAfternoon = true;
+                isHalfAfternoon = true; // ลาบ่าย -> เลิกงานตอนพักเที่ยง
             }
 
             // Case 1: ลาเต็มวัน
@@ -214,25 +202,25 @@ exports.getStats = async (req, res) => {
         if (record) {
             stats.present++;
 
-            // กำหนด Expected Start/End Time (นาที)
+            // กำหนด Expected Start/End Time
             let expectedStartMinutes = standardStartMinutes;
             let expectedEndMinutes = standardEndMinutes;
 
-            // ปรับเวลาตามการลาครึ่งวัน (Half Day Logic)
+            // ✅ ปรับเวลาตามการลาครึ่งวัน (ใช้ Logic เวลาพัก)
             if (isHalfMorning) {
-                expectedStartMinutes = midpointMinutes; // ต้องเข้าบ่าย
+                // ลาเช้า: ต้องเข้างานตอน "หมดเวลาพัก" (13:00)
+                expectedStartMinutes = afternoonStartMinutes; 
             }
             if (isHalfAfternoon) {
-                expectedEndMinutes = midpointMinutes; // เลิกเที่ยงได้
+                // ลาบ่าย: เลิกงานได้ตอน "เริ่มเวลาพัก" (12:00)
+                expectedEndMinutes = morningEndMinutes; 
             }
 
             // --- เช็คสาย (LATE) ---
             let isLate = false;
-            // 1. เชื่อ Status จาก DB ก่อน
             if (record.checkInStatus) {
                 isLate = (record.checkInStatus === 'LATE');
             } else {
-                // 2. Fallback: คำนวณเอง
                 isLate = record.isLate; 
             }
 
@@ -240,10 +228,8 @@ exports.getStats = async (req, res) => {
                 stats.late++;
                 stats.lateDates.push(currentDateStr);
                 
-                // คำนวณนาทีสาย (เทียบกับ Expected Time ที่ปรับแล้ว)
                 if (record.checkInTime) {
                     const inTime = new Date(record.checkInTime);
-                    // แปลงเป็น Local Time (+7) เพื่อคำนวณนาที
                     const localInTime = new Date(inTime.toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
                     const inMinutes = (localInTime.getHours() * 60) + localInTime.getMinutes();
                     
@@ -255,16 +241,15 @@ exports.getStats = async (req, res) => {
 
             // --- เช็คกลับก่อน (EARLY) ---
             let isEarly = false;
-            // 1. เชื่อ Status จาก DB ก่อน
             if (record.checkOutStatus) {
                 isEarly = (record.checkOutStatus === 'EARLY');
             } else {
-                // 2. Fallback
                 if (record.checkOutTime) {
                     const outTime = new Date(record.checkOutTime);
                     const localOutTime = new Date(outTime.toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
                     const outMinutes = (localOutTime.getHours() * 60) + localOutTime.getMinutes();
                     
+                    // กลับก่อนเวลาที่กำหนด
                     if (outMinutes < expectedEndMinutes) isEarly = true;
                 }
             }
@@ -285,12 +270,12 @@ exports.getStats = async (req, res) => {
         } else {
             // Absent Logic
             if (isHalfDayLeave) {
+                // ลาครึ่งวัน แต่ไม่มาตอกบัตรเลย = ขาดงาน (อีกครึ่งที่เหลือ)
                 stats.absent++;
                 stats.absentDates.push(currentDateStr); 
             } else {
                 const isToday = isSameDay(d, today);
                 let isPending = false;
-                // เช็คว่าตอนนี้เลยเวลาเลิกงานหรือยัง
                 if (isToday) {
                     const nowLocal = new Date(today.toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
                     const nowMinutes = (nowLocal.getHours() * 60) + nowLocal.getMinutes();
@@ -311,7 +296,7 @@ exports.getStats = async (req, res) => {
       employee: {
         id: targetId,
         name: `${targetEmployee.firstName} ${targetEmployee.lastName}`,
-        role: targetEmployee.role,
+        role: targetEmployee.role?.name || "Unknown", // ส่ง String กลับไป
         isResigned: !!targetEmployee.resignationDate
       },
       period: { year: targetYear, month: month || 'All' },

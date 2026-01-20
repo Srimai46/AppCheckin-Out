@@ -9,21 +9,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  WORKER
-  HR
-}
+// ==========================================
+// 1. Enums (ค่าคงที่ระบบอื่นๆ ยังคงเดิม)
+// ==========================================
 
-enum Department {
-  HR
-  IT
-  ACCOUNTING
-  MARKETING
-  SALES
-  OPERATIONS
-  MANAGEMENT
-  GENERAL      
-}
 
 enum LeaveDuration {
   Full
@@ -74,25 +63,38 @@ enum CheckOutStatus {
   NO_CHECKOUT
 }
 
-model AuditLog {
-  id        Int         @id @default(autoincrement()) @map("log_id")
-  action    AuditAction
-  modelName String      @map("model_name") @db.VarChar(100)
-  recordId  Int         @map("record_id")
+// ==========================================
+// 2. Organization Structure
+// ==========================================
 
-  performedById Int      @map("performed_by_id")
-  performedBy   Employee @relation("AuditLogsPerformedBy", fields: [performedById], references: [id])
+// ✅ NEW: Role Model (Dynamic Role)
+model Role {
+  id          Int      @id @default(autoincrement()) @map("role_id")
+  name        String   @unique @db.VarChar(50) // e.g., "HR", "WORKER", "ADMIN"
+  description String?  @db.Text
+  permissions Json?    @map("permissions") // เก็บ config สิทธิ์ (Optional)
 
-  details   String?  @db.Text
-  oldValue  Json?    @map("old_value")
-  newValue  Json?    @map("new_value")
-  ipAddress String?  @map("ip_address") @db.VarChar(45)
-  userAgent String?  @map("user_agent") @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  employees   Employee[]
+  workConfig  WorkConfiguration? // 1 Role มี 1 การตั้งค่าเวลา
 
-  @@index([modelName, recordId])
-  @@index([performedById])
-  @@map("audit_logs")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("roles")
+}
+
+// ✅ Model Department (Dynamic Department)
+model Department {
+  id          Int      @id @default(autoincrement()) @map("department_id")
+  name        String   @unique @db.VarChar(100) 
+  description String?  @db.Text
+  
+  employees   Employee[]
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("departments")
 }
 
 model Employee {
@@ -101,8 +103,15 @@ model Employee {
   lastName        String    @map("last_name") @db.VarChar(100)
   email           String    @unique @db.VarChar(255)
   passwordHash    String    @map("password_hash") @db.VarChar(255)
-  role            Role
-  department      Department @default(GENERAL) @map("department")
+  
+  // ✅ UPDATED: Link to Role Model
+  roleId          Int       @map("role_id")
+  role            Role      @relation(fields: [roleId], references: [id])
+  
+  // ✅ UPDATED: Link to Department Model
+  departmentId    Int?      @map("department_id")
+  department      Department? @relation(fields: [departmentId], references: [id])
+  
   joiningDate     DateTime  @map("joining_date") @db.Date
   resignationDate DateTime? @map("resignation_date") @db.Date
   isActive        Boolean   @default(true) @map("is_active")
@@ -110,19 +119,81 @@ model Employee {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt       DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
 
+  // Relations
   leaveQuotas             LeaveQuota[]
   timeRecords             TimeRecord[]
   leaveRequestsAsEmployee LeaveRequest[] @relation("EmployeeRequests")
   leaveRequestsAsHr       LeaveRequest[] @relation("HrApprovals")
-
-  notifications        Notification[] @relation("NotificationOwner")
-  relatedNotifications Notification[] @relation("NotificationRelatedEmployee")
-
-  specialLeaveGrants   SpecialLeaveGrant[]
-  auditLogsPerformedBy AuditLog[]          @relation("AuditLogsPerformedBy")
+  notifications           Notification[] @relation("NotificationOwner")
+  relatedNotifications    Notification[] @relation("NotificationRelatedEmployee")
+  specialLeaveGrants      SpecialLeaveGrant[]
+  auditLogsPerformedBy    AuditLog[]     @relation("AuditLogsPerformedBy")
 
   @@map("employees")
 }
+
+// ==========================================
+// 3. Configuration
+// ==========================================
+
+model WorkConfiguration {
+  id        Int      @id @default(autoincrement())
+  
+  // ✅ UPDATED: Link to Role Model instead of Enum
+  roleId    Int      @unique @map("role_id")
+  role      Role     @relation(fields: [roleId], references: [id])
+  
+  // Work Hours
+  startHour Int
+  startMin  Int
+  endHour   Int
+  endMin    Int
+
+  // Break Time Configuration
+  breakStartHour Int @default(12) 
+  breakStartMin  Int @default(0)
+  breakEndHour   Int @default(13)
+  breakEndMin    Int @default(0)
+  
+  // Late Policy
+  lateThresholdMin Int @default(15) 
+
+  updatedAt DateTime @updatedAt
+
+  @@map("work_configurations")
+}
+
+model SystemConfig {
+  id                 Int       @id @default(autoincrement())
+  year               Int       @unique
+  isClosed           Boolean   @default(false)
+  closedAt           DateTime?
+  processedBy        Int?
+  maxConsecutiveDays Int       @default(0)
+}
+
+model Holiday {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @unique
+  name      Json     
+  isSubsidy Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model HolidayPolicy {
+  id                        Int      @id @default(autoincrement())
+  key                       String   @unique @db.VarChar(50) 
+  workingDays               Json? 
+  maxConsecutiveHolidayDays Int      @default(0)
+  updatedBy                 Int?
+  updatedAt                 DateTime @updatedAt
+  createdAt                 DateTime @default(now())
+}
+
+// ==========================================
+// 4. Leave Management & Logs (ส่วนอื่นๆ เหมือนเดิม)
+// ==========================================
 
 model LeaveType {
   id                 Int     @id @default(autoincrement()) @map("leave_type_id")
@@ -131,7 +202,7 @@ model LeaveType {
   isPaid             Boolean @default(true) @map("is_paid")
   maxCarryOver       Decimal @default(0.00) @map("max_carry_over") @db.Decimal(5, 2)
   maxConsecutiveDays Int?    @default(0) @map("max_consecutive_days")
-  color              String   @default("#6366F1") @map("color") @db.VarChar(7)
+  color              String  @default("#6366F1") @map("color") @db.VarChar(7)
 
   leaveQuotas        LeaveQuota[]
   leaveRequests      LeaveRequest[]
@@ -156,37 +227,13 @@ model LeaveQuota {
   @@map("leave_quotas")
 }
 
-model TimeRecord {
-  id           Int       @id @default(autoincrement()) @map("record_id")
-  employeeId   Int       @map("employee_id")
-  workDate     DateTime  @map("work_date") @db.Date
-  checkInTime  DateTime  @map("check_in_time")
-  checkOutTime DateTime? @map("check_out_time")
-  isLate       Boolean   @default(false) @map("is_late")
-  note         String?   @db.Text
-
-  // ✅ NEW: statuses (ทำเป็น optional ก่อน กัน migration พัง)
-  checkInStatus  CheckInStatus?  @map("check_in_status")
-  checkOutStatus CheckOutStatus? @map("check_out_status")
-
-  checkInLat  Decimal? @map("check_in_lat") @db.Decimal(10, 8)
-  checkInLng  Decimal? @map("check_in_lng") @db.Decimal(11, 8)
-  checkOutLat Decimal? @map("check_out_lat") @db.Decimal(10, 8)
-  checkOutLng Decimal? @map("check_out_lng") @db.Decimal(11, 8)
-
-  employee Employee @relation(fields: [employeeId], references: [id])
-
-  @@index([employeeId, workDate])
-  @@map("time_records")
-}
-
 model LeaveRequest {
-  id                 Int      @id @default(autoincrement()) @map("request_id")
-  employeeId         Int      @map("employee_id")
-  leaveTypeId        Int      @map("leave_type_id")
-  startDate          DateTime @map("start_date") @db.Date
-  endDate            DateTime @map("end_date") @db.Date
-  totalDaysRequested Decimal  @map("total_days_requested") @db.Decimal(4, 2)
+  id                 Int           @id @default(autoincrement()) @map("request_id")
+  employeeId         Int           @map("employee_id")
+  leaveTypeId        Int           @map("leave_type_id")
+  startDate          DateTime      @map("start_date") @db.Date
+  endDate            DateTime      @map("end_date") @db.Date
+  totalDaysRequested Decimal       @map("total_days_requested") @db.Decimal(4, 2)
 
   startDuration LeaveDuration @map("start_duration")
   endDuration   LeaveDuration @map("end_duration")
@@ -203,7 +250,6 @@ model LeaveRequest {
 
   specialGrantId Int? @map("special_grant_id")
 
-  // Relations
   employee     Employee           @relation("EmployeeRequests", fields: [employeeId], references: [id])
   leaveType    LeaveType          @relation(fields: [leaveTypeId], references: [id])
   approvedByHr Employee?          @relation("HrApprovals", fields: [approvedByHrId], references: [id])
@@ -221,17 +267,55 @@ model SpecialLeaveGrant {
   id          Int      @id @default(autoincrement())
   employeeId  Int      @map("employee_id")
   leaveTypeId Int      @map("leave_type_id")
-  amount      Decimal  @db.Decimal(5, 2) // จำนวนวันที่ HR มอบให้เพิ่ม
-  reason      String   @db.VarChar(255) // เหตุผลที่ได้รับ
+  amount      Decimal  @db.Decimal(5, 2)
+  reason      String   @db.VarChar(255)
   expiryDate  DateTime @map("expiry_date") @db.Date
   createdAt   DateTime @default(now()) @map("created_at")
 
-  // Relations
   employee      Employee       @relation(fields: [employeeId], references: [id])
   leaveType     LeaveType      @relation(fields: [leaveTypeId], references: [id])
-  leaveRequests LeaveRequest[] // เชื่อมกลับไปหาใบลาที่ใช้สิทธิ์นี้
+  leaveRequests LeaveRequest[]
 
   @@map("special_leave_grants")
+}
+
+model TimeRecord {
+  id             Int             @id @default(autoincrement()) @map("record_id")
+  employeeId     Int             @map("employee_id")
+  workDate       DateTime        @map("work_date") @db.Date
+  checkInTime    DateTime        @map("check_in_time")
+  checkOutTime   DateTime?       @map("check_out_time")
+  isLate         Boolean         @default(false) @map("is_late")
+  note           String?         @db.Text
+  checkInStatus  CheckInStatus?  @map("check_in_status")
+  checkOutStatus CheckOutStatus? @map("check_out_status")
+  checkInLat  Decimal? @map("check_in_lat") @db.Decimal(10, 8)
+  checkInLng  Decimal? @map("check_in_lng") @db.Decimal(11, 8)
+  checkOutLat Decimal? @map("check_out_lat") @db.Decimal(10, 8)
+  checkOutLng Decimal? @map("check_out_lng") @db.Decimal(11, 8)
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, workDate])
+  @@map("time_records")
+}
+
+model AuditLog {
+  id            Int         @id @default(autoincrement()) @map("log_id")
+  action        AuditAction
+  modelName     String      @map("model_name") @db.VarChar(100)
+  recordId      Int         @map("record_id")
+  performedById Int         @map("performed_by_id")
+  performedBy   Employee    @relation("AuditLogsPerformedBy", fields: [performedById], references: [id])
+  details   String?  @db.Text
+  oldValue  Json?    @map("old_value")
+  newValue  Json?    @map("new_value")
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  @@index([modelName, recordId])
+  @@index([performedById])
+  @@map("audit_logs")
 }
 
 model Notification {
@@ -240,59 +324,15 @@ model Notification {
   notificationType NotificationType @map("notification_type")
   message          String           @db.VarChar(500)
   relatedRequestId Int?             @map("related_request_id")
-
   relatedEmployeeId Int?      @map("related_employee_id")
   relatedEmployee   Employee? @relation("NotificationRelatedEmployee", fields: [relatedEmployeeId], references: [id])
-
   isRead    Boolean  @default(false) @map("is_read")
   createdAt DateTime @default(now()) @map("created_at")
-
   employee Employee @relation("NotificationOwner", fields: [employeeId], references: [id])
-
   relatedRequest LeaveRequest? @relation(fields: [relatedRequestId], references: [id])
 
   @@index([employeeId, createdAt(sort: Desc)])
   @@index([employeeId, isRead])
   @@index([relatedEmployeeId])
   @@map("notifications")
-}
-
-model SystemConfig {
-  id                 Int       @id @default(autoincrement())
-  year               Int       @unique
-  isClosed           Boolean   @default(false) // ถ้า true คือปิดยอดปีนี้แล้ว ห้ามรัน Carry Over อีก
-  closedAt           DateTime?
-  processedBy        Int?
-  maxConsecutiveDays Int       @default(0)
-}
-
-model WorkConfiguration {
-  id        Int      @id @default(autoincrement())
-  role      Role     @unique
-  startHour Int
-  startMin  Int
-  endHour   Int
-  endMin    Int
-  updatedAt DateTime @updatedAt
-
-  @@map("work_configurations")
-}
-
-model Holiday {
-  id        Int      @id @default(autoincrement())
-  date      DateTime @unique // วันที่หยุด
-  name      Json    // ชื่อวันหยุด หลายภาษา
-  isSubsidy  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model HolidayPolicy {
-  id                        Int      @id @default(autoincrement())
-  key                       String   @unique @db.VarChar(50) // เช่น "WORKING_DAYS"
-  workingDays               Json? // เก็บเป็น ["MON","TUE",...]
-  maxConsecutiveHolidayDays Int      @default(0)
-  updatedBy                 Int?
-  updatedAt                 DateTime @updatedAt
-  createdAt                 DateTime @default(now())
 }

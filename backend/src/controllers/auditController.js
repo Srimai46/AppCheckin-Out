@@ -2,7 +2,7 @@
 
 // 1. ✅ ใช้ Prisma จากไฟล์ config กลาง (เพื่อลด Connection)
 // (ตรวจสอบ path ให้ตรงกับโครงสร้างโปรเจกต์ของคุณ)
-const prisma = require('../config/prisma'); 
+const prisma = require('../config/prisma');
 
 exports.getAuditLogs = async (req, res) => {
   try {
@@ -18,12 +18,11 @@ exports.getAuditLogs = async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // 1. สร้าง Condition สำหรับ Filter
+    // 1. สร้าง Condition พื้นฐาน
     let where = {};
     if (action) where.action = action;
     if (modelName) where.modelName = modelName;
 
-    // 2. ✅ เพิ่มการเช็ค isNaN ป้องกัน Error กรณีค่าที่ส่งมาไม่ใช่ตัวเลข
     if (performedById && !isNaN(parseInt(performedById))) {
         where.performedById = parseInt(performedById);
     }
@@ -31,12 +30,26 @@ exports.getAuditLogs = async (req, res) => {
     if (start && end) {
       where.createdAt = {
         gte: new Date(start),
-        // ตั้งเวลาจบวันเป็น 23:59:59.999 เพื่อให้ครอบคลุมทั้งวัน
         lte: new Date(new Date(end).setHours(23, 59, 59, 999))
       };
     }
 
-    // 3. ดึงข้อมูลพร้อมนับจำนวนทั้งหมด
+    // =========================================================
+    // ✅ UPDATE 1: Logic จำกัดสิทธิ์ (HR เห็นเฉพาะ Worker)
+    // =========================================================
+    const requesterRole = req.user.role; // (middleware แปลงเป็น String "HR"/"ADMIN" ให้แล้ว)
+
+    if (requesterRole === 'HR') {
+        // บังคับว่า Logs ที่ดึงมา ต้องเกิดจากคนที่เป็น WORKER เท่านั้น
+        where.performedBy = {
+            role: {
+                name: 'WORKER'
+            }
+        };
+    }
+    // ถ้าเป็น ADMIN ไม่ต้องทำอะไร (where ว่าง = ดูได้หมด)
+
+    // 3. ดึงข้อมูล
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({
         where,
@@ -48,7 +61,10 @@ exports.getAuditLogs = async (req, res) => {
             select: {
               firstName: true,
               lastName: true,
-              role: true
+              // ✅ UPDATE 2: ดึงชื่อ Role จาก Relation Table
+              role: { 
+                  select: { name: true } 
+              }
             }
           }
         }
@@ -56,9 +72,18 @@ exports.getAuditLogs = async (req, res) => {
       prisma.auditLog.count({ where })
     ]);
 
+    // ✅ UPDATE 3: แปลง Role Object ให้เป็น String เพื่อให้ Frontend ใช้ง่าย
+    const formattedLogs = logs.map(log => ({
+        ...log,
+        performedBy: log.performedBy ? {
+            ...log.performedBy,
+            role: log.performedBy.role?.name || "Unknown"
+        } : null
+    }));
+
     res.json({
       success: true,
-      data: logs,
+      data: formattedLogs,
       pagination: {
         total,
         page: parseInt(page),

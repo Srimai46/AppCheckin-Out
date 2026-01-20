@@ -10,22 +10,22 @@ const { protect, authorize } = require("../middlewares/authMiddleware");
 
 // ✅ Working Days Policy (ต้องอยู่ก่อน "/:id" ไม่งั้นชนกัน)
 router.get("/working-days", protect, holidayController.getWorkingDaysPolicy);
-router.put("/working-days", protect, authorize("HR"), holidayController.saveWorkingDaysPolicy);
+router.put("/working-days", protect, authorize("HR" , "ADMIN"), holidayController.saveWorkingDaysPolicy);
 
 // ✅ Max Consecutive Holidays Policy (ต้องอยู่ก่อน "/:id" ไม่งั้นชนกัน)
 router.get("/max-consecutive", protect, holidayController.getMaxConsecutivePolicy);
-router.put("/max-consecutive", protect, authorize("HR"), holidayController.saveMaxConsecutivePolicy);
+router.put("/max-consecutive", protect, authorize("HR" , "ADMIN"), holidayController.saveMaxConsecutivePolicy);
 
 // 1. ดึงรายการวันหยุด (อาจจะให้พนักงานทุกคนดูได้ หรือเฉพาะ HR ก็ได้ตาม Policy)
 router.get("/", protect, holidayController.getHolidays);
 
 // 2. สร้างวันหยุดใหม่ (เฉพาะ HR)
-router.post("/", protect, authorize("HR"), holidayController.createHoliday);
+router.post("/", protect, authorize("HR" , "ADMIN"), holidayController.createHoliday);
 
 // 3. แก้ไขวันหยุด (เฉพาะ HR)
-router.put("/:id", protect, authorize("HR"), holidayController.updateHoliday);
+router.put("/:id", protect, authorize("HR" , "ADMIN"), holidayController.updateHoliday);
 
 // 4. ลบวันหยุด (เฉพาะ HR)
-router.delete("/:id", protect, authorize("HR"), holidayController.deleteHoliday);
+router.delete("/:id", protect, authorize("HR" , "ADMIN"), holidayController.deleteHoliday);
 
 module.exports = router;

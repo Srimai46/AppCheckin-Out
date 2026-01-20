@@ -106,23 +106,49 @@ exports.getAllEmployees = async (req, res) => {
         firstName: true,
         lastName: true,
         email: true,
-        role: true,
-        department: true, // ✅ NEW: เพิ่ม field department
         isActive: true,
         joiningDate: true,
+        
+        // ✅ NEW: ดึงข้อมูลจากตาราง Relation (Role & Department)
+        role: {
+          select: {
+            id: true,
+            name: true,
+            description: true // เผื่ออยากใช้
+          }
+        },
+        department: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       },
       orderBy: { id: "asc" },
     });
 
-    res.json(
-      employees.map((e) => ({
-        ...e,
-        role: presentRole(e.role),
-      }))
-    );
+    // ปรับแต่ง Response ให้ Frontend ใช้งานง่าย
+    const formattedEmployees = employees.map((e) => ({
+      id: e.id,
+      firstName: e.firstName,
+      lastName: e.lastName,
+      email: e.email,
+      isActive: e.isActive,
+      joiningDate: e.joiningDate,
+      
+      // ✅ แปลงให้เป็น Flat Format (เหมือนเดิมที่ Frontend เคยใช้)
+      role: e.role?.name || "Unknown",
+      roleId: e.role?.id, // ส่ง ID ไปด้วยเผื่อใช้ edit
+      
+      department: e.department?.name || "Unassigned",
+      departmentId: e.department?.id // ส่ง ID ไปด้วยเผื่อใช้ edit
+    }));
+
+    res.json(formattedEmployees);
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "There is something wrong with the server" });
+    console.error("getAllEmployees Error:", error);
+    res.status(500).json({ error: "Failed to retrieve employees" });
   }
 };
 
@@ -136,6 +162,15 @@ exports.getEmployeeById = async (req, res) => {
     const employee = await prisma.employee.findUnique({
       where: { id: parseInt(id) },
       include: {
+        // ✅ 1. ดึง Relation Role และ Department เพื่อเอาชื่อ
+        role: {
+          include: {
+            workConfig: true // ✅ ดึง Config เวลาทำงานของ Role นี้มาเลย (สะดวกกว่าไป query แยก)
+          }
+        },
+        department: true,
+
+        // Relation อื่นๆ เหมือนเดิม
         timeRecords: {
           where: {
             workDate: {
@@ -164,11 +199,8 @@ exports.getEmployeeById = async (req, res) => {
 
     if (!employee) return res.status(404).json({ error: "Not found employee" });
 
-    const roleForConfig = employee.role;
-    const workCfg = await prisma.workConfiguration.findUnique({
-      where: { role: roleForConfig },
-      select: { endHour: true, endMin: true, startHour: true, startMin: true, role: true },
-    });
+    // ✅ 2. ดึง Config เวลาจาก Role ที่ include มาได้เลย (ไม่ต้อง Query ใหม่)
+    const workCfg = employee.role?.workConfig;
 
     const workEndTime =
       workCfg && Number.isFinite(workCfg.endHour) && Number.isFinite(workCfg.endMin)
@@ -185,12 +217,19 @@ exports.getEmployeeById = async (req, res) => {
         firstName: employee.firstName,
         lastName: employee.lastName,
         email: employee.email,
-        role: presentRole(employee.role),
-        department: employee.department, // ✅ NEW: ส่ง department กลับไป
+        
+        // ✅ 3. ปรับการส่ง Role และ Department เป็น String
+        role: employee.role?.name || "Unknown", 
+        roleId: employee.roleId, // เผื่อ Frontend ใช้
+        department: employee.department?.name || "Unassigned",
+        departmentId: employee.departmentId, // เผื่อ Frontend ใช้
+        
         joiningDate: formatShortDate(employee.joiningDate),
         isActive: employee.isActive,
+        profileImageUrl: employee.profileImageUrl // เผื่ออยากโชว์รูป
       },
-      // ... (quotas, attendance, leaves เหมือนเดิม)
+      
+      // ... ส่วน Quotas, Attendance, Leaves ไม่ต้องแก้ (เหมือนเดิม)
       quotas: employee.leaveQuotas.map((q) => {
         const base = parseFloat(q.totalDays) || 0;
         const carry = parseFloat(q.carryOverDays) || 0;
@@ -250,7 +289,7 @@ exports.getEmployeeById = async (req, res) => {
   }
 };
 
-// 3. เปลี่ยนสถานะพนักงาน (เหมือนเดิม)
+// 3. เปลี่ยนสถานะพนักงาน 
 exports.updateEmployeeStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -275,7 +314,10 @@ exports.updateEmployeeStatus = async (req, res) => {
           firstName: true,
           lastName: true,
           email: true,
-          role: true,
+          // ✅ UPDATE 1: ดึง Role Name จาก Relation Table
+          role: {
+            select: { name: true } 
+          },
           isActive: true,
         },
       });
@@ -287,14 +329,21 @@ exports.updateEmployeeStatus = async (req, res) => {
       const updatedEmployee = await tx.employee.update({
         where: { id: employeeId },
         data: { isActive: !!isActive },
+        // ✅ UPDATE 2: Return role name หลัง update ด้วย (เผื่อเอาไปใช้)
+        include: {
+            role: { select: { name: true } }
+        }
       });
 
       const statusText = !!isActive ? "Active" : "Inactive";
+      
+      // ✅ UPDATE 3: แปลง Role Object ให้เป็น String สำหรับ Log
+      const roleName = oldEmployee.role?.name || "Unknown";
 
       const cleanNewValue = {
         name: `${oldEmployee.firstName} ${oldEmployee.lastName}`,
         email: oldEmployee.email,
-        role: oldEmployee.role,
+        role: roleName, // เก็บเป็น String สวยๆ
         status: statusText,
         action: !!isActive ? "Reinstated" : "Terminated",
       };
@@ -340,7 +389,10 @@ exports.updateEmployeeStatus = async (req, res) => {
 
     res.json({
       message: `Employee status updated to ${result.updatedEmployee.isActive ? "Active" : "Inactive"}`,
-      data: result.updatedEmployee,
+      data: {
+          ...result.updatedEmployee,
+          role: result.updatedEmployee.role?.name // ส่ง role เป็น string กลับไปหน้าบ้าน
+      },
     });
   } catch (error) {
     console.error("updateEmployeeStatus Error:", error);
@@ -351,38 +403,85 @@ exports.updateEmployeeStatus = async (req, res) => {
 // 4. สร้างพนักงานใหม่พร้อมโควตา
 exports.createEmployee = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, role, department, joiningDate } = req.body; 
+    const { firstName, lastName, email, password, role, department, joiningDate } = req.body;
     const adminId = req.user.id;
 
+    // 1. ดึงข้อมูล Admin (คนทำรายการ)
     const adminUser = await prisma.employee.findUnique({
       where: { id: adminId },
       select: { firstName: true, lastName: true },
     });
 
+    // 2. เช็ค Email ซ้ำ
     const existing = await prisma.employee.findUnique({ where: { email } });
     if (existing) return res.status(400).json({ error: "Email has been used" });
 
+    // 3. Hash Password
     const hashedPassword = await bcrypt.hash(password, 10);
-    const quotaMap = { Sick: 30, Personal: 6, Annual: 6, Emergency: 5 };
     const currentYear = new Date().getFullYear();
 
-    const assignedRole = normalizeRole(role) || "WORKER";
-    const assignedDept = normalizeDepartment(department); 
+    // ======================================================
+    // ✅ NEW: Logic การหา Role ID และ Department ID
+    // ======================================================
+    
+    // 4.1 หา Role ID (รับมาเป็น ID หรือ Name ก็ได้)
+    let targetRoleId;
+    if (role) {
+       // ลองหาจากชื่อก่อน (เผื่อ Frontend ส่ง string "HR")
+       const roleObj = await prisma.role.findFirst({
+           where: { name: String(role).toUpperCase().trim() }
+       });
+       if (roleObj) targetRoleId = roleObj.id;
+    }
+    
+    // ถ้าหาไม่เจอ ให้ Default เป็น "WORKER"
+    if (!targetRoleId) {
+        const defaultRole = await prisma.role.findFirst({ where: { name: "WORKER" } });
+        if (!defaultRole) throw new Error("System error: Default role 'WORKER' not found in DB");
+        targetRoleId = defaultRole.id;
+    }
+
+    // 4.2 หา Department ID
+    let targetDeptId;
+    if (department) {
+       const deptObj = await prisma.department.findFirst({
+           where: { name: String(department).toUpperCase().trim() } // หรือค้นแบบ case-insensitive
+       });
+       if (deptObj) targetDeptId = deptObj.id;
+    }
+
+    // ถ้าหาไม่เจอ ให้ Default เป็น "GENERAL"
+    if (!targetDeptId) {
+        const defaultDept = await prisma.department.findFirst({ where: { name: "GENERAL" } });
+        // ถ้าไม่มี GENERAL ใน DB ก็ปล่อย null หรือ create ใหม่ก็ได้ (ในที่นี้ขอปล่อย null หรือ throw)
+        if (defaultDept) targetDeptId = defaultDept.id;
+    }
+
+    // ======================================================
 
     const result = await prisma.$transaction(async (tx) => {
+      // ✅ 5. Create Employee (ใช้ connect)
       const newEmployee = await tx.employee.create({
         data: {
           firstName,
           lastName,
           email,
           passwordHash: hashedPassword,
-          role: assignedRole,
-          department: assignedDept, 
           joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
           isActive: true,
+          
+          // Connect Role
+          role: { connect: { id: targetRoleId } },
+          
+          // Connect Department (ถ้ามี)
+          department: targetDeptId ? { connect: { id: targetDeptId } } : undefined
         },
+        // Include กลับมาด้วย เพื่อเอาชื่อไปลง Log
+        include: { role: true, department: true } 
       });
 
+      // 6. สร้าง Leave Quota (เหมือนเดิม)
+      const quotaMap = { Sick: 30, Personal: 6, Annual: 6, Emergency: 5 };
       const leaveTypes = await tx.leaveType.findMany();
       let quotaDataForDB = [];
       let quotaSummaryForLog = {};
@@ -403,17 +502,21 @@ exports.createEmployee = async (req, res) => {
         await tx.leaveQuota.createMany({ data: quotaDataForDB });
       }
 
+      // ✅ 7. เตรียมข้อมูลสำหรับ Log (ใช้ชื่อจากที่ create ได้)
+      const roleName = newEmployee.role?.name;
+      const deptName = newEmployee.department?.name || "None";
+
       const cleanNewValue = {
         name: `${firstName} ${lastName}`,
         email: email,
-        role: assignedRole,
-        department: assignedDept, 
+        role: roleName,
+        department: deptName,
         joiningDate: newEmployee.joiningDate,
         status: "Active",
         initialQuotas: quotaSummaryForLog,
       };
 
-      const logDetails = `Created new employee: ${firstName} ${lastName} (${assignedRole} - ${assignedDept})`;
+      const logDetails = `Created new employee: ${firstName} ${lastName} (${roleName} - ${deptName})`;
 
       await auditLog(tx, {
         action: "CREATE",
@@ -449,8 +552,12 @@ exports.createEmployee = async (req, res) => {
     res.status(201).json({
       message: "Add employee successful",
       employee: {
-        ...result.newEmployee,
-        role: presentRole(result.newEmployee.role),
+        id: result.newEmployee.id,
+        firstName: result.newEmployee.firstName,
+        lastName: result.newEmployee.lastName,
+        email: result.newEmployee.email,
+        role: result.newEmployee.role?.name, // ส่ง String กลับไป
+        department: result.newEmployee.department?.name
       },
     });
   } catch (error) {
@@ -459,144 +566,190 @@ exports.createEmployee = async (req, res) => {
   }
 };
 
-// 5. getAttendanceStats (เหมือนเดิม)
+// 5. getAttendanceStats 
 exports.getAttendanceStats = async (req, res) => {
-    // Code เดิม
     try {
         const { date } = req.query;
         const targetDate = date ? new Date(date) : new Date();
-    
+
         const startOfDay = new Date(targetDate);
         startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date(targetDate);
         endOfDay.setHours(23, 59, 59, 999);
-    
-        const totalEmployees = await prisma.employee.count({ where: { isActive: true } });
-    
-        const records = await prisma.timeRecord.findMany({
-          where: { workDate: { gte: startOfDay, lte: endOfDay } },
-          include: { employee: { select: { firstName: true, lastName: true } } },
+
+        // ✅ 1. นับพนักงานทั้งหมด (เฉพาะ Active)
+        // ถ้าต้องการนับเฉพาะ Worker ให้ uncomment บรรทัด where role
+        const totalEmployees = await prisma.employee.count({
+            where: {
+                isActive: true,
+                // role: { name: 'WORKER' } // ถ้าอยากนับเฉพาะ Worker ให้เปิดบรรทัดนี้
+            }
         });
-    
-        res.json({
-          selectedDate: formatShortDate(startOfDay),
-          totalEmployees,
-          checkedIn: records.length,
-          late: records.filter((r) => r.isLate).length,
-          absent: Math.max(0, totalEmployees - records.length),
-          lateDetails: records
+
+        // ✅ 2. ดึง Records ประจำวัน
+        const records = await prisma.timeRecord.findMany({
+            where: { workDate: { gte: startOfDay, lte: endOfDay } },
+            include: {
+                employee: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        // ✅ ดึง Role/Dept มาโชว์ด้วยเผื่อใช้
+                        role: { select: { name: true } },
+                        department: { select: { name: true } }
+                    }
+                }
+            },
+        });
+
+        // ✅ 3. คำนวณสถิติ
+        const checkedInCount = records.filter(r => r.checkInTime).length; // นับเฉพาะคนที่มีเวลาเข้างานจริง
+        const lateCount = records.filter((r) => r.isLate).length;
+        
+        // Absent = จำนวนพนักงานทั้งหมด - จำนวนคนที่ Check In แล้ว
+        // (ระวัง: ถ้า records มีคน check in ซ้ำ หรือ create record รอไว้แต่ยังไม่ check in ต้องกรองให้ดี)
+        const absentCount = Math.max(0, totalEmployees - checkedInCount);
+
+        // ✅ 4. เตรียมข้อมูล Late Details
+        const lateDetails = records
             .filter((r) => r.isLate)
             .map((r) => ({
-              name: `${r.employee.firstName} ${r.employee.lastName}`,
-              time: formatThaiTime(r.checkInTime),
-            })),
+                name: `${r.employee.firstName} ${r.employee.lastName}`,
+                role: r.employee.role?.name || "-",
+                department: r.employee.department?.name || "-",
+                time: formatThaiTime(r.checkInTime),
+                note: r.note // เผื่อมีเหตุผลการมาสาย
+            }));
+
+        res.json({
+            selectedDate: formatShortDate(startOfDay),
+            totalEmployees,
+            checkedIn: checkedInCount,
+            late: lateCount,
+            absent: absentCount,
+            lateDetails
         });
-      } catch (error) {
+
+    } catch (error) {
+        console.error("getAttendanceStats Error:", error);
         res.status(500).json({ error: "Unable to retrieve statistical data." });
-      }
+    }
 };
 
 // 6. resetPassword (เหมือนเดิม)
 exports.resetPassword = async (req, res) => {
-    // Code เดิม
-    try {
-        const { id } = req.params;
-        const { newPassword } = req.body;
-        const requester = req.user;
-        const targetId = parseInt(id);
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+    const requester = req.user; // ข้อมูลจาก JWT
+    const targetId = parseInt(id);
+
+    // ✅ STEP 1: ดึงข้อมูลผู้ร้องขอจาก DB ก่อน เพื่อดู Role ปัจจุบันจริงๆ
+    const requesterUser = await prisma.employee.findUnique({
+      where: { id: requester.id },
+      select: { 
+          firstName: true, 
+          lastName: true, 
+          // ดึงชื่อ Role มาด้วย
+          role: { select: { name: true } } 
+      },
+    });
+
+    if (!requesterUser) {
+        return res.status(401).json({ error: "User not found." });
+    }
+
+    // ✅ STEP 2: ตรวจสอบสิทธิ์จาก Role Name ที่ดึงมา
+    const roleName = requesterUser.role?.name?.toUpperCase() || "";
+    const isOwner = requester.id === targetId;
     
-        const isOwner = requester.id === targetId;
-        const isHR = requester.role === "HR" || requester.role === "Admin";
-    
-        if (!isHR && !isOwner) {
-          return res.status(403).json({ error: "No permission to change this password." });
-        }
-    
-        if (!newPassword || newPassword.length < 6) {
-          return res.status(400).json({ error: "Password must be at least 6 characters." });
-        }
-    
-        const requesterUser = await prisma.employee.findUnique({
-          where: { id: requester.id },
-          select: { firstName: true, lastName: true, role: true },
+    // อนุญาตให้ ADMIN หรือ HR แก้ไขได้
+    const isAdminOrHR = roleName === "ADMIN" || roleName === "HR";
+
+    if (!isAdminOrHR && !isOwner) {
+      return res.status(403).json({ error: "No permission to change this password." });
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters." });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const targetUser = await tx.employee.findUnique({
+        where: { id: targetId },
+        select: { firstName: true, lastName: true, email: true },
+      });
+
+      if (!targetUser) throw new Error("Employee not found.");
+
+      await tx.employee.update({
+        where: { id: targetId },
+        data: { passwordHash: hashedPassword },
+      });
+
+      const cleanNewValue = {
+        targetName: `${targetUser.firstName} ${targetUser.lastName}`,
+        targetEmail: targetUser.email,
+        action: "Password Reset",
+        resetBy: isOwner ? "Self" : roleName, // ใช้ชื่อ Role จริงๆ
+        status: "Success",
+      };
+
+      const logDetails = isOwner
+        ? `User reset their own password.`
+        : `${roleName} (${requesterUser.firstName}) reset password for ${targetUser.firstName} ${targetUser.lastName}`;
+
+      await auditLog(tx, {
+        action: "UPDATE",
+        modelName: "Employee",
+        recordId: targetId,
+        userId: requester.id,
+        details: logDetails,
+        oldValue: { action: "Password Change Requested" },
+        newValue: cleanNewValue,
+        req: req,
+      });
+
+      return { logDetails, targetUser, cleanNewValue };
+    });
+
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("new-audit-log", {
+        id: Date.now(),
+        action: "UPDATE",
+        modelName: "Employee",
+        recordId: targetId,
+        performedBy: {
+          firstName: requesterUser?.firstName || "Unknown",
+          lastName: requesterUser?.lastName || "",
+        },
+        details: result.logDetails,
+        newValue: result.cleanNewValue,
+        createdAt: new Date(),
+      });
+
+      if (!isOwner) {
+        io.to(`user_${targetId}`).emit("force_logout", {
+          message: "Your password has been changed by Admin/HR. Please login again.",
         });
-    
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
-        const result = await prisma.$transaction(async (tx) => {
-          const targetUser = await tx.employee.findUnique({
-            where: { id: targetId },
-            select: { firstName: true, lastName: true, email: true },
-          });
-    
-          if (!targetUser) throw new Error("Employee not found.");
-    
-          await tx.employee.update({
-            where: { id: targetId },
-            data: { passwordHash: hashedPassword },
-          });
-    
-          const cleanNewValue = {
-            targetName: `${targetUser.firstName} ${targetUser.lastName}`,
-            targetEmail: targetUser.email,
-            action: "Password Reset",
-            resetBy: isOwner ? "Self" : "Admin/HR",
-            status: "Success",
-          };
-    
-          const logDetails = isOwner
-            ? `User reset their own password.`
-            : `HR (${requesterUser.firstName}) reset password for ${targetUser.firstName} ${targetUser.lastName}`;
-    
-          await auditLog(tx, {
-            action: "UPDATE",
-            modelName: "Employee",
-            recordId: targetId,
-            userId: requester.id,
-            details: logDetails,
-            oldValue: { action: "Password Change Requested" },
-            newValue: cleanNewValue,
-            req: req,
-          });
-    
-          return { logDetails, targetUser, cleanNewValue };
-        });
-    
-        const io = req.app.get("io");
-        if (io) {
-          io.emit("new-audit-log", {
-            id: Date.now(),
-            action: "UPDATE",
-            modelName: "Employee",
-            recordId: targetId,
-            performedBy: {
-              firstName: requesterUser?.firstName || "Unknown",
-              lastName: requesterUser?.lastName || "",
-            },
-            details: result.logDetails,
-            newValue: result.cleanNewValue,
-            createdAt: new Date(),
-          });
-    
-          if (!isOwner) {
-            io.to(`user_${targetId}`).emit("force_logout", {
-              message: "Your password has been changed by Admin/HR. Please login again.",
-            });
-          }
-        }
-    
-        res.json({ message: "Password reset successful." });
-      } catch (error) {
-        console.error("resetPassword Error:", error);
-        res.status(400).json({ error: error.message || "Failed to reset password." });
       }
+    }
+
+    res.json({ message: "Password reset successful." });
+  } catch (error) {
+    console.error("resetPassword Error:", error);
+    res.status(400).json({ error: error.message || "Failed to reset password." });
+  }
 };
 
 // 7. แก้ไขข้อมูลพนักงาน (ชื่อ/อีเมล/role/department)
 exports.updateEmployee = async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { firstName, lastName, email, role, department } = req.body; // ✅ NEW: รับ department
+    const { firstName, lastName, email, role, department } = req.body;
     const adminId = req.user.id;
 
     const adminUser = await prisma.employee.findUnique({
@@ -604,32 +757,62 @@ exports.updateEmployee = async (req, res) => {
       select: { firstName: true, lastName: true },
     });
 
+    // 1. เตรียม Data Object
     const dataToUpdate = {};
     if (firstName !== undefined) dataToUpdate.firstName = firstName;
     if (lastName !== undefined) dataToUpdate.lastName = lastName;
     if (email !== undefined) dataToUpdate.email = email;
 
+    // 2. Logic หา Role ID ถ้ามีการเปลี่ยน Role
+    let newRoleName = null; // เก็บไว้ใช้ทำ Log
     if (role !== undefined) {
-      const normalized = normalizeRole(role);
-      if (!normalized) {
-        return res.status(400).json({ error: "Invalid role (allowed: Worker / HR)" });
+      // ค้นหา Role ID จากชื่อ (เช่น "HR", "WORKER")
+      const roleObj = await prisma.role.findFirst({
+        where: { name: String(role).trim().toUpperCase() }
+      });
+      
+      if (!roleObj) {
+         return res.status(400).json({ error: `Invalid role: ${role}` });
       }
-      dataToUpdate.role = normalized;
+      
+      dataToUpdate.role = { connect: { id: roleObj.id } }; // ✅ Update แบบ Connect Relation
+      newRoleName = roleObj.name;
     }
 
+    // 3. Logic หา Department ID ถ้ามีการเปลี่ยน Department
+    let newDeptName = null; // เก็บไว้ใช้ทำ Log
     if (department !== undefined) {
-      const normalizedDept = normalizeDepartment(department);
-      dataToUpdate.department = normalizedDept;
+       const deptObj = await prisma.department.findFirst({
+         where: { name: String(department).trim().toUpperCase() }
+       });
+       
+       // ถ้าหาไม่เจอ ให้เคลียร์เป็น null (Unassigned) หรือจะ throw error ก็ได้
+       if (deptObj) {
+         dataToUpdate.department = { connect: { id: deptObj.id } };
+         newDeptName = deptObj.name;
+       } else {
+         dataToUpdate.department = { disconnect: true }; // หรือปล่อย null
+         newDeptName = "None";
+       }
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      // 4. ดึงข้อมูลเก่า (ต้อง Select ชื่อ Role/Dept ออกมา)
       const oldEmployee = await tx.employee.findUnique({
         where: { id },
-        select: { firstName: true, lastName: true, email: true, role: true, department: true }, 
+        select: { 
+            firstName: true, lastName: true, email: true, 
+            role: { select: { name: true } }, 
+            department: { select: { name: true } } 
+        },
       });
 
       if (!oldEmployee) throw { code: "P2025" };
+      
+      const oldRoleName = oldEmployee.role?.name || "Unknown";
+      const oldDeptName = oldEmployee.department?.name || "None";
 
+      // 5. ทำการ Update และ Select ข้อมูลใหม่กลับมา
       const updated = await tx.employee.update({
         where: { id },
         data: dataToUpdate,
@@ -638,13 +821,14 @@ exports.updateEmployee = async (req, res) => {
           firstName: true,
           lastName: true,
           email: true,
-          role: true,
-          department: true, 
+          role: { select: { name: true } }, // ✅ Select ชื่อ Role
+          department: { select: { name: true } }, // ✅ Select ชื่อ Dept
           isActive: true,
           joiningDate: true,
         },
       });
 
+      // 6. ตรวจจับความเปลี่ยนแปลง (Audit Log Logic)
       const changes = [];
       if (dataToUpdate.firstName && dataToUpdate.firstName !== oldEmployee.firstName)
         changes.push(`First Name: ${oldEmployee.firstName} -> ${dataToUpdate.firstName}`);
@@ -655,11 +839,13 @@ exports.updateEmployee = async (req, res) => {
       if (dataToUpdate.email && dataToUpdate.email !== oldEmployee.email)
         changes.push(`Email: ${oldEmployee.email} -> ${dataToUpdate.email}`);
 
-      if (dataToUpdate.role && dataToUpdate.role !== oldEmployee.role)
-        changes.push(`Role: ${oldEmployee.role} -> ${dataToUpdate.role}`);
+      // เปรียบเทียบ Role (ใช้ชื่อที่เราหามา หรือดึงจาก DB)
+      if (newRoleName && newRoleName !== oldRoleName)
+        changes.push(`Role: ${oldRoleName} -> ${newRoleName}`);
 
-      if (dataToUpdate.department && dataToUpdate.department !== oldEmployee.department)
-        changes.push(`Department: ${oldEmployee.department} -> ${dataToUpdate.department}`);
+      // เปรียบเทียบ Department
+      if (newDeptName && newDeptName !== oldDeptName)
+        changes.push(`Department: ${oldDeptName} -> ${newDeptName}`);
 
       const auditDetails =
         changes.length > 0
@@ -669,10 +855,17 @@ exports.updateEmployee = async (req, res) => {
       const cleanNewValue = {
         name: `${updated.firstName} ${updated.lastName}`,
         email: updated.email,
-        role: updated.role,
-        department: updated.department, 
+        role: updated.role?.name,
+        department: updated.department?.name,
         status: updated.isActive ? "Active" : "Inactive",
         changes: changes,
+      };
+      
+      // แปลง oldEmployee ให้เป็น flat structure สำหรับ log
+      const cleanOldValue = {
+          ...oldEmployee,
+          role: oldRoleName,
+          department: oldDeptName
       };
 
       await auditLog(tx, {
@@ -681,7 +874,7 @@ exports.updateEmployee = async (req, res) => {
         recordId: id,
         userId: adminId,
         details: auditDetails,
-        oldValue: oldEmployee,
+        oldValue: cleanOldValue,
         newValue: cleanNewValue,
         req: req,
       });
@@ -711,7 +904,9 @@ exports.updateEmployee = async (req, res) => {
       message: "Employee updated",
       employee: {
         ...result.updated,
-        role: presentRole(result.updated.role),
+        // แปลง Object ให้เป็น String เพื่อให้ Frontend ใช้ง่าย
+        role: result.updated.role?.name,
+        department: result.updated.department?.name
       },
     });
   } catch (err) {
