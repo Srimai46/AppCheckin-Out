@@ -564,11 +564,15 @@ export default {
       roleWorker: "Worker",
       roleHR: "HR",
 
+      allDepartments: "All Depts",
+      departmentUnassigned: "Unassigned",
+
       searchPlaceholder: "Search by name, email or ID",
 
       colId: "ID",
       colName: "Name",
       colEmail: "Email",
+      colDepartment: "Department",
       colRole: "Role",
       colStatus: "Status",
 
@@ -599,8 +603,7 @@ export default {
 
         workbook: {
           title: "(1) Export Workbook (.xlsx) — Multiple sheets",
-          desc:
-            "For selecting multiple employees (xlsx, 1 sheet per employee)",
+          desc: "For selecting multiple employees (xlsx, 1 sheet per employee)",
         },
 
         employeesList: {
@@ -608,8 +611,7 @@ export default {
           desc: "For exporting employee list (csv)",
         },
 
-        note:
-          "* Note: Multiple sheets require xlsx (CSV cannot contain multiple sheets).",
+        note: "* Note: Multiple sheets require xlsx (CSV cannot contain multiple sheets).",
       },
     },
 

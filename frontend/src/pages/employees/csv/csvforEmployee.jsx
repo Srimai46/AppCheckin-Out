@@ -13,27 +13,18 @@ export default function CsvForEmployee({ open, onClose, employee }) {
   // =========================
   const [periodType, setPeriodType] = useState("monthly"); // daily | monthly | yearly | quarter | custom
 
-  // daily (yyyy-mm-dd)  -> "" = All
   const [dailyDate, setDailyDate] = useState("");
-
-  // monthly (yyyy-mm)   -> "" = All
   const [monthValue, setMonthValue] = useState("");
-
-  // yearly (yyyy)       -> "" = All
   const [yearValue, setYearValue] = useState(String(new Date().getFullYear()));
 
-  // quarter
-  const [quarterYear, setQuarterYear] = useState(String(new Date().getFullYear())); // "" = All
+  const [quarterYear, setQuarterYear] = useState(String(new Date().getFullYear()));
   const [quarterValue, setQuarterValue] = useState("Q1");
 
-  // custom (yyyy-mm-dd)
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
-  // export type
   const [exportType, setExportType] = useState("attendance"); // attendance | leave
 
-  // ui
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState("");
 
@@ -78,9 +69,6 @@ export default function CsvForEmployee({ open, onClose, employee }) {
 
   // =========================
   // ✅ Seed defaults when modal opens
-  // - daily: วันนี้
-  // - monthly: เดือนปัจจุบัน
-  // - custom: from/to = วันนี้ (ปรับได้)
   // =========================
   useEffect(() => {
     if (!open) return;
@@ -89,7 +77,6 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     const ym = todayYM();
     const y = new Date().getFullYear();
 
-    // เติมค่า default เฉพาะตอน "ว่าง"
     setDailyDate((prev) => prev || ymd);
     setMonthValue((prev) => prev || ym);
     setYearValue((prev) => prev || String(y));
@@ -98,7 +85,6 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     setCustomFrom((prev) => prev || ymd);
     setCustomTo((prev) => prev || ymd);
 
-    // ให้สอดคล้องกับ period ที่เลือกอยู่
     if (periodType === "monthly") setMonthValue((prev) => prev || ym);
     if (periodType === "daily") setDailyDate((prev) => prev || ymd);
     if (periodType === "custom") {
@@ -109,7 +95,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
   }, [open]);
 
   // =========================
-  // ✅ Auto-fill when switching periodType (ตอนสลับแท็บ)
+  // ✅ Auto-fill when switching periodType
   // =========================
   useEffect(() => {
     if (!open) return;
@@ -138,7 +124,6 @@ export default function CsvForEmployee({ open, onClose, employee }) {
   // ===== Range (รองรับ All)
   // =========================
   const range = useMemo(() => {
-    // All => from/to = ""
     if (periodType === "daily") {
       if (!dailyDate) return { from: "", to: "" };
       return { from: dailyDate, to: dailyDate };
@@ -168,19 +153,9 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       return map[quarterValue] || { from: "", to: "" };
     }
 
-    // custom
     if (!customFrom || !customTo) return { from: "", to: "" };
     return { from: customFrom, to: customTo };
-  }, [
-    periodType,
-    dailyDate,
-    monthValue,
-    yearValue,
-    quarterYear,
-    quarterValue,
-    customFrom,
-    customTo,
-  ]);
+  }, [periodType, dailyDate, monthValue, yearValue, quarterYear, quarterValue, customFrom, customTo]);
 
   // =========================
   // CSV helpers
@@ -299,11 +274,17 @@ export default function CsvForEmployee({ open, onClose, employee }) {
   // =========================
   // CSV Builders
   // =========================
+  const getDeptLabel = () => {
+    const dept = employee?.department || "Unassigned";
+    return dept === "Unassigned" ? t("employeeList.departmentUnassigned") : dept;
+  };
+
   const buildAttendanceCsv = (rows) => {
     const header = [
       "employeeId",
       "fullName",
       "email",
+      "department",
       "role",
       "date",
       "checkInTime",
@@ -319,12 +300,14 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     ];
 
     const fullName = `${employee?.firstName || ""} ${employee?.lastName || ""}`.trim();
+    const deptLabel = getDeptLabel();
 
-    const lines = rows.map((r) =>
+    const lines = (rows || []).map((r) =>
       [
         escapeCsv(employee?.id),
         escapeCsv(fullName),
         escapeCsv(employee?.email),
+        escapeCsv(deptLabel),
         escapeCsv(employee?.role),
         escapeCsv(r.date || r.workDate || ""),
         escapeCsv(r.checkInTime || r.checkIn || ""),
@@ -349,6 +332,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       "employeeId",
       "fullName",
       "email",
+      "department",
       "role",
       "leaveType",
       "startDate",
@@ -365,8 +349,9 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     ];
 
     const fullName = `${employee?.firstName || ""} ${employee?.lastName || ""}`.trim();
+    const deptLabel = getDeptLabel();
 
-    const lines = rows.map((r) => {
+    const lines = (rows || []).map((r) => {
       const decidedBy = r?.decidedBy
         ? `${r.decidedBy.firstName || ""} ${r.decidedBy.lastName || ""}`.trim()
         : r?.approvedByName || "";
@@ -376,6 +361,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
         escapeCsv(employee?.id),
         escapeCsv(fullName),
         escapeCsv(employee?.email),
+        escapeCsv(deptLabel),
         escapeCsv(employee?.role),
         escapeCsv(r.type || r.leaveType || ""),
         escapeCsv(r.startDate || ""),
@@ -395,12 +381,11 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     return [header.join(","), ...lines].join("\n");
   };
 
-  // ✅ เปลี่ยน validate เป็น i18n
+  // validate เป็น i18n
   const validateRange = () => {
     if (!employee?.id) return t("employeeExport.errors.noEmployee");
 
     if (periodType === "custom") {
-      // ถ้าอยากให้ custom = All ได้ ให้เอา if นี้ออก
       if (!customFrom || !customTo) return t("employeeExport.errors.customIncomplete");
     }
 
@@ -429,10 +414,7 @@ export default function CsvForEmployee({ open, onClose, employee }) {
       if (exportType === "attendance") {
         const rows = await fetchAttendanceRows({ empId, from, to });
         const csv = buildAttendanceCsv(rows);
-        downloadBlob(
-          csv,
-          `attendance_${safeName}_${from || "all"}_${to || "all"}_${stamp}.csv`
-        );
+        downloadBlob(csv, `attendance_${safeName}_${from || "all"}_${to || "all"}_${stamp}.csv`);
       } else {
         const rows = await fetchLeaveRows({ empId, from, to });
         const csv = buildLeaveCsv(rows);
@@ -443,7 +425,10 @@ export default function CsvForEmployee({ open, onClose, employee }) {
     } catch (e) {
       const status = e?.response?.status;
       if (status === 404) setErrMsg(t("employeeExport.errors.endpoint404"));
-      else setErrMsg(e?.response?.data?.message || e?.message || t("employeeExport.errors.exportFailed"));
+      else
+        setErrMsg(
+          e?.response?.data?.message || e?.message || t("employeeExport.errors.exportFailed")
+        );
     } finally {
       setLoading(false);
     }
@@ -480,10 +465,19 @@ export default function CsvForEmployee({ open, onClose, employee }) {
 
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/30"
+        onClick={() => {
+          if (loading) return;
+          onClose?.();
+        }}
+      />
 
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl rounded-[1.5rem] bg-white border border-slate-200 shadow-xl overflow-hidden">
+        <div
+          className="w-full max-w-2xl rounded-[1.5rem] bg-white border border-slate-200 shadow-xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <div className="flex items-center gap-2">
@@ -500,8 +494,11 @@ export default function CsvForEmployee({ open, onClose, employee }) {
 
             <button
               type="button"
-              onClick={onClose}
-              className="h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-slate-100 transition"
+              onClick={() => {
+                if (loading) return;
+                onClose?.();
+              }}
+              className="h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-slate-100 transition disabled:opacity-60"
               aria-label={t("common.close")}
               title={t("common.close")}
               disabled={loading}
@@ -679,18 +676,39 @@ export default function CsvForEmployee({ open, onClose, employee }) {
           <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                if (loading) return;
+                onClose?.();
+              }}
               className="h-10 px-4 rounded-full border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-60"
               disabled={loading}
             >
               {t("common.cancel")}
             </button>
 
+            {/* Wider export button */}
             <button
               type="button"
               onClick={handleExport}
               disabled={loading}
-              className="h-10 px-5 rounded-full bg-slate-900 text-white font-black hover:bg-slate-800 active:scale-[0.98] transition inline-flex items-center gap-2 disabled:opacity-60"
+              className="
+                h-11
+                px-8
+                min-w-[180px]
+                rounded-full
+                bg-slate-900
+                text-white
+                font-black
+                text-sm
+                hover:bg-slate-800
+                active:scale-[0.98]
+                transition
+                inline-flex
+                items-center
+                justify-center
+                gap-3
+                disabled:opacity-60
+              "
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
               {t("employeeExport.buttons.export")}
@@ -699,11 +717,8 @@ export default function CsvForEmployee({ open, onClose, employee }) {
         </div>
       </div>
 
-      {/* =========================
-          DateGridPicker Modals
-         ========================= */}
+      {/* ========================= DateGridPicker Modals  ========================= */}
 
-      {/* DAILY */}
       <DateGridPicker
         open={pickDailyOpen}
         title={t("employeeExport.picker.selectDate")}
@@ -714,7 +729,6 @@ export default function CsvForEmployee({ open, onClose, employee }) {
         onClose={() => setPickDailyOpen(false)}
       />
 
-      {/* MONTH */}
       <DateGridPicker
         open={pickMonthOpen}
         title={t("employeeExport.picker.selectMonth")}
@@ -725,7 +739,6 @@ export default function CsvForEmployee({ open, onClose, employee }) {
         onClose={() => setPickMonthOpen(false)}
       />
 
-      {/* YEAR */}
       <DateGridPicker
         open={pickYearOpen}
         title={t("employeeExport.picker.selectYear")}
@@ -736,7 +749,6 @@ export default function CsvForEmployee({ open, onClose, employee }) {
         onClose={() => setPickYearOpen(false)}
       />
 
-      {/* QUARTER YEAR */}
       <DateGridPicker
         open={pickQuarterYearOpen}
         title={t("employeeExport.picker.selectYear")}
@@ -747,7 +759,6 @@ export default function CsvForEmployee({ open, onClose, employee }) {
         onClose={() => setPickQuarterYearOpen(false)}
       />
 
-      {/* CUSTOM FROM */}
       <DateGridPicker
         open={pickCustomFromOpen}
         title={t("employeeExport.picker.dateFrom")}
@@ -758,7 +769,6 @@ export default function CsvForEmployee({ open, onClose, employee }) {
         onClose={() => setPickCustomFromOpen(false)}
       />
 
-      {/* CUSTOM TO */}
       <DateGridPicker
         open={pickCustomToOpen}
         title={t("employeeExport.picker.dateTo")}

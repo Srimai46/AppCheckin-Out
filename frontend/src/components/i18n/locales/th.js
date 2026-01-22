@@ -535,39 +535,57 @@ export default {
       title: "รายชื่อพนักงาน",
       addNew: "เพิ่มพนักงานใหม่",
       leavePolicy: "นโยบายการลา",
+
       activeTab: "พนักงานปัจจุบัน",
       resignedTab: "พนักงานที่ลาออก",
+
       allRoles: "ทุกบทบาท",
       roleWorker: "พนักงานทั่วไป",
       roleHR: "HR",
+
+      allDepartments: "ทุกแผนก",
+      departmentUnassigned: "ไม่ระบุแผนก",
+
       searchPlaceholder: "ค้นหาด้วยชื่อ, อีเมล หรือ รหัส",
+
       colId: "รหัส",
       colName: "ชื่อ",
       colEmail: "อีเมล",
+      colDepartment: "แผนก",
       colRole: "บทบาท",
       colStatus: "สถานะ",
+      
       statusWorking: "กำลังทำงาน",
       statusResigned: "ลาออกแล้ว",
+
       noEmployees: "ไม่พบข้อมูลพนักงาน",
+
       page: "หน้า",
       prev: "ก่อนหน้า",
       next: "ถัดไป",
+
       colExport: "ส่งออก",
       exportEmployee: "ส่งออกข้อมูลพนักงาน",
+
       aria: { closeRoleDropdown: "ปิดรายการเลือกบทบาท" },
+
       pagination: { label: "หน้า {{page}} / {{totalPages}}" },
+
       exportAll: {
         button: "ส่งออกทั้งหมด",
         buttonTitle: "ส่งออกข้อมูลพนักงานทั้งหมด",
         title: "ส่งออกทั้งหมด",
+
         workbook: {
           title: "(1) ส่งออกไฟล์ Workbook (.xlsx) — แยกชีท",
           desc: "สำหรับเลือกพนักงานหลายคน (1 พนักงานต่อ 1 ชีท)",
         },
+
         employeesList: {
           title: "(2) ส่งออกรายชื่อพนักงาน",
           desc: "สำหรับส่งออกเฉพาะรายชื่อพนักงาน (csv)",
         },
+
         note: "* หมายเหตุ: การแยกหลายชีทต้องใช้ไฟล์ xlsx เท่านั้น (CSV ไม่สามารถมีหลายชีทได้)",
       },
     },

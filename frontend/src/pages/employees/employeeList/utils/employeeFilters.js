@@ -10,7 +10,10 @@ export function buildCounts(employees) {
   );
 }
 
-export function filterEmployees(employees, { activeTab, roleFilter, statusFilter, search }) {
+export function filterEmployees(
+  employees,
+  { activeTab, departmentFilter = "all", roleFilter, statusFilter, search }
+) {
   const keyword = String(search || "").toLowerCase().trim();
 
   return employees.filter((emp) => {
@@ -24,6 +27,12 @@ export function filterEmployees(employees, { activeTab, roleFilter, statusFilter
     if (statusFilter === "active" && !isActive) return false;
     if (statusFilter === "inactive" && isActive) return false;
 
+    // department filter (ว่าง/ไม่มีค่าให้เป็น Unassigned)
+    if (departmentFilter !== "all") {
+      const dept = String(emp.department || "").trim() || "Unassigned";
+      if (dept !== departmentFilter) return false;
+    }
+
     // role filter
     if (roleFilter !== "all" && emp.role !== roleFilter) return false;
 
@@ -34,7 +43,10 @@ export function filterEmployees(employees, { activeTab, roleFilter, statusFilter
       emp.firstName?.toLowerCase().includes(keyword) ||
       emp.lastName?.toLowerCase().includes(keyword) ||
       emp.email?.toLowerCase().includes(keyword) ||
-      String(emp.id).includes(keyword)
+      String(emp.id).includes(keyword) ||
+      String(emp.department || "")
+        .toLowerCase()
+        .includes(keyword)
     );
   });
 }
@@ -42,6 +54,6 @@ export function filterEmployees(employees, { activeTab, roleFilter, statusFilter
 export function paginate(items, page, pageSize) {
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
-  const pageItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pageItems = items.slice((safePage - 1) * pageSize, pageSize * safePage);
   return { totalPages, pageItems, page: safePage };
 }

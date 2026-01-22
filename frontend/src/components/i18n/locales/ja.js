@@ -551,11 +551,15 @@ export default {
       roleWorker: "従業員",
       roleHR: "HR",
 
+      allDepartments: "すべての部署",
+      departmentUnassigned: "未所属",
+
       searchPlaceholder: "名前、メール、ID で検索",
 
       colId: "ID",
       colName: "氏名",
       colEmail: "メール",
+      colDepartment: "部署",
       colRole: "役割",
       colStatus: "状態",
 

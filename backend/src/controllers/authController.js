@@ -98,7 +98,7 @@ exports.login = async (req, res) => {
       const message = error.errors?.[0]?.message || "Input validation failed";
       return res.status(400).json({ error: message });
     }
-    console.error("Login System Error:", error);
+    console.error("LOGIN ERROR:", err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };

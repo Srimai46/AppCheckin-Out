@@ -68,6 +68,23 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
     return toDateOnly(new Date(y, m, 0));
   };
 
+  // ✅ helper: ให้ได้ yyyy-mm-dd เสมอ
+  const toYMD = (val) => {
+    if (!val) return "";
+    if (typeof val === "string") {
+      const m = val.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (m) return m[1];
+    }
+    const d = new Date(val);
+    if (Number.isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const inRange = (ymd, from, to) => {
+    if (!ymd || !from || !to) return false;
+    return ymd >= from && ymd <= to;
+  };
+
   // -------------------------
   // DateGridPicker modal control
   // -------------------------
@@ -96,8 +113,6 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
 
   // -------------------------
   // ✅ Seed defaults when popup opens
-  // - daily: วันนี้
-  // - monthly: เดือนปัจจุบัน
   // -------------------------
   useEffect(() => {
     if (!open) return;
@@ -106,7 +121,6 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
     const ym = todayYM();
     const y = new Date().getFullYear();
 
-    // ถ้าเปิดมาครั้งแรกแล้วค่าใน state ยังว่าง ให้เติมค่า default
     setDailyDate((prev) => prev || ymd);
     setMonthValue((prev) => prev || ym);
     setYearValue((prev) => (prev ? prev : y));
@@ -115,13 +129,8 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
     setCustomFrom((prev) => prev || ymd);
     setCustomTo((prev) => prev || ymd);
 
-    // ถ้าหน้านี้ default เป็น monthly อยู่แล้ว แต่ monthValue ว่าง → เติมทันที
-    if (periodType === "monthly") {
-      setMonthValue((prev) => prev || ym);
-    }
-    if (periodType === "daily") {
-      setDailyDate((prev) => prev || ymd);
-    }
+    if (periodType === "monthly") setMonthValue((prev) => prev || ym);
+    if (periodType === "daily") setDailyDate((prev) => prev || ymd);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -135,13 +144,10 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
     const ym = todayYM();
     const y = new Date().getFullYear();
 
-    if (periodType === "daily") {
-      setDailyDate((prev) => prev || ymd);
-    } else if (periodType === "monthly") {
-      setMonthValue((prev) => prev || ym);
-    } else if (periodType === "yearly") {
-      setYearValue((prev) => (prev ? prev : y));
-    } else if (periodType === "quarter") {
+    if (periodType === "daily") setDailyDate((prev) => prev || ymd);
+    else if (periodType === "monthly") setMonthValue((prev) => prev || ym);
+    else if (periodType === "yearly") setYearValue((prev) => (prev ? prev : y));
+    else if (periodType === "quarter") {
       setQuarterYear((prev) => (prev ? prev : y));
       setQuarterValue((prev) => prev || "Q1");
     } else if (periodType === "custom") {
@@ -224,80 +230,63 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
     closePicker();
   };
 
-  // -------------------------
-  // API helpers
-  // -------------------------
-  const normalizeRows = (res) => {
-    const data = res?.data;
-    if (Array.isArray(data)) return data;
-    return data?.data || data?.records || data?.requests || data?.items || [];
+  // =========================
+  // ✅ PRIMARY DATA SOURCE:
+  // /employees/:id?year=YYYY (getEmployeeById)
+  // =========================
+  const unwrapEmployeeDetail = (raw) => {
+    // รองรับหลายแบบ: res.data , res.data.data
+    const base = raw?.data?.data ? raw.data.data : raw?.data;
+    return base || raw || null;
   };
 
-  const tryGet = async (paths, params) => {
+  const fetchEmployeeDetail = async ({ empId, year }) => {
+    const paths = [`/employees/${empId}`, `/employee/${empId}`];
     let lastErr = null;
+
     for (const p of paths) {
       try {
-        const res = await api.get(p, { params });
-        return res;
+        const res = await api.get(p, { params: { year } });
+        return unwrapEmployeeDetail(res);
       } catch (e) {
         lastErr = e;
         if (e?.response?.status === 404) continue;
-        throw e;
       }
     }
-    throw lastErr || new Error("No matching API endpoint (all paths returned 404).");
+    throw lastErr || new Error("Employee detail endpoint not found.");
   };
 
   const fetchAttendanceRows = async ({ empId, from, to }) => {
-    const paths = [
-      "/attendance/records",
-      "/attendance/time-records",
-      "/time-records",
-      "/attendance/history",
-      "/attendance",
-    ];
+    const year = Number(String(from || "").slice(0, 4)) || new Date().getFullYear();
+    const detail = await fetchEmployeeDetail({ empId, year });
 
-    const paramSets = [
-      { employeeId: empId, from, to },
-      { employeeId: empId, startDate: from, endDate: to },
-      { userId: empId, from, to },
-      { userId: empId, startDate: from, endDate: to },
-    ];
+    // controller ของคุณส่ง { attendance: [...] }
+    const rows = Array.isArray(detail?.attendance)
+      ? detail.attendance
+      : Array.isArray(detail?.data?.attendance)
+      ? detail.data.attendance
+      : [];
 
-    let lastErr = null;
-    for (const params of paramSets) {
-      try {
-        const res = await tryGet(paths, params);
-        return normalizeRows(res);
-      } catch (e) {
-        lastErr = e;
-        if (e?.response?.status && e.response.status !== 404) throw e;
-      }
-    }
-    throw lastErr || new Error("Attendance export failed (endpoint not found).");
+    return rows.filter((r) => inRange(toYMD(r.workDate), from, to));
   };
 
   const fetchLeaveRows = async ({ empId, from, to }) => {
-    const paths = ["/leave/requests", "/leave/history", "/leave", "/leave-requests"];
+    const year = Number(String(from || "").slice(0, 4)) || new Date().getFullYear();
+    const detail = await fetchEmployeeDetail({ empId, year });
 
-    const paramSets = [
-      { employeeId: empId, from, to },
-      { employeeId: empId, startDate: from, endDate: to },
-      { userId: empId, from, to },
-      { userId: empId, startDate: from, endDate: to },
-    ];
+    const rows = Array.isArray(detail?.leaves)
+      ? detail.leaves
+      : Array.isArray(detail?.data?.leaves)
+      ? detail.data.leaves
+      : [];
 
-    let lastErr = null;
-    for (const params of paramSets) {
-      try {
-        const res = await tryGet(paths, params);
-        return normalizeRows(res);
-      } catch (e) {
-        lastErr = e;
-        if (e?.response?.status && e.response.status !== 404) throw e;
-      }
-    }
-    throw lastErr || new Error("Leave export failed (endpoint not found).");
+    // overlap range: start <= to && end >= from
+    return rows.filter((r) => {
+      const s = toYMD(r.startDate);
+      const e = toYMD(r.endDate);
+      if (!s || !e) return false;
+      return s <= to && e >= from;
+    });
   };
 
   // -------------------------
@@ -314,6 +303,7 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
       firstName: e.firstName,
       lastName: e.lastName,
       email: e.email,
+      department: String(e.department || "").trim() || "Unassigned",
       role: e.role,
       isActive: e.isActive === true || e.isActive === 1 ? "ACTIVE" : "INACTIVE",
       joiningDate: e.joiningDate || "",
@@ -325,6 +315,7 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
 
   const buildPerEmployeeSheets = async ({ from, to }) => {
     const sheets = [];
+
     for (const emp of employees || []) {
       const empId = emp?.id;
       if (!empId) continue;
@@ -333,13 +324,21 @@ export default function XlsxForEmployeesWorkbook({ open, onClose, employees = []
         `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || `EMP_${empId}`;
       const sheetName = safeSheetName(fullName);
 
-      let rows = [];
-      if (exportType === "attendance") rows = await fetchAttendanceRows({ empId, from, to });
-      else rows = await fetchLeaveRows({ empId, from, to });
+      const rows =
+        exportType === "attendance"
+          ? await fetchAttendanceRows({ empId, from, to })
+          : await fetchLeaveRows({ empId, from, to });
 
-      const ws = XLSX.utils.json_to_sheet((rows || []).map((r) => ({ ...r })));
+      // ✅ ทำให้ sheet ไม่ว่างแบบ “ไม่มีหัวเลย”
+      const safeRows =
+        Array.isArray(rows) && rows.length > 0
+          ? rows
+          : [{ _empty: "" }];
+
+      const ws = XLSX.utils.json_to_sheet(safeRows.map((r) => ({ ...r })));
       sheets.push({ ws, name: sheetName });
     }
+
     return sheets;
   };
 

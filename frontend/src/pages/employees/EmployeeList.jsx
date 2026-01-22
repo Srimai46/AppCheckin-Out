@@ -23,6 +23,7 @@ export default function EmployeeList() {
   const navigate = useNavigate();
 
   // filters
+  const [departmentFilter, setDepartmentFilter] = useState("all"); // ✅ NEW: all | HR | IT | ... | Unassigned
   const [roleFilter, setRoleFilter] = useState("all"); // all | Worker | HR
   const [statusFilter, setStatusFilter] = useState("all"); // all | active | inactive
   const [activeTab, setActiveTab] = useState("active"); // active | inactive
@@ -58,24 +59,35 @@ export default function EmployeeList() {
 
   const counts = useMemo(() => buildCounts(employees), [employees]);
 
+  // ✅ NEW: ทำรายการ departments สำหรับ dropdown (unique)
+  const departmentOptions = useMemo(() => {
+    const set = new Set();
+    (employees || []).forEach((e) => {
+      const d = String(e?.department ?? "").trim();
+      set.add(d || "Unassigned");
+    });
+    return ["all", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [employees]);
+
   const filteredEmployees = useMemo(() => {
     return filterEmployees(employees, {
       activeTab,
+      departmentFilter, // ✅ NEW
       roleFilter,
       statusFilter,
       search,
     });
-  }, [employees, activeTab, roleFilter, statusFilter, search]);
+  }, [employees, activeTab, departmentFilter, roleFilter, statusFilter, search]);
 
   const { totalPages, pageItems } = useMemo(() => {
     return paginate(filteredEmployees, page, PAGE_SIZE);
   }, [filteredEmployees, page]);
 
-  // reset page when filters change (เหมือนเดิม)
+  // reset page when filters change
   useMemo(() => {
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, roleFilter, statusFilter, search]);
+  }, [activeTab, departmentFilter, roleFilter, statusFilter, search]);
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
@@ -139,6 +151,10 @@ export default function EmployeeList() {
 
         {/* Filters + Search */}
         <EmployeesTable.FiltersRow
+          departmentFilter={departmentFilter}              // ✅ NEW
+          setDepartmentFilter={setDepartmentFilter}        // ✅ NEW
+          departmentOptions={departmentOptions}            // ✅ NEW
+
           roleFilter={roleFilter}
           setRoleFilter={setRoleFilter}
           statusFilter={statusFilter}

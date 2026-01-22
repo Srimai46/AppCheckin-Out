@@ -1,6 +1,6 @@
 // frontend/src/pages/csv/csvforAuditLog.jsx
-import { useMemo, useState, useEffect } from "react";
-import { Download, Filter, X } from "lucide-react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { Download, Filter, X, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import DateGridPicker from "../../../components/shared/DateGridPicker";
 
@@ -14,7 +14,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   const { t } = useTranslation();
 
   // -------------------------
-  // Date helpers (✅ default today)
+  // Date helpers ( default today )
   // -------------------------
   const pad2 = (n) => String(n).padStart(2, "0");
   const todayYMD = () => {
@@ -44,7 +44,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   const [customFrom, setCustomFrom] = useState(""); // yyyy-mm-dd
   const [customTo, setCustomTo] = useState(""); // yyyy-mm-dd
 
-  // ✅ Seed defaults when opening export popup
+  // Seed defaults when opening export popup
   useEffect(() => {
     if (!open) return;
 
@@ -52,7 +52,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
     const ym = todayYM();
     const y = String(new Date().getFullYear());
 
-    // default period = daily (ตามที่คุณตั้งใจ)
+    // default period = daily
     setPeriodType("daily");
 
     // set defaults only if empty (ไม่ทับค่าที่ user เคยเลือกไว้)
@@ -62,10 +62,9 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
     setQuarterYear((prev) => prev || y);
     setQuarterValue((prev) => prev || "Q1");
 
-    // custom: ให้เริ่มเป็นวันนี้→วันนี้ (หรือจะปล่อยว่างก็ได้ แต่แบบนี้ใช้ง่ายกว่า)
+    // custom default: today -> today
     setCustomFrom((prev) => prev || ymd);
     setCustomTo((prev) => prev || ymd);
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -162,21 +161,17 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   const startOfMonth = (yyyyMm) => {
     if (!yyyyMm) return "";
     const [y, m] = yyyyMm.split("-").map((x) => parseInt(x, 10));
-    const d = new Date(y, m - 1, 1);
-    return toDateOnly(d);
+    return toDateOnly(new Date(y, m - 1, 1));
   };
 
   const endOfMonth = (yyyyMm) => {
     if (!yyyyMm) return "";
     const [y, m] = yyyyMm.split("-").map((x) => parseInt(x, 10));
-    const d = new Date(y, m, 0);
-    return toDateOnly(d);
+    return toDateOnly(new Date(y, m, 0));
   };
 
   const buildPeriodRange = () => {
-    if (periodType === "daily") {
-      return { from: dailyDate || "", to: dailyDate || "" };
-    }
+    if (periodType === "daily") return { from: dailyDate || "", to: dailyDate || "" };
 
     if (periodType === "monthly") {
       return { from: startOfMonth(monthValue), to: endOfMonth(monthValue) };
@@ -190,7 +185,6 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
 
     if (periodType === "quarter") {
       const y = Number(quarterYear);
-      const q = quarterValue;
       if (!y || Number.isNaN(y)) return { from: "", to: "" };
 
       const map = {
@@ -199,7 +193,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
         Q3: { from: `${y}-07-01`, to: `${y}-09-30` },
         Q4: { from: `${y}-10-01`, to: `${y}-12-31` },
       };
-      return map[q] || { from: "", to: "" };
+      return map[quarterValue] || { from: "", to: "" };
     }
 
     return { from: customFrom || "", to: customTo || "" };
@@ -208,7 +202,9 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   const normalize = (v) => (v ?? "").toString().trim().toLowerCase();
 
   const toggleAction = (act) => {
-    setFActions((prev) => (prev.includes(act) ? prev.filter((x) => x !== act) : [...prev, act]));
+    setFActions((prev) =>
+      prev.includes(act) ? prev.filter((x) => x !== act) : [...prev, act]
+    );
   };
 
   const resetAll = () => {
@@ -233,6 +229,78 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
   };
 
   // -------------------------
+  // Custom Dropdown (same style as ALL DEPTS/ALL ROLES)
+  // -------------------------
+  function Dropdown({ value, onChange, options, placeholder, widthClass = "w-full" }) {
+    const [openMenu, setOpenMenu] = useState(false);
+    const wrapRef = useRef(null);
+
+    useEffect(() => {
+      const onDown = (e) => {
+        if (!wrapRef.current) return;
+        if (!wrapRef.current.contains(e.target)) setOpenMenu(false);
+      };
+      window.addEventListener("mousedown", onDown);
+      return () => window.removeEventListener("mousedown", onDown);
+    }, []);
+
+    const label =
+      options.find((o) => String(o.value) === String(value))?.label ||
+      (String(value) === "all" ? placeholder : String(value || placeholder));
+
+    return (
+      <div ref={wrapRef} className={`relative ${widthClass}`}>
+        <button
+          type="button"
+          onClick={() => setOpenMenu((v) => !v)}
+          className={[
+            "w-full h-11 px-4 rounded-2xl bg-white border border-slate-200",
+            "text-[11px] font-black uppercase tracking-widest text-slate-800",
+            "inline-flex items-center justify-between",
+            "hover:bg-slate-50 transition",
+            openMenu ? "ring-2 ring-blue-100" : "",
+          ].join(" ")}
+        >
+          <span className="truncate">{label}</span>
+          <ChevronDown
+            size={16}
+            className={`transition-transform ${openMenu ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {openMenu && (
+          <div className="absolute z-30 mt-2 w-full rounded-2xl bg-white shadow-xl border border-slate-100 overflow-hidden">
+            <div className="py-2 max-h-72 overflow-auto">
+              {options.map((opt) => {
+                const active = String(opt.value) === String(value);
+                return (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setOpenMenu(false);
+                    }}
+                    className={[
+                      "w-full text-left px-5 py-3",
+                      "text-sm font-black",
+                      "transition",
+                      "hover:bg-blue-50",
+                      active ? "bg-blue-50 text-blue-700" : "text-slate-800",
+                    ].join(" ")}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // -------------------------
   // Filtered rows for export
   // -------------------------
   const filteredRows = useMemo(() => {
@@ -248,7 +316,6 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
       if (to && createdDate && createdDate > to) return false;
 
       if (fActions.length > 0 && !fActions.includes(l.action)) return false;
-
       if (fModel !== "all" && l.modelName !== fModel) return false;
 
       const name = l?.performedBy
@@ -337,20 +404,48 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
     onClose?.();
   };
 
+  // -------------------------
+  // dropdown options (✅ MUST be before early return)
+  // -------------------------
+  const modelDropdownOptions = useMemo(() => {
+    return [
+      { value: "all", label: t("auditLogExport.common.all") },
+      ...modelOptions.map((m) => ({ value: m, label: m })),
+    ];
+  }, [modelOptions, t]);
+
+  const userDropdownOptions = useMemo(() => {
+    return [
+      { value: "all", label: t("auditLogExport.common.all") },
+      ...userOptions.map((u) => ({ value: u, label: u })),
+    ];
+  }, [userOptions, t]);
+
+  const quarterDropdownOptions = useMemo(() => {
+    return [
+      { value: "Q1", label: t("auditLogExport.quarter.q1") },
+      { value: "Q2", label: t("auditLogExport.quarter.q2") },
+      { value: "Q3", label: t("auditLogExport.quarter.q3") },
+      { value: "Q4", label: t("auditLogExport.quarter.q4") },
+    ];
+  }, [t]);
+
+  // ✅ early return AFTER all hooks
   if (!open) return null;
 
   const { from, to } = buildPeriodRange();
 
   const inputClass =
-    "w-full h-10 px-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-slate-200 bg-white";
+    "w-full h-11 px-4 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-100 bg-white text-sm font-bold text-slate-800";
 
   const readonlyPickerInputClass =
-    "w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 font-bold cursor-pointer focus:ring-2 focus:ring-slate-200 outline-none";
+    "w-full h-11 px-4 rounded-2xl border border-slate-200 bg-white text-slate-800 font-bold cursor-pointer focus:ring-2 focus:ring-blue-100 outline-none";
 
   const pickerTitle = (() => {
     if (pickerField === "daily") return t("auditLogExport.picker.selectDate");
     if (pickerField === "month") return t("auditLogExport.picker.selectMonth");
-    if (pickerField === "year" || pickerField === "qYear") return t("auditLogExport.picker.selectYear");
+    if (pickerField === "year" || pickerField === "qYear")
+      return t("auditLogExport.picker.selectYear");
     if (pickerField === "from") return t("auditLogExport.picker.dateFrom");
     if (pickerField === "to") return t("auditLogExport.picker.dateTo");
     return t("auditLogExport.picker.selectDate");
@@ -368,9 +463,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <Filter size={18} className="text-slate-700" />
-              <h2 className="text-lg font-black text-slate-800">
-                {t("auditLogExport.title")}
-              </h2>
+              <h2 className="text-lg font-black text-slate-800">{t("auditLogExport.title")}</h2>
             </div>
 
             <button
@@ -468,7 +561,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
 
                 {periodType === "quarter" && (
                   <>
-                    <div className="space-y-1">
+                    <div className="space-y-1 md:col-span-2">
                       <label className="text-xs font-bold text-slate-600">
                         {t("auditLogExport.quarter.year")}
                       </label>
@@ -481,21 +574,17 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
                       />
                     </div>
 
-                    <div className="space-y-1">
+                    <div className="space-y-1 md:col-span-2">
                       <label className="text-xs font-bold text-slate-600">
                         {t("auditLogExport.quarter.quarter")}
                       </label>
 
-                      <select
+                      <Dropdown
                         value={quarterValue}
-                        onChange={(e) => setQuarterValue(e.target.value)}
-                        className={inputClass}
-                      >
-                        <option value="Q1">{t("auditLogExport.quarter.q1")}</option>
-                        <option value="Q2">{t("auditLogExport.quarter.q2")}</option>
-                        <option value="Q3">{t("auditLogExport.quarter.q3")}</option>
-                        <option value="Q4">{t("auditLogExport.quarter.q4")}</option>
-                      </select>
+                        onChange={setQuarterValue}
+                        options={quarterDropdownOptions}
+                        placeholder={t("auditLogExport.common.all")}
+                      />
                     </div>
                   </>
                 )}
@@ -541,40 +630,30 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
 
             {/* Other filters */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Model dropdown */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-600">
                   {t("auditLogExport.filters.model")}
                 </label>
-                <select
+                <Dropdown
                   value={fModel}
-                  onChange={(e) => setFModel(e.target.value)}
-                  className={inputClass}
-                >
-                  <option value="all">{t("auditLogExport.common.all")}</option>
-                  {modelOptions.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setFModel}
+                  options={modelDropdownOptions}
+                  placeholder={t("auditLogExport.common.all")}
+                />
               </div>
 
+              {/* Performed by dropdown */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-600">
                   {t("auditLogExport.filters.performedBy")}
                 </label>
-                <select
+                <Dropdown
                   value={fUser}
-                  onChange={(e) => setFUser(e.target.value)}
-                  className={inputClass}
-                >
-                  <option value="all">{t("auditLogExport.common.all")}</option>
-                  {userOptions.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setFUser}
+                  options={userDropdownOptions}
+                  placeholder={t("auditLogExport.common.all")}
+                />
               </div>
 
               <div className="space-y-1 md:col-span-2">
@@ -646,7 +725,7 @@ export default function CsvForAuditLog({ open, onClose, logs = [] }) {
             </div>
 
             {/* preview count */}
-            <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+            <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
               <div className="text-sm text-slate-700">
                 {t("auditLogExport.preview.rowsToExport")}{" "}
                 <span className="font-black">{filteredRows.length}</span>

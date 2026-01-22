@@ -4,18 +4,81 @@ import { useTranslation } from "react-i18next";
 import { Loader2, ChevronDown, Download } from "lucide-react";
 
 function FiltersRow({
+  departmentFilter,
+  setDepartmentFilter,
+  departmentOptions = [],
+
   roleFilter,
   setRoleFilter,
-  statusFilter, // (เก็บไว้ให้ครบโครง, ตอนนี้ UI เดิมยังไม่ได้ใช้ dropdown status แยก)
-  setStatusFilter, // (เก็บไว้)
+  statusFilter,
+  setStatusFilter,
   search,
   setSearch,
 }) {
   const { t } = useTranslation();
+  const [deptOpenFilter, setDeptOpenFilter] = useState(false);
   const [roleOpenFilter, setRoleOpenFilter] = useState(false);
+
+  const resolveDeptLabel = (val) => {
+    if (val === "all") return t("employeeList.allDepartments"); 
+    if (val === "Unassigned") return t("employeeList.departmentUnassigned"); 
+    return val || "-";
+  };
 
   return (
     <div className="flex gap-2 sm:ml-auto w-full sm:w-auto">
+      {/* Department Filter */}
+      <div className="relative w-44">
+        <button
+          type="button"
+          onClick={() => setDeptOpenFilter((v) => !v)}
+          className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5
+            text-xs font-black uppercase tracking-widest text-slate-700
+            flex items-center justify-between transition-all hover:bg-gray-50
+            ${deptOpenFilter ? "ring-2 ring-blue-100" : ""}`}
+        >
+          <span>{resolveDeptLabel(departmentFilter)}</span>
+
+          <ChevronDown
+            size={14}
+            className={`transition-transform ${deptOpenFilter ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {deptOpenFilter && (
+          <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
+            {[
+              { value: "all", label: t("employeeList.allDepartments") },
+              ...(departmentOptions || [])
+                .filter((d) => d && d !== "all")
+                .map((d) => ({
+                  value: d,
+                  label:
+                    d === "Unassigned"
+                      ? t("employeeList.departmentUnassigned")
+                      : d,
+                })),
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  setDepartmentFilter(opt.value);
+                  setDeptOpenFilter(false);
+                }}
+                className={`w-full px-6 py-3 text-left text-sm font-black transition-all hover:bg-blue-50 ${
+                  departmentFilter === opt.value
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-slate-700"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Role Filter */}
       <div className="relative w-40">
         <button
@@ -41,31 +104,29 @@ function FiltersRow({
         </button>
 
         {roleOpenFilter && (
-          <>
-            <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
-              {[
-                { value: "all", label: t("employeeList.allRoles") },
-                { value: "Worker", label: t("employeeList.roleWorker") },
-                { value: "HR", label: t("employeeList.roleHR") },
-              ].map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => {
-                    setRoleFilter(opt.value);
-                    setRoleOpenFilter(false);
-                  }}
-                  className={`w-full px-6 py-3 text-left text-sm font-black transition-all hover:bg-blue-50 ${
-                    roleFilter === opt.value
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-slate-700"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </>
+          <div className="absolute z-20 mt-2 w-full rounded-2xl bg-white shadow-xl border border-gray-100 overflow-hidden">
+            {[
+              { value: "all", label: t("employeeList.allRoles") },
+              { value: "Worker", label: t("employeeList.roleWorker") },
+              { value: "HR", label: t("employeeList.roleHR") },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  setRoleFilter(opt.value);
+                  setRoleOpenFilter(false);
+                }}
+                className={`w-full px-6 py-3 text-left text-sm font-black transition-all hover:bg-blue-50 ${
+                  roleFilter === opt.value
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-slate-700"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -94,6 +155,7 @@ export default function EmployeesTable({ loading, items, onRowClick, onExportOne
           <th className="p-6">{t("employeeList.colId")}</th>
           <th className="p-6">{t("employeeList.colName")}</th>
           <th className="p-6">{t("employeeList.colEmail")}</th>
+          <th className="p-6">{t("employeeList.colDepartment")}</th>
           <th className="p-6 text-center">{t("employeeList.colRole")}</th>
           <th className="p-6 text-center">{t("employeeList.colStatus")}</th>
           <th className="p-6 text-center">{t("employeeList.colExport")}</th>
@@ -103,13 +165,14 @@ export default function EmployeesTable({ loading, items, onRowClick, onExportOne
       <tbody className="divide-y divide-gray-50">
         {loading ? (
           <tr>
-            <td colSpan="6" className="p-20 text-center">
+            <td colSpan="7" className="p-20 text-center">
               <Loader2 className="animate-spin mx-auto text-blue-600" />
             </td>
           </tr>
         ) : items.length > 0 ? (
           items.map((emp) => {
             const active = emp.isActive === true || emp.isActive === 1;
+            const dept = String(emp.department || "").trim() || "Unassigned";
 
             return (
               <tr
@@ -125,6 +188,15 @@ export default function EmployeesTable({ loading, items, onRowClick, onExportOne
 
                 <td className="p-6 text-gray-500 text-sm font-medium italic">
                   {emp.email}
+                </td>
+
+                {/* Department */}
+                <td className="p-6">
+                  <span className="text-slate-700 text-sm font-bold">
+                    {dept === "Unassigned"
+                      ? t("employeeList.departmentUnassigned")
+                      : dept}
+                  </span>
                 </td>
 
                 <td className="p-6 text-center">
@@ -182,7 +254,7 @@ export default function EmployeesTable({ loading, items, onRowClick, onExportOne
         ) : (
           <tr>
             <td
-              colSpan="6"
+              colSpan="7"
               className="p-20 text-center text-gray-300 font-black text-xs uppercase"
             >
               {t("employeeList.noEmployees")}
