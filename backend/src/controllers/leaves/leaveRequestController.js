@@ -326,7 +326,7 @@ exports.cancelLeaveRequest = async (req, res) => {
       // 5. บันทึก Audit Log ลง Database
       await tx.auditLog.create({
         data: {
-          action: targetStatus === "Cancelled" ? "DELETE" : "UPDATE", // บันทึกลง DB ตามความจริง
+          action: targetStatus === "Cancelled" ? "DELETE" : "UPDATE", 
           modelName: "LeaveRequest",
           recordId: leaveId,
           performedById: userId,
@@ -338,9 +338,11 @@ exports.cancelLeaveRequest = async (req, res) => {
         },
       });
 
-      // 6. แจ้งเตือน HR (Database)
+      // ✅ FIX 1: แก้ Query หา HR ผ่าน Relation
       const admins = await tx.employee.findMany({
-        where: { role: "HR" },
+        where: { 
+            role: { name: "HR" } // ต้องเช็คผ่าน role.name
+        },
         select: { id: true },
       });
 
@@ -348,7 +350,7 @@ exports.cancelLeaveRequest = async (req, res) => {
         await tx.notification.createMany({
           data: admins.map((admin) => ({
             employeeId: admin.id,
-            notificationType: "NewRequest", // หรือสร้าง Type ใหม่เช่น CancelRequest
+            notificationType: "NewRequest", 
             message: messageToHr,
             relatedRequestId: leaveId,
           })),
@@ -375,7 +377,7 @@ exports.cancelLeaveRequest = async (req, res) => {
         totalPendingCount,
         messageToHr,
         adminUpdates,
-        targetStatus // ส่ง status ออกมาด้วยเพื่อใช้ตัดสินใจสีของ Log
+        targetStatus 
       };
     });
 
@@ -391,13 +393,11 @@ exports.cancelLeaveRequest = async (req, res) => {
     // 🚀 9. Real-time Notification & Audit Log
     const io = req.app.get("io");
     if (io) {
-      // 9.1 อัปเดตยอด Badge ของ HR
       io.to("hr_group").emit("update_pending_count", {
         count: result.totalPendingCount,
         message: result.messageToHr
       });
 
-      // 9.2 แจ้งเตือนกระดิ่ง
       result.adminUpdates.forEach((update) => {
         io.to(`user_${update.adminId}`).emit("new_notification", {
           message: result.messageToHr,
@@ -406,10 +406,6 @@ exports.cancelLeaveRequest = async (req, res) => {
         });
       });
 
-      // ============================================================
-      // ✅ 9.3 ส่ง Real-time Audit Log (เพื่อให้หน้าจอเด้ง)
-      // ============================================================
-      // ถ้า Cancelled ให้ใช้ DELETE (สีแดง), ถ้า Withdraw ให้ใช้ UPDATE (สีส้ม)
       const socketAction = result.targetStatus === "Cancelled" ? "DELETE" : "UPDATE";
 
       io.emit("new-audit-log", {
@@ -563,11 +559,17 @@ exports.getAllLeaves = async (req, res) => {
       where,
       include: {
         employee: {
-          select: { id: true, firstName: true, lastName: true, role: true, email: true },
+          select: { 
+            id: true, 
+            firstName: true, 
+            lastName: true, 
+            email: true,
+            // ✅ FIX 1: เจาะจงเอาแค่ชื่อ Role และ Department
+            role: { select: { name: true } }, 
+            department: { select: { name: true } } 
+          },
         },
         leaveType: { select: { typeName: true } },
-
-        // ✅ ต้อง include เพื่อเอาชื่อ HR
         approvedByHr: { select: { firstName: true, lastName: true } },
       },
       orderBy: { requestedAt: "desc" },
@@ -585,6 +587,11 @@ exports.getAllLeaves = async (req, res) => {
         employeeId: l.employee.id,
         name: `${l.employee.firstName} ${l.employee.lastName}`,
         email: l.employee.email,
+        
+        // ✅ FIX 2: Map ข้อมูล Role/Dept เป็น String ให้ Frontend
+        role: l.employee.role?.name || "-",
+        department: l.employee.department?.name || "-",
+
         type: l.leaveType.typeName,
         startDate: l.startDate,
         endDate: l.endDate,
@@ -596,11 +603,9 @@ exports.getAllLeaves = async (req, res) => {
         attachmentUrl: l.attachmentUrl,
         requestedAt: l.requestedAt,
 
-        // ✅ “คนที่ทำรายการล่าสุด” (Approve/Reject/Cancel) อิง HrId เดิม
         actedByHrId: l.approvedByHrId || null,
         actedByHrName: hrFullName,
 
-        // ✅ ทำให้ FE แสดง "Approved By / Rejected By" ได้ตรงๆ
         approvedBy: l.status === "Approved" ? hrFullName : null,
         rejectedBy: l.status === "Rejected" ? hrFullName : null,
 
@@ -633,6 +638,11 @@ exports.getPendingRequests = async (req, res) => {
             lastName: true,
             email: true,
             profileImageUrl: true,
+            
+            // ✅ FIX 1: ดึง Role และ Department มาแสดงให้ HR ดู
+            role: { select: { name: true } },
+            department: { select: { name: true } },
+
             leaveQuotas: {
               where: { year: currentYear },
               select: {
@@ -645,8 +655,6 @@ exports.getPendingRequests = async (req, res) => {
           },
         },
         leaveType: true,
-
-        // ✅ เพิ่มเพื่อให้ response มีชื่อ HR ถ้า request เคยถูก action
         approvedByHr: {
           select: { firstName: true, lastName: true },
         },
@@ -678,13 +686,22 @@ exports.getPendingRequests = async (req, res) => {
 
       return {
         ...leave,
+        
+        // ✅ FIX 2: Map ข้อมูล Role/Dept เป็น String
+        employee: {
+            ...leave.employee,
+            role: leave.employee.role?.name || "-",
+            department: leave.employee.department?.name || "-",
+            // ลบ Quota ออกจาก object employee เพื่อไม่ให้รก (เพราะเรา format แยกไว้แล้วข้างบน)
+            leaveQuotas: undefined 
+        },
+
         totalDaysRequested: Number(leave.totalDaysRequested),
         quotaInfo,
 
         cancelReason: leave.cancelReason,
         isWithdrawRequest: leave.status === "Withdraw_Pending",
 
-        // ✅ ส่งชื่อ HR (ถ้ามี) เผื่อ FE ต้องใช้
         actedByHrId: leave.approvedByHrId || null,
         actedByHrName: hrFullName,
       };
