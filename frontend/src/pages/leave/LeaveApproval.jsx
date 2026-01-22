@@ -1,3 +1,4 @@
+// src/pages/LeaveApproval.jsx
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,8 +14,8 @@ import {
   MessageCircle,
   Info,
   Clock,
-  FileX,    
-  FilePlus, 
+  FileX,
+  FilePlus,
 } from "lucide-react";
 import {
   alertConfirm,
@@ -24,13 +25,50 @@ import {
 } from "../../utils/sweetAlert";
 import { openAttachment } from "../../utils/attachmentPreview";
 
+/* =========================
+   Helpers
+   ========================= */
+const resolveDepartment = (req) => {
+  const raw =
+    req?.employee?.department?.name ||
+    req?.departmentName ||
+    req?.employee?.departmentName ||
+    req?.employee?.department ||
+    req?.department?.name ||
+    req?.department ||
+    req?.employeeDepartment ||
+    req?.employeeDept ||
+    "";
+
+  const name = String(raw || "").trim();
+  if (!name) return "-";
+
+  const upper = name.toUpperCase();
+
+  // light mapping for common full names
+  if (upper === "HUMAN RESOURCES") return "HR";
+  if (upper === "GENERAL AFFAIRS") return "GA";
+
+  return upper;
+};
+
+const resolveEmployeeName = (req) => {
+  const direct = String(req?.name || "").trim();
+  if (direct) return direct;
+
+  const first = String(req?.employee?.firstName || "").trim();
+  const last = String(req?.employee?.lastName || "").trim();
+  const full = `${first} ${last}`.trim();
+  return full || "-";
+};
+
 export default function LeaveApproval() {
   const { t, i18n } = useTranslation();
 
   const [requests, setRequests] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [activeTab, setActiveTab] = useState("new");
 
   const API_BASE = (
@@ -52,6 +90,7 @@ export default function LeaveApproval() {
 
   useEffect(() => {
     fetchRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const { newRequests, cancelRequests } = useMemo(() => {
@@ -80,7 +119,7 @@ export default function LeaveApproval() {
   const handleAction = async (mode, singleReq = null) => {
     const targets = singleReq
       ? [singleReq]
-      : requests.filter((r) => selectedIds.includes(r.id)); 
+      : requests.filter((r) => selectedIds.includes(r.id));
 
     if (targets.length === 0)
       return alertError(
@@ -90,16 +129,17 @@ export default function LeaveApproval() {
 
     let actionText = "";
     if (activeTab === "cancel") {
-        actionText = mode === "Approved" 
-            ? "Approve Cancellation (Void Leave)" 
-            : "Reject Cancellation (Keep Leave)";
+      actionText =
+        mode === "Approved"
+          ? "Approve Cancellation (Void Leave)"
+          : "Reject Cancellation (Keep Leave)";
     } else {
-        actionText =
+      actionText =
         mode === "Special"
-            ? t("leaveApproval.actionText.special")
-            : mode === "Approved"
-            ? t("leaveApproval.actionText.approve")
-            : t("leaveApproval.actionText.reject");
+          ? t("leaveApproval.actionText.special")
+          : mode === "Approved"
+          ? t("leaveApproval.actionText.approve")
+          : t("leaveApproval.actionText.reject");
     }
 
     let rejectionReason = null;
@@ -155,10 +195,10 @@ export default function LeaveApproval() {
   const buildFileUrl = (pathOrUrl) => {
     if (!pathOrUrl) return "";
     if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
-    return `${API_BASE}${
-      pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`
-    }`;
+    return `${API_BASE}${pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`}`;
   };
+
+  const localeForDate = i18n.language?.startsWith("th") ? "th-TH" : "en-EN";
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -174,27 +214,33 @@ export default function LeaveApproval() {
             <span className="text-[10px] font-black text-slate-400 mr-2 uppercase bg-slate-100 px-3 py-1 rounded-full">
               {t("leaveApproval.selected", { count: selectedIds.length })}
             </span>
-            
+
             <button
               onClick={() => handleAction("Approved")}
               className="bg-emerald-500 text-white px-4 py-2 rounded-2xl font-black text-[10px] tracking-widest uppercase hover:bg-emerald-600 shadow-lg shadow-emerald-100 active:scale-95 transition-all"
             >
-              {activeTab === 'cancel' ? "Approve Cancel" : t("leaveApproval.bulkApprove")}
+              {activeTab === "cancel"
+                ? "Approve Cancel"
+                : t("leaveApproval.bulkApprove")}
             </button>
 
             {activeTab === "new" && (
-                <button
+              <button
                 onClick={() => handleAction("Special")}
                 className="bg-purple-600 text-white px-4 py-2 rounded-2xl font-black text-[10px] tracking-widest uppercase hover:bg-purple-700 shadow-lg shadow-purple-100 active:scale-95 flex items-center gap-1 transition-all"
-                >
+              >
                 {t("leaveApproval.bulkSpecial")}
-                </button>
+              </button>
             )}
 
             <button
               onClick={() => handleAction("Rejected")}
               className="bg-slate-200 text-slate-500 p-2 rounded-2xl hover:bg-rose-100 hover:text-rose-600 transition-all"
-              title={activeTab === 'cancel' ? "Reject Cancel (Keep Leave)" : "Reject Leave"}
+              title={
+                activeTab === "cancel"
+                  ? "Reject Cancel (Keep Leave)"
+                  : "Reject Leave"
+              }
             >
               <Trash2 size={16} />
             </button>
@@ -202,10 +248,13 @@ export default function LeaveApproval() {
         )}
       </div>
 
-      {/* ✅ 5. Tabs Section (Pill Style like EmployeeList) */}
+      {/* Tabs */}
       <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit border border-gray-200">
         <button
-          onClick={() => { setActiveTab("new"); setSelectedIds([]); }}
+          onClick={() => {
+            setActiveTab("new");
+            setSelectedIds([]);
+          }}
           className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
             activeTab === "new"
               ? "bg-white text-blue-600 shadow-md"
@@ -217,7 +266,10 @@ export default function LeaveApproval() {
         </button>
 
         <button
-          onClick={() => { setActiveTab("cancel"); setSelectedIds([]); }}
+          onClick={() => {
+            setActiveTab("cancel");
+            setSelectedIds([]);
+          }}
           className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
             activeTab === "cancel"
               ? "bg-white text-rose-600 shadow-md"
@@ -255,7 +307,9 @@ export default function LeaveApproval() {
                   {t("leaveApproval.table.type")}
                 </th>
                 <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
-                  {activeTab === 'cancel' ? t("leaveApproval.labels.cancelReason") : t("leaveApproval.table.reason")}
+                  {activeTab === "cancel"
+                    ? t("leaveApproval.labels.cancelReason")
+                    : t("leaveApproval.table.reason")}
                 </th>
                 <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-widest">
                   {t("leaveApproval.table.duration")}
@@ -269,17 +323,22 @@ export default function LeaveApproval() {
               </tr>
             </thead>
 
-            {/* Render List */}
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="p-20 text-center font-black italic text-blue-500 animate-pulse">
+                  <td
+                    colSpan="7"
+                    className="p-20 text-center font-black italic text-blue-500 animate-pulse"
+                  >
                     {t("leaveApproval.loading")}
                   </td>
                 </tr>
               ) : currentList.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="p-20 text-center text-slate-300 font-black uppercase text-sm">
+                  <td
+                    colSpan="7"
+                    className="p-20 text-center text-slate-300 font-black uppercase text-sm"
+                  >
                     {t("leaveApproval.noData")}
                   </td>
                 </tr>
@@ -312,51 +371,87 @@ export default function LeaveApproval() {
                     </td>
 
                     {/* Employee */}
-                    <td className="p-5 min-w-[180px]">
+                    <td className="p-5 min-w-[200px]">
                       <div className="font-black text-slate-700 leading-none tracking-tight">
-                        {req.employee?.firstName} {req.employee?.lastName}
+                        {resolveEmployeeName(req)}
                       </div>
-                      <div className="text-[9px] font-black text-slate-300 uppercase mt-1">
-                        Ref: #{req.id}
+
+                      {/* ✅ Department badge (เหมือน DailyDetailsModal) */}
+                      <div className="mt-2">
+                        <span
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full
+                                     text-[10px] font-black uppercase tracking-widest
+                                     bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm"
+                          title={`Department: ${resolveDepartment(req)}`}
+                        >
+                          ({resolveDepartment(req)})
+                        </span>
                       </div>
                     </td>
 
                     {/* Type */}
                     <td className="p-5">
                       <span className="inline-block bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap">
-                        {req.leaveType?.typeName}
+                        {req.leaveType?.typeName || req.typeName || req.type || "-"}
                       </span>
                     </td>
 
                     {/* Reason */}
                     <td className="p-5 min-w-[200px]">
                       <div className="flex flex-col gap-1">
-                        {activeTab === 'cancel' && req.cancelReason && (
-                             <div className="flex items-start gap-1 text-rose-600 text-[11px] leading-tight font-bold" title={`Cancel Reason: ${req.cancelReason}`}>
-                                <MessageCircle size={12} className="mt-0.5 shrink-0 text-rose-500" />
-                                <span className="truncate max-w-[180px]">{req.cancelReason}</span>
-                             </div>
+                        {activeTab === "cancel" && req.cancelReason && (
+                          <div
+                            className="flex items-start gap-1 text-rose-600 text-[11px] leading-tight font-bold"
+                            title={`Cancel Reason: ${req.cancelReason}`}
+                          >
+                            <MessageCircle
+                              size={12}
+                              className="mt-0.5 shrink-0 text-rose-500"
+                            />
+                            <span className="truncate max-w-[180px]">
+                              {req.cancelReason}
+                            </span>
+                          </div>
                         )}
 
                         {req.reason && (
                           <div
-                            className={`flex items-start gap-1 text-[11px] leading-tight ${activeTab === 'cancel' ? 'text-slate-400' : 'text-slate-500'}`}
+                            className={`flex items-start gap-1 text-[11px] leading-tight ${
+                              activeTab === "cancel"
+                                ? "text-slate-400"
+                                : "text-slate-500"
+                            }`}
                             title={`Reason: ${req.reason}`}
                           >
-                            <MessageCircle size={12} className="mt-0.5 shrink-0 opacity-50" />
-                            <span className="truncate max-w-[180px]">{req.reason}</span>
+                            <MessageCircle
+                              size={12}
+                              className="mt-0.5 shrink-0 opacity-50"
+                            />
+                            <span className="truncate max-w-[180px]">
+                              {req.reason}
+                            </span>
                           </div>
                         )}
 
                         {req.note && (
-                          <div className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight" title={`Note: ${req.note}`}>
-                            <Info size={12} className="mt-0.5 shrink-0 text-amber-500" />
-                            <span className="truncate max-w-[180px]">{req.note}</span>
+                          <div
+                            className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight"
+                            title={`Note: ${req.note}`}
+                          >
+                            <Info
+                              size={12}
+                              className="mt-0.5 shrink-0 text-amber-500"
+                            />
+                            <span className="truncate max-w-[180px]">
+                              {req.note}
+                            </span>
                           </div>
                         )}
 
                         {!req.reason && !req.note && !req.cancelReason && (
-                          <span className="text-slate-300 text-[10px] italic">-</span>
+                          <span className="text-slate-300 text-[10px] italic">
+                            -
+                          </span>
                         )}
                       </div>
                     </td>
@@ -364,9 +459,9 @@ export default function LeaveApproval() {
                     {/* Duration */}
                     <td className="p-5">
                       <div className="text-[11px] font-bold text-slate-500 italic whitespace-nowrap">
-                        {new Date(req.startDate).toLocaleDateString(i18n.language.startsWith("th") ? "th-TH" : "en-EN")}
+                        {new Date(req.startDate).toLocaleDateString(localeForDate)}
                         {" - "}
-                        {new Date(req.endDate).toLocaleDateString(i18n.language.startsWith("th") ? "th-TH" : "en-EN")}
+                        {new Date(req.endDate).toLocaleDateString(localeForDate)}
                       </div>
                       <div className="font-black text-slate-800 text-sm mt-0.5">
                         {req.totalDaysRequested} {t("leaveApproval.days")}
@@ -377,11 +472,16 @@ export default function LeaveApproval() {
                     <td className="p-5 text-center">
                       {req.attachmentUrl ? (
                         <button
-                          onClick={() => openAttachment(buildFileUrl(req.attachmentUrl))}
+                          onClick={() =>
+                            openAttachment(buildFileUrl(req.attachmentUrl))
+                          }
                           className="p-2 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-100 transition-all group"
                           title="View Attachment"
                         >
-                          <ImageIcon size={18} className="group-hover:scale-110 transition-transform" />
+                          <ImageIcon
+                            size={18}
+                            className="group-hover:scale-110 transition-transform"
+                          />
                         </button>
                       ) : (
                         <span className="text-[9px] font-black text-slate-200 uppercase tracking-widest italic">
@@ -396,29 +496,37 @@ export default function LeaveApproval() {
                         <button
                           onClick={() => handleAction("Approved", req)}
                           className="flex items-center gap-2 px-3 py-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100"
-                          title={activeTab === 'cancel' ? "Approve Cancellation" : "Approve Leave"}
+                          title={
+                            activeTab === "cancel"
+                              ? "Approve Cancellation"
+                              : "Approve Leave"
+                          }
                         >
                           <span className="text-sm font-medium">
                             {t("leaveApproval.actions.approve")}
                           </span>
                         </button>
 
-                        {activeTab === 'new' && (
-                            <button
+                        {activeTab === "new" && (
+                          <button
                             onClick={() => handleAction("Special", req)}
                             className="flex items-center gap-2 px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all border border-purple-100"
                             title="Special Approval"
-                            >
+                          >
                             <span className="text-sm font-medium">
-                                {t("leaveApproval.actions.special")}
+                              {t("leaveApproval.actions.special")}
                             </span>
-                            </button>
+                          </button>
                         )}
 
                         <button
                           onClick={() => handleAction("Rejected", req)}
                           className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-slate-100"
-                          title={activeTab === 'cancel' ? "Reject Cancellation" : "Reject Leave"}
+                          title={
+                            activeTab === "cancel"
+                              ? "Reject Cancellation"
+                              : "Reject Leave"
+                          }
                         >
                           <span className="text-sm font-medium">
                             {t("leaveApproval.actions.reject")}
