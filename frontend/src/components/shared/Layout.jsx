@@ -1,5 +1,5 @@
 // frontend/src/components/shared/Layout.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo ,useState } from "react";
 import { Outlet, NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -18,8 +18,8 @@ import NotificationBell from "./NotificationBell";
 import { useTranslation } from "react-i18next";
 
 /* =========================
-   Section Header Component
-   (ต้องอยู่นอก Layout)
+   Section Header (IMPORTANT)
+   ต้องอยู่นอก Layout เท่านั้น
 ========================= */
 function SectionHeader({ title, open, onClick }) {
   return (
@@ -27,7 +27,8 @@ function SectionHeader({ title, open, onClick }) {
       type="button"
       onClick={onClick}
       className="
-        hidden group-hover:flex w-full items-center justify-between
+        hidden group-hover:flex
+        w-full items-center justify-between
         px-4 py-2
         text-[10px] font-black text-gray-500
         uppercase tracking-[0.2em]
@@ -45,13 +46,14 @@ function SectionHeader({ title, open, onClick }) {
   );
 }
 
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const { t, i18n } = useTranslation();
 
-  /* =========================
-     Dropdown state
-  ========================= */
+    // =========================
+  // Dropdown state
+  // =========================
   const [openMenu, setOpenMenu] = useState({
     main: true,
     hr: false,
@@ -65,9 +67,9 @@ export default function Layout() {
     }));
   };
 
-  /* =========================
-     Languages
-  ========================= */
+  // =========================
+  // ✅ Languages (TH/EN/JA)
+  // =========================
   const languages = useMemo(
     () => [
       { key: "th", label: "ภาษาไทย" },
@@ -79,7 +81,8 @@ export default function Layout() {
 
   const safeGetSavedLang = () => {
     try {
-      return localStorage.getItem("app_lang");
+      if (typeof window === "undefined") return null;
+      return window.localStorage.getItem("app_lang");
     } catch {
       return null;
     }
@@ -87,40 +90,67 @@ export default function Layout() {
 
   const safeSetSavedLang = (lang) => {
     try {
-      localStorage.setItem("app_lang", lang);
-    } catch {console.error();
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem("app_lang", lang);
+    } catch {
+      // ignore
     }
   };
 
+  // ✅ init language from localStorage (validate)
   useEffect(() => {
-    const saved = safeGetSavedLang();
-    const allow = new Set(["th", "en", "ja"]);
-    const initial = allow.has(saved) ? saved : "th";
-    if (i18n.language !== initial) i18n.changeLanguage(initial);
-    // eslint-disable-next-line
+    try {
+      const saved = safeGetSavedLang();
+      const allow = new Set(["th", "en", "ja"]);
+      const initial = allow.has(saved) ? saved : "th";
+
+      if (i18n?.changeLanguage && i18n.language !== initial) {
+        i18n.changeLanguage(initial);
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ✅ current language (th/en/ja)
   const currentLang = useMemo(() => {
-    const lang = String(i18n.language || "th").toLowerCase();
+    const lang = String(i18n?.language || "th").toLowerCase();
     if (lang.startsWith("ja")) return "ja";
     if (lang.startsWith("en")) return "en";
     return "th";
-  }, [i18n.language]);
+  }, [i18n?.language]);
 
+  // ✅ set <html lang="...">
   useEffect(() => {
-    document.documentElement.lang = currentLang;
+    try {
+      if (typeof document === "undefined") return;
+      document.documentElement.lang = currentLang === "ja" ? "ja" : currentLang === "en" ? "en" : "th";
+    } catch {
+      // ignore
+    }
   }, [currentLang]);
 
-  const cycleLang = () => {
-    const order = ["th", "en", "ja"];
-    const next = order[(order.indexOf(currentLang) + 1) % order.length];
-    safeSetSavedLang(next);
-    i18n.changeLanguage(next);
+  const setLang = (lang) => {
+    safeSetSavedLang(lang);
+    try {
+      if (i18n?.changeLanguage) i18n.changeLanguage(lang);
+    } catch {
+      // ignore
+    }
   };
 
-  /* =========================
-     Sidebar nav style
-  ========================= */
+  // ✅ cycle TH -> EN -> JA -> TH
+  const cycleLang = () => {
+    const order = ["th", "en", "ja"];
+    const idx = order.indexOf(currentLang);
+    const next = order[(idx + 1) % order.length];
+    setLang(next);
+  };
+
+  // =========================
+  // Sidebar nav style
+  // =========================
   const navStyle = ({ isActive }) =>
     `flex items-center justify-center group-hover:justify-start gap-3
      px-3 group-hover:px-4 py-3 rounded-xl transition-all duration-200
@@ -131,19 +161,36 @@ export default function Layout() {
      }`;
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {/* Sidebar */}
-      <aside className="group w-20 hover:w-64 bg-[#001529] text-white flex flex-col transition-all duration-300 overflow-hidden">
-        {/* Profile */}
-        <div className="p-6 border-b border-white/5 flex items-center gap-3 justify-center group-hover:justify-start">
-          <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-2xl flex items-center justify-center font-black text-lg">
+    <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
+      {/* Sidebar (Hover Expand) */}
+      <aside
+        className="
+          group
+          w-20 hover:w-64
+          bg-[#001529] text-white
+          flex flex-col
+          shadow-2xl z-30
+          transition-all duration-300 ease-in-out
+          overflow-hidden
+        "
+      >
+      {/* Header Profile */}
+        <div
+          className="
+            p-6 border-b border-white/5 bg-[#001529]
+            flex items-center gap-3
+            justify-center group-hover:justify-start
+          "
+        >
+          <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-2xl flex items-center justify-center font-black text-lg shadow-lg text-white shrink-0">
             {user?.firstName?.[0] || "U"}
           </div>
-          <div className="hidden group-hover:block min-w-0">
-            <p className="font-black truncate text-sm">
+
+          <div className="hidden group-hover:block overflow-hidden min-w-0">
+            <p className="font-black truncate text-sm text-white">
               {user?.firstName} {user?.lastName}
             </p>
-            <p className="text-[10px] text-blue-400 font-bold uppercase">
+            <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">
               {user?.role}
             </p>
           </div>
@@ -247,31 +294,56 @@ export default function Layout() {
           )}
         </nav>
 
-        {/* Logout */}
-        <div className="p-4 border-t border-white/10">
+        {/* Logout Button */}
+        <div className="p-4 border-t border-white/10 bg-[#001529]">
           <button
             onClick={logout}
-            className="w-full flex items-center justify-center group-hover:justify-start gap-3 px-3 py-3 rounded-xl font-black text-sm text-red-500 hover:bg-red-600 hover:text-white"
+            className="
+              w-full
+              flex items-center justify-center group-hover:justify-start gap-3
+              px-3 group-hover:px-4 py-3
+              rounded-xl
+              font-black text-sm
+              transition-all duration-200
+              text-red-500
+              hover:text-white
+              hover:bg-red-600
+              hover:shadow-lg hover:shadow-red-900/40
+            "
           >
-            <LogOut size={18} />
-            <span className="hidden group-hover:inline">
+            <LogOut size={18} className="shrink-0" />
+            <span className="hidden group-hover:inline whitespace-nowrap">
               {t("layout.logout")}
             </span>
           </button>
         </div>
       </aside>
 
-      {/* Main */}
-      <div className="flex-1 flex flex-col">
-        <header className="h-20 bg-white border-b flex items-center justify-between px-8">
-          <Menu size={20} className="md:hidden text-gray-400" />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 z-20">
+          <div className="flex items-center gap-2 text-gray-400">
+            <Menu size={20} className="md:hidden" />
+          </div>
+
           <div className="flex items-center gap-6">
+            {/* ✅ Cycle language: TH -> EN -> JA */}
             <button
+              type="button"
               onClick={cycleLang}
-              className="font-extrabold text-blue-600"
+              className="
+                text-[16px] font-extrabold tracking-wide
+                text-blue-600
+                transition-colors duration-200
+                hover:text-blue-800
+                active:scale-95
+              "
+              aria-label="Toggle language"
+              title="Toggle language"
             >
-              {languages.find((l) => l.key === currentLang)?.label}
+              {languages.find((x) => x.key === currentLang)?.label || "TH"}
             </button>
+
             <NotificationBell />
           </div>
         </header>
