@@ -33,6 +33,8 @@ export default {
       yearEnd: "設定",
       logout: "ログアウト",
       auditLog: "監査ログ",
+      settingadmin:"設定管理",
+      adminmanagement:"管理者管理",
     },
 
     /* -------- Common -------- */

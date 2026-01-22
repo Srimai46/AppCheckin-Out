@@ -35,6 +35,8 @@ export default {
       yearEnd: "Setting",
       logout: "Logout",
       auditLog: "Audit Log",
+      settingadmin:"Settings Admin",
+      adminmanagement:"Admin Management",
     },
 
     /* -------- Common -------- */

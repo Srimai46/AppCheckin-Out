@@ -34,6 +34,8 @@ export default {
       yearEnd: "ตั้งค่าระบบ",
       logout: "ออกจากระบบ",
       auditLog: "บันทึกการตรวจสอบ",
+      settingadmin:"การตั้งค่าผู้ดูแลระบบ",
+      adminmanagement:"การจัดการผู้ดูแลระบบ",
     },
 
     /* -------- Common -------- */
