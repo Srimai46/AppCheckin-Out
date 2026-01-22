@@ -285,8 +285,9 @@ export default function TeamAttendancePanel({
                     <td className="px-6 py-4 text-slate-800">
                       <div className="flex items-center gap-2">
                         <span>{name}</span>
+
                         {deptName && deptName !== "-" && (
-                          <span className="px-2 py-1 rounded-xl border text-[10px] font-black uppercase tracking-widest bg-slate-50 text-slate-600 border-slate-100">
+                          <span className="px-2 py-1 rounded-xl border text-[10px] font-black uppercase tracking-widest bg-sky-50 text-sky-700 border-sky-100">
                             {deptName}
                           </span>
                         )}

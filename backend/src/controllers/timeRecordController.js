@@ -739,7 +739,6 @@ exports.getUserHistory = async (req, res) => {
         outStatus: outStatusDisplay,
         duration: workingHours,
         note: item.note || "-",
-        // ✅ FIX 3: เพิ่ม Break Time เข้าไปใน Response
         standardConfig: config
           ? {
               start: `${String(config.startHour).padStart(2, "0")}:${String(config.startMin).padStart(2, "0")}`,
@@ -765,13 +764,13 @@ exports.getTeamTodayAttendance = async (req, res) => {
     const [employees, todayRecords] = await Promise.all([
       prisma.employee.findMany({
         where: { isActive: true },
-        // ✅ FIX 4: Select เฉพาะชื่อ Role (ไม่เอาทั้ง Object)
-        select: { 
-            id: true, 
-            firstName: true, 
-            lastName: true, 
-            role: { select: { name: true } }, 
-            isActive: true 
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          isActive: true,
+          role: { select: { id: true, name: true } },
+          department: { select: { id: true, name: true } },
         },
         orderBy: { id: "asc" },
       }),
@@ -819,14 +818,25 @@ exports.getTeamTodayAttendance = async (req, res) => {
       return {
         employeeId: emp.id,
         fullName: `${emp.firstName} ${emp.lastName}`,
-        // ✅ FIX 5: แปลง Role Object เป็น String
-        role: emp.role?.name || "-",
+
+        // role
+        roleId: emp.role?.id ?? null,
+        roleName: emp.role?.name || "-",
+        role: emp.role?.name || "-", 
+
+        // department
+        departmentId: emp.department?.id ?? null,
+        departmentName: emp.department?.name || "-",
+
         isActive: emp.isActive,
+
         checkInTimeDisplay: r?.checkInTime ? formatThaiTime(r.checkInTime) : null,
         checkOutTimeDisplay: r?.checkOutTime ? formatThaiTime(r.checkOutTime) : null,
+
         inStatus,
         outStatus,
         duration,
+
         state: !r?.checkInTime ? "ABSENT" : !r?.checkOutTime ? "WORKING" : "COMPLETED",
         note: r?.note || null,
       };
