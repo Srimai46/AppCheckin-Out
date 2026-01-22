@@ -33,6 +33,7 @@ export default {
       calendar: "ปฏิทิน",
       yearEnd: "ตั้งค่าระบบ",
       logout: "ออกจากระบบ",
+      auditLog: "บันทึกการตรวจสอบ",
     },
 
     /* -------- Common -------- */

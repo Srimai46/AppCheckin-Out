@@ -34,6 +34,7 @@ export default {
       calendar: "Calendar",
       yearEnd: "Setting",
       logout: "Logout",
+      auditLog: "Audit Log",
     },
 
     /* -------- Common -------- */

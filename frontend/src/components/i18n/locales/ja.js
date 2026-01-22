@@ -32,6 +32,7 @@ export default {
       calendar: "カレンダー",
       yearEnd: "設定",
       logout: "ログアウト",
+      auditLog: "監査ログ",
     },
 
     /* -------- Common -------- */

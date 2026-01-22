@@ -206,7 +206,7 @@ export default function Layout() {
               <NavLink to="/audit-log" className={navStyle}>
                 <NotebookText size={18} className="shrink-0" />
                 <span className="hidden group-hover:inline font-bold text-sm whitespace-nowrap">
-                  {t("AuditLog")}
+                  {t("layout.auditLog")}
                 </span>
               </NavLink>
             </>
