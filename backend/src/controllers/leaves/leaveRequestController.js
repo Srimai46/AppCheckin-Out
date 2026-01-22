@@ -563,7 +563,7 @@ exports.getAllLeaves = async (req, res) => {
       where,
       include: {
         employee: {
-          select: { id: true, firstName: true, lastName: true, role: true, email: true },
+          select: { id: true, firstName: true, lastName: true, role: true, email: true ,department: { select: { name: true } }, },
         },
         leaveType: { select: { typeName: true } },
 
@@ -584,6 +584,7 @@ exports.getAllLeaves = async (req, res) => {
         id: l.id,
         employeeId: l.employee.id,
         name: `${l.employee.firstName} ${l.employee.lastName}`,
+        departmentName: l.employee?.department?.name || null,
         email: l.employee.email,
         type: l.leaveType.typeName,
         startDate: l.startDate,
@@ -633,6 +634,7 @@ exports.getPendingRequests = async (req, res) => {
             lastName: true,
             email: true,
             profileImageUrl: true,
+            department: { select: { name: true } },
             leaveQuotas: {
               where: { year: currentYear },
               select: {
@@ -646,7 +648,6 @@ exports.getPendingRequests = async (req, res) => {
         },
         leaveType: true,
 
-        // ✅ เพิ่มเพื่อให้ response มีชื่อ HR ถ้า request เคยถูก action
         approvedByHr: {
           select: { firstName: true, lastName: true },
         },
@@ -655,7 +656,7 @@ exports.getPendingRequests = async (req, res) => {
     });
 
     const formattedRequests = requests.map((leave) => {
-      const quotaForThisType = leave.employee.leaveQuotas.find(
+      const quotaForThisType = (leave.employee?.leaveQuotas || []).find(
         (q) => q.leaveTypeId === leave.leaveTypeId
       );
 
@@ -664,29 +665,52 @@ exports.getPendingRequests = async (req, res) => {
         const total =
           Number(quotaForThisType.totalDays) +
           Number(quotaForThisType.carryOverDays || 0);
-        const used = Number(quotaForThisType.usedDays);
-        quotaInfo = {
-          total,
-          used,
-          remaining: total - used,
-        };
+        const used = Number(quotaForThisType.usedDays || 0);
+        quotaInfo = { total, used, remaining: total - used };
       }
 
       const hrFullName = leave.approvedByHr
         ? `${leave.approvedByHr.firstName} ${leave.approvedByHr.lastName}`.trim()
         : null;
 
-      return {
-        ...leave,
-        totalDaysRequested: Number(leave.totalDaysRequested),
-        quotaInfo,
+      const fullName =
+        `${leave.employee?.firstName || ""} ${leave.employee?.lastName || ""}`.trim() ||
+        leave.name ||
+        "-";
 
+      return {
+        id: leave.id,
+        employeeId: leave.employeeId,
+        name: fullName,
+        departmentName: leave.employee?.department?.name || null,
+        email: leave.employee?.email || null,
+
+        type: leave.leaveType?.typeName || "-",
+        typeName: leave.leaveType?.typeName || null,
+
+        startDate: leave.startDate,
+        endDate: leave.endDate,
+        totalDaysRequested: Number(leave.totalDaysRequested),
+
+        status: leave.status,
+        reason: leave.reason,
+        note: leave.note,
+
+        rejectionReason: leave.rejectionReason,
         cancelReason: leave.cancelReason,
+        requestedAt: leave.requestedAt,
+        approvalDate: leave.approvalDate,
+        isSpecialApproved: leave.isSpecialApproved,
+        attachmentUrl: leave.attachmentUrl,
+
+        quotaInfo,
         isWithdrawRequest: leave.status === "Withdraw_Pending",
 
-        // ✅ ส่งชื่อ HR (ถ้ามี) เผื่อ FE ต้องใช้
         actedByHrId: leave.approvedByHrId || null,
         actedByHrName: hrFullName,
+
+        approvedBy: leave.status === "Approved" ? hrFullName : null,
+        rejectedBy: leave.status === "Rejected" ? hrFullName : null,
       };
     });
 

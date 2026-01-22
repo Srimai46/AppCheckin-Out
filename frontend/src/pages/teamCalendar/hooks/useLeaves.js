@@ -4,36 +4,71 @@ import { getAllLeaves } from "../../../api/leaveService";
 
 const normalizeLeaveItem = (item) => {
   const d = new Date(item?.startDate);
-  const dateKey = !Number.isNaN(d.getTime()) ? format(d, "yyyy-MM-dd") : String(item?.startDate || "");
+  const dateKey = !Number.isNaN(d.getTime())
+    ? format(d, "yyyy-MM-dd")
+    : String(item?.startDate || "");
+
+  const employeeId = item?.employeeId ?? item?.employee?.id ?? null;
+
+  const name =
+    item?.name ||
+    item?.employee?.fullName ||
+    `${item?.employee?.firstName || ""} ${item?.employee?.lastName || ""}`.trim() ||
+    "-";
+
+  const typeName =
+    item?.typeName ||
+    item?.leaveType?.typeName ||
+    item?.leaveTypeName ||
+    item?.type ||
+    "-";
 
   return {
-    id: item?.id,
-    employeeId: item?.employeeId ?? item?.employee?.id,
+    id: item?.id ?? null,
+    employeeId,
     employee: item?.employee,
-    name:
-      item?.name ||
-      item?.employee?.fullName ||
-      `${item?.employee?.firstName || ""} ${item?.employee?.lastName || ""}`.trim(),
-    type: item?.type || item?.leaveType?.typeName || item?.leaveTypeName,
-    status: item?.status,
+
+    name,
+
+    type: item?.type || typeName,
+    typeName,
+
+    status: item?.status ?? null,
+
     date: d,
     dateKey,
-    startDate: item?.startDate,
-    endDate: item?.endDate,
-    reason: item?.reason,
-    note: item?.note,
-    totalDaysRequested: item?.totalDaysRequested ?? item?.totalDays ?? item?.days ?? null,
+
+    startDate: item?.startDate ?? null,
+    endDate: item?.endDate ?? null,
+
+    reason: item?.reason ?? null,
+    note: item?.note ?? null,
+
+    totalDaysRequested:
+      item?.totalDaysRequested ?? item?.totalDays ?? item?.days ?? null,
+
     attachmentUrl: item?.attachmentUrl ?? item?.evidenceUrl ?? item?.fileUrl ?? null,
 
+    departmentName:
+      item?.departmentName ||
+      item?.employee?.department?.name ||
+      item?.department?.name ||
+      null,
+
+    email: item?.email || item?.employee?.email || null,
+
+    actedByHrId: item?.actedByHrId ?? item?.approvedByHrId ?? null,
+    actedByHrName: item?.actedByHrName ?? null,
+    
     approvedBy:
-      item?.approvedBy ||
-      item?.approvedByUser ||
-      (item?.approvedByName ? { fullName: item.approvedByName } : null),
+      item?.approvedBy ??
+      (item?.status === "Approved" ? item?.actedByHrName : null) ??
+      null,
 
     rejectedBy:
-      item?.rejectedBy ||
-      item?.rejectedByUser ||
-      (item?.rejectedByName ? { fullName: item.rejectedByName } : null),
+      item?.rejectedBy ??
+      (item?.status === "Rejected" ? item?.actedByHrName : null) ??
+      null,
   };
 };
 

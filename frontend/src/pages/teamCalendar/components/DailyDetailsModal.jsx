@@ -1,5 +1,5 @@
 // src/pages/teamCalendar/components/DailyDetailsModal.jsx
-import React, { useCallback, useEffect, useState, useMemo } from "react"; // ✅ เพิ่ม useEffect, useState, useMemo
+import React, { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,8 +13,17 @@ import {
   Info,
 } from "lucide-react";
 
-import { updateLeaveStatus, grantSpecialLeave, getLeaveTypes } from "../../../api/leaveService"; // ✅ เพิ่ม getLeaveTypes
-import { alertConfirm, alertSuccess, alertError, alertRejectReason } from "../../../utils/sweetAlert";
+import {
+  updateLeaveStatus,
+  grantSpecialLeave,
+  getLeaveTypes,
+} from "../../../api/leaveService";
+import {
+  alertConfirm,
+  alertSuccess,
+  alertError,
+  alertRejectReason,
+} from "../../../utils/sweetAlert";
 import { openAttachment } from "../../../utils/attachmentPreview";
 
 import Pill from "./Pill";
@@ -23,15 +32,44 @@ import RoleDropdown from "./RoleDropdown";
 
 import { buildRowName, buildDurationText, typeBadgeTheme } from "../utils";
 
-// ✅ Helper สำหรับเลือกสี Text ให้ตัดกับพื้นหลัง (ขาว/ดำ) แบบง่ายๆ
+// Helper สำหรับเลือกสี Text ให้ตัดกับพื้นหลัง (ขาว/ดำ) แบบง่ายๆ
 const getContrastYIQ = (hexcolor) => {
-  if (!hexcolor) return 'black';
-  hexcolor = hexcolor.replace("#", "");
-  var r = parseInt(hexcolor.substr(0, 2), 16);
-  var g = parseInt(hexcolor.substr(2, 2), 16);
-  var b = parseInt(hexcolor.substr(4, 2), 16);
-  var yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  return (yiq >= 128) ? '#1f2937' : 'white'; // dark-gray or white
+  if (!hexcolor) return "#1f2937";
+  const h = String(hexcolor).replace("#", "").trim();
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return "#1f2937";
+
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 128 ? "#1f2937" : "white";
+};
+
+const normalizeDept = (v) => String(v ?? "").trim();
+
+const resolveDepartment = (leaf) => {
+  // รองรับหลายรูปแบบ (เผื่อ BE/FE เปลี่ยนโครงสร้าง)
+  const raw =
+    leaf?.departmentName ||
+    leaf?.department?.name ||
+    leaf?.department ||
+    leaf?.employeeDepartment ||
+    leaf?.employeeDept ||
+    leaf?.employee?.departmentName ||
+    leaf?.employee?.department?.name ||
+    leaf?.employee?.department ||
+    "";
+
+  const name = normalizeDept(raw);
+  if (!name) return "-";
+
+  // ทำ mapping เบาๆ ให้สวย (ถ้าอยากคงเดิม ให้ลบบล็อคนี้ได้)
+  const upper = name.toUpperCase();
+  if (upper === "HUMAN RESOURCES") return "HR";
+  if (upper === "GENERAL AFFAIRS") return "GA";
+
+  // ถ้า BE ส่งมาเป็น "General" ก็จะกลายเป็น "GENERAL" (ตามดีไซน์ badge uppercase)
+  return upper;
 };
 
 export default function DailyDetailsModal({
@@ -60,55 +98,93 @@ export default function DailyDetailsModal({
   refetchLeaves,
 }) {
   const { t, i18n } = useTranslation();
-  const lang = i18n.language; // ✅ ดึงภาษาปัจจุบัน
+  const lang = i18n.language;
 
-  // ✅ 1. State สำหรับเก็บข้อมูล Leave Types (Label & Color)
+  // State สำหรับเก็บข้อมูล Leave Types (Label & Color)
   const [leaveTypeMap, setLeaveTypeMap] = useState({});
 
-  // ✅ 2. Fetch Leave Types เมื่อ Modal เปิด หรือ Component Mount
+  // Fetch Leave Types เฉพาะตอน modal เปิด (กัน fetch ตอน component อยู่เบื้องหลัง)
   useEffect(() => {
+    if (!open) return;
+
     let active = true;
-    getLeaveTypes().then((data) => {
-      if (!active) return;
-      const map = {};
-      (data || []).forEach((t) => {
-        // ใช้ typeName เป็น Key หลัก (Normalized เป็น UpperCase)
-        const key = String(t.typeName || "").toUpperCase();
-        map[key] = {
-          label: t.label || null,
-          color: t.color || null,
-        };
-      });
-      setLeaveTypeMap(map);
-    });
-    return () => { active = false; };
-  }, []);
 
-  // ✅ 3. ฟังก์ชัน Resolve Label (เหมือนใน CalendarGrid)
-  const resolveLeaveLabel = useCallback((leaf) => {
-    // 1) เช็คว่าใน object leaf มี label ติดมาไหม (บาง API ส่งมา)
-    if (leaf?.label && typeof leaf.label === "object") {
-      return leaf.label[lang] || leaf.label.en || Object.values(leaf.label)[0];
-    }
-    
-    const key = String(leaf?.typeName || leaf?.type || "").toUpperCase();
-    
-    // 2) Lookup จาก Map ที่เรา fetch มา
-    const fromType = leaveTypeMap[key]?.label;
-    if (fromType && typeof fromType === "object") {
-      return fromType[lang] || fromType.en || Object.values(fromType)[0];
-    }
+    (async () => {
+      try {
+        const data = await getLeaveTypes();
+        if (!active) return;
 
-    // 3) Fallback เป็นชื่อ type ดิบๆ
-    return leaf?.typeName || leaf?.type || "-";
-  }, [leaveTypeMap, lang]);
+        const map = {};
+        (data || []).forEach((lt) => {
+          const key = String(lt.typeName || "").trim().toUpperCase();
+          if (!key) return;
 
-  // ✅ 4. ฟังก์ชัน Resolve Color
-  const resolveLeaveColor = useCallback((leaf) => {
-    const key = String(leaf?.typeName || leaf?.type || "").toUpperCase();
-    return leaveTypeMap[key]?.color || null;
-  }, [leaveTypeMap]);
+          map[key] = {
+            label: lt.label || null,
+            color: lt.color || null,
+          };
+        });
 
+        setLeaveTypeMap(map);
+      } catch (err) {
+        // ไม่ต้อง throw ให้ modal พัง แค่ log
+        console.error("getLeaveTypes failed:", err);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
+  // Resolve Label
+  const resolveLeaveLabel = useCallback(
+    (leaf) => {
+      // 1) leaf มี label ติดมาหรือไม่
+      if (leaf?.label && typeof leaf.label === "object") {
+        return (
+          leaf.label[lang] ||
+          leaf.label.en ||
+          Object.values(leaf.label)[0] ||
+          leaf?.typeName ||
+          leaf?.type ||
+          "-"
+        );
+      }
+
+      const key = String(leaf?.typeName || leaf?.type || "")
+        .trim()
+        .toUpperCase();
+
+      // 2) lookup จาก map
+      const fromType = leaveTypeMap[key]?.label;
+      if (fromType && typeof fromType === "object") {
+        return (
+          fromType[lang] ||
+          fromType.en ||
+          Object.values(fromType)[0] ||
+          leaf?.typeName ||
+          leaf?.type ||
+          "-"
+        );
+      }
+
+      // 3) fallback
+      return leaf?.typeName || leaf?.type || "-";
+    },
+    [leaveTypeMap, lang]
+  );
+
+  // Resolve Color
+  const resolveLeaveColor = useCallback(
+    (leaf) => {
+      const key = String(leaf?.typeName || leaf?.type || "")
+        .trim()
+        .toUpperCase();
+      return leaveTypeMap[key]?.color || null;
+    },
+    [leaveTypeMap]
+  );
 
   const handleLeaveActionInModal = useCallback(
     async (mode, leaf) => {
@@ -153,15 +229,26 @@ export default function DailyDetailsModal({
           });
         } else {
           const finalStatus = isReject ? "Rejected" : mode;
-          await updateLeaveStatus(leaf.id, finalStatus, isReject ? rejectionReason : null);
+          // NOTE: คุณใช้ signature (id, status, rejectionReason) — ต้องตรงกับ leaveService ของคุณ
+          await updateLeaveStatus(
+            leaf.id,
+            finalStatus,
+            isReject ? rejectionReason : null
+          );
         }
 
-        await alertSuccess(t("common.success"), t("teamCalendar.modal.toast.processedOne"));
+        await alertSuccess(
+          t("common.success"),
+          t("teamCalendar.modal.toast.processedOne")
+        );
         await refetchLeaves?.();
       } catch (err) {
         alertError(
           t("teamCalendar.modal.toast.actionFailedTitle"),
-          err?.message || err?.response?.data?.message || t("teamCalendar.modal.toast.unknownError")
+          err?.response?.data?.error ||
+            err?.response?.data?.message ||
+            err?.message ||
+            t("teamCalendar.modal.toast.unknownError")
         );
         console.error(err);
       }
@@ -173,7 +260,10 @@ export default function DailyDetailsModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+        onClick={onClose}
+      />
 
       <div className="relative w-full max-w-[1500px] max-h-[94vh] bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100">
         {/* Top Bar */}
@@ -348,25 +438,32 @@ export default function DailyDetailsModal({
                 <tbody className="divide-y divide-slate-50">
                   {loading ? (
                     <tr>
-                      <td colSpan="6" className="p-16 text-center font-black italic text-blue-500 animate-pulse">
+                      <td
+                        colSpan="6"
+                        className="p-16 text-center font-black italic text-blue-500 animate-pulse"
+                      >
                         {t("teamCalendar.modal.loading")}
                       </td>
                     </tr>
                   ) : (rows || []).length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="p-16 text-center text-slate-300 font-black uppercase text-sm">
+                      <td
+                        colSpan="6"
+                        className="p-16 text-center text-slate-300 font-black uppercase text-sm"
+                      >
                         {t("teamCalendar.modal.noData")}
                       </td>
                     </tr>
                   ) : (
                     (rows || []).map((leaf) => {
                       const name = buildRowName(leaf);
-                      const rawType = String(leaf.type || leaf.typeName || "-"); // เก็บค่า Raw ไว้เทียบสี
+                      const rawType = String(leaf.type || leaf.typeName || "-");
                       const dur = buildDurationText(leaf);
 
-                      // ✅ ใช้ Logic ใหม่ในการดึงชื่อและสี
                       const displayLabel = resolveLeaveLabel(leaf);
                       const customColor = resolveLeaveColor(leaf);
+
+                      const dept = resolveDepartment(leaf);
 
                       const showHrName =
                         tab === "APPROVED"
@@ -376,36 +473,52 @@ export default function DailyDetailsModal({
                           : null;
 
                       return (
-                        <tr key={leaf.id} className="hover:bg-slate-50/50 transition-all duration-200">
+                        <tr
+                          key={leaf.id}
+                          className="hover:bg-slate-50/50 transition-all duration-200"
+                        >
                           <td className="p-5 min-w-[200px]">
-                            <div className="font-black text-slate-700 leading-none tracking-tight">{name}</div>
-                            <div className="text-[9px] font-black text-slate-300 uppercase mt-1">
-                              {t("teamCalendar.modal.ref", { id: leaf.id })}
+                            <div className="font-black text-slate-700 leading-none tracking-tight">
+                              {name}
+                            </div>
+
+                            {/* Department badge */}
+                            <div className="mt-2">
+                              <span
+                                className="inline-flex items-center gap-1 px-3 py-1 rounded-full
+                                           text-[10px] font-black uppercase tracking-widest
+                                           bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm"
+                                title={
+                                  dept !== "-"
+                                    ? `Department: ${dept}`
+                                    : "Department: -"
+                                }
+                              >
+                                ({dept})
+                              </span>
                             </div>
                           </td>
 
                           <td className="p-5">
-                            {/* ✅ Render Badge แบบมี Custom Color */}
                             {customColor ? (
-                                <span
-                                  className="inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap border shadow-sm"
-                                  style={{
-                                    backgroundColor: customColor,
-                                    borderColor: customColor,
-                                    color: getContrastYIQ(customColor), // ปรับสี Text ตาม Background
-                                  }}
-                                >
-                                  {displayLabel}
-                                </span>
+                              <span
+                                className="inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap border shadow-sm"
+                                style={{
+                                  backgroundColor: customColor,
+                                  borderColor: customColor,
+                                  color: getContrastYIQ(customColor),
+                                }}
+                              >
+                                {displayLabel}
+                              </span>
                             ) : (
-                                // Fallback ใช้ Theme เดิมถ้าไม่มีสีจาก DB
-                                <span
-                                  className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${typeBadgeTheme(
-                                    rawType
-                                  )}`}
-                                >
-                                  {displayLabel}
-                                </span>
+                              <span
+                                className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${typeBadgeTheme(
+                                  rawType
+                                )}`}
+                              >
+                                {displayLabel}
+                              </span>
                             )}
                           </td>
 
@@ -414,23 +527,39 @@ export default function DailyDetailsModal({
                               {leaf.reason && (
                                 <div
                                   className="flex items-start gap-1 text-slate-500 text-[11px] leading-tight"
-                                  title={t("teamCalendar.modal.reasonTitle", { reason: leaf.reason })}
+                                  title={t("teamCalendar.modal.reasonTitle", {
+                                    reason: leaf.reason,
+                                  })}
                                 >
-                                  <MessageCircle size={12} className="mt-0.5 shrink-0 text-slate-400" />
-                                  <span className="truncate max-w-[240px]">{leaf.reason}</span>
+                                  <MessageCircle
+                                    size={12}
+                                    className="mt-0.5 shrink-0 text-slate-400"
+                                  />
+                                  <span className="truncate max-w-[240px]">
+                                    {leaf.reason}
+                                  </span>
                                 </div>
                               )}
                               {leaf.note && (
                                 <div
                                   className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight"
-                                  title={t("teamCalendar.modal.noteTitle", { note: leaf.note })}
+                                  title={t("teamCalendar.modal.noteTitle", {
+                                    note: leaf.note,
+                                  })}
                                 >
-                                  <Info size={12} className="mt-0.5 shrink-0 text-amber-500" />
-                                  <span className="truncate max-w-[240px]">{leaf.note}</span>
+                                  <Info
+                                    size={12}
+                                    className="mt-0.5 shrink-0 text-amber-500"
+                                  />
+                                  <span className="truncate max-w-[240px]">
+                                    {leaf.note}
+                                  </span>
                                 </div>
                               )}
                               {!leaf.reason && !leaf.note && (
-                                <span className="text-slate-300 text-[10px] italic">-</span>
+                                <span className="text-slate-300 text-[10px] italic">
+                                  -
+                                </span>
                               )}
                             </div>
                           </td>
@@ -449,9 +578,14 @@ export default function DailyDetailsModal({
                               <button
                                 onClick={() => openAttachment(leaf.attachmentUrl)}
                                 className="p-2 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-100 transition-all group"
-                                title={t("teamCalendar.modal.tooltips.viewAttachment")}
+                                title={t(
+                                  "teamCalendar.modal.tooltips.viewAttachment"
+                                )}
                               >
-                                <ImageIcon size={18} className="group-hover:scale-110 transition-transform" />
+                                <ImageIcon
+                                  size={18}
+                                  className="group-hover:scale-110 transition-transform"
+                                />
                               </button>
                             ) : (
                               <span className="text-[9px] font-black text-slate-200 uppercase tracking-widest italic">
@@ -464,28 +598,40 @@ export default function DailyDetailsModal({
                             {tab === "PENDING" ? (
                               <div className="flex justify-center gap-2">
                                 <button
-                                  onClick={() => handleLeaveActionInModal("Approved", leaf)}
+                                  onClick={() =>
+                                    handleLeaveActionInModal("Approved", leaf)
+                                  }
                                   className="flex items-center gap-2 px-3 py-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100"
                                   title={t("teamCalendar.modal.tooltips.approve")}
                                 >
-                                  <span className="text-sm font-medium">{t("teamCalendar.modal.actions.approve")}</span>
+                                  <span className="text-sm font-medium">
+                                    {t("teamCalendar.modal.actions.approve")}
+                                  </span>
                                 </button>
 
                                 <button
-                                  onClick={() => handleLeaveActionInModal("Special", leaf)}
+                                  onClick={() =>
+                                    handleLeaveActionInModal("Special", leaf)
+                                  }
                                   className="flex items-center gap-2 px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all border border-purple-100"
                                   title={t("teamCalendar.modal.tooltips.special")}
                                 >
                                   <Star size={16} />
-                                  <span className="text-sm font-medium">{t("teamCalendar.modal.actions.special")}</span>
+                                  <span className="text-sm font-medium">
+                                    {t("teamCalendar.modal.actions.special")}
+                                  </span>
                                 </button>
 
                                 <button
-                                  onClick={() => handleLeaveActionInModal("Rejected", leaf)}
+                                  onClick={() =>
+                                    handleLeaveActionInModal("Rejected", leaf)
+                                  }
                                   className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-slate-100"
                                   title={t("teamCalendar.modal.tooltips.reject")}
                                 >
-                                  <span className="text-sm font-medium">{t("teamCalendar.modal.actions.reject")}</span>
+                                  <span className="text-sm font-medium">
+                                    {t("teamCalendar.modal.actions.reject")}
+                                  </span>
                                 </button>
                               </div>
                             ) : (
