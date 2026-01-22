@@ -1,3 +1,5 @@
+// backend\src\utils\generateToken.js
+
 require('dotenv').config(); // <--- เพิ่มบรรทัดนี้บนสุด
 const jwt = require('jsonwebtoken');
 

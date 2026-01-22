@@ -1,20 +1,26 @@
 -- CreateTable
-CREATE TABLE `audit_logs` (
-    `log_id` INTEGER NOT NULL AUTO_INCREMENT,
-    `action` ENUM('CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'WITHDRAW', 'SYSTEM_LOCK', 'LOGIN') NOT NULL,
-    `model_name` VARCHAR(100) NOT NULL,
-    `record_id` INTEGER NOT NULL,
-    `performed_by_id` INTEGER NOT NULL,
-    `details` TEXT NULL,
-    `old_value` JSON NULL,
-    `new_value` JSON NULL,
-    `ip_address` VARCHAR(45) NULL,
-    `user_agent` TEXT NULL,
-    `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+CREATE TABLE `roles` (
+    `role_id` INTEGER NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(50) NOT NULL,
+    `description` TEXT NULL,
+    `permissions` JSON NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
 
-    INDEX `audit_logs_model_name_record_id_idx`(`model_name`, `record_id`),
-    INDEX `audit_logs_performed_by_id_idx`(`performed_by_id`),
-    PRIMARY KEY (`log_id`)
+    UNIQUE INDEX `roles_name_key`(`name`),
+    PRIMARY KEY (`role_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `departments` (
+    `department_id` INTEGER NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL,
+    `description` TEXT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `departments_name_key`(`name`),
+    PRIMARY KEY (`department_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -24,8 +30,8 @@ CREATE TABLE `employees` (
     `last_name` VARCHAR(100) NOT NULL,
     `email` VARCHAR(255) NOT NULL,
     `password_hash` VARCHAR(255) NOT NULL,
-    `role` ENUM('WORKER', 'HR') NOT NULL,
-    `department` ENUM('HR', 'IT', 'ACCOUNTING', 'MARKETING', 'SALES', 'OPERATIONS', 'MANAGEMENT', 'GENERAL') NOT NULL DEFAULT 'GENERAL',
+    `role_id` INTEGER NOT NULL,
+    `department_id` INTEGER NULL,
     `joining_date` DATE NOT NULL,
     `resignation_date` DATE NULL,
     `is_active` BOOLEAN NOT NULL DEFAULT true,
@@ -38,6 +44,65 @@ CREATE TABLE `employees` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `work_configurations` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `role_id` INTEGER NOT NULL,
+    `startHour` INTEGER NOT NULL,
+    `startMin` INTEGER NOT NULL,
+    `endHour` INTEGER NOT NULL,
+    `endMin` INTEGER NOT NULL,
+    `breakStartHour` INTEGER NOT NULL DEFAULT 12,
+    `breakStartMin` INTEGER NOT NULL DEFAULT 0,
+    `breakEndHour` INTEGER NOT NULL DEFAULT 13,
+    `breakEndMin` INTEGER NOT NULL DEFAULT 0,
+    `lateThresholdMin` INTEGER NOT NULL DEFAULT 15,
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `work_configurations_role_id_key`(`role_id`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `SystemConfig` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `year` INTEGER NOT NULL,
+    `isClosed` BOOLEAN NOT NULL DEFAULT false,
+    `closedAt` DATETIME(3) NULL,
+    `processedBy` INTEGER NULL,
+    `maxConsecutiveDays` INTEGER NOT NULL DEFAULT 0,
+
+    UNIQUE INDEX `SystemConfig_year_key`(`year`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Holiday` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `date` DATETIME(3) NOT NULL,
+    `name` JSON NOT NULL,
+    `isSubsidy` BOOLEAN NOT NULL DEFAULT false,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `Holiday_date_key`(`date`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `HolidayPolicy` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `key` VARCHAR(50) NOT NULL,
+    `workingDays` JSON NULL,
+    `maxConsecutiveHolidayDays` INTEGER NOT NULL DEFAULT 0,
+    `updatedBy` INTEGER NULL,
+    `updatedAt` DATETIME(3) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    UNIQUE INDEX `HolidayPolicy_key_key`(`key`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `leave_types` (
     `leave_type_id` INTEGER NOT NULL AUTO_INCREMENT,
     `type_name` VARCHAR(100) NOT NULL,
@@ -45,6 +110,7 @@ CREATE TABLE `leave_types` (
     `is_paid` BOOLEAN NOT NULL DEFAULT true,
     `max_carry_over` DECIMAL(5, 2) NOT NULL DEFAULT 0.00,
     `max_consecutive_days` INTEGER NULL DEFAULT 0,
+    `color` VARCHAR(7) NOT NULL DEFAULT '#6366F1',
 
     UNIQUE INDEX `leave_types_type_name_key`(`type_name`),
     PRIMARY KEY (`leave_type_id`)
@@ -62,26 +128,6 @@ CREATE TABLE `leave_quotas` (
 
     UNIQUE INDEX `leave_quotas_employee_id_leave_type_id_year_key`(`employee_id`, `leave_type_id`, `year`),
     PRIMARY KEY (`quota_id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `time_records` (
-    `record_id` INTEGER NOT NULL AUTO_INCREMENT,
-    `employee_id` INTEGER NOT NULL,
-    `work_date` DATE NOT NULL,
-    `check_in_time` DATETIME(3) NOT NULL,
-    `check_out_time` DATETIME(3) NULL,
-    `is_late` BOOLEAN NOT NULL DEFAULT false,
-    `note` TEXT NULL,
-    `check_in_status` ENUM('ON_TIME', 'LATE', 'LEAVE', 'ABSENT') NULL,
-    `check_out_status` ENUM('NORMAL', 'EARLY', 'LEAVE', 'NO_CHECKOUT') NULL,
-    `check_in_lat` DECIMAL(10, 8) NULL,
-    `check_in_lng` DECIMAL(11, 8) NULL,
-    `check_out_lat` DECIMAL(10, 8) NULL,
-    `check_out_lng` DECIMAL(11, 8) NULL,
-
-    INDEX `time_records_employee_id_work_date_idx`(`employee_id`, `work_date`),
-    PRIMARY KEY (`record_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -124,6 +170,45 @@ CREATE TABLE `special_leave_grants` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `time_records` (
+    `record_id` INTEGER NOT NULL AUTO_INCREMENT,
+    `employee_id` INTEGER NOT NULL,
+    `work_date` DATE NOT NULL,
+    `check_in_time` DATETIME(3) NOT NULL,
+    `check_out_time` DATETIME(3) NULL,
+    `is_late` BOOLEAN NOT NULL DEFAULT false,
+    `note` TEXT NULL,
+    `check_in_status` ENUM('ON_TIME', 'LATE', 'LEAVE', 'ABSENT') NULL,
+    `check_out_status` ENUM('NORMAL', 'EARLY', 'LEAVE', 'NO_CHECKOUT') NULL,
+    `check_in_lat` DECIMAL(10, 8) NULL,
+    `check_in_lng` DECIMAL(11, 8) NULL,
+    `check_out_lat` DECIMAL(10, 8) NULL,
+    `check_out_lng` DECIMAL(11, 8) NULL,
+
+    INDEX `time_records_employee_id_work_date_idx`(`employee_id`, `work_date`),
+    PRIMARY KEY (`record_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `audit_logs` (
+    `log_id` INTEGER NOT NULL AUTO_INCREMENT,
+    `action` ENUM('CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'WITHDRAW', 'SYSTEM_LOCK', 'LOGIN') NOT NULL,
+    `model_name` VARCHAR(100) NOT NULL,
+    `record_id` INTEGER NOT NULL,
+    `performed_by_id` INTEGER NOT NULL,
+    `details` TEXT NULL,
+    `old_value` JSON NULL,
+    `new_value` JSON NULL,
+    `ip_address` VARCHAR(45) NULL,
+    `user_agent` TEXT NULL,
+    `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+
+    INDEX `audit_logs_model_name_record_id_idx`(`model_name`, `record_id`),
+    INDEX `audit_logs_performed_by_id_idx`(`performed_by_id`),
+    PRIMARY KEY (`log_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `notifications` (
     `notification_id` INTEGER NOT NULL AUTO_INCREMENT,
     `employee_id` INTEGER NOT NULL,
@@ -140,71 +225,20 @@ CREATE TABLE `notifications` (
     PRIMARY KEY (`notification_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateTable
-CREATE TABLE `SystemConfig` (
-    `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `year` INTEGER NOT NULL,
-    `isClosed` BOOLEAN NOT NULL DEFAULT false,
-    `closedAt` DATETIME(3) NULL,
-    `processedBy` INTEGER NULL,
-    `maxConsecutiveDays` INTEGER NOT NULL DEFAULT 0,
-
-    UNIQUE INDEX `SystemConfig_year_key`(`year`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `work_configurations` (
-    `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `role` ENUM('WORKER', 'HR') NOT NULL,
-    `startHour` INTEGER NOT NULL,
-    `startMin` INTEGER NOT NULL,
-    `endHour` INTEGER NOT NULL,
-    `endMin` INTEGER NOT NULL,
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `work_configurations_role_key`(`role`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `Holiday` (
-    `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `date` DATETIME(3) NOT NULL,
-    `name` JSON NOT NULL,
-    `isSubsidy` BOOLEAN NOT NULL DEFAULT false,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `Holiday_date_key`(`date`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `HolidayPolicy` (
-    `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `key` VARCHAR(50) NOT NULL,
-    `workingDays` JSON NULL,
-    `maxConsecutiveHolidayDays` INTEGER NOT NULL DEFAULT 0,
-    `updatedBy` INTEGER NULL,
-    `updatedAt` DATETIME(3) NOT NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-
-    UNIQUE INDEX `HolidayPolicy_key_key`(`key`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- AddForeignKey
+ALTER TABLE `employees` ADD CONSTRAINT `employees_role_id_fkey` FOREIGN KEY (`role_id`) REFERENCES `roles`(`role_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_performed_by_id_fkey` FOREIGN KEY (`performed_by_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `employees` ADD CONSTRAINT `employees_department_id_fkey` FOREIGN KEY (`department_id`) REFERENCES `departments`(`department_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `work_configurations` ADD CONSTRAINT `work_configurations_role_id_fkey` FOREIGN KEY (`role_id`) REFERENCES `roles`(`role_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `leave_quotas` ADD CONSTRAINT `leave_quotas_employee_id_fkey` FOREIGN KEY (`employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `leave_quotas` ADD CONSTRAINT `leave_quotas_leave_type_id_fkey` FOREIGN KEY (`leave_type_id`) REFERENCES `leave_types`(`leave_type_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `time_records` ADD CONSTRAINT `time_records_employee_id_fkey` FOREIGN KEY (`employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `leave_requests` ADD CONSTRAINT `leave_requests_employee_id_fkey` FOREIGN KEY (`employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -223,6 +257,12 @@ ALTER TABLE `special_leave_grants` ADD CONSTRAINT `special_leave_grants_employee
 
 -- AddForeignKey
 ALTER TABLE `special_leave_grants` ADD CONSTRAINT `special_leave_grants_leave_type_id_fkey` FOREIGN KEY (`leave_type_id`) REFERENCES `leave_types`(`leave_type_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `time_records` ADD CONSTRAINT `time_records_employee_id_fkey` FOREIGN KEY (`employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_performed_by_id_fkey` FOREIGN KEY (`performed_by_id`) REFERENCES `employees`(`employee_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `notifications` ADD CONSTRAINT `notifications_related_employee_id_fkey` FOREIGN KEY (`related_employee_id`) REFERENCES `employees`(`employee_id`) ON DELETE SET NULL ON UPDATE CASCADE;
