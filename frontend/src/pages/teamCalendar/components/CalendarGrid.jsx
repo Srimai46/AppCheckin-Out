@@ -174,7 +174,7 @@ export default function CalendarGrid({
 
     const typeBadges = Object.entries(typeMap)
       .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 3);
+      .slice(0, 2);
 
     return { typeMap, typeBadges };
   };
@@ -206,7 +206,7 @@ export default function CalendarGrid({
               key={day.toString()}
               onClick={() => onDayClick(day)}
               className={[
-                "min-h-[115px] p-2 border-r border-b border-gray-100 cursor-pointer transition-all group",
+                "min-h-[128px] p-2 border-r border-b border-gray-100 cursor-pointer transition-all group",
                 inMonth ? "bg-white" : "bg-gray-50/50 opacity-60",
                 weekendBg,
                 "hover:bg-slate-50",
@@ -260,10 +260,10 @@ export default function CalendarGrid({
                     );
                   })}
 
-                  {Object.keys(typeMap).length > 3 && (
+                  {Object.keys(typeMap).length > 2 && (
                     <div className="text-[10px] text-indigo-600 font-black pl-1 uppercase tracking-widest">
                       {t("teamCalendar.grid.moreTypes", {
-                        count: Object.keys(typeMap).length - 3,
+                        count: Object.keys(typeMap).length - 2,
                       })}
                     </div>
                   )}
