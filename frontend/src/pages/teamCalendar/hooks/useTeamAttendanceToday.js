@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PAGE_SIZE } from "../constants";
-// import { normalizeTime, getAttendanceState, isLate } from "../utils"; // ❌ ไม่ต้อง import isLate แล้ว
+import api from "../../../api/axios";
+
 import {
   getTodayTeamAttendance,
   hrCheckInEmployee,
@@ -9,28 +10,94 @@ import {
 
 import { alertConfirm, alertSuccess, alertError } from "../../../utils/sweetAlert";
 
+/* =========================
+   helper: รองรับ response หลายรูปแบบ
+   - axios: res.data
+   - { data: [...] }
+   - { message, data: [...] }
+   - { data: { data: [...] } }
+   ========================= */
+const pickArray = (resLike) => {
+  if (!resLike) return [];
+
+  // ถ้าส่งมาเป็น array ตรง ๆ
+  if (Array.isArray(resLike)) return resLike;
+
+  // axios response
+  const d = resLike?.data ?? resLike;
+
+  if (Array.isArray(d)) return d;
+  if (Array.isArray(d?.data)) return d.data;
+  if (Array.isArray(d?.data?.data)) return d.data.data;
+  if (Array.isArray(d?.employees)) return d.employees;
+  if (Array.isArray(d?.data?.employees)) return d.data.employees;
+
+  return [];
+};
+
 export default function useTeamAttendanceToday() {
   const [teamAttendance, setTeamAttendance] = useState([]);
   const [attLoading, setAttLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState({}); 
+  const [actionLoading, setActionLoading] = useState({});
 
-  const [roleFilter, setRoleFilter] = useState("ALL"); 
+  // filters
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [deptFilter, setDeptFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
   const [teamPage, setTeamPage] = useState(1);
 
+  // dropdown options from DB
+  const [departments, setDepartments] = useState([]);
+  const [roles, setRoles] = useState([]);
+
+  // =========================
+  // Load departments & roles from DB
+  // =========================
+  const fetchOptions = useCallback(async () => {
+    try {
+      const [deptRes, roleRes] = await Promise.allSettled([
+        api.get("/departments", { params: { simple: 1 } }),
+        api.get("/roles", { params: { simple: 1 } }),
+      ]);
+
+      // departments
+      if (deptRes.status === "fulfilled") {
+        const list = pickArray(deptRes.value);
+        setDepartments(list);
+      } else {
+        console.error("fetch departments failed:", deptRes.reason);
+        setDepartments([]);
+      }
+
+      // roles
+      if (roleRes.status === "fulfilled") {
+        const list = pickArray(roleRes.value);
+        setRoles(list);
+      } else {
+        console.error("fetch roles failed:", roleRes.reason);
+        setRoles([]);
+      }
+    } catch (e) {
+      console.error("useTeamAttendanceToday: fetchOptions error", e);
+      setDepartments([]);
+      setRoles([]);
+    }
+  }, []);
+
+  // โหลด options ครั้งเดียวตอนเข้า
+  useEffect(() => {
+    fetchOptions();
+  }, [fetchOptions]);
+
+  // =========================
+  // Fetch attendance
+  // =========================
   const fetchTeamAttendance = useCallback(async () => {
     try {
       setAttLoading(true);
 
       const res = await getTodayTeamAttendance();
-      // Logic การแกะ response เพื่อรองรับหลาย format
-      const list =
-        (Array.isArray(res) && res) ||
-        (Array.isArray(res?.data) && res.data) ||
-        (Array.isArray(res?.data?.data) && res.data.data) ||
-        (Array.isArray(res?.employees) && res.employees) ||
-        (Array.isArray(res?.data?.employees) && res.data.employees) ||
-        [];
+      const list = pickArray(res);
 
       setTeamAttendance(list);
       setTeamPage(1);
@@ -48,19 +115,55 @@ export default function useTeamAttendanceToday() {
 
   // active employees only
   const activeTeamAttendance = useMemo(() => {
-    return (teamAttendance || []).filter((r) => r?.isActive === true || r?.isActive === 1);
+    return (teamAttendance || []).filter(
+      (r) => r?.isActive === true || r?.isActive === 1
+    );
   }, [teamAttendance]);
 
-  // role + search filter
+  // reset page when filters/search change
+  useEffect(() => {
+    setTeamPage(1);
+  }, [roleFilter, deptFilter, searchTerm]);
+
+  // =========================
+  // Filter: role + department + search
+  // =========================
   const filteredTeamAttendance = useMemo(() => {
     const term = String(searchTerm || "").trim().toLowerCase();
 
     return (activeTeamAttendance || []).filter((row) => {
-      // Role Filter
-      const roleRaw = String(row?.role || row?.position || "").toUpperCase();
+      // Role Filter (DB-based)
       if (roleFilter !== "ALL") {
-        const want = roleFilter === "WORKER" ? "WORKER" : "HR";
-        if (roleRaw !== want) return false;
+        const rowRoleId = row?.roleId ?? row?.role?.id ?? null;
+        const rowRoleName =
+          row?.roleName ?? row?.role?.name ?? row?.role ?? row?.position ?? "";
+
+        const matchById =
+          rowRoleId != null && String(rowRoleId) === String(roleFilter);
+        const matchByName = String(rowRoleName) === String(roleFilter);
+
+        const roleRawUpper = String(rowRoleName || "").toUpperCase();
+        const wantUpper = String(roleFilter || "").toUpperCase();
+        const matchByEnum = roleRawUpper === wantUpper;
+
+        if (!matchById && !matchByName && !matchByEnum) return false;
+      }
+
+      // Department Filter (DB-based)
+      if (deptFilter !== "ALL") {
+        const rowDeptId = row?.departmentId ?? row?.department?.id ?? null;
+        const rowDeptName =
+          row?.departmentName ??
+          row?.department?.name ??
+          row?.department ??
+          row?.deptName ??
+          "";
+
+        const matchById =
+          rowDeptId != null && String(rowDeptId) === String(deptFilter);
+        const matchByName = String(rowDeptName) === String(deptFilter);
+
+        if (!matchById && !matchByName) return false;
       }
 
       // Search Filter
@@ -74,9 +177,27 @@ export default function useTeamAttendanceToday() {
           `${row?.firstName || ""} ${row?.lastName || ""}`.trim()
       ).toLowerCase();
 
-      return name.includes(term) || email.includes(term) || id.includes(term);
+      const dept = String(
+        row?.departmentName ??
+          row?.department?.name ??
+          row?.department ??
+          row?.deptName ??
+          ""
+      ).toLowerCase();
+
+      const role = String(
+        row?.roleName ?? row?.role?.name ?? row?.role ?? row?.position ?? ""
+      ).toLowerCase();
+
+      return (
+        name.includes(term) ||
+        email.includes(term) ||
+        id.includes(term) ||
+        dept.includes(term) ||
+        role.includes(term)
+      );
     });
-  }, [activeTeamAttendance, roleFilter, searchTerm]);
+  }, [activeTeamAttendance, roleFilter, deptFilter, searchTerm]);
 
   // Pagination
   const totalTeamPages = useMemo(() => {
@@ -92,9 +213,7 @@ export default function useTeamAttendanceToday() {
     setTeamPage((p) => Math.min(Math.max(1, p), totalTeamPages));
   }, [totalTeamPages]);
 
-  useEffect(() => setTeamPage(1), [roleFilter, searchTerm]);
-
-  // --- 🔥 จุดที่แก้: Summary Calculation ---
+  // Summary Calculation
   const attendanceSummary = useMemo(() => {
     const total = activeTeamAttendance.length;
 
@@ -103,30 +222,21 @@ export default function useTeamAttendanceToday() {
     let checkedOut = 0;
 
     activeTeamAttendance.forEach((r) => {
-      // เช็คว่ามีการ Check-in หรือยัง (ดูจาก field ที่ API ส่งมา)
       const hasCheckIn = !!(r.checkInTimeDisplay || r.checkInTime);
       const hasCheckOut = !!(r.checkOutTimeDisplay || r.checkOutTime);
 
       if (hasCheckIn) {
-        // นับจำนวนคนเข้างาน (Working + Completed)
-        checkedIn += 1; 
-
-        // ✅ ใช้ค่า inStatus ที่ Backend ส่งมาตรงๆ (แม่นยำกว่าคำนวณใหม่)
-        if (r.inStatus === "Late") {
-            late += 1;
-        }
+        checkedIn += 1;
+        if (r.inStatus === "Late") late += 1;
       }
 
-      if (hasCheckOut) {
-        checkedOut += 1;
-      }
+      if (hasCheckOut) checkedOut += 1;
     });
 
     return { total, checkedIn, late, checkedOut };
   }, [activeTeamAttendance]);
 
-
-  // Actions (HR Check-in/out) เหมือนเดิม
+  // Actions
   const handleHRCheckIn = useCallback(
     async (employeeId, employeeName = "") => {
       const busy = actionLoading[employeeId];
@@ -147,7 +257,10 @@ export default function useTeamAttendanceToday() {
         await fetchTeamAttendance();
       } catch (e) {
         console.error("HR check-in failed:", e);
-        alertError("Operation Failed", e?.response?.data?.message || "Unable to check in employee.");
+        alertError(
+          "Operation Failed",
+          e?.response?.data?.message || "Unable to check in employee."
+        );
       } finally {
         setActionLoading((p) => ({ ...p, [employeeId]: null }));
       }
@@ -175,7 +288,10 @@ export default function useTeamAttendanceToday() {
         await fetchTeamAttendance();
       } catch (e) {
         console.error("HR check-out failed:", e);
-        alertError("Operation Failed", e?.response?.data?.message || "Unable to check out employee.");
+        alertError(
+          "Operation Failed",
+          e?.response?.data?.message || "Unable to check out employee."
+        );
       } finally {
         setActionLoading((p) => ({ ...p, [employeeId]: null }));
       }
@@ -186,18 +302,29 @@ export default function useTeamAttendanceToday() {
   return {
     attLoading,
     actionLoading,
+
     activeTeamAttendance,
+    filteredTeamAttendance,
+    pagedTeamAttendance,
+
     roleFilter,
     setRoleFilter,
+    roles,
+
+    deptFilter,
+    setDeptFilter,
+    departments,
+
     searchTerm,
     setSearchTerm,
+
     teamPage,
     setTeamPage,
     totalTeamPages,
-    filteredTeamAttendance,
-    pagedTeamAttendance,
-    attendanceSummary, 
+
+    attendanceSummary,
     fetchTeamAttendance,
+    fetchOptions,
     handleHRCheckIn,
     handleHRCheckOut,
   };

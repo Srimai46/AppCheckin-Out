@@ -1,20 +1,23 @@
-import React, { useRef, useMemo } from "react";
+// src/pages/teamCalendar/components/DepartmentDropdown.jsx
+import React, { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import useOutsideClick from "../hooks/useOutsideClick";
 
 /**
- * Reusable Dropdown (DB-based)
+ * Reusable Department Dropdown (ALL + items from DB)
  *
  * Props:
- * - value: "ALL" | <roleId> | <roleName>
+ * - value: "ALL" | string | number
  * - onChange: (nextValue) => void
- * - items: [{ id, name }] OR strings OR [{ value, label }]
+ * - items: Array<{ id: string|number, name: string }>  // from DB
  * - open: boolean
  * - setOpen: (bool | (prev)=>bool) => void
  * - widthClass?: string  (default: "w-full")
  * - size?: "sm" | "md"   (default: "md")
+ * - allLabelKey?: string (default: "teamCalendar.attendance.department.all")
+ * - placeholderKey?: string (optional) // if want separate placeholder behavior
  */
-export default function RoleDropdown({
+export default function DepartmentDropdown({
   value,
   onChange,
   items = [],
@@ -22,6 +25,7 @@ export default function RoleDropdown({
   setOpen,
   widthClass = "w-full",
   size = "md",
+  allLabelKey = "teamCalendar.attendance.department.all",
 }) {
   const { t } = useTranslation();
 
@@ -29,6 +33,37 @@ export default function RoleDropdown({
   const menuRef = useRef(null);
 
   useOutsideClick([btnRef, menuRef], () => setOpen(false));
+
+  const allLabel = t(allLabelKey, "All Departments");
+
+  const options = useMemo(() => {
+    const arr = Array.isArray(items) ? items : [];
+    const mapped = arr
+      .map((d) => {
+        if (!d) return null;
+        const id = d.id ?? d.departmentId ?? d.value ?? d.code ?? d.name;
+        const name = d.name ?? d.departmentName ?? d.label ?? String(id ?? "");
+        if (id == null || !name) return null;
+        return { value: String(id), label: String(name) };
+      })
+      .filter(Boolean);
+
+    // de-dup by value
+    const seen = new Set();
+    const uniq = [];
+    for (const o of mapped) {
+      if (seen.has(o.value)) continue;
+      seen.add(o.value);
+      uniq.push(o);
+    }
+    return [{ value: "ALL", label: allLabel }, ...uniq];
+  }, [items, allLabel]);
+
+  const currentLabel =
+    String(value) === "ALL"
+      ? allLabel
+      : options.find((o) => String(o.value) === String(value))?.label ||
+        (value ? String(value) : allLabel);
 
   const buttonClass =
     size === "sm"
@@ -45,38 +80,6 @@ export default function RoleDropdown({
          bg-white border border-slate-100 shadow-xl shadow-slate-200/70`
       : `absolute z-50 mt-2 w-full overflow-hidden rounded-2xl
          bg-white border border-gray-100 shadow-xl shadow-slate-200/70`;
-
-  const normalized = useMemo(() => {
-    const arr = Array.isArray(items) ? items : [];
-    const opts = arr
-      .map((x) => {
-        if (!x) return null;
-        if (typeof x === "string") return { value: x, label: x };
-        const id = x.id ?? x.roleId ?? x.value ?? x.code ?? x.name;
-        const name = x.name ?? x.roleName ?? x.label ?? String(id ?? "");
-        if (id == null || name == null) return null;
-        return { value: String(id), label: String(name) };
-      })
-      .filter(Boolean);
-
-    // de-dup by value
-    const seen = new Set();
-    const uniq = [];
-    for (const o of opts) {
-      if (seen.has(o.value)) continue;
-      seen.add(o.value);
-      uniq.push(o);
-    }
-    return uniq;
-  }, [items]);
-
-  const allLabel = t("teamCalendar.attendance.role.all", "All Roles");
-  const options = [{ value: "ALL", label: allLabel }, ...normalized];
-
-  const currentLabel =
-    value === "ALL"
-      ? allLabel
-      : options.find((o) => String(o.value) === String(value))?.label || String(value || allLabel);
 
   return (
     <div className={`relative ${widthClass}`}>

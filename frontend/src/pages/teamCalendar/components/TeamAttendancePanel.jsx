@@ -1,31 +1,65 @@
 // src/pages/teamCalendar/components/TeamAttendancePanel.jsx
-import React, { useMemo } from "react";
-import { Users, LogIn, LogOut, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import {
+  Users,
+  LogIn,
+  LogOut,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { PAGE_SIZE } from "../constants";
 import { normalizeTime, getAttendanceState, badgeByInStatus } from "../utils";
 import SummaryCard from "./SummaryCard";
 import RoleDropdown from "./RoleDropdown";
+import DepartmentDropdown from "./DepartmentDropdown";
 
-export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTotalPages, pageNumbers }) {
+export default function TeamAttendancePanel({
+  att,
+  roleOpen,
+  setRoleOpen,
+  safeTotalPages,
+  pageNumbers,
+}) {
   const { t } = useTranslation();
 
   const {
     attLoading,
     actionLoading,
+
+    // filters
     roleFilter,
     setRoleFilter,
+    roles, // ✅ from hook
+
+    deptFilter,
+    setDeptFilter,
+    departments, // ✅ from hook
+
     searchTerm,
     setSearchTerm,
+
+    // paging/data
     teamPage,
     setTeamPage,
     filteredTeamAttendance,
     pagedTeamAttendance,
     activeTeamAttendance,
     attendanceSummary,
+
+    // actions
     handleHRCheckIn,
     handleHRCheckOut,
   } = att;
+
+  // ✅ dropdown opens (local)
+  const [deptOpen, setDeptOpen] = useState(false);
+
+  // ✅ กันเคส parent ไม่ส่ง roleOpen/setRoleOpen มา
+  const [roleOpenLocal, setRoleOpenLocal] = useState(false);
+  const roleOpenState = typeof roleOpen === "boolean" ? roleOpen : roleOpenLocal;
+  const setRoleOpenState = typeof setRoleOpen === "function" ? setRoleOpen : setRoleOpenLocal;
 
   const canPrev = teamPage > 1;
   const canNext = teamPage < safeTotalPages;
@@ -34,7 +68,6 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
   const goNext = () => canNext && setTeamPage((p) => p + 1);
   const goTo = (n) => setTeamPage(Math.min(Math.max(1, n), safeTotalPages));
 
-  // ✅ map status text จาก API -> key สำหรับ badge + label แปล
   const getInBadgeKey = (statusStr) => {
     if (!statusStr) return "WAITING";
     if (statusStr === "On Time") return "ON_TIME";
@@ -48,31 +81,44 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
   const translateInStatus = (statusStr) => {
     const s = String(statusStr || "Waiting");
     const key =
-      s === "On Time" || s === "On Time (Morning)" ? "onTime" :
-      s === "Late" ? "late" :
-      s.includes("Leave") ? "leave" :
-      s === "Waiting" ? "waiting" :
-      "normal";
+      s === "On Time" || s === "On Time (Morning)"
+        ? "onTime"
+        : s === "Late"
+        ? "late"
+        : s.includes("Leave")
+        ? "leave"
+        : s === "Waiting"
+        ? "waiting"
+        : "normal";
     return t(`teamCalendar.attendance.statusIn.${key}`);
   };
 
   const translateOutStatus = (statusStr) => {
     const s = String(statusStr || "-");
-    if (s === "-" || s === "N/A") return t("teamCalendar.attendance.statusOut.none");
+    if (s === "-" || s === "N/A")
+      return t("teamCalendar.attendance.statusOut.none");
     const key =
-      s === "Early Leave" ? "earlyLeave" :
-      s === "Normal" ? "normal" :
-      s === "No Check-out" ? "noCheckout" :
-      s.includes("Leave") ? "leave" :
-      "normal";
+      s === "Early Leave"
+        ? "earlyLeave"
+        : s === "Normal"
+        ? "normal"
+        : s === "No Check-out"
+        ? "noCheckout"
+        : s.includes("Leave")
+        ? "leave"
+        : "normal";
     return t(`teamCalendar.attendance.statusOut.${key}`);
   };
 
   const outBadgeStyleByText = (outStatusText) => {
-    if (String(outStatusText) === "Early Leave") return "bg-amber-50 text-amber-600 border-amber-100";
-    if (String(outStatusText) === "No Check-out") return "bg-slate-50 text-slate-500 border-slate-100";
-    if (String(outStatusText).includes("Leave")) return "bg-sky-50 text-sky-700 border-sky-100";
-    if (String(outStatusText) === "-" || String(outStatusText) === "N/A") return "bg-gray-50 text-gray-500 border-gray-100";
+    if (String(outStatusText) === "Early Leave")
+      return "bg-amber-50 text-amber-600 border-amber-100";
+    if (String(outStatusText) === "No Check-out")
+      return "bg-slate-50 text-slate-500 border-slate-100";
+    if (String(outStatusText).includes("Leave"))
+      return "bg-sky-50 text-sky-700 border-sky-100";
+    if (String(outStatusText) === "-" || String(outStatusText) === "N/A")
+      return "bg-gray-50 text-gray-500 border-gray-100";
     return "bg-emerald-50 text-emerald-700 border-emerald-100";
   };
 
@@ -82,7 +128,12 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
     const late = attendanceSummary?.late ?? 0;
     const checkedOut = attendanceSummary?.checkedOut ?? 0;
 
-    return t("teamCalendar.attendance.subtitle", { total, checkedIn, late, checkedOut });
+    return t("teamCalendar.attendance.subtitle", {
+      total,
+      checkedIn,
+      late,
+      checkedOut,
+    });
   }, [attendanceSummary, t]);
 
   return (
@@ -126,14 +177,25 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
       {/* Filters */}
       <div className="px-6 pb-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <DepartmentDropdown
+            value={deptFilter || "ALL"}
+            onChange={(v) => setDeptFilter?.(v)}
+            items={departments || []}
+            open={deptOpen}
+            setOpen={setDeptOpen}
+            widthClass="w-full sm:w-[240px]"
+            size="md"
+          />
+
+          {/* ✅ IMPORTANT: ส่ง items={roles} เพื่อให้ role ขึ้นจาก DB */}
           <RoleDropdown
-            value={roleFilter}
-            onChange={setRoleFilter}
-            open={roleOpen}
-            setOpen={setRoleOpen}
+            value={roleFilter || "ALL"}
+            onChange={(v) => setRoleFilter?.(v)}
+            items={roles || []}
+            open={roleOpenState}
+            setOpen={setRoleOpenState}
             widthClass="w-full sm:w-[220px]"
             size="md"
-            // ✅ ไม่ส่ง labels อังกฤษ hardcode (ให้ RoleDropdown ใช้ i18n fallback ของมันเอง)
           />
 
           <div className="w-full sm:flex-1">
@@ -169,38 +231,46 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
                   {t("teamCalendar.attendance.loading")}
                 </td>
               </tr>
-            ) : activeTeamAttendance.length === 0 ? (
+            ) : (activeTeamAttendance || []).length === 0 ? (
               <tr>
                 <td colSpan="7" className="px-6 py-10 text-center text-gray-400 italic">
                   {t("teamCalendar.attendance.empty.activeNone")}
                 </td>
               </tr>
-            ) : filteredTeamAttendance.length === 0 ? (
+            ) : (filteredTeamAttendance || []).length === 0 ? (
               <tr>
                 <td colSpan="7" className="px-6 py-10 text-center text-gray-400 italic">
                   {t("teamCalendar.attendance.empty.noMatch")}
                 </td>
               </tr>
             ) : (
-              pagedTeamAttendance.map((row, idx) => {
+              (pagedTeamAttendance || []).map((row, idx) => {
                 const employeeId = row.employeeId ?? row.id ?? idx;
+
                 const name =
                   row.fullName ||
                   row.name ||
                   `${row.firstName || ""} ${row.lastName || ""}`.trim() ||
                   t("teamCalendar.attendance.unknown");
 
-                const role = row.role || row.position || "-";
+                const deptName =
+                  row.departmentName ||
+                  row.department?.name ||
+                  row.department ||
+                  row.deptName ||
+                  "-";
+
+                const role = row.roleName || row.role?.name || row.role || row.position || "-";
 
                 const inRaw = row.checkInTimeDisplay || row.checkInTime || row.checkIn || null;
                 const outRaw = row.checkOutTimeDisplay || row.checkOutTime || row.checkOut || null;
+
                 const inTime = normalizeTime(inRaw);
                 const outTime = normalizeTime(outRaw);
 
-                const busy = actionLoading[employeeId];
+                const busy = actionLoading?.[employeeId];
                 const state = getAttendanceState({ checkInTime: inRaw, checkOutTime: outRaw });
 
-                // ✅ ใช้ค่าจาก API ตรงๆ (แต่แปลตอนแสดงผล)
                 const inStatusText = row.inStatus || "Waiting";
                 const outStatusText = row.outStatus || "-";
 
@@ -212,7 +282,17 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
                     key={employeeId}
                     className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
                   >
-                    <td className="px-6 py-4 text-slate-800">{name}</td>
+                    <td className="px-6 py-4 text-slate-800">
+                      <div className="flex items-center gap-2">
+                        <span>{name}</span>
+                        {deptName && deptName !== "-" && (
+                          <span className="px-2 py-1 rounded-xl border text-[10px] font-black uppercase tracking-widest bg-slate-50 text-slate-600 border-slate-100">
+                            {deptName}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
                     <td className="px-6 py-4 text-gray-500">{role}</td>
 
                     <td className="px-6 py-4">
@@ -253,7 +333,9 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
                             }`}
                         >
                           <LogIn size={14} />
-                          {busy === "in" ? t("teamCalendar.attendance.buttons.saving") : t("teamCalendar.attendance.buttons.checkIn")}
+                          {busy === "in"
+                            ? t("teamCalendar.attendance.buttons.saving")
+                            : t("teamCalendar.attendance.buttons.checkIn")}
                         </button>
 
                         <button
@@ -267,7 +349,9 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
                             }`}
                         >
                           <LogOut size={14} />
-                          {busy === "out" ? t("teamCalendar.attendance.buttons.saving") : t("teamCalendar.attendance.buttons.checkOut")}
+                          {busy === "out"
+                            ? t("teamCalendar.attendance.buttons.saving")
+                            : t("teamCalendar.attendance.buttons.checkOut")}
                         </button>
                       </div>
                     </td>
@@ -279,7 +363,7 @@ export default function TeamAttendancePanel({ att, roleOpen, setRoleOpen, safeTo
         </table>
 
         {/* Pagination */}
-        {!attLoading && filteredTeamAttendance.length > 0 && (
+        {!attLoading && (filteredTeamAttendance || []).length > 0 && (
           <div className="px-6 py-4 border-t border-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               {t("teamCalendar.attendance.pagination.label", {
