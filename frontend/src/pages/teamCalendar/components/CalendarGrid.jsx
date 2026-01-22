@@ -1,13 +1,53 @@
+// src/pages/teamCalendar/components/CalendarGrid.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import {
-  leaveTheme,
   weekendBgByDow,
   matchLeaveType as defaultMatch,
 } from "../utils";
 import { getLeaveTypes } from "../../../api/leaveService";
 
+const DEFAULT_COLOR = "#6366F1";
+
+/* ===================== Color helpers ===================== */
+const normalizeHex = (value, fallback = DEFAULT_COLOR) => {
+  if (!value || typeof value !== "string") return fallback;
+  const v = value.trim();
+  const isHex = /^#([0-9a-fA-F]{6})$/.test(v);
+  return isHex ? v : fallback;
+};
+
+const getTypeKey = (type) => String(type || "").trim().toUpperCase();
+
+// เลือกสีตัวอักษรให้อ่านง่ายตามความสว่างพื้นหลัง (ขาว/ดำ)
+const pickTextColor = (hex) => {
+  const h = String(hex || "").replace("#", "");
+  if (h.length !== 6) return "#0f172a";
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return y < 140 ? "#ffffff" : "#0f172a";
+};
+
+const themeFromDb = (type, leaveTypeMap) => {
+  const key = getTypeKey(type);
+  const hex = normalizeHex(leaveTypeMap?.[key]?.color, DEFAULT_COLOR);
+
+  return {
+    hex,
+    text: pickTextColor(hex),
+    bg: `${hex}22`,
+    border: `${hex}55`,
+    dot: hex,
+    text: hex,
+    bg: `${hex}14`,
+    border: `${hex}55`,
+  };
+};
+
+/* ===================== Component ===================== */
 export default function CalendarGrid({
   weekHeaders,
   days,
@@ -23,24 +63,37 @@ export default function CalendarGrid({
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
 
-  /* ---------------- LeaveType cache (label json) ---------------- */
+  /* ---------------- LeaveType cache (label + color from DB) ---------------- */
   const [leaveTypeMap, setLeaveTypeMap] = useState({});
 
   useEffect(() => {
     let active = true;
-    getLeaveTypes().then((data) => {
-      if (!active) return;
-      const map = {};
-      (data || []).forEach((t) => {
-        const key = String(t.typeName || "").toUpperCase();
-        map[key] = {
-          label: t.label || null,
-          color: t.color || null,
-        };
-      });
-      setLeaveTypeMap(map);
-    });
-    return () => { active = false; };
+
+    (async () => {
+      try {
+        const data = await getLeaveTypes();
+        if (!active) return;
+
+        const map = {};
+        (data || []).forEach((lt) => {
+          const key = getTypeKey(lt?.typeName);
+          if (!key) return;
+          map[key] = {
+            label: lt?.label || null,
+            color: lt?.color || null,
+          };
+        });
+        setLeaveTypeMap(map);
+      } catch {
+        // เงียบไว้ (ยัง render ได้ด้วย DEFAULT_COLOR)
+        if (!active) return;
+        setLeaveTypeMap({});
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   /* ---------------- Group leaves by dateKey ---------------- */
@@ -57,46 +110,64 @@ export default function CalendarGrid({
 
   /* ---------------- Resolve label by current language ---------------- */
   const resolveLeaveLabel = (leaf) => {
+    // 1) label ที่มากับ leaf
     if (leaf?.label && typeof leaf.label === "object") {
-      return leaf.label[lang] || leaf.label.en || Object.values(leaf.label)[0];
+      const v =
+        leaf.label[lang] ||
+        leaf.label?.[lang?.split("-")?.[0]] ||
+        leaf.label.en ||
+        Object.values(leaf.label)[0];
+      return v || leaf?.typeName || leaf?.type || "UNKNOWN";
     }
-    const key = String(leaf?.typeName || leaf?.type || "").toUpperCase();
+    if (typeof leaf?.label === "string" && leaf.label.trim()) {
+      return leaf.label;
+    }
+
+    // 2) label จาก DB (leaveTypeMap)
+    const key = getTypeKey(leaf?.typeName || leaf?.type);
     const fromType = leaveTypeMap[key]?.label;
+
     if (fromType && typeof fromType === "object") {
-      return fromType[lang] || fromType.en || Object.values(fromType)[0];
+      const v =
+        fromType[lang] ||
+        fromType?.[lang?.split("-")?.[0]] ||
+        fromType.en ||
+        Object.values(fromType)[0];
+      return v || leaf?.typeName || leaf?.type || "UNKNOWN";
     }
+    if (typeof fromType === "string" && fromType.trim()) {
+      return fromType;
+    }
+
     return leaf?.typeName || leaf?.type || "UNKNOWN";
   };
 
   /* ---------------- Build badges per day ---------------- */
   const buildBadges = (day) => {
     const dayKey = format(day, "yyyy-MM-dd");
-    
-    // ✅ FIX: ปรับปรุง Logic Filter ให้แข็งแรงขึ้น
+
     const rawLeaves = leavesByKey.get(dayKey) || [];
     const dayLeaves = rawLeaves.filter((leaf) => {
-      // ถ้าไม่มีการเลือก Filter ให้แสดงทั้งหมด
+      // ถ้าไม่เลือก filter => แสดงทั้งหมด
       if (!selectedTypes || selectedTypes.length === 0) return true;
 
-      // ดึงค่า Type ของใบลาออกมา Normalize
       const leafType = String(leaf.type || leaf.typeName || "").trim();
-      
-      // ตรวจสอบว่าตรงกับที่เลือกหรือไม่ (รองรับทั้ง matchLeaveType และการเทียบ String ปกติ)
+
       return selectedTypes.some((filterKey) => {
-        // 1. ลองใช้ utility function ที่ส่งเข้ามา
+        // 1) ใช้ util matchLeaveType ก่อน
         if (matchLeaveType(leafType, filterKey)) return true;
-        
-        // 2. ถ้า utility ไม่ work ให้ลองเทียบแบบ Case Insensitive String
-        return leafType.toUpperCase() === String(filterKey).toUpperCase();
+
+        // 2) fallback เทียบแบบ case-insensitive
+        return (
+          leafType.toUpperCase() === String(filterKey || "").trim().toUpperCase()
+        );
       });
     });
 
     // TYPE => { count, sample }
     const typeMap = dayLeaves.reduce((acc, leaf) => {
-      const type = String(leaf.type || leaf.typeName || "UNKNOWN").toUpperCase();
-      if (!acc[type]) {
-        acc[type] = { count: 0, sample: leaf };
-      }
+      const type = getTypeKey(leaf.type || leaf.typeName || "UNKNOWN");
+      if (!acc[type]) acc[type] = { count: 0, sample: leaf };
       acc[type].count += 1;
       return acc;
     }, {});
@@ -163,22 +234,24 @@ export default function CalendarGrid({
               ) : (
                 <div className="mt-2 space-y-1">
                   {typeBadges.map(([type, { count, sample }]) => {
-                    const theme = leaveTheme(type);
+                    const theme = themeFromDb(type, leaveTypeMap);
                     const label = resolveLeaveLabel(sample);
 
                     return (
                       <div
                         key={type}
-                        className={[
-                          "text-[10px] px-2 py-1 rounded-lg border flex items-center gap-2 truncate font-black uppercase tracking-widest",
-                          theme.border,
-                          theme.bg,
-                          theme.text,
-                        ].join(" ")}
+                        className="text-[10px] px-2 py-1 rounded-lg border flex items-center gap-2 truncate font-black uppercase tracking-widest"
+                        style={{
+                          backgroundColor: theme.bg,
+                          borderColor: theme.border,
+                          color: theme.text,
+                        }}
                         title={`${label} • ${count}`}
                       >
                         <span
-                          className={`w-1.5 h-1.5 rounded-full ${theme.dot}`}
+                          className="w-1.5 h-1.5 rounded-full border border-white/30"
+                          style={{ backgroundColor: theme.dot }}
+                          aria-hidden="true"
                         />
                         <span className="truncate">
                           {label} • {count}
