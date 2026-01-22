@@ -8,12 +8,7 @@ function ymd(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-/**
- * ✅ ประมวลผลทบ Annual (ไม่เกิน 12 วัน) แบบ idempotent:
- * - ทบเฉพาะ Annual
- * - carryAmount = min(max(remaining,0), 12)
- * - ปีใหม่: carryOverDays = max(carryOverDays เดิม, carryAmount) (กันรันซ้ำแล้วบวกซ้ำ)
- */
+
 async function runCarryOverAnnual(targetYear) {
   const lastYear = targetYear - 1;
   const CAP = 12;
