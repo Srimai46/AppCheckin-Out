@@ -1,9 +1,8 @@
-// backend/src/controllers/timeRecordController.js
 const prisma = require("../config/prisma");
 const { auditLog } = require("../utils/logger");
 
 // =========================
-// Notification Helpers (ADD)
+// Notification Helpers
 // =========================
 
 const formatBangkokTimeHHMM = (date) => {
@@ -19,9 +18,6 @@ const safeNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
 
 /**
  * สร้าง Notification ให้ HR ทุกคน
- * - employeeId = hr.id (เจ้าของ noti)
- * - relatedEmployeeId = actorEmployeeId (คนที่เข้า/ออก/มาสาย/ออกก่อน)
- * - notificationType = "CheckIn" | "CheckOut" | "LateWarning" | "EarlyLeaveWarning"
  */
 const notifyHR = async ({
   io,
@@ -30,8 +26,12 @@ const notifyHR = async ({
   message,
   relatedRequestId = null,
 }) => {
+  // ✅ FIX 1: แก้ Query HR ผ่าน Role Relation Name
   const hrUsers = await prisma.employee.findMany({
-    where: { role: "HR", isActive: true },
+    where: { 
+        role: { name: "HR" }, 
+        isActive: true 
+    },
     select: { id: true },
   });
 
@@ -49,7 +49,6 @@ const notifyHR = async ({
 
   await prisma.notification.createMany({ data: rows });
 
-  // realtime: ให้ frontend fetch เอง (ชัวร์สุด)
   if (io) {
     hrIds.forEach((hrId) => {
       io.to(`user_${hrId}`).emit("notification_refresh");
@@ -58,7 +57,7 @@ const notifyHR = async ({
 };
 
 // =========================
-// Helper Functions (existing)
+// Helper Functions
 // =========================
 
 const getThaiStartOfDay = () => {
@@ -88,11 +87,10 @@ const formatThaiTime = (date) => {
 };
 
 const checkIsHolidayOrWeekend = async (date) => {
-  const dayOfWeek = date.getDay(); // 0=Sun,6=Sat
-
+  const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
   const dateStr = date.toLocaleDateString("en-CA", {
     timeZone: "Asia/Bangkok",
-  }); // YYYY-MM-DD
+  });
   const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
 
   const holiday = await prisma.holiday.findUnique({
@@ -106,15 +104,7 @@ const checkIsHolidayOrWeekend = async (date) => {
   };
 };
 
-const calculateMidpoint = (start, end) => {
-  const startMs = start.getTime();
-  const endMs = end.getTime();
-  const midMs = (startMs + endMs) / 2;
-  const midDate = new Date(midMs);
-  midDate.setSeconds(0);
-  midDate.setMilliseconds(0);
-  return midDate;
-};
+// ❌ REMOVED: calculateMidpoint (ใช้ Break Time จาก DB แทนแม่นยำกว่า)
 
 // =========================
 // Controllers
@@ -123,14 +113,11 @@ const calculateMidpoint = (start, end) => {
 exports.checkIn = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userRole = req.user.role;
     const { note, location } = req.body;
     const now = new Date();
 
     // 1) ตรวจสอบวันหยุด
-    const { isWeekend, isHoliday, holidayName } = await checkIsHolidayOrWeekend(
-      now
-    );
+    const { isWeekend, isHoliday, holidayName } = await checkIsHolidayOrWeekend(now);
     const isSpecialDay = isWeekend || isHoliday;
 
     // 2) เช็คว่ามี record วันนี้แล้วไหม
@@ -143,9 +130,7 @@ exports.checkIn = async (req, res) => {
     });
 
     if (existingRecord) {
-      return res
-        .status(400)
-        .json({ error: "You have already checked in for today." });
+      return res.status(400).json({ error: "You have already checked in for today." });
     }
 
     // --- เช็คใบลา ---
@@ -171,34 +156,44 @@ exports.checkIn = async (req, res) => {
       }
     }
 
-    // 3) ดึง config
-    const config = await prisma.workConfiguration.findUnique({
-      where: { role: userRole },
+    // ✅ FIX 2: ดึง Config ผ่าน Relation เพื่อเอา Break Time
+    const employee = await prisma.employee.findUnique({
+        where: { id: userId },
+        include: { role: { include: { workConfig: true } } }
     });
+    
+    const config = employee?.role?.workConfig;
 
-    const startHour = config ? config.startHour : 9;
-    const startMin = config ? config.startMin : 0;
-    const endHour = config ? config.endHour : 18;
-    const endMin = config ? config.endMin : 0;
+    // Default Values
+    const startHour = config?.startHour ?? 9;
+    const startMin = config?.startMin ?? 0;
+    
+    // ✅ NEW: Break Time Values (สำหรับคำนวณครึ่งวัน)
+    // ถ้าลาเช้า -> ต้องมาเข้างานตอน "หมดเวลาพัก" (Break End)
+    const breakEndHour = config?.breakEndHour ?? 13;
+    const breakEndMin = config?.breakEndMin ?? 0;
 
     const standardStartTime = new Date(todayStart);
     standardStartTime.setHours(todayStart.getHours() + startHour);
     standardStartTime.setMinutes(startMin);
 
-    const standardEndTime = new Date(todayStart);
-    standardEndTime.setHours(todayStart.getHours() + endHour);
-    standardEndTime.setMinutes(endMin);
-
     let expectedCheckInTime = standardStartTime;
+
+    // ✅ FIX 3: ถ้าลาเช้า ให้เริ่มงานตอนหมดเวลาพัก
     if (isHalfMorningLeave) {
-      expectedCheckInTime = calculateMidpoint(standardStartTime, standardEndTime);
+        expectedCheckInTime = new Date(todayStart);
+        expectedCheckInTime.setHours(todayStart.getHours() + breakEndHour);
+        expectedCheckInTime.setMinutes(breakEndMin);
     }
 
-    // 4) สถานะ check-in
+    // 4) สถานะ check-in (Late Threshold สามารถเพิ่มตรงนี้ได้ถ้าต้องการ)
+    const lateThresholdMin = config?.lateThresholdMin || 15;
+    const lateLimitTime = new Date(expectedCheckInTime.getTime() + lateThresholdMin * 60000);
+
     let isLate = false;
     let checkInStatusEnum = "ON_TIME";
 
-    if (!isSpecialDay && now > expectedCheckInTime) {
+    if (!isSpecialDay && now > lateLimitTime) {
       isLate = true;
       checkInStatusEnum = "LATE";
     }
@@ -210,12 +205,7 @@ exports.checkIn = async (req, res) => {
     } else if (isLate) {
       statusText = "Late";
     } else if (isHalfMorningLeave) {
-      // แค่เอาไว้ display note
-      const noon = new Date(todayStart);
-      noon.setHours(12, 0, 0, 0);
-      if (now < standardStartTime) statusText = "Full Day (Worked on Morning Leave)";
-      else if (now < noon) statusText = "Early Arrival (Morning)";
-      else statusText = "Half Day (Afternoon Shift)";
+      statusText = "Half Day (Afternoon Shift)";
     }
 
     // 6) บันทึก
@@ -227,10 +217,7 @@ exports.checkIn = async (req, res) => {
           checkInTime: now,
           isLate,
           checkInStatus: checkInStatusEnum,
-          note:
-            isSpecialDay || isHalfMorningLeave
-              ? `[${statusText}] ${note || ""}`
-              : note || null,
+          note: isSpecialDay || isHalfMorningLeave ? `[${statusText}] ${note || ""}` : note || null,
           checkInLat: location?.lat ? parseFloat(location.lat) : null,
           checkInLng: location?.lng ? parseFloat(location.lng) : null,
         },
@@ -264,23 +251,13 @@ exports.checkIn = async (req, res) => {
     }
 
     // =========================
-    // ADD: Notifications to HR
+    // Notifications to HR
     // =========================
     try {
       const io2 = req.app.get("io");
-
-      const actor = await prisma.employee.findUnique({
-        where: { id: userId },
-        select: { firstName: true, lastName: true },
-      });
-
-      const fullName = actor
-        ? `${actor.firstName} ${actor.lastName}`
-        : `Employee #${userId}`;
-
+      const fullName = `${req.user.firstName} ${req.user.lastName}`;
       const timeStr = formatBangkokTimeHHMM(now);
 
-      // 1) CheckIn (ทุกครั้ง)
       await notifyHR({
         io: io2,
         actorEmployeeId: userId,
@@ -288,7 +265,6 @@ exports.checkIn = async (req, res) => {
         message: `✅ ${fullName} checked in at ${timeStr}`,
       });
 
-      // 2) LateWarning (เฉพาะมาสาย)
       if (isLate) {
         await notifyHR({
           io: io2,
@@ -300,7 +276,6 @@ exports.checkIn = async (req, res) => {
     } catch (e) {
       console.error("Notify HR (checkIn) error:", e);
     }
-    // =========================
 
     return res.status(201).json({
       message: "Check-in successful",
@@ -322,8 +297,7 @@ exports.checkIn = async (req, res) => {
 exports.checkOut = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userRole = req.user.role;
-    const { location } = req.body;
+    const { location, note } = req.body; // รับ Note ตอนออกด้วยถ้ามี
     const now = new Date();
 
     const todayStart = getThaiStartOfDay();
@@ -364,43 +338,51 @@ exports.checkOut = async (req, res) => {
       }
     }
 
-    // คำนวณเวลาเลิกงาน
-    const config = await prisma.workConfiguration.findUnique({
-      where: { role: userRole },
+    // ✅ FIX 4: ดึง Config เพื่อเอา Break Time
+    const employee = await prisma.employee.findUnique({
+        where: { id: userId },
+        include: { role: { include: { workConfig: true } } }
     });
+    
+    const config = employee?.role?.workConfig;
 
-    const startHour = config ? config.startHour : 9;
-    const startMin = config ? config.startMin : 0;
-    const endHour = config ? config.endHour : 18;
-    const endMin = config ? config.endMin : 0;
-
-    const standardStartTime = new Date(todayStart);
-    standardStartTime.setHours(todayStart.getHours() + startHour);
-    standardStartTime.setMinutes(startMin);
+    const endHour = config?.endHour ?? 18;
+    const endMin = config?.endMin ?? 0;
+    
+    // ✅ NEW: Break Time (สำหรับลาบ่าย)
+    // ถ้าลาบ่าย -> เลิกงานได้ตั้งแต่ "เริ่มพัก" (Break Start)
+    const breakStartHour = config?.breakStartHour ?? 12;
+    const breakStartMin = config?.breakStartMin ?? 0;
 
     const standardEndTime = new Date(todayStart);
     standardEndTime.setHours(todayStart.getHours() + endHour);
     standardEndTime.setMinutes(endMin);
 
     let expectedCheckOutTime = standardEndTime;
+
+    // ✅ FIX 5: ถ้าลาบ่าย เลิกงานได้ตอนเริ่มพัก
     if (isHalfAfternoonLeave) {
-      expectedCheckOutTime = calculateMidpoint(standardStartTime, standardEndTime);
-      expectedCheckOutTime.setSeconds(0);
-      expectedCheckOutTime.setMilliseconds(0);
+        expectedCheckOutTime = new Date(todayStart);
+        expectedCheckOutTime.setHours(todayStart.getHours() + breakStartHour);
+        expectedCheckOutTime.setMinutes(breakStartMin);
     }
 
     // สถานะ check-out
     let isEarlyLeave = false;
     let checkOutStatusEnum = "NORMAL";
 
+    // เช็คว่าออกก่อนเวลาไหม
     if (!isSpecialDay && now < expectedCheckOutTime) {
       isEarlyLeave = true;
       checkOutStatusEnum = "EARLY";
     }
 
-    // กรณีลาครึ่งบ่าย: เดิมคุณอยาก set LEAVE (คงไว้ตาม logic เดิมของคุณ)
+    // ถ้าลาบ่าย และออกก่อนเวลาปกติ (แต่หลังเวลา breakStart) ถือว่า Normal สำหรับการลา
+    // แต่ถ้าออกก่อน BreakStart อีก ก็ถือว่า Early
     if (!isSpecialDay && isHalfAfternoonLeave) {
-      checkOutStatusEnum = isEarlyLeave ? "EARLY" : "LEAVE";
+        // Code เดิมของคุณกำหนดว่าถ้าลาบ่ายแล้วออกก่อนให้เป็น EARLY
+        // แต่จริงๆ ถ้าเขาลาบ่าย เขามีสิทธิ์ออกตอนเที่ยง ถ้าออกก่อนเที่ยงถึงจะเป็น Early
+        checkOutStatusEnum = isEarlyLeave ? "EARLY" : "LEAVE";
     }
 
     const expectedTimeStr = formatThaiTime(expectedCheckOutTime);
@@ -420,11 +402,11 @@ exports.checkOut = async (req, res) => {
           checkOutStatus: checkOutStatusEnum,
           checkOutLat: location?.lat ? parseFloat(location.lat) : null,
           checkOutLng: location?.lng ? parseFloat(location.lng) : null,
-          note: record.checkOutTime
-            ? record.note
-              ? `${record.note} (Updated Out)`
-              : "Updated Out"
-            : record.note,
+          note: record.note
+            ? note 
+                ? `${record.note} | ${note} (Out)` // Append new note
+                : record.note
+            : note || null,
         },
       });
 
@@ -433,7 +415,7 @@ exports.checkOut = async (req, res) => {
         modelName: "TimeRecord",
         recordId: out.id,
         userId,
-        details: `Employee ${record.checkOutTime ? "updated check-out" : "checked out"}: ${statusText} (Status: ${checkOutStatusEnum})`,
+        details: `Employee checked out: ${statusText} (Status: ${checkOutStatusEnum})`,
         oldValue: { checkOutTime: record.checkOutTime },
         newValue: { checkOutTime: out.checkOutTime },
         req,
@@ -456,23 +438,13 @@ exports.checkOut = async (req, res) => {
     }
 
     // =========================
-    // ADD: Notifications to HR
+    // Notifications to HR
     // =========================
     try {
       const io2 = req.app.get("io");
-
-      const actor = await prisma.employee.findUnique({
-        where: { id: userId },
-        select: { firstName: true, lastName: true },
-      });
-
-      const fullName = actor
-        ? `${actor.firstName} ${actor.lastName}`
-        : `Employee #${userId}`;
-
+      const fullName = `${req.user.firstName} ${req.user.lastName}`;
       const timeStr = formatBangkokTimeHHMM(now);
 
-      // 1) CheckOut (ทุกครั้ง)
       await notifyHR({
         io: io2,
         actorEmployeeId: userId,
@@ -480,7 +452,6 @@ exports.checkOut = async (req, res) => {
         message: `🏁 ${fullName} checked out at ${timeStr}`,
       });
 
-      // 2) EarlyLeaveWarning (เฉพาะออกก่อนเวลา)
       if (isEarlyLeave) {
         await notifyHR({
           io: io2,
@@ -492,7 +463,6 @@ exports.checkOut = async (req, res) => {
     } catch (e) {
       console.error("Notify HR (checkOut) error:", e);
     }
-    // =========================
 
     return res.json({
       message: "Clock-out successful",
@@ -513,12 +483,20 @@ exports.checkOut = async (req, res) => {
 exports.getMyHistory = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userRole = req.user.role;
+    // const userRole = req.user.role; // ไม่ใช้แล้ว เพราะเราจะดึงผ่าน Relation ชัวร์กว่า
     const { year, month } = req.query;
 
-    const config = await prisma.workConfiguration.findUnique({
-      where: { role: userRole },
+    // ✅ FIX 1: ดึง Config ผ่าน Relation (Employee -> Role -> WorkConfig)
+    const employeeData = await prisma.employee.findUnique({
+        where: { id: userId },
+        include: {
+            role: {
+                include: { workConfig: true }
+            }
+        }
     });
+
+    const config = employeeData?.role?.workConfig;
 
     let dateCondition = {};
     if (year) {
@@ -587,14 +565,13 @@ exports.getMyHistory = async (req, res) => {
         statusDisplay: inStatusDisplay,
         outStatusDisplay,
         workingHours,
+        // ✅ FIX 2: ส่ง Break Time กลับไปให้ Frontend ด้วย
         standardConfig: config
           ? {
-              start: `${String(config.startHour).padStart(2, "0")}:${String(
-                config.startMin
-              ).padStart(2, "0")}`,
-              end: `${String(config.endHour).padStart(2, "0")}:${String(
-                config.endMin
-              ).padStart(2, "0")}`,
+              start: `${String(config.startHour).padStart(2, "0")}:${String(config.startMin).padStart(2, "0")}`,
+              end: `${String(config.endHour).padStart(2, "0")}:${String(config.endMin).padStart(2, "0")}`,
+              breakStart: `${String(config.breakStartHour || 12).padStart(2, "0")}:${String(config.breakStartMin || 0).padStart(2, "0")}`,
+              breakEnd: `${String(config.breakEndHour || 13).padStart(2, "0")}:${String(config.breakEndMin || 0).padStart(2, "0")}`
             }
           : null,
         note: item.note || "-",
@@ -624,23 +601,23 @@ exports.getAllAttendance = async (req, res) => {
       };
     }
 
-    const [records, configs] = await Promise.all([
-      prisma.timeRecord.findMany({
+    // ✅ FIX 3: แก้การ Select Role และ Department (Schema ใหม่)
+    const records = await prisma.timeRecord.findMany({
         where: whereCondition,
         include: {
           employee: {
             select: {
               firstName: true,
               lastName: true,
-              role: true,
               profileImageUrl: true,
+              // ดึงเฉพาะชื่อ Role และ Department
+              role: { select: { name: true } }, 
+              department: { select: { name: true } } 
             },
           },
         },
         orderBy: { workDate: "desc" },
-      }),
-      prisma.workConfiguration.findMany(),
-    ]);
+    });
 
     const formattedRecords = records.map((item) => {
       let inStatusDisplay = "On Time";
@@ -676,6 +653,9 @@ exports.getAllAttendance = async (req, res) => {
       return {
         ...item,
         employeeName: `${item.employee.firstName} ${item.employee.lastName}`,
+        // ✅ FIX 4: Map ชื่อ Role/Dept จาก Object ให้เป็น String
+        role: item.employee.role?.name || "-", 
+        department: item.employee.department?.name || "-",
         dateDisplay: formatShortDate(item.workDate),
         checkInDisplay: formatThaiTime(item.checkInTime),
         checkOutDisplay: item.checkOutTime ? formatThaiTime(item.checkOutTime) : "-",
@@ -700,22 +680,26 @@ exports.getUserHistory = async (req, res) => {
 
     if (isNaN(employeeId)) return res.status(400).json({ error: "Invalid Employee ID" });
 
-    const [history, employee] = await Promise.all([
+    // ✅ FIX 1: ดึง Employee พร้อม Role และ Config ในคำสั่งเดียว (ลด DB Query)
+    const [history, employeeData] = await Promise.all([
       prisma.timeRecord.findMany({
         where: { employeeId },
         orderBy: { workDate: "desc" },
       }),
       prisma.employee.findUnique({
         where: { id: employeeId },
-        select: { role: true },
+        include: {
+            role: {
+                include: { workConfig: true } // ดึง Config ผ่าน Role
+            }
+        }
       }),
     ]);
 
-    if (!employee) return res.status(404).json({ error: "Employee not found" });
+    if (!employeeData) return res.status(404).json({ error: "Employee not found" });
 
-    const config = await prisma.workConfiguration.findUnique({
-      where: { role: employee.role },
-    });
+    // ✅ FIX 2: ดึง Config จาก Relation
+    const config = employeeData.role?.workConfig;
 
     const formattedHistory = history.map((item) => {
       let workingHours = "-";
@@ -755,14 +739,13 @@ exports.getUserHistory = async (req, res) => {
         outStatus: outStatusDisplay,
         duration: workingHours,
         note: item.note || "-",
+        // ✅ FIX 3: เพิ่ม Break Time เข้าไปใน Response
         standardConfig: config
           ? {
-              start: `${String(config.startHour).padStart(2, "0")}:${String(
-                config.startMin
-              ).padStart(2, "0")}`,
-              end: `${String(config.endHour).padStart(2, "0")}:${String(
-                config.endMin
-              ).padStart(2, "0")}`,
+              start: `${String(config.startHour).padStart(2, "0")}:${String(config.startMin).padStart(2, "0")}`,
+              end: `${String(config.endHour).padStart(2, "0")}:${String(config.endMin).padStart(2, "0")}`,
+              breakStart: `${String(config.breakStartHour || 12).padStart(2, "0")}:${String(config.breakStartMin || 0).padStart(2, "0")}`,
+              breakEnd: `${String(config.breakEndHour || 13).padStart(2, "0")}:${String(config.breakEndMin || 0).padStart(2, "0")}`
             }
           : null,
       };
@@ -782,7 +765,14 @@ exports.getTeamTodayAttendance = async (req, res) => {
     const [employees, todayRecords] = await Promise.all([
       prisma.employee.findMany({
         where: { isActive: true },
-        select: { id: true, firstName: true, lastName: true, role: true, isActive: true },
+        // ✅ FIX 4: Select เฉพาะชื่อ Role (ไม่เอาทั้ง Object)
+        select: { 
+            id: true, 
+            firstName: true, 
+            lastName: true, 
+            role: { select: { name: true } }, 
+            isActive: true 
+        },
         orderBy: { id: "asc" },
       }),
       prisma.timeRecord.findMany({
@@ -829,7 +819,8 @@ exports.getTeamTodayAttendance = async (req, res) => {
       return {
         employeeId: emp.id,
         fullName: `${emp.firstName} ${emp.lastName}`,
-        role: emp.role,
+        // ✅ FIX 5: แปลง Role Object เป็น String
+        role: emp.role?.name || "-",
         isActive: emp.isActive,
         checkInTimeDisplay: r?.checkInTime ? formatThaiTime(r.checkInTime) : null,
         checkOutTimeDisplay: r?.checkOutTime ? formatThaiTime(r.checkOutTime) : null,
