@@ -22,7 +22,29 @@ import {
   Minus,
   Plus,
   ChevronDown,
+  Building2, // ✅ NEW
 } from "lucide-react";
+
+// ✅ NEW: Department resolver (รองรับหลาย field ที่ backend/FE อาจส่งมา)
+const resolveDepartment = (info) => {
+  const raw =
+    info?.department?.name ||
+    info?.departmentName ||
+    info?.department ||
+    info?.deptName ||
+    info?.dept ||
+    info?.employeeDepartment ||
+    info?.employeeDept ||
+    "";
+
+  const name = String(raw || "").trim();
+  if (!name) return "-";
+
+  const upper = name.toUpperCase();
+  if (upper === "HUMAN RESOURCES") return "HR";
+  if (upper === "GENERAL AFFAIRS") return "GA";
+  return upper;
+};
 
 export default function EmployeeDetail() {
   const { t } = useTranslation();
@@ -157,20 +179,13 @@ export default function EmployeeDetail() {
       currentYear,
       ...(dataYears.length ? dataYears : [currentYear])
     );
-    const futureYears = Array.from(
-      { length: FUTURE_YEARS },
-      (_, i) => maxYear + i + 1
-    );
+    const futureYears = Array.from({ length: FUTURE_YEARS }, (_, i) => maxYear + i + 1);
 
-    return [...new Set([currentYear, ...dataYears, ...futureYears])].sort(
-      (a, b) => a - b
-    );
+    return [...new Set([currentYear, ...dataYears, ...futureYears])].sort((a, b) => a - b);
   }, [data, selectedYear]);
 
   // ================= Quota Update =================
   const handleApplyQuota = async () => {
-    // Note: confirmQuotaTitle is not in i18n, using generic or raw text for now, 
-    // or you can add specific keys. Using common for now.
     const confirmed = await alertConfirm(
       t("employeeDetail.adjustQuota"),
       t("common.confirm")
@@ -185,7 +200,7 @@ export default function EmployeeDetail() {
       });
       alertSuccess(t("common.success"), t("employeeDetail.quotaUpdated"));
       fetchData();
-      setShowQuotaModal(false); // Close modal on success
+      setShowQuotaModal(false);
     } catch {
       alertError(t("common.error"), t("employeeDetail.quotaFailed"));
     } finally {
@@ -204,32 +219,22 @@ export default function EmployeeDetail() {
   const handleSaveAll = async (e) => {
     e.preventDefault();
     if (newPassword && newPassword !== confirmPassword) {
-      return alertError(
-        t("common.error"),
-        t("employeeDetail.passwordMismatch")
-      );
+      return alertError(t("common.error"), t("employeeDetail.passwordMismatch"));
     }
 
-    const confirmed = await alertConfirm(
-      t("common.confirm"),
-      t("common.save") + "?"
-    );
+    const confirmed = await alertConfirm(t("common.confirm"), t("common.save") + "?");
     if (!confirmed) return;
 
     try {
       setUpdating(true);
       await api.put(`/employees/${id}`, formData);
-      if (newPassword)
-        await api.post(`/employees/${id}/reset-password`, { newPassword });
-      
+      if (newPassword) await api.post(`/employees/${id}/reset-password`, { newPassword });
+
       await alertSuccess(t("common.success"), t("employeeDetail.infoUpdated"));
       setShowModal(false);
       fetchData();
     } catch (err) {
-      alertError(
-        t("common.error"),
-        err.response?.data?.error || t("common.error")
-      );
+      alertError(t("common.error"), err.response?.data?.error || t("common.error"));
     } finally {
       setUpdating(false);
     }
@@ -237,21 +242,14 @@ export default function EmployeeDetail() {
 
   const handleUpdateStatus = async () => {
     const isCurrentlyActive = data.info.isActive;
-    const actionLabel = isCurrentlyActive
-      ? t("employeeDetail.terminate")
-      : t("employeeDetail.reinstate");
+    const actionLabel = isCurrentlyActive ? t("employeeDetail.terminate") : t("employeeDetail.reinstate");
 
-    const confirmed = await alertConfirm(
-      t("common.confirm"),
-      `${actionLabel}?`
-    );
+    const confirmed = await alertConfirm(t("common.confirm"), `${actionLabel}?`);
     if (!confirmed) return;
 
     try {
       setUpdating(true);
-      await api.patch(`/employees/${id}/status`, {
-        isActive: !isCurrentlyActive,
-      });
+      await api.patch(`/employees/${id}/status`, { isActive: !isCurrentlyActive });
       alertSuccess(t("common.success"), t("employeeDetail.infoUpdated"));
       setShowModal(false);
       fetchData();
@@ -261,6 +259,9 @@ export default function EmployeeDetail() {
       setUpdating(false);
     }
   };
+
+  // ✅ NEW: Department text from data.info
+  const dept = resolveDepartment(data?.info);
 
   // ================= UI =================
   return (
@@ -292,20 +293,25 @@ export default function EmployeeDetail() {
                     : "bg-rose-50 text-rose-600 border-rose-100"
                 }`}
               >
-                {data.info.isActive
-                  ? t("employeeDetail.working")
-                  : t("employeeDetail.resigned")}
+                {data.info.isActive ? t("employeeDetail.working") : t("employeeDetail.resigned")}
               </span>
             </div>
 
-            <p className="text-slate-400 font-bold text-lg italic">
-              {data.info.email}
-            </p>
+            <p className="text-slate-400 font-bold text-lg italic">{data.info.email}</p>
 
+            {/* ✅ CHANGED: Put Department between Role and JoiningDate */}
             <div className="flex flex-wrap justify-center md:justify-start gap-2 pt-2">
+              {/* Role */}
               <span className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl border border-blue-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                 <Briefcase size={14} /> {data.info.role}
               </span>
+
+              {/* ✅ Department (NEW middle badge) */}
+              <span className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-xl border border-indigo-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider">
+                <Building2 size={14} /> {dept}
+              </span>
+
+              {/* Joining Date */}
               <span className="bg-slate-50 text-slate-600 px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                 <ShieldCheck size={14} /> {t("employeeDetail.joined")}:{" "}
                 {data.info.joiningDate}
@@ -379,11 +385,13 @@ export default function EmployeeDetail() {
             </h2>
 
             <div className="grid grid-cols-2 gap-4">
-              {Object.keys(quotaDraft).map((t) => (
-                <div key={t} className="p-4 rounded-2xl bg-gray-50">
+              {Object.keys(quotaDraft).map((tKey) => (
+                <div key={tKey} className="p-4 rounded-2xl bg-gray-50">
                   <div className="flex justify-between mb-2 text-xs font-black">
-                    <span>{t}</span>
-                    <span>{quotaDraft[t]} {t("common.days")}</span>
+                    <span>{tKey}</span>
+                    <span>
+                      {quotaDraft[tKey]} {t("common.days")}
+                    </span>
                   </div>
 
                   <div className="flex justify-between">
@@ -391,7 +399,7 @@ export default function EmployeeDetail() {
                       onClick={() =>
                         setQuotaDraft((p) => ({
                           ...p,
-                          [t]: Math.max(0, p[t] - 1),
+                          [tKey]: Math.max(0, p[tKey] - 1),
                         }))
                       }
                     >
@@ -401,7 +409,7 @@ export default function EmployeeDetail() {
                       onClick={() =>
                         setQuotaDraft((p) => ({
                           ...p,
-                          [t]: p[t] + 1,
+                          [tKey]: p[tKey] + 1,
                         }))
                       }
                     >
@@ -450,7 +458,6 @@ export default function EmployeeDetail() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                    {/* Fallback to generic text or add to i18n later */}
                     {t("employeeDetail.labelFirstName", "Name")}
                   </label>
                   <input
@@ -465,7 +472,6 @@ export default function EmployeeDetail() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
-                     {/* Fallback to generic text or add to i18n later */}
                     {t("employeeDetail.labelLastName", "Surname")}
                   </label>
                   <input
@@ -560,18 +566,14 @@ export default function EmployeeDetail() {
                             setRoleOpen(false);
                           }}
                           className={`w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-all
-                            ${
-                              formData.role === "Worker" ? "bg-blue-50/40" : ""
-                            }
+                            ${formData.role === "Worker" ? "bg-blue-50/40" : ""}
                           `}
                         >
                           <span className="h-9 w-9 rounded-xl bg-slate-50 text-slate-700 border border-slate-100 flex items-center justify-center">
                             <Briefcase size={16} />
                           </span>
                           <div className="flex-1">
-                            <div className="font-black text-slate-800">
-                              Worker
-                            </div>
+                            <div className="font-black text-slate-800">Worker</div>
                             <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
                               {t("employeeDetail.standardAccess")}
                             </div>
@@ -659,14 +661,8 @@ export default function EmployeeDetail() {
                       : "bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100"
                   }`}
                 >
-                  {data.info.isActive ? (
-                    <UserMinus size={18} />
-                  ) : (
-                    <UserPlus size={18} />
-                  )}
-                  {data.info.isActive
-                    ? t("employeeDetail.terminate")
-                    : t("employeeDetail.reinstate")}
+                  {data.info.isActive ? <UserMinus size={18} /> : <UserPlus size={18} />}
+                  {data.info.isActive ? t("employeeDetail.terminate") : t("employeeDetail.reinstate")}
                 </button>
 
                 <button
