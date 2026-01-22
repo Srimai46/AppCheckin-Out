@@ -1,9 +1,7 @@
-// backend/src/controllers/leaves/leaveSystemController.js
-
 const prisma = require('../../config/prisma'); 
 const { validateAndApplyQuotaCaps } = require("../../utils/leaveUtils");
+// ✅ Import Helper มาแล้ว ต้องใช้ให้ครบทุกจุดครับ
 const { auditLog } = require("../../utils/logger");
-
 
 exports.processCarryOver = async (req, res) => {
   try {
@@ -35,28 +33,20 @@ exports.processCarryOver = async (req, res) => {
       for (const emp of allEmployees) {
         for (const type of leaveTypes) {
           
-          // 🔥 แก้ไข 1: จัดการ Key ให้เป็น UpperCase เสมอ เพื่อป้องกันปัญหา Case Sensitive
-          const typeKey = type.typeName.toUpperCase(); // เช่น "SICK", "ANNUAL"
-
-          // 🔥 แก้ไข 2: รองรับค่าจาก Frontend ทั้งแบบตัวเลข และแบบ Object
+          const typeKey = type.typeName.toUpperCase();
           const configValue = carryConfigs[typeKey];
           
           let allowedMaxCarry = 0;
-          let allowedTotalCap = 999; // ค่า Default ถ้าไม่กำหนด
+          let allowedTotalCap = 999; 
 
           if (typeof configValue === 'number') {
-            // กรณี Frontend ส่งมาเป็น: { "SICK": 5 }
             allowedMaxCarry = configValue;
           } else if (typeof configValue === 'string') {
-             // กรณีส่งมาเป็น String: { "SICK": "5" }
              allowedMaxCarry = parseInt(configValue, 10) || 0;
           } else if (typeof configValue === 'object' && configValue !== null) {
-            // กรณี Frontend ส่งมาเป็น Object: { "SICK": { maxCarry: 5 } }
             allowedMaxCarry = Number(configValue.maxCarry || 0);
             allowedTotalCap = Number(configValue.totalCap || 999);
           }
-
-          // -------------------------------------------------------------
 
           const oldQuota = await tx.leaveQuota.findUnique({
             where: {
@@ -70,27 +60,22 @@ exports.processCarryOver = async (req, res) => {
 
           let rawCarry = 0;
           if (oldQuota) {
-            // คำนวณยอดคงเหลือจากปีที่แล้ว (Total + Carry - Used)
             const remaining =
               Number(oldQuota.totalDays) +
               Number(oldQuota.carryOverDays) -
               Number(oldQuota.usedDays);
             
-            // ต้องไม่ต่ำกว่า 0
             rawCarry = Math.max(remaining, 0);
           }
 
-          // ตรวจสอบเงื่อนไขเพดานการทบ (Caps)
-          // ใช้งาน allowedMaxCarry ที่เราแกะค่ามาได้อย่างถูกต้อง
           const { finalBase, finalCarry } = validateAndApplyQuotaCaps({
             typeName: typeKey,
             totalDays: Number(quotas[typeKey] || 0),
             carryOverDays: rawCarry,
-            hrMaxCarry: allowedMaxCarry, // ✅ ใช้ค่าที่รับมาจาก Frontend
+            hrMaxCarry: allowedMaxCarry,
             hrTotalCap: allowedTotalCap,
           });
 
-          // บันทึก Quota ปีใหม่
           await tx.leaveQuota.upsert({
             where: {
               employeeId_leaveTypeId_year: {
@@ -125,7 +110,7 @@ exports.processCarryOver = async (req, res) => {
         },
       });
 
-      // 4. เปิดงวดปีใหม่ และบันทึกค่า Max Consecutive Days
+      // 4. เปิดงวดปีใหม่
       const maxConsecutiveVal = maxConsecutiveDays ? parseInt(maxConsecutiveDays, 10) : 0;
 
       await tx.systemConfig.upsert({
@@ -143,23 +128,20 @@ exports.processCarryOver = async (req, res) => {
 
       const auditDetails = `Processed carry over from ${lastYear} to ${tYear}. Total employees: ${allEmployees.length}`;
 
-      // 5. บันทึก Audit Log
-      await tx.auditLog.create({
-        data: {
-          action: "SYSTEM_LOCK",
-          modelName: "SystemConfig",
-          recordId: tYear,
-          performedById: userId,
-          details: auditDetails,
-          newValue: {
+      // 5. บันทึก Audit Log (✅ แก้มาใช้ Helper)
+      await auditLog(tx, {
+        action: "SYSTEM_LOCK",
+        modelName: "SystemConfig",
+        recordId: tYear,
+        userId: userId,
+        details: auditDetails,
+        newValue: {
             targetYear: tYear,
             baseQuotasSent: quotas,
-            carryConfigsUsed: carryConfigs, // บันทึกสิ่งที่ Frontend ส่งมา
+            carryConfigsUsed: carryConfigs,
             maxConsecutiveDays: maxConsecutiveVal
-          },
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent"),
         },
+        req: req
       });
 
       // 6. สร้าง Notification แจ้งพนักงาน
@@ -206,7 +188,6 @@ exports.getSystemConfigs = async (req, res) => {
       orderBy: { year: "desc" },
     });
 
-    // ถ้ายังไม่มี Config ของปีปัจจุบัน ให้ถือว่าเปิดงวดไว้ก่อน
     const hasCurrentYear = configs.some((c) => c.year === currentYear);
 
     res.json({
@@ -225,7 +206,6 @@ exports.updateSystemConfig = async (req, res) => {
     const { year, maxConsecutiveDays } = req.body;
     const hrId = req.user.id;
 
-    // Validation: เช็คว่าส่งค่ามาครบไหม (ระวัง! ถ้าส่ง 0 มา !0 จะเป็น true ดังนั้นต้องเช็ค undefined)
     if (!year || maxConsecutiveDays === undefined) {
       return res.status(400).json({ message: "Missing required fields (year, maxConsecutiveDays)." });
     }
@@ -238,7 +218,6 @@ exports.updateSystemConfig = async (req, res) => {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. หาข้อมูลเก่าก่อน (เพื่อเอามาทำ Audit Log)
       const existing = await tx.systemConfig.findUnique({
         where: { year: targetYear },
       });
@@ -247,15 +226,14 @@ exports.updateSystemConfig = async (req, res) => {
         throw new Error(`Configuration for year ${targetYear} not found.`);
       }
 
-      // 2. อัปเดตข้อมูล
       const updated = await tx.systemConfig.update({
         where: { year: targetYear },
         data: { maxConsecutiveDays: newMax },
       });
 
-      // 3. บันทึก Audit Log
       const auditDetails = `HR updated System Config for ${targetYear}. Max Consecutive: ${existing.maxConsecutiveDays} -> ${newMax}`;
       
+      // ✅ ตรงนี้ใช้ Helper ถูกแล้ว
       await auditLog(tx, {
         action: "UPDATE",
         modelName: "SystemConfig",
@@ -270,7 +248,6 @@ exports.updateSystemConfig = async (req, res) => {
       return { updated, auditDetails };
     });
 
-    // 4. Socket (Optional: ถ้าอยากให้หน้าจอ Setting เครื่องอื่นอัปเดตทันที)
     const io = req.app.get("io");
     if (io) {
         io.emit("new-audit-log", {
@@ -315,9 +292,7 @@ exports.reopenYear = async (req, res) => {
         });
     }
 
-    // เริ่ม Transaction
     const result = await prisma.$transaction(async (tx) => {
-      // 1. เช็คว่ามีข้อมูลปีนี้อยู่จริงไหม
       const existing = await tx.systemConfig.findUnique({
         where: { year: targetYear },
       });
@@ -330,7 +305,6 @@ exports.reopenYear = async (req, res) => {
         throw new Error(`Year ${targetYear} is already open.`);
       }
 
-      // 2. อัปเดตสถานะ
       const updated = await tx.systemConfig.update({
         where: { year: targetYear },
         data: {
@@ -341,41 +315,35 @@ exports.reopenYear = async (req, res) => {
 
       const auditDetails = `HR re-opened year ${targetYear}. Reason: ${reason}`;
 
-      // 3. บันทึก Audit Log ลง Database
-      await tx.auditLog.create({
-        data: {
-          action: "UPDATE", // หรือ "SYSTEM_UNLOCK"
-          modelName: "SystemConfig",
-          recordId: targetYear,
-          performedById: hrId,
-          details: auditDetails,
-          oldValue: { isClosed: true, closedAt: existing.closedAt },
-          newValue: { isClosed: false, closedAt: null },
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent"),
-        },
+      // 3. บันทึก Audit Log (✅ แก้มาใช้ Helper)
+      await auditLog(tx, {
+        action: "UPDATE", // หรือ "SYSTEM_UNLOCK"
+        modelName: "SystemConfig",
+        recordId: targetYear,
+        userId: hrId,
+        details: auditDetails,
+        oldValue: { isClosed: true, closedAt: existing.closedAt },
+        newValue: { isClosed: false, closedAt: null },
+        req: req
       });
 
       return { updated, auditDetails };
     });
 
-    // 4. ส่วน Real-time (Socket.io)
     const io = req.app.get("io");
     if (io) {
-        // 4.1 สั่งให้หน้าจอ Dashboard/Settings ของเครื่องอื่นรีเฟรชสถานะ
         io.emit("notification_refresh");
 
-        // 4.2 ส่ง Audit Log ไปแสดงบนหน้าจอ System Activities
         io.emit("new-audit-log", {
             id: Date.now(),
-            action: "UPDATE", // ใช้สีส้ม เพื่อเตือนว่ามีการแก้ไขปีงบประมาณ
+            action: "UPDATE",
             modelName: "SystemConfig",
             recordId: targetYear,
             performedBy: {
                 firstName: req.user.firstName,
                 lastName: req.user.lastName
             },
-            details: result.auditDetails, // "HR re-opened year... Reason: ..."
+            details: result.auditDetails,
             createdAt: new Date()
         });
     }
