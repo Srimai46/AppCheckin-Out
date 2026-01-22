@@ -185,7 +185,6 @@ exports.createLeaveRequest = async (req, res) => {
         req: req,
       });
 
-      // ✅ FIX 1: แก้ Query HR ผ่าน Relation
       const admins = await tx.employee.findMany({
         where: { 
             role: { name: "HR" }, // ใช้ Relation
@@ -338,7 +337,6 @@ exports.cancelLeaveRequest = async (req, res) => {
         },
       });
 
-      // ✅ FIX 1: แก้ Query หา HR ผ่าน Relation
       const admins = await tx.employee.findMany({
         where: { 
             role: { name: "HR" } // ต้องเช็คผ่าน role.name
@@ -564,7 +562,6 @@ exports.getAllLeaves = async (req, res) => {
             firstName: true, 
             lastName: true, 
             email: true,
-            // ✅ FIX 1: เจาะจงเอาแค่ชื่อ Role และ Department
             role: { select: { name: true } }, 
             department: { select: { name: true } } 
           },
@@ -588,8 +585,6 @@ exports.getAllLeaves = async (req, res) => {
         name: `${l.employee.firstName} ${l.employee.lastName}`,
         departmentName: l.employee?.department?.name || null,
         email: l.employee.email,
-        
-        // ✅ FIX 2: Map ข้อมูล Role/Dept เป็น String ให้ Frontend
         role: l.employee.role?.name || "-",
         department: l.employee.department?.name || "-",
 
@@ -639,8 +634,6 @@ exports.getPendingRequests = async (req, res) => {
             lastName: true,
             email: true,
             profileImageUrl: true,
-            
-            // ✅ FIX 1: ดึง Role และ Department มาแสดงให้ HR ดู
             role: { select: { name: true } },
             department: { select: { name: true } },
 
