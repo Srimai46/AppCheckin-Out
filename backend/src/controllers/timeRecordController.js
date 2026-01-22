@@ -1203,16 +1203,21 @@ exports.hrCheckOutEmployee = async (req, res) => {
 
 exports.updateWorkConfig = async (req, res) => {
   try {
-    // 1. รับค่า Break Time เข้ามาด้วย
     const { 
-        roleId, // รับเป็น ID แทน String
+        roleId,       // อาจจะส่งมา
+        departmentId, // หรือส่งอันนี้มา (เพิ่มใหม่)
         startHour, startMin, endHour, endMin,
         breakStartHour, breakStartMin, breakEndHour, breakEndMin 
     } = req.body;
     
     const hrId = req.user.id;
 
-    // 2. Validation Checks
+    // 1. Check Condition: ต้องส่งอย่างใดอย่างหนึ่งมา
+    if (!roleId && !departmentId) {
+        return res.status(400).json({ error: "Please provide either roleId or departmentId" });
+    }
+
+    // 2. Validation Checks (เหมือนเดิม)
     const validateTime = (h, m, name) => {
         if (h < 0 || h > 23) throw new Error(`${name}: Hour must be 0-23`);
         if (m < 0 || m > 59) throw new Error(`${name}: Minute must be 0-59`);
@@ -1221,19 +1226,27 @@ exports.updateWorkConfig = async (req, res) => {
     try {
         validateTime(startHour, startMin, "Start Time");
         validateTime(endHour, endMin, "End Time");
-        // Validate Break Time (ถ้าส่งมา)
         if (breakStartHour !== undefined) validateTime(breakStartHour, breakStartMin, "Break Start");
         if (breakEndHour !== undefined) validateTime(breakEndHour, breakEndMin, "Break End");
     } catch (e) {
         return res.status(400).json({ error: e.message });
     }
 
-    // 3. หา Role Name เพื่อเอามาลง Log (สวยๆ)
-    const targetRole = await prisma.role.findUnique({
-        where: { id: parseInt(roleId) }
-    });
+    // 3. หาชื่อ Target (Role หรือ Department) เพื่อลง Log
+    let targetName = "";
+    let targetType = ""; // "Role" หรือ "Department"
 
-    if (!targetRole) return res.status(404).json({ error: "Role not found" });
+    if (roleId) {
+        const role = await prisma.role.findUnique({ where: { id: parseInt(roleId) } });
+        if (!role) return res.status(404).json({ error: "Role not found" });
+        targetName = role.name;
+        targetType = "Role";
+    } else {
+        const dept = await prisma.department.findUnique({ where: { id: parseInt(departmentId) } });
+        if (!dept) return res.status(404).json({ error: "Department not found" });
+        targetName = dept.name;
+        targetType = "Department";
+    }
 
     const formatTime = (h, m) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
     const workTimeStr = `${formatTime(startHour, startMin)} - ${formatTime(endHour, endMin)}`;
@@ -1241,26 +1254,37 @@ exports.updateWorkConfig = async (req, res) => {
         ? ` (Break: ${formatTime(breakStartHour, breakStartMin)} - ${formatTime(breakEndHour, breakEndMin)})`
         : "";
 
-    const detailsText = `HR Updated Work Config for Role: ${targetRole.name} -> Work: ${workTimeStr}${breakTimeStr}`;
+    const detailsText = `HR Updated Work Config for ${targetType}: ${targetName} -> Work: ${workTimeStr}${breakTimeStr}`;
 
-    // 4. Update Database
+    // 4. Update Database (แยก Logic ตาม Role/Dept)
     const updatedConfig = await prisma.$transaction(async (tx) => {
-      // ใช้ roleId เป็น Unique Key แทน role string
-      const config = await tx.workConfiguration.upsert({
-        where: { roleId: parseInt(roleId) },
-        update: { 
-            startHour, startMin, endHour, endMin,
-            breakStartHour, breakStartMin, breakEndHour, breakEndMin
-        },
-        create: { 
-            roleId: parseInt(roleId), // Connect via ID
-            startHour, startMin, endHour, endMin,
-            breakStartHour: breakStartHour || 12, 
-            breakStartMin: breakStartMin || 0,
-            breakEndHour: breakEndHour || 13, 
-            breakEndMin: breakEndMin || 0
-        },
-      });
+      
+      let config;
+
+      // ข้อมูลที่จะ Update/Create
+      const dataPayload = {
+        startHour, startMin, endHour, endMin,
+        breakStartHour: breakStartHour || 12, 
+        breakStartMin: breakStartMin || 0,
+        breakEndHour: breakEndHour || 13, 
+        breakEndMin: breakEndMin || 0
+      };
+
+      if (roleId) {
+          // ✅ กรณี Role
+          config = await tx.workConfiguration.upsert({
+            where: { roleId: parseInt(roleId) },
+            update: dataPayload,
+            create: { roleId: parseInt(roleId), ...dataPayload },
+          });
+      } else {
+          // ✅ กรณี Department
+          config = await tx.workConfiguration.upsert({
+            where: { departmentId: parseInt(departmentId) },
+            update: dataPayload,
+            create: { departmentId: parseInt(departmentId), ...dataPayload },
+          });
+      }
 
       await auditLog(tx, {
         action: "UPDATE",
@@ -1290,7 +1314,7 @@ exports.updateWorkConfig = async (req, res) => {
 
     return res.json({
       success: true,
-      message: `Updated configuration for ${targetRole.name}`,
+      message: `Updated configuration for ${targetType}: ${targetName}`,
       data: updatedConfig,
     });
   } catch (error) {
@@ -1302,22 +1326,39 @@ exports.updateWorkConfig = async (req, res) => {
 exports.getWorkConfigs = async (req, res) => {
   try {
     const configs = await prisma.workConfiguration.findMany({
-      // ✅ Include Role เพื่อเอาชื่อ Role มาแสดง
       include: {
         role: {
             select: { id: true, name: true, description: true }
+        },
+        // ✅ เพิ่ม department
+        department: {
+            select: { id: true, name: true, description: true }
         }
       },
-      // ✅ เรียงตาม Role ID (หรือ Name)
-      orderBy: { roleId: "asc" },
+      // เรียงลำดับ (อาจจะเรียงตาม Role ก่อน แล้วค่อย Dept)
+      orderBy: [
+          { roleId: "asc" },
+          { departmentId: "asc" }
+      ],
     });
     
-    // จัด Format ข้อมูลเล็กน้อย (Flatten Role Name)
-    const formatted = configs.map(c => ({
-        ...c,
-        roleName: c.role.name,
-        roleDescription: c.role.description
-    }));
+    const formatted = configs.map(c => {
+        // เช็คว่าเป็น Config ของใคร
+        const type = c.roleId ? "Role" : "Department";
+        const entityName = c.role ? c.role.name : (c.department ? c.department.name : "Unknown");
+        const entityId = c.roleId || c.departmentId;
+
+        return {
+            ...c,
+            configType: type, // บอก Frontend ว่าเป็น Role หรือ Dept
+            targetName: entityName, // ชื่อ Role หรือ ชื่อ Dept
+            targetId: entityId,
+            
+            // เก็บค่าเดิมไว้เผื่อใช้
+            roleName: c.role?.name,
+            departmentName: c.department?.name
+        };
+    });
 
     return res.json({ success: true, data: formatted });
   } catch (error) {

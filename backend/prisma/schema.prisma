@@ -13,7 +13,6 @@ datasource db {
 // 1. Enums (ค่าคงที่ระบบอื่นๆ ยังคงเดิม)
 // ==========================================
 
-
 enum LeaveDuration {
   Full
   HalfMorning
@@ -69,49 +68,49 @@ enum CheckOutStatus {
 
 // ✅ NEW: Role Model (Dynamic Role)
 model Role {
-  id          Int      @id @default(autoincrement()) @map("role_id")
-  name        String   @unique @db.VarChar(50) // e.g., "HR", "WORKER", "ADMIN"
-  description String?  @db.Text
-  permissions Json?    @map("permissions") // เก็บ config สิทธิ์ (Optional)
+  id          Int     @id @default(autoincrement()) @map("role_id")
+  name        String  @unique @db.VarChar(50) // e.g., "HR", "WORKER", "ADMIN"
+  description String? @db.Text
+  permissions Json?   @map("permissions") // เก็บ config สิทธิ์ (Optional)
 
-  employees   Employee[]
-  workConfig  WorkConfiguration? // 1 Role มี 1 การตั้งค่าเวลา
+  employees  Employee[]
+  workConfig WorkConfiguration? // 1 Role มี 1 การตั้งค่าเวลา
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("roles")
 }
 
 // ✅ Model Department (Dynamic Department)
 model Department {
-  id          Int      @id @default(autoincrement()) @map("department_id")
-  name        String   @unique @db.VarChar(100) 
-  description String?  @db.Text
-  
-  employees   Employee[]
+  id          Int     @id @default(autoincrement()) @map("department_id")
+  name        String  @unique @db.VarChar(100)
+  description String? @db.Text
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  employees  Employee[]
+  workConfig WorkConfiguration?
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
 
   @@map("departments")
 }
 
 model Employee {
-  id              Int       @id @default(autoincrement()) @map("employee_id")
-  firstName       String    @map("first_name") @db.VarChar(100)
-  lastName        String    @map("last_name") @db.VarChar(100)
-  email           String    @unique @db.VarChar(255)
-  passwordHash    String    @map("password_hash") @db.VarChar(255)
-  
+  id           Int    @id @default(autoincrement()) @map("employee_id")
+  firstName    String @map("first_name") @db.VarChar(100)
+  lastName     String @map("last_name") @db.VarChar(100)
+  email        String @unique @db.VarChar(255)
+  passwordHash String @map("password_hash") @db.VarChar(255)
+
   // ✅ UPDATED: Link to Role Model
-  roleId          Int       @map("role_id")
-  role            Role      @relation(fields: [roleId], references: [id])
-  
+  roleId Int  @map("role_id")
+  role   Role @relation(fields: [roleId], references: [id])
+
   // ✅ UPDATED: Link to Department Model
-  departmentId    Int?      @map("department_id")
-  department      Department? @relation(fields: [departmentId], references: [id])
-  
+  departmentId Int?        @map("department_id")
+  department   Department? @relation(fields: [departmentId], references: [id])
+
   joiningDate     DateTime  @map("joining_date") @db.Date
   resignationDate DateTime? @map("resignation_date") @db.Date
   isActive        Boolean   @default(true) @map("is_active")
@@ -122,12 +121,12 @@ model Employee {
   // Relations
   leaveQuotas             LeaveQuota[]
   timeRecords             TimeRecord[]
-  leaveRequestsAsEmployee LeaveRequest[] @relation("EmployeeRequests")
-  leaveRequestsAsHr       LeaveRequest[] @relation("HrApprovals")
-  notifications           Notification[] @relation("NotificationOwner")
-  relatedNotifications    Notification[] @relation("NotificationRelatedEmployee")
+  leaveRequestsAsEmployee LeaveRequest[]      @relation("EmployeeRequests")
+  leaveRequestsAsHr       LeaveRequest[]      @relation("HrApprovals")
+  notifications           Notification[]      @relation("NotificationOwner")
+  relatedNotifications    Notification[]      @relation("NotificationRelatedEmployee")
   specialLeaveGrants      SpecialLeaveGrant[]
-  auditLogsPerformedBy    AuditLog[]     @relation("AuditLogsPerformedBy")
+  auditLogsPerformedBy    AuditLog[]          @relation("AuditLogsPerformedBy")
 
   @@map("employees")
 }
@@ -137,12 +136,21 @@ model Employee {
 // ==========================================
 
 model WorkConfiguration {
-  id        Int      @id @default(autoincrement())
-  
-  // ✅ UPDATED: Link to Role Model instead of Enum
-  roleId    Int      @unique @map("role_id")
-  role      Role     @relation(fields: [roleId], references: [id])
-  
+  id Int @id @default(autoincrement())
+
+  // -------------------------------------------------------
+  // ✅ 1. แก้ไข Role ให้เป็น Optional (?) 
+  // เพื่อให้สามารถว่างได้ ถ้า Config นี้เป็นของ Department
+  // -------------------------------------------------------
+  roleId Int?  @unique @map("role_id")
+  role   Role? @relation(fields: [roleId], references: [id])
+
+  // -------------------------------------------------------
+  // ✅ 2. เพิ่ม Department (Optional และ Unique)
+  // -------------------------------------------------------
+  departmentId Int?        @unique @map("department_id")
+  department   Department? @relation(fields: [departmentId], references: [id])
+
   // Work Hours
   startHour Int
   startMin  Int
@@ -150,13 +158,13 @@ model WorkConfiguration {
   endMin    Int
 
   // Break Time Configuration
-  breakStartHour Int @default(12) 
+  breakStartHour Int @default(12)
   breakStartMin  Int @default(0)
   breakEndHour   Int @default(13)
   breakEndMin    Int @default(0)
-  
+
   // Late Policy
-  lateThresholdMin Int @default(15) 
+  lateThresholdMin Int @default(15)
 
   updatedAt DateTime @updatedAt
 
@@ -175,7 +183,7 @@ model SystemConfig {
 model Holiday {
   id        Int      @id @default(autoincrement())
   date      DateTime @unique
-  name      Json     
+  name      Json
   isSubsidy Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -183,8 +191,8 @@ model Holiday {
 
 model HolidayPolicy {
   id                        Int      @id @default(autoincrement())
-  key                       String   @unique @db.VarChar(50) 
-  workingDays               Json? 
+  key                       String   @unique @db.VarChar(50)
+  workingDays               Json?
   maxConsecutiveHolidayDays Int      @default(0)
   updatedBy                 Int?
   updatedAt                 DateTime @updatedAt
@@ -228,12 +236,12 @@ model LeaveQuota {
 }
 
 model LeaveRequest {
-  id                 Int           @id @default(autoincrement()) @map("request_id")
-  employeeId         Int           @map("employee_id")
-  leaveTypeId        Int           @map("leave_type_id")
-  startDate          DateTime      @map("start_date") @db.Date
-  endDate            DateTime      @map("end_date") @db.Date
-  totalDaysRequested Decimal       @map("total_days_requested") @db.Decimal(4, 2)
+  id                 Int      @id @default(autoincrement()) @map("request_id")
+  employeeId         Int      @map("employee_id")
+  leaveTypeId        Int      @map("leave_type_id")
+  startDate          DateTime @map("start_date") @db.Date
+  endDate            DateTime @map("end_date") @db.Date
+  totalDaysRequested Decimal  @map("total_days_requested") @db.Decimal(4, 2)
 
   startDuration LeaveDuration @map("start_duration")
   endDuration   LeaveDuration @map("end_duration")
@@ -289,11 +297,11 @@ model TimeRecord {
   note           String?         @db.Text
   checkInStatus  CheckInStatus?  @map("check_in_status")
   checkOutStatus CheckOutStatus? @map("check_out_status")
-  checkInLat  Decimal? @map("check_in_lat") @db.Decimal(10, 8)
-  checkInLng  Decimal? @map("check_in_lng") @db.Decimal(11, 8)
-  checkOutLat Decimal? @map("check_out_lat") @db.Decimal(10, 8)
-  checkOutLng Decimal? @map("check_out_lng") @db.Decimal(11, 8)
-  employee Employee @relation(fields: [employeeId], references: [id])
+  checkInLat     Decimal?        @map("check_in_lat") @db.Decimal(10, 8)
+  checkInLng     Decimal?        @map("check_in_lng") @db.Decimal(11, 8)
+  checkOutLat    Decimal?        @map("check_out_lat") @db.Decimal(10, 8)
+  checkOutLng    Decimal?        @map("check_out_lng") @db.Decimal(11, 8)
+  employee       Employee        @relation(fields: [employeeId], references: [id])
 
   @@index([employeeId, workDate])
   @@map("time_records")
@@ -306,12 +314,12 @@ model AuditLog {
   recordId      Int         @map("record_id")
   performedById Int         @map("performed_by_id")
   performedBy   Employee    @relation("AuditLogsPerformedBy", fields: [performedById], references: [id])
-  details   String?  @db.Text
-  oldValue  Json?    @map("old_value")
-  newValue  Json?    @map("new_value")
-  ipAddress String?  @map("ip_address") @db.VarChar(45)
-  userAgent String?  @map("user_agent") @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  details       String?     @db.Text
+  oldValue      Json?       @map("old_value")
+  newValue      Json?       @map("new_value")
+  ipAddress     String?     @map("ip_address") @db.VarChar(45)
+  userAgent     String?     @map("user_agent") @db.Text
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
 
   @@index([modelName, recordId])
   @@index([performedById])
@@ -319,17 +327,17 @@ model AuditLog {
 }
 
 model Notification {
-  id               Int              @id @default(autoincrement()) @map("notification_id")
-  employeeId       Int              @map("employee_id")
-  notificationType NotificationType @map("notification_type")
-  message          String           @db.VarChar(500)
-  relatedRequestId Int?             @map("related_request_id")
-  relatedEmployeeId Int?      @map("related_employee_id")
-  relatedEmployee   Employee? @relation("NotificationRelatedEmployee", fields: [relatedEmployeeId], references: [id])
-  isRead    Boolean  @default(false) @map("is_read")
-  createdAt DateTime @default(now()) @map("created_at")
-  employee Employee @relation("NotificationOwner", fields: [employeeId], references: [id])
-  relatedRequest LeaveRequest? @relation(fields: [relatedRequestId], references: [id])
+  id                Int              @id @default(autoincrement()) @map("notification_id")
+  employeeId        Int              @map("employee_id")
+  notificationType  NotificationType @map("notification_type")
+  message           String           @db.VarChar(500)
+  relatedRequestId  Int?             @map("related_request_id")
+  relatedEmployeeId Int?             @map("related_employee_id")
+  relatedEmployee   Employee?        @relation("NotificationRelatedEmployee", fields: [relatedEmployeeId], references: [id])
+  isRead            Boolean          @default(false) @map("is_read")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  employee          Employee         @relation("NotificationOwner", fields: [employeeId], references: [id])
+  relatedRequest    LeaveRequest?    @relation(fields: [relatedRequestId], references: [id])
 
   @@index([employeeId, createdAt(sort: Desc)])
   @@index([employeeId, isRead])
