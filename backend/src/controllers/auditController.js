@@ -1,7 +1,3 @@
-// controllers/auditController.js
-
-// 1. ✅ ใช้ Prisma จากไฟล์ config กลาง (เพื่อลด Connection)
-// (ตรวจสอบ path ให้ตรงกับโครงสร้างโปรเจกต์ของคุณ)
 const prisma = require('../config/prisma');
 
 exports.getAuditLogs = async (req, res) => {
@@ -24,7 +20,8 @@ exports.getAuditLogs = async (req, res) => {
     if (modelName) where.modelName = modelName;
 
     if (performedById && !isNaN(parseInt(performedById))) {
-        where.performedById = parseInt(performedById);
+        // ใช้ Relation ในการกรอง (ปลอดภัยกว่า)
+        where.performedBy = { id: parseInt(performedById) };
     }
 
     if (start && end) {
@@ -34,65 +31,84 @@ exports.getAuditLogs = async (req, res) => {
       };
     }
 
-    // =========================================================
-    // ✅ UPDATE 1: Logic จำกัดสิทธิ์ (HR เห็นเฉพาะ Worker)
-    // =========================================================
-    const requesterRole = req.user.role; // (middleware แปลงเป็น String "HR"/"ADMIN" ให้แล้ว)
-
-    if (requesterRole === 'HR') {
-        // บังคับว่า Logs ที่ดึงมา ต้องเกิดจากคนที่เป็น WORKER เท่านั้น
-        where.performedBy = {
-            role: {
-                name: 'WORKER'
-            }
-        };
-    }
-    // ถ้าเป็น ADMIN ไม่ต้องทำอะไร (where ว่าง = ดูได้หมด)
-
-    // 3. ดึงข้อมูล
-    const [logs, total] = await Promise.all([
-      prisma.auditLog.findMany({
-        where,
-        skip,
-        take: parseInt(limit),
-        orderBy: { createdAt: 'desc' },
-        include: {
-          performedBy: {
-            select: {
-              firstName: true,
-              lastName: true,
-              // ✅ UPDATE 2: ดึงชื่อ Role จาก Relation Table
-              role: { 
-                  select: { name: true } 
-              }
-            }
-          }
+    // 2. ดึง Role
+    let requesterRole = "Unknown";
+    if (req.user?.role) {
+        if (typeof req.user.role === 'string') {
+            requesterRole = req.user.role;
+        } else if (typeof req.user.role === 'object' && req.user.role.name) {
+            requesterRole = req.user.role.name;
         }
-      }),
-      prisma.auditLog.count({ where })
-    ]);
+    }
 
-    // ✅ UPDATE 3: แปลง Role Object ให้เป็น String เพื่อให้ Frontend ใช้ง่าย
-    const formattedLogs = logs.map(log => ({
-        ...log,
-        performedBy: log.performedBy ? {
-            ...log.performedBy,
-            role: log.performedBy.role?.name || "Unknown"
-        } : null
-    }));
+    // 3. ปรับ Logic การมองเห็นของ HR
+    if (requesterRole === 'HR') {
+        where.OR = [
+            // 1. ดูของ Worker
+            { performedBy: { role: { name: 'WORKER' } } }, 
+            
+            // 2. ดูของตัวเอง
+            { performedBy: { id: req.user.id } }
+            
+            // ❌ เอา { performedBy: null } ออก เพราะ Schema บังคับว่าต้องมี User
+        ];
+    }
+    // ADMIN เห็นทุกอย่าง
 
-    res.json({
-      success: true,
-      data: formattedLogs,
-      pagination: {
-        total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / limit)
-      }
-    });
+    // 4. ดึงข้อมูล
+    try {
+        const [logs, total] = await Promise.all([
+            prisma.auditLog.findMany({
+                where,
+                skip,
+                take: parseInt(limit),
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    performedBy: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            role: { 
+                                select: { name: true } 
+                            }
+                        }
+                    }
+                }
+            }),
+            prisma.auditLog.count({ where })
+        ]);
+
+        // 5. จัดรูปแบบข้อมูล
+        const formattedLogs = logs.map(log => {
+            const roleName = log.performedBy?.role?.name || "Unknown";
+            return {
+                ...log,
+                performedBy: log.performedBy ? {
+                    firstName: log.performedBy.firstName,
+                    lastName: log.performedBy.lastName,
+                    role: roleName
+                } : null // ถ้าไม่มี user (ซึ่งไม่ควรเกิดตาม schema) ก็ส่ง null
+            };
+        });
+
+        res.json({
+            success: true,
+            data: formattedLogs,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+
+    } catch (dbError) {
+        console.error("❌ Prisma Error:", dbError);
+        return res.status(500).json({ success: false, error: "Database Error" });
+    }
+
   } catch (error) {
-    console.error("Get Audit Logs Error:", error);
+    console.error("❌ Controller Error:", error);
     res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
