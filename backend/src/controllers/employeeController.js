@@ -44,6 +44,49 @@ const hhmmToMinutes = (val) => {
   return Number(m[1]) * 60 + Number(m[2]);
 };
 
+/**
+ * ✅ Normalize + resolve helpers (รองรับทั้ง id number, id เป็น string "3", หรือ name "GENERAL")
+ * FE แนะนำส่ง roleId / departmentId จะชัวร์ที่สุด แต่ยังรองรับ role/department แบบ name ตามเดิม
+ */
+const toIntOrNull = (v) => {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isInteger(n) ? n : null;
+};
+
+const normalizeName = (v) => String(v ?? "").trim().toUpperCase();
+
+const resolveRoleId = async (prismaOrTx, roleLike) => {
+  const id = toIntOrNull(roleLike);
+  if (id) {
+    const r = await prismaOrTx.role.findUnique({ where: { id } });
+    return r?.id || null;
+  }
+
+  const name = normalizeName(roleLike);
+  if (!name) return null;
+
+  const r = await prismaOrTx.role.findFirst({ where: { name } });
+  return r?.id || null;
+};
+
+const resolveDepartmentId = async (prismaOrTx, deptLike) => {
+  const id = toIntOrNull(deptLike);
+  if (id) {
+    const d = await prismaOrTx.department.findUnique({ where: { id } });
+    return d?.id || null;
+  }
+
+  const name = normalizeName(deptLike);
+  if (!name) return null;
+
+  const d = await prismaOrTx.department.findFirst({ where: { name } });
+  return d?.id || null;
+};
+
+const isClearValue = (v) =>
+  v === null || v === undefined || (typeof v === "string" && v.trim() === "");
+
 // ==============================
 // Controllers
 // ==============================
@@ -59,9 +102,8 @@ exports.getAllEmployees = async (req, res) => {
         email: true,
         isActive: true,
         joiningDate: true,
-        // ดึงชื่อ Role/Department ผ่าน Relation
         role: { select: { id: true, name: true } },
-        department: { select: { id: true, name: true } }
+        department: { select: { id: true, name: true } },
       },
       orderBy: { id: "asc" },
     });
@@ -73,11 +115,10 @@ exports.getAllEmployees = async (req, res) => {
       email: e.email,
       isActive: e.isActive,
       joiningDate: e.joiningDate,
-      // Flatten Data
       role: e.role?.name || "Unknown",
       roleId: e.role?.id,
       department: e.department?.name || "Unassigned",
-      departmentId: e.department?.id
+      departmentId: e.department?.id,
     }));
 
     res.json(formattedEmployees);
@@ -91,15 +132,15 @@ exports.getAllEmployees = async (req, res) => {
 exports.getEmployeeById = async (req, res) => {
   try {
     const { id } = req.params;
-    let year = req.query.year ? parseInt(req.query.year, 10) : new Date().getFullYear();
+    let year = req.query.year
+      ? parseInt(req.query.year, 10)
+      : new Date().getFullYear();
     if (year > 2500) year -= 543;
 
     const employee = await prisma.employee.findUnique({
       where: { id: parseInt(id) },
       include: {
-        role: {
-          include: { workConfig: true } 
-        },
+        role: { include: { workConfig: true } },
         department: true,
         timeRecords: {
           where: {
@@ -131,8 +172,12 @@ exports.getEmployeeById = async (req, res) => {
 
     const workCfg = employee.role?.workConfig;
     const workEndTime =
-      workCfg && Number.isFinite(workCfg.endHour) && Number.isFinite(workCfg.endMin)
-        ? `${String(workCfg.endHour).padStart(2, "0")}:${String(workCfg.endMin).padStart(2, "0")}`
+      workCfg &&
+      Number.isFinite(workCfg.endHour) &&
+      Number.isFinite(workCfg.endMin)
+        ? `${String(workCfg.endHour).padStart(2, "0")}:${String(
+            workCfg.endMin
+          ).padStart(2, "0")}`
         : null;
 
     const endMin = hhmmToMinutes(workEndTime);
@@ -151,7 +196,7 @@ exports.getEmployeeById = async (req, res) => {
         departmentId: employee.departmentId,
         joiningDate: formatShortDate(employee.joiningDate),
         isActive: employee.isActive,
-        profileImageUrl: employee.profileImageUrl
+        profileImageUrl: employee.profileImageUrl,
       },
       quotas: employee.leaveQuotas.map((q) => {
         const base = parseFloat(q.totalDays) || 0;
@@ -170,23 +215,34 @@ exports.getEmployeeById = async (req, res) => {
       }),
       attendance: employee.timeRecords.map((record) => {
         const outMin = timeToMinutesBangkok(record.checkOutTime);
-        const isEarly = endMin != null && outMin != null ? outMin < endMin : false;
+        const isEarly =
+          endMin != null && outMin != null ? outMin < endMin : false;
+
         const checkOutStatus = !record.checkOutTime
           ? "NO_CHECKOUT"
           : isEarly
           ? "EARLY"
           : "NORMAL";
+
         return {
           id: record.id,
           workDate: record.workDate,
           dateDisplay: formatShortDate(record.workDate),
           checkInTime: record.checkInTime,
           checkOutTime: record.checkOutTime,
-          checkInTimeDisplay: record.checkInTime ? formatThaiTime(record.checkInTime) : "-",
-          checkOutTimeDisplay: record.checkOutTime ? formatThaiTime(record.checkOutTime) : "-",
+          checkInTimeDisplay: record.checkInTime
+            ? formatThaiTime(record.checkInTime)
+            : "-",
+          checkOutTimeDisplay: record.checkOutTime
+            ? formatThaiTime(record.checkOutTime)
+            : "-",
           isLate: !!record.isLate,
           note: record.note || "-",
-          checkInStatus: record.checkInTime ? (record.isLate ? "LATE" : "ON_TIME") : "ABSENT",
+          checkInStatus: record.checkInTime
+            ? record.isLate
+              ? "LATE"
+              : "ON_TIME"
+            : "ABSENT",
           checkOutStatus,
         };
       }),
@@ -212,7 +268,7 @@ exports.getEmployeeById = async (req, res) => {
   }
 };
 
-// 3. เปลี่ยนสถานะพนักงาน 
+// 3. เปลี่ยนสถานะพนักงาน
 exports.updateEmployeeStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -220,7 +276,8 @@ exports.updateEmployeeStatus = async (req, res) => {
     const adminId = req.user.id;
     const employeeId = parseInt(id);
 
-    if (isNaN(employeeId)) return res.status(400).json({ error: "Invalid employee ID" });
+    if (isNaN(employeeId))
+      return res.status(400).json({ error: "Invalid employee ID" });
 
     const adminUser = await prisma.employee.findUnique({
       where: { id: adminId },
@@ -245,9 +302,7 @@ exports.updateEmployeeStatus = async (req, res) => {
       const updatedEmployee = await tx.employee.update({
         where: { id: employeeId },
         data: { isActive: !!isActive },
-        include: {
-            role: { select: { name: true } }
-        }
+        include: { role: { select: { name: true } } },
       });
 
       const statusText = !!isActive ? "Active" : "Inactive";
@@ -295,15 +350,19 @@ exports.updateEmployeeStatus = async (req, res) => {
       });
 
       if (!isActive) {
-        io.to(`user_${employeeId}`).emit("force_logout", { message: "Account deactivated" });
+        io.to(`user_${employeeId}`).emit("force_logout", {
+          message: "Account deactivated",
+        });
       }
     }
 
     res.json({
-      message: `Employee status updated to ${result.updatedEmployee.isActive ? "Active" : "Inactive"}`,
+      message: `Employee status updated to ${
+        result.updatedEmployee.isActive ? "Active" : "Inactive"
+      }`,
       data: {
-          ...result.updatedEmployee,
-          role: result.updatedEmployee.role?.name 
+        ...result.updatedEmployee,
+        role: result.updatedEmployee.role?.name,
       },
     });
   } catch (error) {
@@ -315,7 +374,19 @@ exports.updateEmployeeStatus = async (req, res) => {
 // 4. สร้างพนักงานใหม่พร้อมโควตา
 exports.createEmployee = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, role, department, joiningDate } = req.body;
+    // ✅ รองรับ roleId/departmentId ด้วย (เผื่อ FE ส่ง id มา)
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      role,
+      roleId,
+      department,
+      departmentId,
+      joiningDate,
+    } = req.body;
+
     const adminId = req.user.id;
 
     const adminUser = await prisma.employee.findUnique({
@@ -329,44 +400,28 @@ exports.createEmployee = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const currentYear = new Date().getFullYear();
 
-    // --- Dynamic Role Lookup ---
-    let targetRoleId;
-    if (role) {
-       // ถ้าส่งมาเป็น ID (Number) ให้ใช้เลย, ถ้าเป็น String ให้หาจาก Name
-       if (Number.isInteger(role)) {
-           targetRoleId = role;
-       } else {
-           const roleObj = await prisma.role.findFirst({
-               where: { name: String(role).toUpperCase().trim() }
-           });
-           if (roleObj) targetRoleId = roleObj.id;
-       }
-    }
-    
-    // Default Role
+    // ✅ Resolve Role (prefer roleId)
+    let targetRoleId = await resolveRoleId(prisma, roleId ?? role);
+
+    // Default Role = WORKER
     if (!targetRoleId) {
-        const defaultRole = await prisma.role.findFirst({ where: { name: "WORKER" } });
-        if (!defaultRole) throw new Error("System error: Default role 'WORKER' not found");
-        targetRoleId = defaultRole.id;
+      const defaultRole = await prisma.role.findFirst({
+        where: { name: "WORKER" },
+      });
+      if (!defaultRole)
+        throw new Error("System error: Default role 'WORKER' not found");
+      targetRoleId = defaultRole.id;
     }
 
-    // --- Dynamic Department Lookup ---
-    let targetDeptId;
-    if (department) {
-       if (Number.isInteger(department)) {
-           targetDeptId = department;
-       } else {
-           const deptObj = await prisma.department.findFirst({
-               where: { name: String(department).toUpperCase().trim() }
-           });
-           if (deptObj) targetDeptId = deptObj.id;
-       }
-    }
+    // ✅ Resolve Department (prefer departmentId)
+    let targetDeptId = await resolveDepartmentId(prisma, departmentId ?? department);
 
-    // Default Department (Optional)
+    // Default Department = GENERAL (ถ้าไม่มีใน DB จะปล่อย null)
     if (!targetDeptId) {
-        // อาจจะปล่อย null หรือหา Default department
-        // targetDeptId = ...
+      const defaultDept = await prisma.department.findFirst({
+        where: { name: "GENERAL" },
+      });
+      targetDeptId = defaultDept?.id || null;
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -379,19 +434,18 @@ exports.createEmployee = async (req, res) => {
           joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
           isActive: true,
           role: { connect: { id: targetRoleId } },
-          department: targetDeptId ? { connect: { id: targetDeptId } } : undefined
+          department: targetDeptId ? { connect: { id: targetDeptId } } : undefined,
         },
-        include: { role: true, department: true } 
+        include: { role: true, department: true },
       });
 
       // Create Quotas
       const quotaMap = { Sick: 30, Personal: 6, Annual: 6, Emergency: 5 };
       const leaveTypes = await tx.leaveType.findMany();
-      let quotaDataForDB = [];
-      let quotaSummaryForLog = {};
 
+      let quotaSummaryForLog = {};
       if (leaveTypes.length > 0) {
-        quotaDataForDB = leaveTypes.map((type) => {
+        const quotaDataForDB = leaveTypes.map((type) => {
           const days = Number(quotaMap[type.typeName] ?? 0);
           quotaSummaryForLog[type.typeName] = days;
           return {
@@ -406,8 +460,9 @@ exports.createEmployee = async (req, res) => {
         await tx.leaveQuota.createMany({ data: quotaDataForDB });
       }
 
-      const roleName = newEmployee.role?.name;
+      const roleName = newEmployee.role?.name || "Unknown";
       const deptName = newEmployee.department?.name || "None";
+
       const cleanNewValue = {
         name: `${firstName} ${lastName}`,
         email: email,
@@ -419,6 +474,7 @@ exports.createEmployee = async (req, res) => {
       };
 
       const logDetails = `Created new employee: ${firstName} ${lastName} (${roleName} - ${deptName})`;
+
       await auditLog(tx, {
         action: "CREATE",
         modelName: "Employee",
@@ -458,7 +514,7 @@ exports.createEmployee = async (req, res) => {
         lastName: result.newEmployee.lastName,
         email: result.newEmployee.email,
         role: result.newEmployee.role?.name,
-        department: result.newEmployee.department?.name
+        department: result.newEmployee.department?.name,
       },
     });
   } catch (error) {
@@ -467,63 +523,61 @@ exports.createEmployee = async (req, res) => {
   }
 };
 
-// 5. getAttendanceStats 
+// 5. getAttendanceStats
 exports.getAttendanceStats = async (req, res) => {
-    try {
-        const { date } = req.query;
-        const targetDate = date ? new Date(date) : new Date();
+  try {
+    const { date } = req.query;
+    const targetDate = date ? new Date(date) : new Date();
 
-        const startOfDay = new Date(targetDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(targetDate);
-        endOfDay.setHours(23, 59, 59, 999);
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
 
-        // นับพนักงาน Active
-        const totalEmployees = await prisma.employee.count({
-            where: { isActive: true }
-        });
+    const totalEmployees = await prisma.employee.count({
+      where: { isActive: true },
+    });
 
-        const records = await prisma.timeRecord.findMany({
-            where: { workDate: { gte: startOfDay, lte: endOfDay } },
-            include: {
-                employee: {
-                    select: {
-                        firstName: true,
-                        lastName: true,
-                        role: { select: { name: true } },
-                        department: { select: { name: true } }
-                    }
-                }
-            },
-        });
+    const records = await prisma.timeRecord.findMany({
+      where: { workDate: { gte: startOfDay, lte: endOfDay } },
+      include: {
+        employee: {
+          select: {
+            firstName: true,
+            lastName: true,
+            role: { select: { name: true } },
+            department: { select: { name: true } },
+          },
+        },
+      },
+    });
 
-        const checkedInCount = records.filter(r => r.checkInTime).length;
-        const lateCount = records.filter((r) => r.isLate).length;
-        const absentCount = Math.max(0, totalEmployees - checkedInCount);
+    const checkedInCount = records.filter((r) => r.checkInTime).length;
+    const lateCount = records.filter((r) => r.isLate).length;
+    const absentCount = Math.max(0, totalEmployees - checkedInCount);
 
-        const lateDetails = records
-            .filter((r) => r.isLate)
-            .map((r) => ({
-                name: `${r.employee.firstName} ${r.employee.lastName}`,
-                role: r.employee.role?.name || "-",
-                department: r.employee.department?.name || "-",
-                time: formatThaiTime(r.checkInTime),
-                note: r.note
-            }));
+    const lateDetails = records
+      .filter((r) => r.isLate)
+      .map((r) => ({
+        name: `${r.employee.firstName} ${r.employee.lastName}`,
+        role: r.employee.role?.name || "-",
+        department: r.employee.department?.name || "-",
+        time: formatThaiTime(r.checkInTime),
+        note: r.note,
+      }));
 
-        res.json({
-            selectedDate: formatShortDate(startOfDay),
-            totalEmployees,
-            checkedIn: checkedInCount,
-            late: lateCount,
-            absent: absentCount,
-            lateDetails
-        });
-
-    } catch (error) {
-        console.error("getAttendanceStats Error:", error);
-        res.status(500).json({ error: "Unable to retrieve statistical data." });
-    }
+    res.json({
+      selectedDate: formatShortDate(startOfDay),
+      totalEmployees,
+      checkedIn: checkedInCount,
+      late: lateCount,
+      absent: absentCount,
+      lateDetails,
+    });
+  } catch (error) {
+    console.error("getAttendanceStats Error:", error);
+    res.status(500).json({ error: "Unable to retrieve statistical data." });
+  }
 };
 
 // 6. resetPassword (เหมือนเดิม)
@@ -531,15 +585,15 @@ exports.resetPassword = async (req, res) => {
   try {
     const { id } = req.params;
     const { newPassword } = req.body;
-    const requester = req.user; 
+    const requester = req.user;
     const targetId = parseInt(id);
 
     const requesterUser = await prisma.employee.findUnique({
       where: { id: requester.id },
-      select: { 
-          firstName: true, 
-          lastName: true, 
-          role: { select: { name: true } } 
+      select: {
+        firstName: true,
+        lastName: true,
+        role: { select: { name: true } },
       },
     });
 
@@ -550,11 +604,15 @@ exports.resetPassword = async (req, res) => {
     const isAdminOrHR = roleName === "ADMIN" || roleName === "HR";
 
     if (!isAdminOrHR && !isOwner) {
-      return res.status(403).json({ error: "No permission to change this password." });
+      return res
+        .status(403)
+        .json({ error: "No permission to change this password." });
     }
 
     if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters." });
+      return res
+        .status(400)
+        .json({ error: "Password must be at least 6 characters." });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -624,7 +682,9 @@ exports.resetPassword = async (req, res) => {
     res.json({ message: "Password reset successful." });
   } catch (error) {
     console.error("resetPassword Error:", error);
-    res.status(400).json({ error: error.message || "Failed to reset password." });
+    res
+      .status(400)
+      .json({ error: error.message || "Failed to reset password." });
   }
 };
 
@@ -632,7 +692,11 @@ exports.resetPassword = async (req, res) => {
 exports.updateEmployee = async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { firstName, lastName, email, role, department } = req.body;
+
+    // ✅ รองรับ roleId/departmentId ด้วย
+    const { firstName, lastName, email, role, roleId, department, departmentId } =
+      req.body;
+
     const adminId = req.user.id;
 
     const adminUser = await prisma.employee.findUnique({
@@ -646,63 +710,62 @@ exports.updateEmployee = async (req, res) => {
     if (email !== undefined) dataToUpdate.email = email;
 
     // --- Logic หา Role ---
-    let newRoleName = null; 
-    if (role !== undefined) {
-      let roleId;
-      if (Number.isInteger(role)) {
-          roleId = role;
-          const roleObj = await prisma.role.findUnique({ where: { id: roleId } });
-          if (!roleObj) return res.status(400).json({ error: `Invalid role ID: ${role}` });
-          newRoleName = roleObj.name;
-      } else {
-          const roleObj = await prisma.role.findFirst({
-            where: { name: String(role).trim().toUpperCase() }
-          });
-          if (!roleObj) return res.status(400).json({ error: `Invalid role: ${role}` });
-          roleId = roleObj.id;
-          newRoleName = roleObj.name;
+    let newRoleName = null;
+    if (role !== undefined || roleId !== undefined) {
+      const resolvedRoleId = await resolveRoleId(prisma, roleId ?? role);
+      if (!resolvedRoleId) {
+        return res.status(400).json({
+          error: `Invalid role: ${roleId ?? role}`,
+        });
       }
-      dataToUpdate.role = { connect: { id: roleId } };
+      const roleObj = await prisma.role.findUnique({
+        where: { id: resolvedRoleId },
+      });
+      newRoleName = roleObj?.name || null;
+
+      dataToUpdate.role = { connect: { id: resolvedRoleId } };
     }
 
     // --- Logic หา Department ---
-    let newDeptName = null; 
-    if (department !== undefined) {
-       let deptId = null;
-       if (Number.isInteger(department)) {
-           deptId = department;
-           const deptObj = await prisma.department.findUnique({ where: { id: deptId } });
-           if (deptObj) newDeptName = deptObj.name;
-       } else {
-           const deptObj = await prisma.department.findFirst({
-             where: { name: String(department).trim().toUpperCase() }
-           });
-           if (deptObj) {
-               deptId = deptObj.id;
-               newDeptName = deptObj.name;
-           }
-       }
-       
-       if (deptId) {
-         dataToUpdate.department = { connect: { id: deptId } };
-       } else {
-         dataToUpdate.department = { disconnect: true }; // หรือปล่อย null
-         newDeptName = "None";
-       }
+    let newDeptName = null;
+    if (department !== undefined || departmentId !== undefined) {
+      const input = departmentId ?? department;
+
+      // ถ้าส่ง null/"" = ตั้งใจล้างแผนก
+      if (isClearValue(input)) {
+        dataToUpdate.department = { disconnect: true };
+        newDeptName = "None";
+      } else {
+        const resolvedDeptId = await resolveDepartmentId(prisma, input);
+        if (!resolvedDeptId) {
+          // ✅ โหมดเข้ม: ถ้าหาไม่เจอให้ error (อิง table จริง)
+          return res.status(400).json({
+            error: `Invalid department: ${input}`,
+          });
+        }
+        const deptObj = await prisma.department.findUnique({
+          where: { id: resolvedDeptId },
+        });
+        newDeptName = deptObj?.name || null;
+
+        dataToUpdate.department = { connect: { id: resolvedDeptId } };
+      }
     }
 
     const result = await prisma.$transaction(async (tx) => {
       const oldEmployee = await tx.employee.findUnique({
         where: { id },
-        select: { 
-            firstName: true, lastName: true, email: true, 
-            role: { select: { name: true } }, 
-            department: { select: { name: true } } 
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+          role: { select: { name: true } },
+          department: { select: { name: true } },
         },
       });
 
       if (!oldEmployee) throw { code: "P2025" };
-      
+
       const oldRoleName = oldEmployee.role?.name || "Unknown";
       const oldDeptName = oldEmployee.department?.name || "None";
 
@@ -714,26 +777,41 @@ exports.updateEmployee = async (req, res) => {
           firstName: true,
           lastName: true,
           email: true,
-          role: { select: { name: true } }, 
-          department: { select: { name: true } }, 
+          role: { select: { name: true } },
+          department: { select: { name: true } },
           isActive: true,
           joiningDate: true,
         },
       });
 
       const changes = [];
-      if (dataToUpdate.firstName && dataToUpdate.firstName !== oldEmployee.firstName)
+      if (
+        dataToUpdate.firstName !== undefined &&
+        dataToUpdate.firstName !== oldEmployee.firstName
+      )
         changes.push(`First Name: ${oldEmployee.firstName} -> ${dataToUpdate.firstName}`);
-      if (dataToUpdate.lastName && dataToUpdate.lastName !== oldEmployee.lastName)
+
+      if (
+        dataToUpdate.lastName !== undefined &&
+        dataToUpdate.lastName !== oldEmployee.lastName
+      )
         changes.push(`Last Name: ${oldEmployee.lastName} -> ${dataToUpdate.lastName}`);
-      if (dataToUpdate.email && dataToUpdate.email !== oldEmployee.email)
+
+      if (
+        dataToUpdate.email !== undefined &&
+        dataToUpdate.email !== oldEmployee.email
+      )
         changes.push(`Email: ${oldEmployee.email} -> ${dataToUpdate.email}`);
+
       if (newRoleName && newRoleName !== oldRoleName)
         changes.push(`Role: ${oldRoleName} -> ${newRoleName}`);
-      if (newDeptName && newDeptName !== oldDeptName)
+
+      // newDeptName อาจเป็น "None"
+      if (newDeptName !== null && newDeptName !== oldDeptName)
         changes.push(`Department: ${oldDeptName} -> ${newDeptName}`);
 
-      const auditDetails = changes.length > 0
+      const auditDetails =
+        changes.length > 0
           ? `Updated info for ${oldEmployee.firstName}: ${changes.join(", ")}`
           : `Updated info for ${oldEmployee.firstName} (No changes detected)`;
 
@@ -741,12 +819,17 @@ exports.updateEmployee = async (req, res) => {
         name: `${updated.firstName} ${updated.lastName}`,
         email: updated.email,
         role: updated.role?.name,
-        department: updated.department?.name,
+        department: updated.department?.name || "None",
         status: updated.isActive ? "Active" : "Inactive",
         changes: changes,
       };
-      
-      const cleanOldValue = { ...oldEmployee, role: oldRoleName, department: oldDeptName };
+
+      const cleanOldValue = {
+        name: `${oldEmployee.firstName} ${oldEmployee.lastName}`,
+        email: oldEmployee.email,
+        role: oldRoleName,
+        department: oldDeptName,
+      };
 
       await auditLog(tx, {
         action: "UPDATE",
@@ -785,17 +868,49 @@ exports.updateEmployee = async (req, res) => {
       employee: {
         ...result.updated,
         role: result.updated.role?.name,
-        department: result.updated.department?.name
+        department: result.updated.department?.name,
       },
     });
   } catch (err) {
     console.error("UpdateEmployee Error:", err);
     if (err.code === "P2002") {
-      return res.status(400).json({ error: "This email address is already in use." });
+      return res.status(400).json({
+        error: "This email address is already in use.",
+      });
     }
     if (err.code === "P2025" || err.status === 404) {
-      return res.status(404).json({ error: "No employees requiring update were found." });
+      return res.status(404).json({
+        error: "No employees requiring update were found.",
+      });
     }
     return res.status(500).json({ error: "Update employee failed" });
+  }
+};
+
+// 8) ดึงรายการ Departments (สำหรับ dropdown)
+exports.getDepartments = async (req, res) => {
+  try {
+    const items = await prisma.department.findMany({
+      select: { id: true, name: true, description: true },
+      orderBy: { name: "asc" },
+    });
+    res.json(items);
+  } catch (error) {
+    console.error("getDepartments Error:", error);
+    res.status(500).json({ error: "Failed to retrieve departments" });
+  }
+};
+
+// 9) ดึงรายการ Roles (สำหรับ dropdown)
+exports.getRoles = async (req, res) => {
+  try {
+    const items = await prisma.role.findMany({
+      select: { id: true, name: true, description: true },
+      orderBy: { name: "asc" },
+    });
+    res.json(items);
+  } catch (error) {
+    console.error("getRoles Error:", error);
+    res.status(500).json({ error: "Failed to retrieve roles" });
   }
 };

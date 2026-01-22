@@ -621,7 +621,9 @@ export default {
       title: "Employee Information",
 
       firstName: "Name",
+      firstNamePlaceholder: "Please enter name",
       lastName: "Surname",
+      lastNamePlaceholder: "Please enter surname",
       email: "Email",
       emailPlaceholder: "Please enter email",
 
@@ -629,6 +631,9 @@ export default {
       workerAccess: "Standard Access",
       hrAccess: "Full Access",
       roleNote: "Note: Changing role affects system permissions.",
+
+      department: "Department",
+      departmentNote: "Choose department for this employee",
 
       joinDate: "Join Date",
       pickJoinDate: "Select joining date",
@@ -651,6 +656,25 @@ export default {
 
       success: "Success",
       failed: "Failed",
+
+      loadingOptions: "Loading options...",
+      loadOptionsFailed: "Failed to load roles and departments. Please try again.",
+      noRoles: "No roles found",
+      noDepartments: "No departments found",
+
+      confirmName: "Name",
+      confirmSurname: "Surname",
+      confirmEmail: "Email",
+      confirmRole: "Role",
+      confirmDepartment: "Department",
+      confirmJoinDate: "Join Date",
+
+      fetchErrorFallback: "An error occurred while retrieving the information.",
+      unexpectedErrorFallback: "An unexpected error occurred. Please try again.",
+
+      aria: {
+        closeDepartmentDropdown: "Close department dropdown",
+      },
     },
 
     /* -------- Working Days -------- */

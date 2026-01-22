@@ -9,7 +9,21 @@ const safeNum = (v, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+// ✅ แยก “ไม่มีค่า” ออกจาก “ค่าเป็น 0 จริง”
+const numOrNull = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
 const norm = (s) => String(s ?? "").trim().toLowerCase();
+
+// ✅ normalize สำหรับ key: แก้ special_leave vs special leave vs special-leave
+const normKey = (s) =>
+  String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
 
 /** ✅ รองรับหลายรูปแบบ: label:{th,en} , labelTh/labelEn , nameTh/nameEn , typeName */
 const pickTypeLabel = (type, lang) => {
@@ -61,22 +75,74 @@ const pickTypeLabel = (type, lang) => {
 const isSpecialType = (type) => {
   const code = norm(type?.code || type?.key || type?.slug || "");
   const name = norm(
-    type?.typeName || type?.name || type?.label?.en || type?.label?.th || type?.labelEn || type?.labelTh || ""
+    type?.typeName ||
+      type?.name ||
+      type?.label?.en ||
+      type?.label?.th ||
+      type?.labelEn ||
+      type?.labelTh ||
+      ""
   );
   return code.includes("special") || name.includes("special");
 };
 
-/** ✅ quota ในโปรเจกต์คุณเป็นแบบ { type, total, remaining, used, carryOver, baseQuota, year } */
-const quotaTypeKey = (q) => norm(q?.type || q?.typeName || q?.leaveTypeName || q?.leaveType?.name || q?.name);
-const typeKey = (tp) => norm(tp?.typeName || tp?.name || tp?.label?.en || tp?.label?.th || tp?.labelEn || tp?.labelTh);
+/**
+ * ✅ quota ในโปรเจกต์คุณเป็นแบบ { type, total, remaining, used, carryOver, baseQuota, year }
+ * ✅ “จับคู่ด้วย code ก่อน” แล้วค่อย fallback เป็นชื่อ/label
+ */
+const quotaTypeKey = (q) =>
+  normKey(
+    q?.typeCode ||
+      q?.code ||
+      q?.type ||
+      q?.typeName ||
+      q?.leaveTypeName ||
+      q?.leaveType?.code ||
+      q?.leaveType?.name ||
+      q?.name
+  );
 
-const carryDaysOf = (q) => safeNum(q?.carryOverDays) || safeNum(q?.carryOver) || safeNum(q?.carryOver) || 0;
-const totalDaysOf = (q) => safeNum(q?.totalDays) || safeNum(q?.total) || safeNum(q?.quotaDays) || safeNum(q?.days) || 0;
-const usedDaysOf = (q) => safeNum(q?.usedDays) || safeNum(q?.used) || 0;
-const remainingDaysOf = (q, total, used) =>
-  safeNum(q?.remainingDays) || safeNum(q?.remaining) || safeNum(q?.remain) || Math.max(total - used, 0);
+const typeKey = (tp) =>
+  normKey(
+    tp?.code ||
+      tp?.key ||
+      tp?.slug ||
+      tp?.typeCode ||
+      tp?.typeName ||
+      tp?.name ||
+      tp?.label?.en ||
+      tp?.label?.th ||
+      tp?.labelEn ||
+      tp?.labelTh
+  );
+
+const carryDaysOf = (q) => safeNum(q?.carryOverDays) || safeNum(q?.carryOver) || safeNum(q?.carry_over) || 0;
+const totalDaysOf = (q) => safeNum(q?.totalDays) || safeNum(q?.total) || safeNum(q?.quotaDays) || safeNum(q?.days) || safeNum(q?.total_days) || 0;
+const usedDaysOf = (q) => safeNum(q?.usedDays) || safeNum(q?.used) || safeNum(q?.used_days) || 0;
+
+// ✅ ใช้ numOrNull กัน 0 หลอก แล้ว fallback เป็น total-used
+const remainingDaysOf = (q, total, used) => {
+  const a = numOrNull(q?.remainingDays);
+  if (a !== null) return a;
+
+  const b = numOrNull(q?.remaining);
+  if (b !== null) return b;
+
+  const c = numOrNull(q?.remain);
+  if (c !== null) return c;
+
+  const d = numOrNull(q?.remaining_days);
+  if (d !== null) return d;
+
+  return Math.max(total - used, 0);
+};
+
 const baseDaysOf = (q, total, carry) =>
-  safeNum(q?.baseDays) || safeNum(q?.baseQuota) || safeNum(q?.base) || (carry > 0 ? Math.max(total - carry, 0) : total);
+  safeNum(q?.baseDays) ||
+  safeNum(q?.baseQuota) ||
+  safeNum(q?.base) ||
+  safeNum(q?.base_days) ||
+  (carry > 0 ? Math.max(total - carry, 0) : total);
 
 /**
  * ✅ กติกา columns หลักของกริด
@@ -97,11 +163,10 @@ const computeMainCols = (n) => {
 const buildRowsWithPlaceholders = (cards, cols) => {
   const n = cards.length;
 
-  // case พิเศษ: 5 ใบ => แถว1 3 ใบ, แถว2 2 ใบโดยวางที่คอลัมน์ 1-2 (เว้นคอลัมน์ 3)
   if (n === 5 && cols === 3) {
     return [
       [cards[0], cards[1], cards[2]],
-      [cards[3], cards[4], null], // ✅ ใบที่ 5 อยู่ใต้ใบที่ 2
+      [cards[3], cards[4], null],
     ];
   }
 
@@ -154,9 +219,7 @@ function Card({ c }) {
             {t("quota.carriedDetail", { base: c.base, carry: c.carry })}
           </span>
         )}
-        {c.isSpecial && (
-          <span className="block mt-2 text-rose-400 font-black text-xs">{t("quota.specialUsage")}</span>
-        )}
+        {c.isSpecial && <span className="block mt-2 text-rose-400 font-black text-xs">{t("quota.specialUsage")}</span>}
       </div>
 
       <div className="mt-5">
@@ -176,7 +239,6 @@ function LeaveTypeCards({ leaveTypes = [], quotas = [] }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage || i18n.language || "th";
 
-  // ✅ ทำ map ของ quota โดย key = ชื่อ type (lowercase)
   const quotaByType = useMemo(() => {
     const m = new Map();
     (quotas || []).forEach((q) => {
@@ -188,10 +250,9 @@ function LeaveTypeCards({ leaveTypes = [], quotas = [] }) {
   }, [quotas]);
 
   const cards = useMemo(() => {
-    // ✅ ใช้ leaveTypes เป็นหลัก เพื่อให้ “มี 5 ก็ต้องขึ้น 5”
     const types = Array.isArray(leaveTypes) ? leaveTypes : [];
+
     if (!types.length) {
-      // ถ้าไม่มี leaveTypes จริงๆ ค่อย fallback จาก quota
       return (quotas || []).map((q, idx) => {
         const label = String(q?.type || q?.typeName || q?.leaveTypeName || "-");
         const carry = carryDaysOf(q);
@@ -200,6 +261,7 @@ function LeaveTypeCards({ leaveTypes = [], quotas = [] }) {
         const remaining = remainingDaysOf(q, total, used);
         const base = baseDaysOf(q, total, carry);
         const pct = total > 0 ? Math.min(100, Math.max(0, (used / total) * 100)) : 0;
+
         return {
           key: `q-${idx}-${label}`,
           label,
@@ -215,10 +277,16 @@ function LeaveTypeCards({ leaveTypes = [], quotas = [] }) {
     }
 
     return types.map((tp) => {
-      const key = typeKey(tp) || String(tp?.id ?? tp?.typeName ?? tp?.name ?? Math.random());
+      const k1 = typeKey(tp) || String(tp?.id ?? tp?.typeName ?? tp?.name ?? Math.random());
       const label = pickTypeLabel(tp, lang);
 
-      const q = quotaByType.get(key); // ✅ จับคู่ตามชื่อ type
+      // ✅ จับคู่ quota: key หลัก -> fallback ด้วย label
+      let q = quotaByType.get(k1);
+
+      if (!q) {
+        const k2 = normKey(label);
+        q = quotaByType.get(k2);
+      }
 
       const carry = q ? carryDaysOf(q) : 0;
       const total = q ? totalDaysOf(q) : 0;
@@ -228,7 +296,7 @@ function LeaveTypeCards({ leaveTypes = [], quotas = [] }) {
       const pct = total > 0 ? Math.min(100, Math.max(0, (used / total) * 100)) : 0;
 
       return {
-        key,
+        key: k1,
         label,
         isSpecial: isSpecialType(tp),
         carry,
@@ -244,7 +312,6 @@ function LeaveTypeCards({ leaveTypes = [], quotas = [] }) {
   const cols = useMemo(() => computeMainCols(cards.length), [cards.length]);
   const rows = useMemo(() => buildRowsWithPlaceholders(cards, cols), [cards, cols]);
 
-  // ✅ ถ้าปีนั้นไม่มี quota เลยให้ขึ้น noData
   if (!Array.isArray(quotas) || quotas.length === 0) {
     return (
       <div className="bg-white border border-gray-100 rounded-3xl p-10 text-center text-gray-500 font-bold">

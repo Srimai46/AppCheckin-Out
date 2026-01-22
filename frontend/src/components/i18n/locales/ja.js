@@ -606,36 +606,60 @@ export default {
       title: "従業員情報",
 
       firstName: "名",
+      firstNamePlaceholder: "名を入力してください",
       lastName: "姓",
+      lastNamePlaceholder: "姓を入力してください",
       email: "メール",
       emailPlaceholder: "メールを入力してください",
 
       role: "役割",
-      workerAccess: "標準アクセス",
-      hrAccess: "フルアクセス",
-      roleNote: "注意：役割の変更は権限に影響します。",
+      workerAccess: "標準権限",
+      hrAccess: "フル権限",
+      roleNote: "※ 役割の変更はシステム権限に影響します。",
+
+      department: "部署",
+      departmentNote: "従業員の部署を選択してください",
 
       joinDate: "入社日",
       pickJoinDate: "入社日を選択",
 
       password: "パスワード",
-      passwordHint: "6 文字以上",
+      passwordHint: "6文字以上",
 
-      confirmTitle: "登録の確認",
+      confirmTitle: "登録内容の確認",
       confirmButton: "登録",
       cancel: "キャンセル",
       submit: "登録",
       processing: "処理中...",
 
       roleWorker: "従業員",
-      roleHR: "HR",
-      selected: "選択中",
+      roleHR: "人事",
+      selected: "選択済み",
 
-      confirmReviewTitle: "以下の内容を確認してください",
+      confirmReviewTitle: "以下の内容をご確認ください",
       successText: "新しい従業員を追加しました。",
 
       success: "成功",
       failed: "失敗",
+
+      loadingOptions: "選択肢を読み込み中...",
+      loadOptionsFailed: "役割/部署の読み込みに失敗しました。再度お試しください。",
+      noRoles: "役割が見つかりません",
+      noDepartments: "部署が見つかりません",
+
+      confirmName: "名",
+      confirmSurname: "姓",
+      confirmEmail: "メール",
+      confirmRole: "役割",
+      confirmDepartment: "部署",
+      confirmJoinDate: "入社日",
+
+      fetchErrorFallback: "情報の取得中にエラーが発生しました。もう一度お試しください。",
+      unexpectedErrorFallback: "予期しないエラーが発生しました。もう一度お試しください。",
+
+      aria: {
+        closeDepartmentDropdown: "部署のドロップダウンを閉じる",
+      },
     },
 
     /* -------- working days -------- */

@@ -59,7 +59,6 @@ export default function EmployeeList() {
 
   const counts = useMemo(() => buildCounts(employees), [employees]);
 
-  // ✅ NEW: ทำรายการ departments สำหรับ dropdown (unique)
   const departmentOptions = useMemo(() => {
     const set = new Set();
     (employees || []).forEach((e) => {
@@ -72,7 +71,7 @@ export default function EmployeeList() {
   const filteredEmployees = useMemo(() => {
     return filterEmployees(employees, {
       activeTab,
-      departmentFilter, // ✅ NEW
+      departmentFilter,
       roleFilter,
       statusFilter,
       search,
@@ -151,9 +150,9 @@ export default function EmployeeList() {
 
         {/* Filters + Search */}
         <EmployeesTable.FiltersRow
-          departmentFilter={departmentFilter}              // ✅ NEW
-          setDepartmentFilter={setDepartmentFilter}        // ✅ NEW
-          departmentOptions={departmentOptions}            // ✅ NEW
+          departmentFilter={departmentFilter}
+          setDepartmentFilter={setDepartmentFilter}
+          departmentOptions={departmentOptions}
 
           roleFilter={roleFilter}
           setRoleFilter={setRoleFilter}

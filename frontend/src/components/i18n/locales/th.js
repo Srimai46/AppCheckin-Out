@@ -595,32 +595,60 @@ export default {
       title: "ข้อมูลพนักงาน",
 
       firstName: "ชื่อ",
+      firstNamePlaceholder: "กรุณากรอกชื่อ",
       lastName: "นามสกุล",
+      lastNamePlaceholder: "กรุณากรอกนามสกุล",
       email: "อีเมล",
       emailPlaceholder: "กรุณากรอกอีเมล",
 
-      role: "บทบาท",
-      workerAccess: "สิทธิ์ทั่วไป",
-      hrAccess: "สิทธิ์ทั้งหมด",
-      roleNote: "หมายเหตุ: การเปลี่ยนบทบาทส่งผลต่อสิทธิ์การใช้งานระบบ",
+      role: "ตำแหน่ง",
+      workerAccess: "สิทธิ์มาตรฐาน",
+      hrAccess: "สิทธิ์เต็ม",
+      roleNote: "หมายเหตุ: การเปลี่ยนตำแหน่งมีผลต่อสิทธิ์การใช้งานในระบบ",
 
-      joinDate: "วันที่เริ่มงาน",
-      pickJoinDate: "เลือกวันที่เริ่มงาน",
+      department: "แผนก",
+      departmentNote: "เลือกแผนกของพนักงาน",
+
+      joinDate: "วันที่เข้าทำงาน",
+      pickJoinDate: "เลือกวันที่เข้าทำงาน",
 
       password: "รหัสผ่าน",
-      passwordHint: "ขั้นต่ำ 6 ตัวอักษร",
+      passwordHint: "อย่างน้อย 6 ตัวอักษร",
+
       confirmTitle: "ยืนยันการลงทะเบียน",
       confirmButton: "ลงทะเบียน",
       cancel: "ยกเลิก",
-      submit: "ลงทะเบียนพนักงาน",
+      submit: "ลงทะเบียน",
       processing: "กำลังดำเนินการ...",
-      roleWorker: "พนักงานทั่วไป",
-      roleHR: "HR",
+
+      roleWorker: "พนักงาน",
+      roleHR: "ฝ่ายบุคคล",
       selected: "เลือกแล้ว",
-      confirmReviewTitle: "กรุณาตรวจสอบข้อมูลด้านล่าง",
+
+      confirmReviewTitle: "โปรดตรวจสอบข้อมูลด้านล่าง",
       successText: "เพิ่มพนักงานใหม่สำเร็จ",
+
       success: "สำเร็จ",
-      failed: "ล้มเหลว",
+      failed: "ไม่สำเร็จ",
+
+      loadingOptions: "กำลังโหลดข้อมูล...",
+      loadOptionsFailed: "โหลดข้อมูลตำแหน่ง/แผนกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+      noRoles: "ไม่พบข้อมูลตำแหน่ง",
+      noDepartments: "ไม่พบข้อมูลแผนก",
+
+      confirmName: "ชื่อ",
+      confirmSurname: "นามสกุล",
+      confirmEmail: "อีเมล",
+      confirmRole: "ตำแหน่ง",
+      confirmDepartment: "แผนก",
+      confirmJoinDate: "วันที่เข้าทำงาน",
+
+      fetchErrorFallback: "เกิดข้อผิดพลาดระหว่างดึงข้อมูล กรุณาลองใหม่อีกครั้ง",
+      unexpectedErrorFallback: "เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองใหม่อีกครั้ง",
+
+      aria: {
+        closeDepartmentDropdown: "ปิดเมนูเลือกแผนก",
+      },
     },
 
     workingDays: {

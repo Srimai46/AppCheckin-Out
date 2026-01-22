@@ -58,20 +58,27 @@ export default function QuotaCards({ quotas }) {
             {/* ===== CONTENT ===== */}
             {isSpecial ? (
               <>
-                {/* SPECIAL */}
+                {/* ✅ SPECIAL: แสดงตาม used ล้วนๆ */}
                 <div className="text-4xl font-black tracking-tighter text-slate-900">
                   {used}
-                  <span className="ml-1 text-[10px] font-black text-rose-400 uppercase tracking-widest">
-                    {t("quota.used")}
+                  <span className="ml-2 text-xs font-normal text-gray-400 uppercase">
+                    {t("quota.days")}
                   </span>
                 </div>
 
                 <div className="text-[10px] mt-1 font-black text-rose-400 uppercase tracking-widest">
+                  {t("quota.usedTotal", { used, total })}
+                </div>
+
+                <div className="text-[10px] mt-2 font-black text-rose-400 uppercase tracking-widest">
                   {t("quota.specialUsage")}
                 </div>
 
                 <div className="mt-4 w-full bg-rose-50 h-1.5 rounded-full overflow-hidden border border-rose-100">
-                  <div className="h-full bg-rose-300 w-full" />
+                  <div
+                    className="h-full bg-rose-300 transition-all duration-700"
+                    style={{ width: `${Math.min(percent, 100)}%` }}
+                  />
                 </div>
               </>
             ) : (

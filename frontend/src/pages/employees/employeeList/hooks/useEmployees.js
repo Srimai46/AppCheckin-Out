@@ -12,6 +12,10 @@ export default function useEmployees() {
 
   const [isCreating, setIsCreating] = useState(false);
 
+  // ✅ Keep options here so Confirm can show role/department names
+  const [roles, setRoles] = useState([]);
+  const [departments, setDepartments] = useState([]);
+
   const fetchEmployees = useCallback(async () => {
     try {
       setLoading(true);
@@ -33,12 +37,68 @@ export default function useEmployees() {
     }
   }, [t]);
 
+  // ✅ Load dropdown options (roles/departments) for confirm display + fallback map
+  const fetchOptions = useCallback(async () => {
+    try {
+      const [roleRes, deptRes] = await Promise.all([
+        api.get("/employees/roles"),
+        api.get("/employees/departments"),
+      ]);
+
+      setRoles(Array.isArray(roleRes?.data) ? roleRes.data : []);
+      setDepartments(Array.isArray(deptRes?.data) ? deptRes.data : []);
+    } catch (e) {
+      // ไม่ต้อง block flow แค่ทำให้ confirm อาจ fallback เป็น "-"
+      setRoles([]);
+      setDepartments([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchEmployees();
-  }, [fetchEmployees]);
+    fetchOptions();
+  }, [fetchEmployees, fetchOptions]);
+
+  const getRoleName = useCallback(
+    (formData) => {
+      // รองรับหลาย shape:
+      // - roleName (ถ้าคำนวณมาจาก modal แล้ว)
+      // - roleId (อิง DB)
+      // - role (string เดิม)
+      if (formData?.roleName) return formData.roleName;
+
+      const rid = formData?.roleId;
+      if (Number.isInteger(rid)) {
+        return roles.find((r) => r.id === rid)?.name || "-";
+      }
+
+      const roleStr = String(formData?.role ?? "").trim();
+      return roleStr || "-";
+    },
+    [roles]
+  );
+
+  const getDepartmentName = useCallback(
+    (formData) => {
+      if (formData?.departmentName) return formData.departmentName;
+
+      const did = formData?.departmentId;
+      if (Number.isInteger(did)) {
+        return departments.find((d) => d.id === did)?.name || "-";
+      }
+
+      const deptStr = String(formData?.department ?? "").trim();
+      return deptStr || "-";
+    },
+    [departments]
+  );
 
   const createEmployee = useCallback(
     async (formData) => {
+      // ✅ Use roleName/departmentName in Confirm
+      const roleName = getRoleName(formData);
+      const departmentName = getDepartmentName(formData);
+
       const confirmed = await alertConfirm(
         t("employeeCreate.confirmTitle"),
         `
@@ -50,7 +110,8 @@ export default function useEmployees() {
             - ${t("employeeCreate.firstName")}: ${formData.firstName || "-"}<br/>
             - ${t("employeeCreate.lastName")}: ${formData.lastName || "-"}<br/>
             - ${t("employeeCreate.email")}: ${formData.email || "-"}<br/>
-            - ${t("employeeCreate.role")}: ${formData.role || "-"}<br/>
+            - ${t("employeeCreate.role")}: ${roleName || "-"}<br/>
+            - ${t("employeeCreate.department")}: ${departmentName || "-"}<br/>
             - ${t("employeeCreate.joinDate")}: ${formData.joiningDate || "-"}<br/>
           </div>
         </div>
@@ -62,12 +123,16 @@ export default function useEmployees() {
       try {
         setIsCreating(true);
 
+        // ✅ Send ID to BE (best) — BE already supports number or string
         await api.post("/employees", {
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
           password: formData.password,
-          role: formData.role,
+          role: Number.isInteger(formData.roleId) ? formData.roleId : formData.role,
+          department: Number.isInteger(formData.departmentId)
+            ? formData.departmentId
+            : formData.department,
           joiningDate: formData.joiningDate,
         });
 
@@ -87,7 +152,7 @@ export default function useEmployees() {
         setIsCreating(false);
       }
     },
-    [t]
+    [t, getRoleName, getDepartmentName]
   );
 
   return {
@@ -96,5 +161,7 @@ export default function useEmployees() {
     fetchEmployees,
     createEmployee,
     isCreating,
+    roles,
+    departments,
   };
 }

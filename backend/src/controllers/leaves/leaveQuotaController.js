@@ -1,7 +1,16 @@
 const prisma = require('../../config/prisma'); 
 const { validateAndApplyQuotaCaps } = require("../../utils/leaveUtils");
-// ✅ Import Helper Logger เพื่อความสวยงามและมาตรฐานเดียวกับไฟล์อื่น
 const { auditLog } = require("../../utils/logger"); 
+
+/* ===================== helpers ===================== */
+// ✅ NEW: แปลงเป็น number แบบปลอดภัย (0 ถือว่า valid)
+const toNum = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// ✅ NEW: clamp ให้ไม่ติดลบ
+const clamp0 = (v) => Math.max(toNum(v), 0);
 
 exports.getMyQuotas = async (req, res) => {
   try {
@@ -20,19 +29,29 @@ exports.getMyQuotas = async (req, res) => {
     });
 
     const result = quotas.map((q) => {
-      const base = parseFloat(q.totalDays) || 0;
-      const carry = parseFloat(q.carryOverDays) || 0;
-      const used = parseFloat(q.usedDays) || 0;
+      // ✅ FIX: ไม่ใช้ parseFloat(x) || 0 (0 จะถูกมองเป็น falsy)
+      const base = clamp0(q.totalDays);
+      const carry = clamp0(q.carryOverDays);
+      const used = clamp0(q.usedDays);
+
       const totalAvailable = base + carry;
 
       return {
         id: q.id,
+
+        // ✅ ส่ง key ที่เสถียรให้ FE ใช้ logic (เช่น isSpecial)
+        typeKey: q.leaveType?.typeName || "UNKNOWN",
+        // ✅ คง field เดิมไว้ (เพื่อไม่ให้ FE พัง)
         type: q.leaveType?.typeName || "Unknown",
+
         baseQuota: base,
         carryOver: carry,
         total: totalAvailable,
         used: used,
-        remaining: totalAvailable - used,
+
+        // ✅ FIX: clamp remaining ไม่ให้ติดลบ
+        remaining: Math.max(totalAvailable - used, 0),
+
         year: q.year,
       };
     });
@@ -56,7 +75,6 @@ exports.updateCompanyQuotasByType = async (req, res) => {
     const typeNames = Object.keys(normalized);
     const leaveTypes = await getLeaveTypesByNames(typeNames);
 
-    // ✅ ตรงนี้ใช้ได้เลย ไม่กระทบกับ Relation Role/Dept
     const employees = await prisma.employee.findMany({
       where: onlyActive ? { isActive: true } : undefined,
       select: { id: true },
@@ -117,19 +135,18 @@ exports.updateCompanyQuotasByType = async (req, res) => {
 
         const auditDetails = `Bulk update company quotas for year ${targetYear}. Affected employees: ${employees.length}`;
 
-        // ✅ ใช้ auditLog Helper แทนการเขียนเอง
         await auditLog(tx, {
-            action: "UPDATE",
-            modelName: "LeaveQuota",
-            recordId: targetYear, // ใช้ Year เป็น ID แทนเพราะเป็นการทำ Bulk
-            userId: hrId,
-            details: auditDetails,
-            newValue: {
-              quotasSent: quotas,
-              configsUsed: configs,
-              onlyActiveOnly: onlyActive,
-            },
-            req: req
+          action: "UPDATE",
+          modelName: "LeaveQuota",
+          recordId: targetYear,
+          userId: hrId,
+          details: auditDetails,
+          newValue: {
+            quotasSent: quotas,
+            configsUsed: configs,
+            onlyActiveOnly: onlyActive,
+          },
+          req: req
         });
 
         return { updatedCount, employeeCount: employees.length, auditDetails };
@@ -215,12 +232,12 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
         const currentTotal = existing ? Number(existing.totalDays || 0) : 0;
 
         const { finalBase } = validateAndApplyQuotaCaps({
-            typeName: lt.typeName,
-            totalDays: newBaseInput,
-            carryOverDays: currentCarry,
-            currentUsed: currentUsed,
-            hrMaxCarry: lt.maxCarryOver,
-            hrTotalCap: setting.totalCap
+          typeName: lt.typeName,
+          totalDays: newBaseInput,
+          carryOverDays: currentCarry,
+          currentUsed: currentUsed,
+          hrMaxCarry: lt.maxCarryOver,
+          hrTotalCap: setting.totalCap
         });
 
         const updatedQuota = await tx.leaveQuota.upsert({
@@ -246,16 +263,15 @@ exports.updateEmployeeQuotasByType = async (req, res) => {
           const detailStr = `${lt.typeName}: ${currentTotal} -> ${finalBase}`;
           changeLogs.push(detailStr);
 
-          // ✅ ใช้ auditLog Helper
           await auditLog(tx, {
-             action: "UPDATE",
-             modelName: "LeaveQuota",
-             recordId: updatedQuota.id,
-             userId: hrId,
-             details: `HR updated quota for ${employee.firstName}. Change: ${detailStr}`,
-             oldValue: { totalDays: currentTotal },
-             newValue: { totalDays: finalBase },
-             req: req
+            action: "UPDATE",
+            modelName: "LeaveQuota",
+            recordId: updatedQuota.id,
+            userId: hrId,
+            details: `HR updated quota for ${employee.firstName}. Change: ${detailStr}`,
+            oldValue: { totalDays: currentTotal },
+            newValue: { totalDays: finalBase },
+            req: req
           });
         }
 
