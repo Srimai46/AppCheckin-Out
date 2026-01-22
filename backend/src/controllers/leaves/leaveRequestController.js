@@ -56,8 +56,7 @@ exports.createLeaveRequest = async (req, res) => {
       holidays.map((h) => [h.date.toISOString().split("T")[0], h.name])
     );
 
-    // ✅ 3.1 ดึง Working Days Policy (จาก DB)
-    // ตาราง: HolidayPolicy, key = "WORKING_DAYS", workingDays = ["MON","TUE",...]
+    // 3.1 ดึง Working Days Policy (จาก DB)
     const policy = await prisma.holidayPolicy.findUnique({
       where: { key: "WORKING_DAYS" },
       select: { workingDays: true },
@@ -67,12 +66,9 @@ exports.createLeaveRequest = async (req, res) => {
       ? policy.workingDays
       : ["MON", "TUE", "WED", "THU", "FRI"]; // default
 
-    // ✅ 3.2 บังคับ: ห้ามลาในวันหยุด/วันไม่ทำงาน
-    // - HOLIDAY: อยู่ใน holiday table
-    // - NON_WORKING_DAY: ไม่อยู่ใน workingDaysPolicy
+    // 3.2 บังคับ: ห้ามลาในวันหยุด/วันไม่ทำงาน
     const blocked = getBlockedLeaveDates(start, end, holidayDates, workingDaysPolicy);
     if (blocked.length > 0) {
-      // ทำข้อความให้ user อ่านง่าย (แสดงไม่กี่ตัวพอ)
       const preview = blocked
         .slice(0, 5)
         .map((b) => {
@@ -88,11 +84,11 @@ exports.createLeaveRequest = async (req, res) => {
         error: `Cannot request leave on holidays/non-working days: ${preview}${
           blocked.length > 5 ? ` ...(+${blocked.length - 5} more)` : ""
         }`,
-        blockedDates: blocked, // เผื่อ FE เอาไป highlight วันในปฏิทิน
+        blockedDates: blocked,
       });
     }
 
-    // 4. คำนวณวันลาจริง (ใช้ policy ใหม่ด้วย)
+    // 4. คำนวณวันลาจริง
     const totalDaysRequested = calculateTotalDays(
       start,
       end,
@@ -102,22 +98,16 @@ exports.createLeaveRequest = async (req, res) => {
       workingDaysPolicy
     );
 
-    // 5. ตรวจสอบวันหยุด (กันไว้ชั้นสอง)
+    // 5. ตรวจสอบวันหยุด
     if (totalDaysRequested <= 0) {
       return res.status(400).json({ error: "Cannot request leave as the selected dates are all holidays." });
     }
 
-    // ==================================================================================
-    // ✅ 6. ตรวจสอบเงื่อนไขลาติดต่อกัน (Hierarchy Logic: Type > Global)
-    // ==================================================================================
+    // 6. ตรวจสอบเงื่อนไขลาติดต่อกัน
     let limitDays = 0;
-
-    // Priority 1: กฎเฉพาะประเภท (เช่น ลาป่วยห้ามเกิน 3 วัน)
     if (leaveType.maxConsecutiveDays && leaveType.maxConsecutiveDays > 0) {
       limitDays = leaveType.maxConsecutiveDays;
-    }
-    // Priority 2: กฎบริษัทรายปี
-    else if (config && config.maxConsecutiveDays > 0) {
+    } else if (config && config.maxConsecutiveDays > 0) {
       limitDays = config.maxConsecutiveDays;
     }
 
@@ -126,7 +116,6 @@ exports.createLeaveRequest = async (req, res) => {
         error: `Policy Violation: You cannot take "${type}" for more than ${limitDays} consecutive working days.`,
       });
     }
-    // ==================================================================================
 
     const attachmentUrl = req.file ? `/uploads/leaves/${req.file.filename}` : null;
 
@@ -147,10 +136,8 @@ exports.createLeaveRequest = async (req, res) => {
         where: { employeeId_leaveTypeId_year: { employeeId: userId, leaveTypeId: leaveType.id, year } },
       });
 
-      // Special Type อาจไม่มี Quota ปกติ
       if (type !== "Special") {
         if (!quota) throw new Error(`No leave quota found for ${type} in ${year}.`);
-
         const remaining = Number(quota.totalDays) + Number(quota.carryOverDays || 0) - Number(quota.usedDays);
         if (remaining < totalDaysRequested) {
           throw new Error(`Insufficient balance. You have ${remaining} days left.`);
@@ -198,9 +185,12 @@ exports.createLeaveRequest = async (req, res) => {
         req: req,
       });
 
-      // 8. เตรียมข้อมูลแจ้งเตือน HR
+      // ✅ FIX 1: แก้ Query HR ผ่าน Relation
       const admins = await tx.employee.findMany({
-        where: { role: "HR", id: { not: userId } },
+        where: { 
+            role: { name: "HR" }, // ใช้ Relation
+            id: { not: userId } 
+        },
         select: { id: true },
       });
 
@@ -241,7 +231,7 @@ exports.createLeaveRequest = async (req, res) => {
       };
     });
 
-    // 🚀 8. Real-time Notification
+    // 8. Real-time Notification
     const io = req.app.get("io");
     if (io) {
       io.to("hr_group").emit("notification_refresh");
