@@ -44,7 +44,10 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const employeeRoutes = require("./routes/employeeRoute");
 const auditRoutes = require("./routes/auditRoutes");
 const holidayRoutes = require("./routes/holidayRoutes");
-const attendanceStatsRoutes = require("./routes/attendanceRoutes"); 
+const attendanceStatsRoutes = require("./routes/attendanceRoutes");
+
+// ✅ NEW: Import Routes ใหม่
+const departmentRoutes = require("./routes/departmentRoutes"); 
 
 app.use("/api/auth", authRoutes);
 app.use("/api/attendance", timeRecordRoutes);
@@ -55,6 +58,8 @@ app.use("/api/activity-view", auditRoutes); // Cron Jobs
 app.use("/api/holidays", holidayRoutes);
 app.use("/api/dashboard", attendanceStatsRoutes);
 
+// ✅ NEW: ใช้งาน Routes ใหม่
+app.use("/api/departments", departmentRoutes); // สำหรับจัดการแผนก
 
 const { startCarryOverJob } = require("./jobs/carryOverJob");
 startCarryOverJob();

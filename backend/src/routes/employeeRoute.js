@@ -1,3 +1,5 @@
+// backend\src\routes\employeeRoute.js
+
 const express = require("express");
 const router = express.Router();
 const { protect, authorize } = require("../middlewares/authMiddleware");
