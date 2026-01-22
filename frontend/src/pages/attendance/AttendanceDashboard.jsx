@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { getAttendanceStats } from "../../api/attendanceService";
-import { getLeaveTypes } from "../../api/leaveService"; // ✅ นำเข้าเพื่อใช้แปลภาษา
+import { getLeaveTypes } from "../../api/leaveService";
 import DateGridPicker from "../../components/shared/DateGridPicker";
 import {
   Calendar,
@@ -14,6 +14,8 @@ import {
   Timer,
   Filter,
   PieChart as PieChartIcon,
+  Building2,
+  BadgeCheck
 } from "lucide-react";
 import {
   PieChart,
@@ -45,19 +47,12 @@ const AttendanceCalendar = ({ year, month, stats, leaveTypesMaster }) => {
   const { t, i18n } = useTranslation();
   const currentLang = i18n.language?.split("-")[0] || "en";
 
-  /**
-   * ฟังก์ชันแปลภาษาสำหรับประเภทการลา (Leave Type)
-   * จะค้นหาข้อมูลจาก LeaveTypesMaster ที่โหลดมาจาก API
-   */
   const getLeaveLabel = (leaveTypeInput) => {
     if (!leaveTypeInput) return "";
-
-    // หาค่า identifier (เช่น "Sick" หรือ ID: 1)
     const typeIdOrName = typeof leaveTypeInput === 'object' 
       ? (leaveTypeInput.typeName || leaveTypeInput.id) 
       : leaveTypeInput;
 
-    // ค้นหาใน Master Data
     const found = leaveTypesMaster.find(
       (item) => item.typeName === typeIdOrName || item.id === typeIdOrName
     );
@@ -65,19 +60,14 @@ const AttendanceCalendar = ({ year, month, stats, leaveTypesMaster }) => {
     if (found && found.label) {
       return found.label[currentLang] || found.label.en || found.typeName;
     }
-
-    return typeIdOrName; // Fallback ถ้าไม่เจอจริงๆ
+    return typeIdOrName;
   };
 
-  /**
-   * ฟังก์ชันแปลภาษาสำหรับวันหยุด (Holiday)
-   */
   const getHolidayLabel = (holidayName) => {
     if (!holidayName) return "";
     if (typeof holidayName === "object") {
       return holidayName[currentLang] || holidayName.en || "";
     }
-    // กรณีมาเป็น JSON String
     try {
       const parsed = JSON.parse(holidayName);
       return parsed[currentLang] || parsed.en || holidayName;
@@ -109,7 +99,6 @@ const AttendanceCalendar = ({ year, month, stats, leaveTypesMaster }) => {
     const dateStr = getDateStr(d);
     const events = [];
 
-    // 1. วันหยุด (Holiday)
     const holidayObj = stats.holidayDates?.find((h) => h.date === dateStr);
     if (holidayObj) {
       events.push({
@@ -118,7 +107,6 @@ const AttendanceCalendar = ({ year, month, stats, leaveTypesMaster }) => {
       });
     }
 
-    // 2. การลา (Leave) ✅ ใช้ตัวแปลภาษาที่ Match กับ Master Data
     const leaveObj = stats.leaveDates?.find((l) => l.date === dateStr);
     if (leaveObj) {
       events.push({
@@ -127,7 +115,6 @@ const AttendanceCalendar = ({ year, month, stats, leaveTypesMaster }) => {
       });
     }
 
-    // 3. ขาดงาน/สาย/ออกก่อน
     if (stats.absentDates?.some((a) => a === dateStr)) {
       events.push({ label: t("history.absent"), color: "bg-rose-500 text-white" });
     }
@@ -169,13 +156,12 @@ export default function AttendanceDashboard() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [stats, setStats] = useState(null);
-  const [leaveTypes, setLeaveTypes] = useState([]); // ✅ เก็บ Dictionary สำหรับแปลภาษา
+  const [leaveTypes, setLeaveTypes] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const currentLang = i18n.language?.split("-")[0] || "en";
 
-  // โหลดข้อมูล Stats และ Leave Types (Master) พร้อมกัน
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
@@ -185,7 +171,26 @@ export default function AttendanceDashboard() {
           getAttendanceStats({ year, month, employeeId: user.id }),
           getLeaveTypes()
         ]);
-        setStats({ ...statsRes.stats, employeeName: statsRes.employee?.name });
+
+        const emp = statsRes.employee;
+        
+        // ✅ แก้ไข: Logic การดึงชื่อแบบ Safe Mode ป้องกัน "undefined undefined"
+        // พยายามดึงจาก emp ก่อน (รองรับทั้ง camelCase และ snake_case) ถ้าไม่มีให้ดึงจาก user context
+        const fName = emp?.firstName || emp?.first_name || user?.firstName || user?.first_name || "";
+        const lName = emp?.lastName || emp?.last_name || user?.lastName || user?.last_name || "";
+        const fullName = `${fName} ${lName}`.trim() || user?.username || "Employee";
+
+        // ✅ แก้ไข: Logic ดึง Role/Dept แบบ Safe Mode
+        const rName = emp?.role?.name || (typeof user?.role === 'object' ? user.role.name : user?.role) || "N/A";
+        const dName = emp?.department?.name || (typeof user?.department === 'object' ? user.department.name : user?.department) || "";
+        
+        setStats({ 
+          ...statsRes.stats, 
+          employeeName: fullName,
+          roleName: rName,
+          departmentName: dName
+        });
+        
         setLeaveTypes(typesRes);
       } catch (e) {
         console.error("Dashboard Load Error:", e);
@@ -195,21 +200,17 @@ export default function AttendanceDashboard() {
     })();
   }, [year, month, user]);
 
-  // แปลภาษาสำหรับกราฟวงกลม
   const leaveBreakdownData = useMemo(() => {
     if (!stats?.leaveBreakdown || leaveTypes.length === 0) return [];
     const COLORS = ["#8B5CF6", "#F59E0B", "#6366F1", "#EC4899", "#14B8A6"];
     
     return Object.entries(stats.leaveBreakdown).map(([key, value], i) => {
-      // ค้นหาใน dictionary
       const typeInfo = leaveTypes.find(t => t.typeName === key || t.id === key);
       const label = typeInfo?.label?.[currentLang] || typeInfo?.label?.en || key;
-      
       return { name: label, value, color: COLORS[i % COLORS.length] };
     });
   }, [stats, leaveTypes, currentLang]);
 
-  // สำหรับกราฟมาทำงาน (Present/Leave/Absent)
   const attendanceRatioData = useMemo(() => {
     if (!stats) return [];
     return [
@@ -229,15 +230,49 @@ export default function AttendanceDashboard() {
     <div className="p-6 max-w-7xl mx-auto space-y-8 bg-slate-50/30 min-h-screen">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-         <div className="flex items-center gap-3">
+         <div className="flex items-center gap-4">
+             {/* Icon Box */}
              <div className="p-3 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-100">
                 <Clock size={32} />
              </div>
+             
+             {/* Info Section */}
              <div>
                  <h1 className="text-3xl font-black text-slate-800 tracking-tight">{t("attendanceDashboard.title")}</h1>
-                 <p className="text-sm text-slate-400 font-bold uppercase tracking-wider">
-                    {t("attendanceDashboard.viewing")}: <span className="text-blue-600">{stats?.employeeName || user?.firstName}</span>
-                 </p>
+                 
+                 <div className="flex flex-wrap items-center gap-2 mt-1">
+                    <span className="text-sm text-slate-400 font-bold uppercase tracking-wider">
+                        {t("attendanceDashboard.viewing")}:
+                    </span>
+                    
+                    <span className="text-blue-600 font-bold text-sm">
+                        {stats?.employeeName}
+                    </span>
+
+                    {/* Badge แสดง Role & Department */}
+                    <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-200 ml-2">
+                        {stats?.roleName && stats.roleName !== "N/A" && (
+                             <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[10px] font-bold uppercase tracking-wide border border-purple-100">
+                                <BadgeCheck size={12} /> {stats.roleName}
+                             </span>
+                        )}
+                        {stats?.departmentName && stats.departmentName !== "-" && (
+                             <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-50 text-orange-600 text-[10px] font-bold uppercase tracking-wide border border-orange-100">
+                                <Building2 size={12} /> {stats.departmentName}
+                             </span>
+                        )}
+                    </div>
+                 </div>
+                 
+                 {/* Mobile View: Role/Dept */}
+                 <div className="flex sm:hidden items-center gap-2 mt-2">
+                    {stats?.roleName && stats.roleName !== "N/A" && (
+                        <span className="text-[10px] text-purple-600 bg-purple-50 border border-purple-100 px-2 py-1 rounded-md">{stats.roleName}</span>
+                    )}
+                    {stats?.departmentName && stats.departmentName !== "-" && (
+                        <span className="text-[10px] text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-md">{stats.departmentName}</span>
+                    )}
+                 </div>
              </div>
          </div>
 
