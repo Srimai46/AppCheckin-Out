@@ -1,5 +1,5 @@
 // frontend/src/pages/employees/EmployeeList.jsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -16,14 +16,25 @@ import EmployeesTable from "./employeeList/components/EmployeesTable";
 import CreateEmployeeModal from "./employeeList/modals/CreateEmployeeModal";
 
 import useEmployees from "./employeeList/hooks/useEmployees";
-import { buildCounts, filterEmployees, paginate } from "./employeeList/utils/employeeFilters";
+import {
+  buildCounts,
+  filterEmployees,
+  paginate,
+} from "./employeeList/utils/employeeFilters";
+
+/** รองรับ dept หลายรูปแบบ (string / object) */
+const pickDeptName = (e) => {
+  const raw = e?.department?.name ?? e?.departmentName ?? e?.department ?? "";
+  const d = String(raw ?? "").trim();
+  return d || "Unassigned";
+};
 
 export default function EmployeeList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
   // filters
-  const [departmentFilter, setDepartmentFilter] = useState("all"); // ✅ NEW: all | HR | IT | ... | Unassigned
+  const [departmentFilter, setDepartmentFilter] = useState("all"); // all | HR | IT | ... | Unassigned
   const [roleFilter, setRoleFilter] = useState("all"); // all | Worker | HR
   const [statusFilter, setStatusFilter] = useState("all"); // all | active | inactive
   const [activeTab, setActiveTab] = useState("active"); // active | inactive
@@ -47,23 +58,18 @@ export default function EmployeeList() {
   // export all (chooser + 2 pages)
   const [exportAllChooserOpen, setExportAllChooserOpen] = useState(false);
   const [exportAllWorkbookOpen, setExportAllWorkbookOpen] = useState(false);
-  const [exportAllEmployeesListOpen, setExportAllEmployeesListOpen] = useState(false);
+  const [exportAllEmployeesListOpen, setExportAllEmployeesListOpen] =
+    useState(false);
 
-  const {
-    employees,
-    loading,
-    fetchEmployees,
-    createEmployee,
-    isCreating,
-  } = useEmployees();
+  const { employees, loading, fetchEmployees, createEmployee, isCreating } =
+    useEmployees();
 
   const counts = useMemo(() => buildCounts(employees), [employees]);
 
   const departmentOptions = useMemo(() => {
     const set = new Set();
     (employees || []).forEach((e) => {
-      const d = String(e?.department ?? "").trim();
-      set.add(d || "Unassigned");
+      set.add(pickDeptName(e));
     });
     return ["all", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [employees]);
@@ -80,12 +86,10 @@ export default function EmployeeList() {
 
   const { totalPages, pageItems } = useMemo(() => {
     return paginate(filteredEmployees, page, PAGE_SIZE);
-  }, [filteredEmployees, page]);
+  }, [filteredEmployees, page, PAGE_SIZE]);
 
-  // reset page when filters change
-  useMemo(() => {
+  useEffect(() => {
     setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, departmentFilter, roleFilter, statusFilter, search]);
 
   return (
@@ -97,7 +101,7 @@ export default function EmployeeList() {
         </h1>
 
         <div className="flex items-center gap-2">
-          {/* ✅ Export All */}
+          {/* Export All */}
           <button
             type="button"
             onClick={() => setExportAllChooserOpen(true)}
@@ -144,7 +148,8 @@ export default function EmployeeList() {
                 : "text-gray-400 hover:text-gray-600"
             }`}
           >
-            <UserMinus size={18} /> {t("employeeList.resignedTab")} ({counts.inactive})
+            <UserMinus size={18} /> {t("employeeList.resignedTab")} (
+            {counts.inactive})
           </button>
         </div>
 
@@ -153,7 +158,6 @@ export default function EmployeeList() {
           departmentFilter={departmentFilter}
           setDepartmentFilter={setDepartmentFilter}
           departmentOptions={departmentOptions}
-
           roleFilter={roleFilter}
           setRoleFilter={setRoleFilter}
           statusFilter={statusFilter}
@@ -201,7 +205,7 @@ export default function EmployeeList() {
         }}
       />
 
-      {/* ✅ Export All chooser */}
+      {/* Export All chooser */}
       <ExportAllChooser
         open={exportAllChooserOpen}
         onClose={() => setExportAllChooserOpen(false)}
@@ -212,14 +216,14 @@ export default function EmployeeList() {
         }}
       />
 
-      {/* ✅ (1) Workbook export: per employee sheets */}
+      {/* (1) Workbook export: per employee sheets */}
       <XlsxForEmployeesWorkbook
         open={exportAllWorkbookOpen}
         onClose={() => setExportAllWorkbookOpen(false)}
         employees={filteredEmployees}
       />
 
-      {/* ✅ (2) Export employee list */}
+      {/* (2) Export employee list */}
       <CsvForEmployeesAll
         open={exportAllEmployeesListOpen}
         onClose={() => setExportAllEmployeesListOpen(false)}
