@@ -187,7 +187,9 @@ exports.createLeaveRequest = async (req, res) => {
 
       const admins = await tx.employee.findMany({
         where: { 
-            role: { name: "HR" }, // ใช้ Relation
+            role: {
+              name: { in: ["HR", "ADMIN"] }
+            },
             id: { not: userId } 
         },
         select: { id: true },
@@ -237,6 +239,11 @@ exports.createLeaveRequest = async (req, res) => {
       io.to("hr_group").emit("update_pending_count", {
         count: result.totalPendingCount,
         message: result.message,
+      });
+
+      io.to("admin_group").emit("notification_refresh");
+      io.to("admin_group").emit("update_pending_count", {
+        count: result.totalPendingCount,
       });
 
       if (result.adminUpdates.length > 0) {
@@ -339,7 +346,9 @@ exports.cancelLeaveRequest = async (req, res) => {
 
       const admins = await tx.employee.findMany({
         where: { 
-            role: { name: "HR" } // ต้องเช็คผ่าน role.name
+            role: {
+              name: { in: ["HR", "ADMIN"] }
+            }
         },
         select: { id: true },
       });
@@ -394,6 +403,11 @@ exports.cancelLeaveRequest = async (req, res) => {
       io.to("hr_group").emit("update_pending_count", {
         count: result.totalPendingCount,
         message: result.messageToHr
+      });
+
+      io.to("admin_group").emit("notification_refresh");
+      io.to("admin_group").emit("update_pending_count", {
+        count: result.totalPendingCount,
       });
 
       result.adminUpdates.forEach((update) => {
@@ -891,6 +905,11 @@ exports.updateLeaveStatus = async (req, res) => {
 
       // 6.2 อัปเดตยอด Badge ของ HR
       io.to("hr_group").emit("update_pending_count", {
+        count: result.totalPendingCount
+      });
+
+      io.to("admin_group").emit("notification_refresh");
+      io.to("admin_group").emit("update_pending_count", {
         count: result.totalPendingCount
       });
 
