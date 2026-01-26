@@ -519,20 +519,17 @@ exports.getMyLeaves = async (req, res) => {
 exports.getAllLeaves = async (req, res) => {
   try {
     const { status, year, employeeName, hrAction } = req.query;
-
     const where = {};
 
-    // กรองตามสถานะ
     if (status) where.status = status;
 
-    // กรองตามปี
     if (year) {
-      const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
-      const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
-      where.startDate = { gte: startOfYear, lte: endOfYear };
+      where.startDate = {
+        gte: new Date(`${year}-01-01T00:00:00.000Z`),
+        lte: new Date(`${year}-12-31T23:59:59.999Z`),
+      };
     }
 
-    // กรองตามชื่อพนักงาน
     if (employeeName) {
       where.employee = {
         OR: [
@@ -542,57 +539,52 @@ exports.getAllLeaves = async (req, res) => {
       };
     }
 
-    // กรองรายการที่จัดการโดย HR คนปัจจุบัน
     if (hrAction === "true") {
       where.approvedByHrId = req.user.id;
     }
-
-    // ดึงข้อมูลวันหยุด
-    const holidays = await prisma.holiday.findMany({ select: { date: true } });
-    const holidayDates = holidays.map((h) =>
-      new Date(h.date).toLocaleDateString("en-CA")
-    );
 
     const leaves = await prisma.leaveRequest.findMany({
       where,
       include: {
         employee: {
-          select: { 
-            id: true, 
-            firstName: true, 
-            lastName: true, 
-            email: true,
-            role: { select: { name: true } }, 
-            department: { select: { name: true } } 
+          include: {
+            role: true,
+            department: true,
           },
         },
-        leaveType: { select: { typeName: true } },
-        approvedByHr: { select: { firstName: true, lastName: true } },
+        leaveType: true,
+        approvedByHr: {
+          select: { firstName: true, lastName: true },
+        },
       },
       orderBy: { requestedAt: "desc" },
     });
 
-    const result = leaves.map((l) => {
-      const workingDays = getWorkingDaysList(l.startDate, l.endDate, holidayDates);
-
-      const hrFullName = l.approvedByHr
-        ? `${l.approvedByHr.firstName} ${l.approvedByHr.lastName}`.trim()
-        : null;
-
-      return {
+    res.json(
+      leaves.map((l) => ({
         id: l.id,
-        employeeId: l.employee.id,
-        name: `${l.employee.firstName} ${l.employee.lastName}`,
-        departmentName: l.employee?.department?.name || null,
-        email: l.employee.email,
-        role: l.employee.role?.name || "-",
-        department: l.employee.department?.name || "-",
+        employeeId: l.employeeId,
 
-        type: l.leaveType.typeName,
+        employee: l.employee,
+
+        name: l.employee
+          ? `${l.employee.firstName} ${l.employee.lastName}`.trim()
+          : "-",
+
+        roleKey: l.employee?.role?.key || "-",
+        roleName: l.employee?.role?.name || "-",
+        departmentKey: l.employee?.department?.key || "-",
+        departmentName: l.employee?.department?.name || "-",
+
+        role: l.employee?.role?.name || "-",
+        department: l.employee?.department?.name || "-",
+
+        type: l.leaveType?.typeName || "-",
         startDate: l.startDate,
         endDate: l.endDate,
         totalDays: Number(l.totalDaysRequested),
         status: l.status,
+
         reason: l.reason,
         rejectionReason: l.rejectionReason,
         cancelReason: l.cancelReason,
@@ -600,21 +592,17 @@ exports.getAllLeaves = async (req, res) => {
         requestedAt: l.requestedAt,
 
         actedByHrId: l.approvedByHrId || null,
-        actedByHrName: hrFullName,
-
-        approvedBy: l.status === "Approved" ? hrFullName : null,
-        rejectedBy: l.status === "Rejected" ? hrFullName : null,
+        actedByHrName: l.approvedByHr
+          ? `${l.approvedByHr.firstName} ${l.approvedByHr.lastName}`.trim()
+          : null,
 
         approvalDate: l.approvalDate,
         isSpecialApproved: l.isSpecialApproved,
-        workingDaysList: workingDays,
-      };
-    });
-
-    res.json(result);
-  } catch (error) {
-    console.error("getAllLeaves Error:", error);
-    res.status(500).json({ error: "Failed to retrieve overall leave data." });
+      }))
+    );
+  } catch (err) {
+    console.error("getAllLeaves Error:", err);
+    res.status(500).json({ error: err.message });
   }
 };
 
@@ -634,8 +622,22 @@ exports.getPendingRequests = async (req, res) => {
             lastName: true,
             email: true,
             profileImageUrl: true,
-            role: { select: { name: true } },
-            department: { select: { name: true } },
+
+            role: {
+              select: {
+                id: true,
+                key: true,
+                name: true,
+              },
+            },
+
+            department: {
+              select: {
+                id: true,
+                key: true,
+                name: true,
+              },
+            },
 
             leaveQuotas: {
               where: { year: currentYear },
@@ -676,28 +678,29 @@ exports.getPendingRequests = async (req, res) => {
 
       const fullName =
         `${leave.employee?.firstName || ""} ${leave.employee?.lastName || ""}`.trim() ||
-        leave.name ||
         "-";
 
-      // ✅ role / department (ส่งออกให้ FE ใช้ได้ชัวร์)
-      const deptName = String(leave.employee?.department?.name || "").trim();
-      const roleName = String(leave.employee?.role?.name || "").trim();
+      const role = leave.employee?.role;
+      const dept = leave.employee?.department;
 
-      // normalize fallback ให้ consistent
-      const departmentSafe = deptName || "-";
-      const roleSafe = roleName || "-";
+      const roleKey = role?.key || "-";
+      const roleName = role?.name || "-";
+
+      const departmentKey = dept?.key || "-";
+      const departmentName = dept?.name || "-";
 
       return {
         id: leave.id,
         employeeId: leave.employeeId,
         name: fullName,
 
-        // ✅ ทั้ง 2 key (เผื่อ FE อ่านคนละแบบ)
-        departmentName: deptName || null,
-        department: departmentSafe,
+        roleKey,
+        roleName,
+        departmentKey,
+        departmentName,
 
-        roleName: roleSafe,
-        role: roleSafe,
+        role: roleName,
+        department: departmentName,
 
         email: leave.employee?.email || null,
 

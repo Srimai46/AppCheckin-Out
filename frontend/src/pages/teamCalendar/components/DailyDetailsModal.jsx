@@ -98,35 +98,19 @@ const normalizeKey = (v) => {
  */
 const resolveDepartmentKey = (leaf) => {
   const raw =
-    leaf?.departmentKey ||
-    leaf?.departmentName ||
-    leaf?.department?.key ||
-    leaf?.department?.name ||
     leaf?.department ||
-    leaf?.deptKey ||
-    leaf?.deptName ||
-    leaf?.dept ||
-    leaf?.employeeDepartment ||
-    leaf?.employeeDept ||
-    leaf?.employee?.departmentKey ||
-    leaf?.employee?.departmentName ||
-    leaf?.employee?.department?.key ||
-    leaf?.employee?.department?.name ||
+    leaf?.departmentName ||
+    leaf?.department?.name ||
     leaf?.employee?.department ||
+    leaf?.employee?.departmentName ||
+    leaf?.employee?.department?.name ||
     "";
 
   const s = String(raw ?? "").trim();
   if (!s) return "-";
 
-  const upper = s.toUpperCase().replace(/\s+/g, " ").trim();
-
-  // mapping แบบ “ชื่อเต็ม -> key ย่อ”
-  if (upper === "HUMAN RESOURCES") return "HR";
-  if (upper === "GENERAL AFFAIRS") return "GA";
-  if (upper === "INFORMATION TECHNOLOGY") return "IT";
-
-  // ถ้าเป็น "HR", "GA", "IT" หรือชื่อแผนกอื่น ก็คืนเป็น key เดิม
-  return upper;
+  // ใช้ค่าจาก DB ตรง ๆ (normalize แค่รูปแบบ)
+  return s.toUpperCase();
 };
 
 /**
@@ -134,34 +118,20 @@ const resolveDepartmentKey = (leaf) => {
  * แล้ว map ให้เป็น key มาตรฐาน (WORKER/HR/...)
  */
 const resolveRoleKey = (leaf) => {
+  // ✅ ใช้ key จาก BE ก่อนเสมอ
   const raw =
     leaf?.roleKey ||
     leaf?.roleName ||
-    leaf?.role?.key ||
-    leaf?.role?.name ||
     leaf?.role ||
-    leaf?.position ||
-    leaf?.employeeRole ||
-    leaf?.employee?.roleKey ||
-    leaf?.employee?.roleName ||
-    leaf?.employee?.role?.key ||
     leaf?.employee?.role?.name ||
     leaf?.employee?.role ||
-    leaf?.employee?.position ||
+    leaf?.position ||
     "";
 
   const s = String(raw ?? "").trim();
   if (!s) return "-";
 
-  const v = s.toUpperCase().replace(/\s+/g, " ").trim();
-
-  // map ให้เป็น key ที่ใช้ filter ได้แน่นอน
-  if (v.includes("HUMAN RESOURCES")) return "HR";
-  if (v === "EMPLOYEE" || v === "STAFF") return "WORKER";
-  if (v.includes("WORKER")) return "WORKER";
-  if (v.includes("HR")) return "HR";
-
-  return v;
+  return s.toUpperCase().replace(/\s+/g, " ").trim();
 };
 
 export default function DailyDetailsModal({
@@ -259,10 +229,26 @@ export default function DailyDetailsModal({
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [rows]);
 
+  useEffect(() => {
+    console.log("ROLE KEYS:", roleKeys);
+    console.log("SAMPLE ROW:", rows?.[0]);
+  }, [roleKeys, rows]);
+
+  useEffect(() => {
+    if (!rows?.length) return;
+
+    console.log("SAMPLE ROW:", rows[0]);
+    console.log("EMPLOYEE:", rows[0].employee);
+    console.log("ROLE:", rows[0].employee?.role);
+    console.log("DEPARTMENT:", rows[0].employee?.department);
+
+  }, [rows]);
+
 
   // รองรับ DepartmentDropdown ที่ต้องการ object items
   const deptItems = deptKeys.map((k) => ({ id: k, label: k, }));
-  const roleItems = roleKeys.map((k) => ({ id: k, name: k, }));
+  const roleItems = roleKeys.map((k) => ({ id: k, label: k, }));
+
 
   const resolveLeaveLabel = useCallback(
     (leaf) => {

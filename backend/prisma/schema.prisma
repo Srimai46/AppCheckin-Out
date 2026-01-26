@@ -66,10 +66,13 @@ enum CheckOutStatus {
 // 2. Organization Structure
 // ==========================================
 
-// ✅ NEW: Role Model (Dynamic Role)
+// Role Model (Dynamic Role)
 model Role {
   id          Int     @id @default(autoincrement()) @map("role_id")
-  name        String  @unique @db.VarChar(50) // e.g., "HR", "WORKER", "ADMIN"
+
+  key         String  @unique @db.VarChar(50)
+  name        String  @db.VarChar(100)
+
   description String? @db.Text
   permissions Json?   @map("permissions") // เก็บ config สิทธิ์ (Optional)
 
@@ -82,16 +85,20 @@ model Role {
   @@map("roles")
 }
 
-// ✅ Model Department (Dynamic Department)
+// Model Department (Dynamic Department)
 model Department {
   id          Int     @id @default(autoincrement()) @map("department_id")
-  name        String  @unique @db.VarChar(100)
+
+  key         String  @unique @db.VarChar(50)
+  name        String  @db.VarChar(100)
+
   description String? @db.Text
 
   employees  Employee[]
   workConfig WorkConfiguration?
-  createdAt  DateTime           @default(now()) @map("created_at")
-  updatedAt  DateTime           @updatedAt @map("updated_at")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("departments")
 }
