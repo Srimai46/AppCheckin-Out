@@ -41,28 +41,61 @@ async function main() {
   // 2.1 Create Roles
   console.log("🏗️ Creating Roles...");
   const roleAdmin = await prisma.role.create({
-    data: { name: "ADMIN", description: "System Administrator" },
+    data: {
+      key: "ADMIN",
+      name: "ADMIN",
+      description: "System Administrator",
+    },
   });
+
   const roleHr = await prisma.role.create({
-    data: { name: "HR", description: "Human Resources Staff" },
+    data: {
+      key: "HR",
+      name: "HR",
+      description: "Human Resources Staff",
+    },
   });
+
   const roleWorker = await prisma.role.create({
-    data: { name: "WORKER", description: "General Employee" },
+    data: {
+      key: "WORKER",
+      name: "WORKER",
+      description: "General Employee",
+    },
   });
 
   // 2.2 Create Departments
   console.log("🏗️ Creating Departments...");
-  const deptHr = await prisma.department.create({
-    data: { name: "HR", description: "Human Resources Department" },
+    const deptHr = await prisma.department.create({
+    data: {
+      key: "HR",
+      name: "HR",
+      description: "Human Resources Department",
+    },
   });
+
   const deptIt = await prisma.department.create({
-    data: { name: "IT", description: "Information Technology" },
+    data: {
+      key: "IT",
+      name: "IT",
+      description: "Information Technology",
+    },
   });
+
   const deptSales = await prisma.department.create({
-    data: { name: "SALES", description: "Sales & Marketing" },
+    data: {
+      key: "SALES",
+      name: "SALES",
+      description: "Sales & Marketing",
+    },
   });
+
   const deptOps = await prisma.department.create({
-    data: { name: "OPERATIONS", description: "Operations & Logistics" },
+    data: {
+      key: "OPERATIONS",
+      name: "OPERATIONS",
+      description: "Operations & Logistics",
+    },
   });
 
   // ==========================================

@@ -18,17 +18,23 @@ import AuditLog from "../pages/audit/AuditLog";
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen text-blue-600 font-black uppercase tracking-widest">
-        Loading System...
-      </div>
-    );
+  if (!user && !loading) {
+    return <Navigate to="/login" replace />;
   }
 
-  if (!user) return <Navigate to="/login" replace />;
-
-  return children;
+  return (
+    <>
+      {children}
+      {loading && (
+        <div className="fixed inset-0 bg-white/60 z-[9999]
+                        flex items-center justify-center">
+          <div className="text-blue-600 font-black">
+            Loading System...
+          </div>
+        </div>
+      )}
+    </>
+  );
 };
 
 export default function AppRouter() {

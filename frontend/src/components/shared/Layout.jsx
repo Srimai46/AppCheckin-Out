@@ -161,19 +161,22 @@ export default function Layout() {
      }`;
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
+    <div className="flex h-screen bg-gray-50 font-sans overflow-x-hidden">
       {/* Sidebar (Hover Expand) */}
       <aside
         className="
           group
           w-20 hover:w-64
-          bg-[#001529] text-white
+          bg-[#001529]
+          text-white
           flex flex-col
-          shadow-2xl z-30
-          transition-all duration-300 ease-in-out
+          shadow-2xl
+          z-30
+          transition-[width] duration-300 ease-in-out
           overflow-hidden
         "
       >
+
       {/* Header Profile */}
         <div
           className="
@@ -207,7 +210,7 @@ export default function Layout() {
 
           {openMenu.main && (
             <>
-              <NavLink to="/dashboard" className={navStyle}>
+              <NavLink to="/main" className={navStyle}>
                 <LayoutDashboard size={18} />
                 <span className="hidden group-hover:inline font-bold text-sm">
                   {t("dashboard.attendance")}
@@ -348,7 +351,7 @@ export default function Layout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[#F8FAFC]">
           <div className="p-8 max-w-[1400px] mx-auto">
             <Outlet />
           </div>
