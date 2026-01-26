@@ -679,11 +679,26 @@ exports.getPendingRequests = async (req, res) => {
         leave.name ||
         "-";
 
+      // ✅ role / department (ส่งออกให้ FE ใช้ได้ชัวร์)
+      const deptName = String(leave.employee?.department?.name || "").trim();
+      const roleName = String(leave.employee?.role?.name || "").trim();
+
+      // normalize fallback ให้ consistent
+      const departmentSafe = deptName || "-";
+      const roleSafe = roleName || "-";
+
       return {
         id: leave.id,
         employeeId: leave.employeeId,
         name: fullName,
-        departmentName: leave.employee?.department?.name || null,
+
+        // ✅ ทั้ง 2 key (เผื่อ FE อ่านคนละแบบ)
+        departmentName: deptName || null,
+        department: departmentSafe,
+
+        roleName: roleSafe,
+        role: roleSafe,
+
         email: leave.employee?.email || null,
 
         type: leave.leaveType?.typeName || "-",

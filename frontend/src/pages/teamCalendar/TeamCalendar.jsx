@@ -30,8 +30,6 @@ import { getPageNumbers, clamp } from "./helpers/pagination";
 import {
   countLeavesToday,
   leavesByDayAndType,
-  splitLeavesByStatus,
-  filterLeaveRows,
   buildModalSummary,
   buildOnLeaveIdSet,
 } from "./helpers/leaveSelectors";
@@ -41,12 +39,27 @@ import CalendarGrid from "./components/CalendarGrid";
 import TeamAttendancePanel from "./components/TeamAttendancePanel";
 import DailyDetailsModal from "./components/DailyDetailsModal";
 
+/** ✅ status -> tab แบบทนทาน (กัน Pending/Withdraw_Pending/casing) */
+const statusToTab = (status) => {
+  const s = String(status || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
+
+  if (s === "APPROVED") return "APPROVED";
+  if (s === "REJECTED") return "REJECTED";
+
+  // ทุกอย่างที่เป็น pending/withdraw/cancel pending ให้ไปอยู่ PENDING
+  if (s.includes("PENDING")) return "PENDING";
+
+  // fallback: ถ้าไม่รู้จัก ให้ไป pending ก่อน (กันข้อมูลหลุด)
+  return "PENDING";
+};
+
 export default function TeamCalendar() {
   const { t, i18n } = useTranslation();
 
   const [currentDate, setCurrentDate] = useState(new Date());
-
-  // ✅ date-fns locale ตามภาษา
   const dfLocale = useMemo(() => (i18n.language === "th" ? thLocale : enUS), [i18n.language]);
 
   // Leaves
@@ -88,27 +101,17 @@ export default function TeamCalendar() {
   const goNext = () => setCurrentDate((d) => addMonths(d, 1));
   const goToday = () => setCurrentDate(new Date());
 
-  // Selected day leaves
+  // ✅ Leaves ของวันนั้น (ตาม type filter)
   const leavesOfSelectedDay = useMemo(
     () => leavesByDayAndType(leaves, selectedDate, selectedTypes, matchLeaveType),
     [leaves, selectedDate, selectedTypes]
   );
 
-  const { pending, approved, rejected } = useMemo(
-    () => splitLeavesByStatus(leavesOfSelectedDay),
-    [leavesOfSelectedDay]
-  );
-
+  // ✅ เอา “tab filter” ไว้ที่นี่อย่างเดียว แล้วส่งให้ modal กรอง Role/Dept/Search ต่อ
   const modalRows = useMemo(() => {
-    if (modalTab === "APPROVED") return approved;
-    if (modalTab === "REJECTED") return rejected;
-    return pending;
-  }, [modalTab, pending, approved, rejected]);
-
-  const filteredModalRows = useMemo(
-    () => filterLeaveRows(modalRows, modalRoleFilter, modalSearch),
-    [modalRows, modalRoleFilter, modalSearch]
-  );
+    const target = String(modalTab || "PENDING").toUpperCase();
+    return (leavesOfSelectedDay || []).filter((leaf) => statusToTab(leaf?.status) === target);
+  }, [leavesOfSelectedDay, modalTab]);
 
   const resetModalFilters = useCallback(() => {
     setModalTab("PENDING");
@@ -144,15 +147,20 @@ export default function TeamCalendar() {
     await fetchModalAttendance(today);
   }, [fetchModalAttendance, resetModalFilters]);
 
-  // Modal summary
-  const modalOnLeaveIds = useMemo(() => buildOnLeaveIdSet(approved), [approved]);
+  // ✅ modal summary (เหมือนเดิม) — ใช้ approved set สำหรับ onLeave
+  const approvedForSummary = useMemo(
+    () => (leavesOfSelectedDay || []).filter((x) => statusToTab(x?.status) === "APPROVED"),
+    [leavesOfSelectedDay]
+  );
+
+  const modalOnLeaveIds = useMemo(() => buildOnLeaveIdSet(approvedForSummary), [approvedForSummary]);
 
   const modalSummary = useMemo(
     () => buildModalSummary(selectedDate, modalAttendance, modalOnLeaveIds),
     [selectedDate, modalAttendance, modalOnLeaveIds]
   );
 
-  // Team pagination (keep your existing UI but centralize page math)
+  // Team pagination
   const safeTotalTeamPages = useMemo(() => {
     const fromHook = Number(att.totalTeamPages);
     if (Number.isFinite(fromHook) && fromHook >= 1) return fromHook;
@@ -208,7 +216,6 @@ export default function TeamCalendar() {
             </div>
 
             <div className="flex items-center justify-end gap-2">
-
               <ExportCsvButton
                 leaves={leaves}
                 selectedTypes={selectedTypes}
@@ -296,9 +303,8 @@ export default function TeamCalendar() {
         search={modalSearch}
         setSearch={setModalSearch}
         loading={loading || modalAttLoading}
-        rows={filteredModalRows}
+        rows={modalRows}
         refetchLeaves={refetchLeaves}
-        
       />
     </div>
   );

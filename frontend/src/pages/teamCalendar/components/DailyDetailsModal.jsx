@@ -1,5 +1,5 @@
 // src/pages/teamCalendar/components/DailyDetailsModal.jsx
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import {
@@ -29,15 +29,18 @@ import { openAttachment } from "../../../utils/attachmentPreview";
 import Pill from "./Pill";
 import TabButton from "./TabButton";
 import RoleDropdown from "./RoleDropdown";
+import DepartmentDropdown from "./DepartmentDropdown";
 
 import { buildRowName, buildDurationText, typeBadgeTheme } from "../utils";
 
-// Helper สำหรับเลือกสี Text ให้ตัดกับพื้นหลัง (ขาว/ดำ) แบบง่ายๆ
+/* =========================
+   Helpers
+   ========================= */
+
 const getContrastYIQ = (hexcolor) => {
   if (!hexcolor) return "#1f2937";
   const h = String(hexcolor).replace("#", "").trim();
   if (!/^[0-9a-fA-F]{6}$/.test(h)) return "#1f2937";
-
   const r = parseInt(h.substring(0, 2), 16);
   const g = parseInt(h.substring(2, 4), 16);
   const b = parseInt(h.substring(4, 6), 16);
@@ -45,31 +48,120 @@ const getContrastYIQ = (hexcolor) => {
   return yiq >= 128 ? "#1f2937" : "white";
 };
 
-const normalizeDept = (v) => String(v ?? "").trim();
+const norm = (v) => String(v ?? "").trim().toLowerCase();
 
-const resolveDepartment = (leaf) => {
-  // รองรับหลายรูปแบบ (เผื่อ BE/FE เปลี่ยนโครงสร้าง)
+/**
+ * ✅ Dropdown บางตัวส่ง object เช่น {key,label} / {value,label} / {id,name}
+ * ต้องดึง "key" ออกมาก่อน ไม่งั้นจะกลายเป็น "[object Object]"
+ */
+const pickKey = (v) => {
+  if (v && typeof v === "object") {
+    // พยายามดึงค่าที่ “เป็น key จริง” ก่อน
+    return (
+      v.key ??
+      v.value ??
+      v.id ??
+      v.code ??
+      v.name ??
+      v.type ??
+      v.typeName ??
+      v.label ??
+      ""
+    );
+  }
+  return v ?? "";
+};
+
+/**
+ * ✅ Normalize ค่า filter ให้เป็น key มาตรฐาน
+ * - "ALL", "All Departments", "ALL ROLES" -> "ALL"
+ * - อื่น ๆ -> UPPER + trim
+ */
+const normalizeKey = (v) => {
+  const raw = pickKey(v);
+  const s = String(raw ?? "").trim().toUpperCase();
+  const compact = s.replace(/\s+/g, "");
+  if (!s) return "ALL";
+
+  if (s === "ALL") return "ALL";
+  if (s.startsWith("ALL ")) return "ALL";
+  if (compact === "ALLROLES" || compact === "ALLDEPARTMENTS") return "ALL";
+  if (compact === "ALLDEPARTMENT" || compact === "ALLDEPTS") return "ALL";
+  if (compact === "ALLROLE") return "ALL";
+
+  return s;
+};
+
+/**
+ * ✅ รวมค่าที่เป็น “department” จากหลาย field ที่เป็นไปได้
+ * แล้ว map ให้เป็น key มาตรฐาน (HR/GA/IT/...)
+ */
+const resolveDepartmentKey = (leaf) => {
   const raw =
+    leaf?.departmentKey ||
     leaf?.departmentName ||
+    leaf?.department?.key ||
     leaf?.department?.name ||
     leaf?.department ||
+    leaf?.deptKey ||
+    leaf?.deptName ||
+    leaf?.dept ||
     leaf?.employeeDepartment ||
     leaf?.employeeDept ||
+    leaf?.employee?.departmentKey ||
     leaf?.employee?.departmentName ||
+    leaf?.employee?.department?.key ||
     leaf?.employee?.department?.name ||
     leaf?.employee?.department ||
     "";
 
-  const name = normalizeDept(raw);
-  if (!name) return "-";
+  const s = String(raw ?? "").trim();
+  if (!s) return "-";
 
-  // ทำ mapping เบาๆ ให้สวย (ถ้าอยากคงเดิม ให้ลบบล็อคนี้ได้)
-  const upper = name.toUpperCase();
+  const upper = s.toUpperCase().replace(/\s+/g, " ").trim();
+
+  // mapping แบบ “ชื่อเต็ม -> key ย่อ”
   if (upper === "HUMAN RESOURCES") return "HR";
   if (upper === "GENERAL AFFAIRS") return "GA";
+  if (upper === "INFORMATION TECHNOLOGY") return "IT";
 
-  // ถ้า BE ส่งมาเป็น "General" ก็จะกลายเป็น "GENERAL" (ตามดีไซน์ badge uppercase)
+  // ถ้าเป็น "HR", "GA", "IT" หรือชื่อแผนกอื่น ก็คืนเป็น key เดิม
   return upper;
+};
+
+/**
+ * ✅ รวมค่าที่เป็น “role” จากหลาย field ที่เป็นไปได้
+ * แล้ว map ให้เป็น key มาตรฐาน (WORKER/HR/...)
+ */
+const resolveRoleKey = (leaf) => {
+  const raw =
+    leaf?.roleKey ||
+    leaf?.roleName ||
+    leaf?.role?.key ||
+    leaf?.role?.name ||
+    leaf?.role ||
+    leaf?.position ||
+    leaf?.employeeRole ||
+    leaf?.employee?.roleKey ||
+    leaf?.employee?.roleName ||
+    leaf?.employee?.role?.key ||
+    leaf?.employee?.role?.name ||
+    leaf?.employee?.role ||
+    leaf?.employee?.position ||
+    "";
+
+  const s = String(raw ?? "").trim();
+  if (!s) return "-";
+
+  const v = s.toUpperCase().replace(/\s+/g, " ").trim();
+
+  // map ให้เป็น key ที่ใช้ filter ได้แน่นอน
+  if (v.includes("HUMAN RESOURCES")) return "HR";
+  if (v === "EMPLOYEE" || v === "STAFF") return "WORKER";
+  if (v.includes("WORKER")) return "WORKER";
+  if (v.includes("HR")) return "HR";
+
+  return v;
 };
 
 export default function DailyDetailsModal({
@@ -100,13 +192,26 @@ export default function DailyDetailsModal({
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
 
-  // State สำหรับเก็บข้อมูล Leave Types (Label & Color)
+  // ✅ Department filter (local state)
+  const [deptFilter, setDeptFilter] = useState("ALL");
+  const [deptOpen, setDeptOpen] = useState(false);
+
+  const onDeptChange = useCallback((v) => {
+    setDeptFilter(normalizeKey(v));
+  }, []);
+
+  const onRoleChange = useCallback(
+    (v) => {
+      setRoleFilter?.(normalizeKey(v));
+    },
+    [setRoleFilter]
+  );
+
+  // Leave types map (label/color)
   const [leaveTypeMap, setLeaveTypeMap] = useState({});
 
-  // Fetch Leave Types เฉพาะตอน modal เปิด (กัน fetch ตอน component อยู่เบื้องหลัง)
   useEffect(() => {
     if (!open) return;
-
     let active = true;
 
     (async () => {
@@ -118,17 +223,13 @@ export default function DailyDetailsModal({
         (data || []).forEach((lt) => {
           const key = String(lt.typeName || "").trim().toUpperCase();
           if (!key) return;
-
-          map[key] = {
-            label: lt.label || null,
-            color: lt.color || null,
-          };
+          map[key] = { label: lt.label || null, color: lt.color || null };
         });
 
         setLeaveTypeMap(map);
-      } catch (err) {
-        // ไม่ต้อง throw ให้ modal พัง แค่ log
-        console.error("getLeaveTypes failed:", err);
+      } catch {
+        if (!active) return;
+        setLeaveTypeMap({});
       }
     })();
 
@@ -137,13 +238,38 @@ export default function DailyDetailsModal({
     };
   }, [open]);
 
-  // Resolve Label
+  // ✅ dept options มาจาก “departmentKey ที่ resolve แล้ว”
+  const deptKeys = useMemo(() => {
+    const set = new Set();
+    (rows || []).forEach((leaf) => {
+      const dKey = resolveDepartmentKey(leaf);
+      if (!dKey || dKey === "-") return;
+      set.add(String(dKey).toUpperCase());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
+  const roleKeys = useMemo(() => {
+    const set = new Set();
+    (rows || []).forEach((leaf) => {
+      const rKey = resolveRoleKey(leaf);
+      if (!rKey || rKey === "-") return;
+      set.add(String(rKey).toUpperCase());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
+
+  // รองรับ DepartmentDropdown ที่ต้องการ object items
+  const deptItems = deptKeys.map((k) => ({ id: k, label: k, }));
+  const roleItems = roleKeys.map((k) => ({ id: k, name: k, }));
+
   const resolveLeaveLabel = useCallback(
     (leaf) => {
-      // 1) leaf มี label ติดมาหรือไม่
       if (leaf?.label && typeof leaf.label === "object") {
         return (
           leaf.label[lang] ||
+          leaf.label?.[lang?.split("-")?.[0]] ||
           leaf.label.en ||
           Object.values(leaf.label)[0] ||
           leaf?.typeName ||
@@ -152,15 +278,13 @@ export default function DailyDetailsModal({
         );
       }
 
-      const key = String(leaf?.typeName || leaf?.type || "")
-        .trim()
-        .toUpperCase();
-
-      // 2) lookup จาก map
+      const key = String(leaf?.typeName || leaf?.type || "").trim().toUpperCase();
       const fromType = leaveTypeMap[key]?.label;
+
       if (fromType && typeof fromType === "object") {
         return (
           fromType[lang] ||
+          fromType?.[lang?.split("-")?.[0]] ||
           fromType.en ||
           Object.values(fromType)[0] ||
           leaf?.typeName ||
@@ -169,22 +293,50 @@ export default function DailyDetailsModal({
         );
       }
 
-      // 3) fallback
       return leaf?.typeName || leaf?.type || "-";
     },
     [leaveTypeMap, lang]
   );
 
-  // Resolve Color
   const resolveLeaveColor = useCallback(
     (leaf) => {
-      const key = String(leaf?.typeName || leaf?.type || "")
-        .trim()
-        .toUpperCase();
+      const key = String(leaf?.typeName || leaf?.type || "").trim().toUpperCase();
       return leaveTypeMap[key]?.color || null;
     },
     [leaveTypeMap]
   );
+
+  const filteredRows = useMemo(() => {
+    const rf = normalizeKey(roleFilter);
+    const df = normalizeKey(deptFilter);
+    const q = norm(search);
+
+    return (rows || []).filter((leaf) => {
+      // department
+      if (df !== "ALL") {
+        const dKey = normalizeKey(resolveDepartmentKey(leaf));
+        if (dKey !== df) return false;
+      }
+
+      // role
+      if (rf !== "ALL") {
+        const rKey = normalizeKey(resolveRoleKey(leaf));
+        if (rKey !== rf) return false;
+      }
+
+      // search
+      if (q) {
+        const name = buildRowName(leaf);
+        const type = resolveLeaveLabel(leaf);
+        const dKey = resolveDepartmentKey(leaf);
+        const rKey = resolveRoleKey(leaf);
+        const hay = norm([name, type, dKey, rKey, leaf?.reason, leaf?.note].join(" "));
+        if (!hay.includes(q)) return false;
+      }
+
+      return true;
+    });
+  }, [rows, roleFilter, deptFilter, search, resolveLeaveLabel]);
 
   const handleLeaveActionInModal = useCallback(
     async (mode, leaf) => {
@@ -229,18 +381,10 @@ export default function DailyDetailsModal({
           });
         } else {
           const finalStatus = isReject ? "Rejected" : mode;
-          // NOTE: คุณใช้ signature (id, status, rejectionReason) — ต้องตรงกับ leaveService ของคุณ
-          await updateLeaveStatus(
-            leaf.id,
-            finalStatus,
-            isReject ? rejectionReason : null
-          );
+          await updateLeaveStatus(leaf.id, finalStatus, isReject ? rejectionReason : null);
         }
 
-        await alertSuccess(
-          t("common.success"),
-          t("teamCalendar.modal.toast.processedOne")
-        );
+        await alertSuccess(t("common.success"), t("teamCalendar.modal.toast.processedOne"));
         await refetchLeaves?.();
       } catch (err) {
         alertError(
@@ -250,20 +394,26 @@ export default function DailyDetailsModal({
             err?.message ||
             t("teamCalendar.modal.toast.unknownError")
         );
+        // เงียบไว้ใน prod; แต่ยัง log error เพื่อ devtools
         console.error(err);
       }
     },
     [refetchLeaves, t]
   );
 
+  // reset filters when close
+  useEffect(() => {
+    if (!open) {
+      setDeptOpen(false);
+      setDeptFilter("ALL");
+    }
+  }, [open]);
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
-      <div
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
 
       <div className="relative w-full max-w-[1500px] max-h-[94vh] bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100">
         {/* Top Bar */}
@@ -291,26 +441,10 @@ export default function DailyDetailsModal({
           {/* Summary + Day Nav */}
           <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Pill
-                color="bg-emerald-100 text-emerald-700"
-                label={t("teamCalendar.modal.pills.checkedIn")}
-                value={modalSummary?.checkedIn ?? 0}
-              />
-              <Pill
-                color="bg-rose-100 text-rose-700"
-                label={t("teamCalendar.modal.pills.late")}
-                value={modalSummary?.late ?? 0}
-              />
-              <Pill
-                color="bg-slate-100 text-slate-700"
-                label={t("teamCalendar.modal.pills.absent")}
-                value={modalSummary?.absent ?? 0}
-              />
-              <Pill
-                color="bg-sky-100 text-sky-700"
-                label={t("teamCalendar.modal.pills.onLeave")}
-                value={modalSummary?.onLeave ?? 0}
-              />
+              <Pill color="bg-emerald-100 text-emerald-700" label={t("teamCalendar.modal.pills.checkedIn")} value={modalSummary?.checkedIn ?? 0} />
+              <Pill color="bg-rose-100 text-rose-700" label={t("teamCalendar.modal.pills.late")} value={modalSummary?.late ?? 0} />
+              <Pill color="bg-slate-100 text-slate-700" label={t("teamCalendar.modal.pills.absent")} value={modalSummary?.absent ?? 0} />
+              <Pill color="bg-sky-100 text-sky-700" label={t("teamCalendar.modal.pills.onLeave")} value={modalSummary?.onLeave ?? 0} />
             </div>
 
             <div className="flex items-center justify-end gap-2">
@@ -351,6 +485,7 @@ export default function DailyDetailsModal({
                 onClick={() => {
                   setTab?.("PENDING");
                   setRoleOpen?.(false);
+                  setDeptOpen(false);
                 }}
                 label={t("teamCalendar.modal.tabs.pending")}
                 icon={<Clock size={14} />}
@@ -360,6 +495,7 @@ export default function DailyDetailsModal({
                 onClick={() => {
                   setTab?.("APPROVED");
                   setRoleOpen?.(false);
+                  setDeptOpen(false);
                 }}
                 label={t("teamCalendar.modal.tabs.approved")}
                 icon={<CheckCircle2 size={14} />}
@@ -369,6 +505,7 @@ export default function DailyDetailsModal({
                 onClick={() => {
                   setTab?.("REJECTED");
                   setRoleOpen?.(false);
+                  setDeptOpen(false);
                 }}
                 label={t("teamCalendar.modal.tabs.rejected")}
                 icon={<XCircle size={14} />}
@@ -376,18 +513,24 @@ export default function DailyDetailsModal({
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full lg:w-auto">
+              <DepartmentDropdown
+                value={deptFilter}
+                onChange={onDeptChange}
+                open={deptOpen}
+                setOpen={setDeptOpen}
+                widthClass="w-full sm:w-[200px]"
+                size="sm"
+                items={deptItems}
+              />
+
               <RoleDropdown
                 value={roleFilter}
-                onChange={setRoleFilter}
+                onChange={onRoleChange}
+                items={roleItems}
                 open={roleOpen}
                 setOpen={setRoleOpen}
                 widthClass="w-full sm:w-[180px]"
                 size="sm"
-                labels={{
-                  ALL: t("teamCalendar.modal.role.all"),
-                  WORKER: t("teamCalendar.modal.role.worker"),
-                  HR: t("teamCalendar.modal.role.hr"),
-                }}
               />
 
               <input
@@ -438,24 +581,18 @@ export default function DailyDetailsModal({
                 <tbody className="divide-y divide-slate-50">
                   {loading ? (
                     <tr>
-                      <td
-                        colSpan="6"
-                        className="p-16 text-center font-black italic text-blue-500 animate-pulse"
-                      >
+                      <td colSpan="6" className="p-16 text-center font-black italic text-blue-500 animate-pulse">
                         {t("teamCalendar.modal.loading")}
                       </td>
                     </tr>
-                  ) : (rows || []).length === 0 ? (
+                  ) : (filteredRows || []).length === 0 ? (
                     <tr>
-                      <td
-                        colSpan="6"
-                        className="p-16 text-center text-slate-300 font-black uppercase text-sm"
-                      >
+                      <td colSpan="6" className="p-16 text-center text-slate-300 font-black uppercase text-sm">
                         {t("teamCalendar.modal.noData")}
                       </td>
                     </tr>
                   ) : (
-                    (rows || []).map((leaf) => {
+                    (filteredRows || []).map((leaf) => {
                       const name = buildRowName(leaf);
                       const rawType = String(leaf.type || leaf.typeName || "-");
                       const dur = buildDurationText(leaf);
@@ -463,7 +600,7 @@ export default function DailyDetailsModal({
                       const displayLabel = resolveLeaveLabel(leaf);
                       const customColor = resolveLeaveColor(leaf);
 
-                      const dept = resolveDepartment(leaf);
+                      const deptKey = resolveDepartmentKey(leaf);
 
                       const showHrName =
                         tab === "APPROVED"
@@ -473,29 +610,21 @@ export default function DailyDetailsModal({
                           : null;
 
                       return (
-                        <tr
-                          key={leaf.id}
-                          className="hover:bg-slate-50/50 transition-all duration-200"
-                        >
+                        <tr key={leaf.id} className="hover:bg-slate-50/50 transition-all duration-200">
                           <td className="p-5 min-w-[200px]">
-                            <div className="font-black text-slate-700 leading-none tracking-tight">
-                              {name}
-                            </div>
+                            <div className="font-black text-slate-700 leading-none tracking-tight">{name}</div>
 
-                            {/* Department badge */}
-                            <div className="mt-2">
-                              <span
-                                className="inline-flex items-center gap-1 px-3 py-1 rounded-full
-                                           text-[10px] font-black uppercase tracking-widest
-                                           bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm"
-                                title={
-                                  dept !== "-"
-                                    ? `Department: ${dept}`
-                                    : "Department: -"
-                                }
-                              >
-                                ({dept})
-                              </span>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              {deptKey && deptKey !== "-" && (
+                                <span
+                                  className="inline-flex items-center gap-1 px-3 py-1 rounded-full
+                                            text-[10px] font-black uppercase tracking-widest
+                                            bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm"
+                                  title={`Department: ${deptKey}`}
+                                >
+                                  {deptKey}
+                                </span>
+                              )}
                             </div>
                           </td>
 
@@ -525,52 +654,24 @@ export default function DailyDetailsModal({
                           <td className="p-5 min-w-[260px]">
                             <div className="flex flex-col gap-1">
                               {leaf.reason && (
-                                <div
-                                  className="flex items-start gap-1 text-slate-500 text-[11px] leading-tight"
-                                  title={t("teamCalendar.modal.reasonTitle", {
-                                    reason: leaf.reason,
-                                  })}
-                                >
-                                  <MessageCircle
-                                    size={12}
-                                    className="mt-0.5 shrink-0 text-slate-400"
-                                  />
-                                  <span className="truncate max-w-[240px]">
-                                    {leaf.reason}
-                                  </span>
+                                <div className="flex items-start gap-1 text-slate-500 text-[11px] leading-tight">
+                                  <MessageCircle size={12} className="mt-0.5 shrink-0 text-slate-400" />
+                                  <span className="truncate max-w-[240px]">{leaf.reason}</span>
                                 </div>
                               )}
                               {leaf.note && (
-                                <div
-                                  className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight"
-                                  title={t("teamCalendar.modal.noteTitle", {
-                                    note: leaf.note,
-                                  })}
-                                >
-                                  <Info
-                                    size={12}
-                                    className="mt-0.5 shrink-0 text-amber-500"
-                                  />
-                                  <span className="truncate max-w-[240px]">
-                                    {leaf.note}
-                                  </span>
+                                <div className="flex items-start gap-1 text-amber-600 text-[11px] leading-tight">
+                                  <Info size={12} className="mt-0.5 shrink-0 text-amber-500" />
+                                  <span className="truncate max-w-[240px]">{leaf.note}</span>
                                 </div>
                               )}
-                              {!leaf.reason && !leaf.note && (
-                                <span className="text-slate-300 text-[10px] italic">
-                                  -
-                                </span>
-                              )}
+                              {!leaf.reason && !leaf.note && <span className="text-slate-300 text-[10px] italic">-</span>}
                             </div>
                           </td>
 
                           <td className="p-5 min-w-[220px]">
-                            <div className="text-[11px] font-bold text-slate-500 italic whitespace-nowrap">
-                              {dur.range}
-                            </div>
-                            <div className="font-black text-slate-800 text-sm mt-0.5">
-                              {dur.days || "-"}
-                            </div>
+                            <div className="text-[11px] font-bold text-slate-500 italic whitespace-nowrap">{dur.range}</div>
+                            <div className="font-black text-slate-800 text-sm mt-0.5">{dur.days || "-"}</div>
                           </td>
 
                           <td className="p-5 text-center">
@@ -578,14 +679,9 @@ export default function DailyDetailsModal({
                               <button
                                 onClick={() => openAttachment(leaf.attachmentUrl)}
                                 className="p-2 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-100 transition-all group"
-                                title={t(
-                                  "teamCalendar.modal.tooltips.viewAttachment"
-                                )}
+                                title={t("teamCalendar.modal.tooltips.viewAttachment")}
                               >
-                                <ImageIcon
-                                  size={18}
-                                  className="group-hover:scale-110 transition-transform"
-                                />
+                                <ImageIcon size={18} className="group-hover:scale-110 transition-transform" />
                               </button>
                             ) : (
                               <span className="text-[9px] font-black text-slate-200 uppercase tracking-widest italic">
@@ -598,40 +694,25 @@ export default function DailyDetailsModal({
                             {tab === "PENDING" ? (
                               <div className="flex justify-center gap-2">
                                 <button
-                                  onClick={() =>
-                                    handleLeaveActionInModal("Approved", leaf)
-                                  }
+                                  onClick={() => handleLeaveActionInModal("Approved", leaf)}
                                   className="flex items-center gap-2 px-3 py-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100"
-                                  title={t("teamCalendar.modal.tooltips.approve")}
                                 >
-                                  <span className="text-sm font-medium">
-                                    {t("teamCalendar.modal.actions.approve")}
-                                  </span>
+                                  <span className="text-sm font-medium">{t("teamCalendar.modal.actions.approve")}</span>
                                 </button>
 
                                 <button
-                                  onClick={() =>
-                                    handleLeaveActionInModal("Special", leaf)
-                                  }
+                                  onClick={() => handleLeaveActionInModal("Special", leaf)}
                                   className="flex items-center gap-2 px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all border border-purple-100"
-                                  title={t("teamCalendar.modal.tooltips.special")}
                                 >
                                   <Star size={16} />
-                                  <span className="text-sm font-medium">
-                                    {t("teamCalendar.modal.actions.special")}
-                                  </span>
+                                  <span className="text-sm font-medium">{t("teamCalendar.modal.actions.special")}</span>
                                 </button>
 
                                 <button
-                                  onClick={() =>
-                                    handleLeaveActionInModal("Rejected", leaf)
-                                  }
+                                  onClick={() => handleLeaveActionInModal("Rejected", leaf)}
                                   className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-slate-100"
-                                  title={t("teamCalendar.modal.tooltips.reject")}
                                 >
-                                  <span className="text-sm font-medium">
-                                    {t("teamCalendar.modal.actions.reject")}
-                                  </span>
+                                  <span className="text-sm font-medium">{t("teamCalendar.modal.actions.reject")}</span>
                                 </button>
                               </div>
                             ) : (
